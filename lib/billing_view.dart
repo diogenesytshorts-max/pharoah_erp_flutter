@@ -204,3 +204,13 @@ class _ItemEntryFormState extends State<ItemEntryForm> {
     );
   }
 }
+// ... inside ItemEntryForm State ...
+var matchingBatches = ph.batchHistory[widget.med.id] ?? [];
+
+// UI code to show matching batches
+if (matchingBatches.isNotEmpty)
+  SingleChildScrollView(scrollDirection: Axis.horizontal, child: Row(children: matchingBatches.map((b) => 
+    ActionChip(label: Text(b.batch), onTap: () {
+      setState(() { batchC.text = b.batch; expC.text = b.exp; mrpC.text = b.mrp.toString(); rateC.text = b.rate.toString(); });
+    })).toList()
+  )),
