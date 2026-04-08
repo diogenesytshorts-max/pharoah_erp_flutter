@@ -14,22 +14,21 @@ class PdfService {
     String cGst = prefs.getString('compGST') ?? "";
     String cDl = prefs.getString('compDL') ?? "";
     String cPh = prefs.getString('compPh') ?? "";
-    String cEmail = prefs.getString('compEmail') ?? "";
+    String cEm = prefs.getString('compEmail') ?? "";
 
     pdf.addPage(pw.Page(
-      pageFormat: PdfPageFormat.a4.landscape, // STRICT LANDSCAPE
+      pageFormat: PdfPageFormat.a4.landscape,
       margin: const pw.EdgeInsets.all(15),
       build: (pw.Context context) {
         return pw.Container(
           decoration: pw.BoxDecoration(border: pw.Border.all(width: 1)),
           child: pw.Column(children: [
-            // HEADER
             pw.Row(children: [
               pw.Container(width: 320, height: 90, padding: const pw.EdgeInsets.all(5), decoration: pw.BoxDecoration(border: pw.Border.all(width: 0.5)), child: pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
                 pw.Text(cName, style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold, color: PdfColors.blue800)),
                 pw.Text(cAddr, style: const pw.TextStyle(fontSize: 8)),
                 pw.Text("GSTIN: $cGst | DL: $cDl", style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold)),
-                pw.Text("Ph: $cPh | Email: $cEmail", style: const pw.TextStyle(fontSize: 8)),
+                pw.Text("Ph: $cPh | Email: $cEm", style: const pw.TextStyle(fontSize: 8)),
               ])),
               pw.Container(width: 160, height: 90, decoration: pw.BoxDecoration(border: pw.Border.all(width: 0.5)), child: pw.Column(children: [
                 pw.Container(width: double.infinity, color: PdfColors.blue50, child: pw.Center(child: pw.Text("TAX INVOICE", style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold)))),
@@ -46,14 +45,12 @@ class PdfService {
                 pw.Text("Email: ${party.email}", style: const pw.TextStyle(fontSize: 8)),
               ])),
             ]),
-            // TABLE
             pw.Container(color: PdfColors.blue50, child: pw.Row(children: [
               _c("S.N", 30), _c("Product Name", 200, a: pw.Alignment.centerLeft), _c("Pack", 50), _c("Batch", 80), _c("Exp", 50), _c("MRP", 60), _c("Rate", 60), _c("Qty", 50), _c("GST%", 50), _c("Disc", 50), _c("Net Amt", 120),
             ])),
             pw.Expanded(child: pw.Container(decoration: pw.BoxDecoration(border: pw.Border.all(width: 0.5)), child: pw.Column(children: sale.items.map((i)=>pw.Row(children: [
               _ce("${i.srNo}", 30), _ce(i.name, 200, a: pw.Alignment.centerLeft), _ce(i.packing, 50), _ce(i.batch, 80), _ce(i.exp, 50), _ce("${i.mrp}", 60), _ce("${i.rate}", 60), _ce("${i.qty.toInt()}", 50), _ce("${i.gstRate}%", 50), _ce("${i.discountPercent}%", 50), _ce("${i.total.toStringAsFixed(2)}", 120),
             ])).toList()))),
-            // FOOTER
             pw.Container(height: 80, decoration: pw.BoxDecoration(border: pw.Border.all(width: 0.5)), child: pw.Row(children: [
               pw.Container(width: 350, padding: const pw.EdgeInsets.all(5), child: pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
                 pw.Text("Total Items: ${sale.items.length}", style: const pw.TextStyle(fontSize: 8)),
