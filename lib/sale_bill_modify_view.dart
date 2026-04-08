@@ -40,31 +40,37 @@ class _SaleBillModifyViewState extends State<SaleBillModifyView> {
           showDialog(context: context, builder: (c)=>SimpleDialog(title: const Text("Select Party"), children: ph.parties.map((p)=>SimpleDialogOption(child: Text(p.name), onPressed: (){ setState(()=>sP=p); Navigator.pop(c); })).toList()));
         }),
         const Divider(),
-        Expanded(child: ListView.builder(itemCount: list.length, itemBuilder: (c, i) => Card(
-          elevation: 2, margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-          color: list[i].status == "Cancelled" ? Colors.red[50] : Colors.white,
-          child: ListTile(
-            title: Text("${list[i].billNo} | ${list[i].partyName}", style: const TextStyle(fontWeight: FontWeight.bold)),
-            subtitle: Text("Date: ${DateFormat('dd/MM/yyyy').format(list[i].date)} | ₹${list[i].totalAmount.toStringAsFixed(2)}"),
-            trailing: PopupMenuButton<String>(onSelected: (v){
-              final s = list[i];
-              if(v=='v') Navigator.push(context, MaterialPageRoute(builder: (c)=>SaleEntryView(existingSale: s, isReadOnly: true)));
-              if(v=='m') Navigator.push(context, MaterialPageRoute(builder: (c)=>SaleEntryView(existingSale: s)));
-              if(v=='p') PdfService.generateInvoice(s, ph.parties.firstWhere((p)=>p.name==s.partyName, orElse: ()=>ph.parties[0]));
-              if(v=='c') _cD(s, ph);
-              if(v=='d') _dD(s, ph);
-            }, itemBuilder: (c)=>[
-              const PopupMenuItem(value: 'v', child: Text("View")),
-              const PopupMenuItem(value: 'm', child: Text("Modify")),
-              const PopupMenuItem(value: 'p', child: Text("Print")),
-              const PopupMenuItem(value: 'c', child: Text("Cancel Bill")),
-              const PopupMenuItem(value: 'd', child: Text("Delete Bill")),
-            ]),
-          ),
-        )))
+        Expanded(child: ListView.builder(itemCount: list.length, itemBuilder: (c, i) {
+          final s = list[i];
+          return Card(
+            elevation: 2, margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+            color: s.status == "Cancelled" ? Colors.red[50] : Colors.white,
+            child: ListTile(
+              title: Text("${s.billNo} | ${s.partyName}", style: const TextStyle(fontWeight: FontWeight.bold)),
+              subtitle: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text("Date: ${DateFormat('dd/MM/yyyy').format(s.date)} | Total: ₹${s.totalAmount.toStringAsFixed(2)}"),
+                const SizedBox(height: 5),
+                // PRODUCT SUB-DETAILS
+                Text(s.items.map((it) => "${it.name}(Qty:${it.qty.toInt()}, B:${it.batch}, R:${it.rate})").join(", "), style: const TextStyle(fontSize: 10, color: Colors.blueGrey)),
+              ]),
+              isThreeLine: true,
+              trailing: PopupMenuButton<String>(onSelected: (v){
+                if(v=='v') Navigator.push(context, MaterialPageRoute(builder: (c)=>SaleEntryView(existingSale: s, isReadOnly: true)));
+                if(v=='m') Navigator.push(context, MaterialPageRoute(builder: (c)=>SaleEntryView(existingSale: s)));
+                if(v=='p') PdfService.generateInvoice(s, ph.parties.firstWhere((p)=>p.name==s.partyName, orElse: ()=>ph.parties[0]));
+                if(v=='c') ph.cancelBill(s.id);
+                if(v=='d') ph.deleteBill(s.id);
+              }, itemBuilder: (c)=>[
+                const PopupMenuItem(value: 'v', child: Text("View")),
+                const PopupMenuItem(value: 'm', child: Text("Modify")),
+                const PopupMenuItem(value: 'p', child: Text("Print")),
+                const PopupMenuItem(value: 'c', child: Text("Cancel")),
+                const PopupMenuItem(value: 'd', child: Text("Delete")),
+              ]),
+            ),
+          );
+        }))
       ]),
     );
   }
-  void _cD(Sale s, PharoahManager ph) => showDialog(context: context, builder: (c)=>AlertDialog(title: const Text("Cancel Bill?"), content: const Text("Stock will reverse but entry will stay."), actions: [TextButton(onPressed: ()=>Navigator.pop(c), child: const Text("No")), TextButton(onPressed: (){ ph.cancelBill(s.id); Navigator.pop(c); }, child: const Text("Yes"))]));
-  void _dD(Sale s, PharoahManager ph) => showDialog(context: context, builder: (c)=>AlertDialog(title: const Text("Delete Bill?"), content: const Text("Permanently delete and reverse stock."), actions: [TextButton(onPressed: ()=>Navigator.pop(c), child: const Text("No")), TextButton(onPressed: (){ ph.deleteBill(s.id); Navigator.pop(c); }, child: const Text("Yes"))]));
 }
