@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'models.dart';
 
 class PharoahManager with ChangeNotifier {
@@ -14,125 +15,74 @@ class PharoahManager with ChangeNotifier {
     loadAllData();
   }
 
-  // --- FILE PATHS (Storage) ---
+  // --- PERSISTENT SETTINGS ---
+  bool get isSetupDone {
+    final prefs = SharedPreferences.getInstance();
+    // Logic will be handled in UI, but we provide data here
+    return false; 
+  }
+
   Future<File> _getFile(String fileName) async {
     final directory = await getApplicationDocumentsDirectory();
     return File('${directory.path}/$fileName');
   }
 
-  // --- SAVE DATA ---
   Future<void> save() async {
     try {
       final medsFile = await _getFile('medicines.json');
       await medsFile.writeAsString(jsonEncode(medicines.map((e) => e.toMap()).toList()));
-
       final partiesFile = await _getFile('parties.json');
       await partiesFile.writeAsString(jsonEncode(parties.map((e) => e.toMap()).toList()));
-
       final salesFile = await _getFile('sales.json');
       await salesFile.writeAsString(jsonEncode(sales.map((e) => e.toMap()).toList()));
-      
-      notifyListeners(); // UI ko update karne ke liye
-    } catch (e) {
-      print("Save Error: $e");
-    }
+      notifyListeners();
+    } catch (e) { print("Save Error: $e"); }
   }
 
-  // --- LOAD DATA ---
   Future<void> loadAllData() async {
     try {
-      // Load Medicines
       final medsFile = await _getFile('medicines.json');
       if (await medsFile.exists()) {
-        String content = await medsFile.readAsString();
-        List<dynamic> jsonList = jsonDecode(content);
-        medicines = jsonList.map((e) => Medicine.fromMap(e)).toList();
-      } else {
-        medicines = getDemoItems(); // Initial Demo Data
-      }
+        medicines = (jsonDecode(await medsFile.readAsString()) as List).map((e) => Medicine.fromMap(e)).toList();
+      } else { medicines = []; }
 
-      // Load Parties
       final partiesFile = await _getFile('parties.json');
       if (await partiesFile.exists()) {
-        String content = await partiesFile.readAsString();
-        List<dynamic> jsonList = jsonDecode(content);
-        parties = jsonList.map((e) => Party.fromMap(e)).toList();
-      } else {
-        parties = [getDemoParty()];
-      }
+        parties = (jsonDecode(await partiesFile.readAsString()) as List).map((e) => Party.fromMap(e)).toList();
+      } else { parties = []; }
 
-      // CASH Party Check
       if (!parties.any((p) => p.name == "CASH")) {
-        parties.insert(0, Party(id: 'cash_id', name: "CASH", phone: "000"));
+        parties.insert(0, Party(id: 'cash', name: "CASH", phone: "000"));
       }
 
-      // Load Sales
       final salesFile = await _getFile('sales.json');
       if (await salesFile.exists()) {
-        String content = await salesFile.readAsString();
-        List<dynamic> jsonList = jsonDecode(content);
-        // Sales loading logic depends on date format, keeping simple for now
+        sales = (jsonDecode(await salesFile.readAsString()) as List).map((e) => Sale(
+          id: e['id'], billNo: e['billNo'], partyName: e['partyName'],
+          totalAmount: e['totalAmount'], paymentMode: e['paymentMode'],
+          date: DateTime.parse(e['date']),
+          items: (e['items'] as List).map((i) => BillItem(
+            id: i['id'], srNo: i['srNo'], medicineID: i['medicineID'], name: i['name'],
+            packing: i['packing'], batch: i['batch'], exp: i['exp'], hsn: i['hsn'],
+            mrp: i['mrp'], qty: i['qty'], rate: i['rate'], discount: i['discount'],
+            gstRate: i['gstRate'], cgst: i['cgst'], sgst: i['sgst'], total: i['total']
+          )).toList()
+        )).toList();
       }
-
-      masterMedicines = getDemoItems();
       notifyListeners();
-    } catch (e) {
-      print("Load Error: $e");
-    }
+    } catch (e) { print("Load Error: $e"); }
   }
 
-  // --- BUSINESS LOGIC ---
-  void finalizeSale({
-    required String billNo,
-    required DateTime date,
-    required Party party,
-    required List<BillItem> items,
-    required double total,
-    required String mode,
-  }) {
-    final newSale = Sale(
-      id: DateTime.now().millisecondsSinceEpoch.toString(),
-      billNo: billNo,
-      date: date,
-      partyName: party.name,
-      items: items,
-      totalAmount: total,
-      paymentMode: mode,
-    );
-    sales.add(newSale);
-
+  void finalizeSale({required String billNo, required DateTime date, required Party party, required List<BillItem> items, required double total, required String mode}) {
+    sales.add(Sale(id: DateTime.now().toString(), billNo: billNo, date: date, partyName: party.name, items: items, totalAmount: total, paymentMode: mode));
     for (var item in items) {
       int idx = medicines.indexWhere((m) => m.id == item.medicineID);
-      if (idx != -1) {
-        medicines[idx].stock -= item.qty.toInt();
-        // Update batch history logic would go here
-      }
+      if (idx != -1) { medicines[idx].stock -= item.qty.toInt(); }
     }
     save();
   }
 
   void addToLocalInventory(Medicine med) {
-    if (!medicines.any((m) => m.name == med.name)) {
-      medicines.add(med);
-      save();
-    }
-  }
-
-  double getOutstanding(String partyName) {
-    return sales
-        .where((s) => s.partyName == partyName && s.paymentMode == "CREDIT")
-        .fold(0, (sum, item) => sum + item.totalAmount);
-  }
-
-  // --- DEMO DATA HELPERS ---
-  List<Medicine> getDemoItems() {
-    return [
-      Medicine(id: '1', name: "DOLO 650 MG", packing: "15 TAB", mrp: 30.90, rateA: 24.50, rateB: 23, rateC: 22, stock: 100),
-      Medicine(id: '2', name: "PAN 40 MG", packing: "10 TAB", mrp: 145.0, rateA: 110.0, rateB: 105, rateC: 100, stock: 50),
-    ];
-  }
-
-  Party getDemoParty() {
-    return Party(id: 'd1', name: "DEMO PHARMA DISTRIBUTORS", phone: "9876543210", address: "Udaipur, Rajasthan");
+    if (!medicines.any((m) => m.name == med.name)) { medicines.add(med); save(); }
   }
 }
