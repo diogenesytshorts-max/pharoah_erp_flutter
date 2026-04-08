@@ -18,8 +18,7 @@ void main() async {
 
 class MyApp extends StatefulWidget {
   const MyApp({super.key});
-  @override
-  State<MyApp> createState() => _MyAppState();
+  @override State<MyApp> createState() => _MyAppState();
 }
 
 class _MyAppState extends State<MyApp> {
@@ -27,8 +26,7 @@ class _MyAppState extends State<MyApp> {
   bool isLoggedIn = false;
   bool isLoading = true;
 
-  @override
-  void initState() {
+  @override void initState() {
     super.initState();
     _checkStatus();
   }
@@ -38,21 +36,18 @@ class _MyAppState extends State<MyApp> {
     setState(() {
       isSetupDone = prefs.getBool('isSetupDone') ?? false;
       isLoading = false;
+      isLoggedIn = false; // Reset on every cold start
     });
   }
 
-  @override
-  Widget build(BuildContext context) {
+  @override Widget build(BuildContext context) {
     if (isLoading) return const MaterialApp(home: Scaffold(body: Center(child: CircularProgressIndicator())));
 
     return MaterialApp(
+      key: UniqueKey(), // Forces reload on FY change
       title: 'Pharoah ERP',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
-        useMaterial3: true,
-      ),
-      // NAVIGATION FLOW
+      theme: ThemeData(colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue), useMaterial3: true),
       home: !isSetupDone 
         ? SetupView(onComplete: () => setState(() => isSetupDone = true))
         : (!isLoggedIn 
