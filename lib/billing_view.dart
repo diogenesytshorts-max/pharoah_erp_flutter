@@ -59,9 +59,7 @@ class _ItemEntryFormState extends State<ItemEntryForm> {
     }
     expC.addListener(() {
       String text = expC.text;
-      if (text.length == 2 && !text.contains("/")) expC.text = "$text/";
-      if (expC.text.length > 5) expC.text = expC.text.substring(0,5);
-      expC.selection = TextSelection.fromPosition(TextPosition(offset: expC.text.length));
+      if (text.length == 2 && !text.contains("/")) { expC.text = "$text/"; expC.selection = TextSelection.fromPosition(TextPosition(offset: expC.text.length)); }
     });
   }
 
@@ -72,8 +70,7 @@ class _ItemEntryFormState extends State<ItemEntryForm> {
     if (rateType == "C") {
       double rCDisc = double.tryParse(rateCDiscC.text) ?? 0;
       double base = (mrp / (1 + (gst / 100)));
-      double finalRate = base - (base * (rCDisc / 100));
-      rateC.text = finalRate.toStringAsFixed(2);
+      rateC.text = (base - (base * (rCDisc / 100))).toStringAsFixed(2);
     }
   }
 
@@ -98,8 +95,10 @@ class _ItemEntryFormState extends State<ItemEntryForm> {
       ]),
       Row(children: [
         Expanded(child: TextField(controller: normalDiscPC, decoration: const InputDecoration(labelText: "Disc %"), keyboardType: TextInputType.number)),
+        const SizedBox(width: 5),
         Expanded(child: TextField(controller: normalDiscRC, decoration: const InputDecoration(labelText: "Disc ₹"), keyboardType: TextInputType.number)),
       ]),
+      const SizedBox(height: 10),
       ElevatedButton(style: ElevatedButton.styleFrom(minimumSize: const Size(double.infinity, 45), backgroundColor: Colors.green), onPressed: () {
         double r = double.tryParse(rateC.text) ?? 0, q = double.tryParse(qtyC.text) ?? 0, dp = double.tryParse(normalDiscPC.text) ?? 0, dr = double.tryParse(normalDiscRC.text) ?? 0, g = double.tryParse(gstC.text) ?? 0;
         double taxable = (r * q); taxable = taxable - (taxable * (dp / 100)) - dr;
