@@ -8,6 +8,14 @@ class BatchInfo {
   factory BatchInfo.fromMap(Map<String, dynamic> map) => BatchInfo(batch: map['batch']??"", exp: map['exp']??"", packing: map['packing']??"", mrp: (map['mrp']??0).toDouble(), rate: (map['rate']??0).toDouble());
 }
 
+class LogEntry {
+  String id, action, details;
+  DateTime time;
+  LogEntry({required this.id, required this.action, required this.details, required this.time});
+  Map<String, dynamic> toMap() => {'id': id, 'action': action, 'details': details, 'time': time.toIso8601String()};
+  factory LogEntry.fromMap(Map<String, dynamic> map) => LogEntry(id: map['id'], action: map['action'], details: map['details'], time: DateTime.parse(map['time']));
+}
+
 class Medicine {
   String id, name, packing, manufacturer, hsnCode;
   double gst, mrp, rateA, rateB, rateC;
