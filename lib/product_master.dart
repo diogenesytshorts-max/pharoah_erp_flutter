@@ -5,127 +5,58 @@ import 'models.dart';
 
 class ProductMasterView extends StatefulWidget {
   const ProductMasterView({super.key});
-
   @override
   State<ProductMasterView> createState() => _ProductMasterViewState();
 }
 
 class _ProductMasterViewState extends State<ProductMasterView> {
-  String searchText = "";
-  
+  String search = "";
+  void _showForm({Medicine? med}) {
+    final ph = Provider.of<PharoahManager>(context, listen: false);
+    final nameC = TextEditingController(text: med?.name ?? "");
+    final packC = TextEditingController(text: med?.packing ?? "");
+    final hsnC = TextEditingController(text: med?.hsnCode ?? "");
+    final gstC = TextEditingController(text: med?.gst.toString() ?? "12.0");
+    final mrpC = TextEditingController(text: med?.mrp.toString() ?? "");
+    final rAC = TextEditingController(text: med?.rateA.toString() ?? "");
+    final rBC = TextEditingController(text: med?.rateB.toString() ?? "");
+    final rCC = TextEditingController(text: med?.rateC.toString() ?? "");
+    final stC = TextEditingController(text: med?.stock.toString() ?? "0");
+
+    showDialog(context: context, builder: (c) => AlertDialog(
+      title: Text(med == null ? "New Product" : "Edit Product"),
+      content: SingleChildScrollView(child: Column(children: [
+        TextField(controller: nameC, decoration: const InputDecoration(labelText: "Product Name")),
+        TextField(controller: packC, decoration: const InputDecoration(labelText: "Packing")),
+        TextField(controller: hsnC, decoration: const InputDecoration(labelText: "HSN Code")),
+        TextField(controller: gstC, decoration: const InputDecoration(labelText: "GST %"), keyboardType: TextInputType.number),
+        TextField(controller: mrpC, decoration: const InputDecoration(labelText: "MRP"), keyboardType: TextInputType.number),
+        TextField(controller: rAC, decoration: const InputDecoration(labelText: "Rate A"), keyboardType: TextInputType.number),
+        TextField(controller: rBC, decoration: const InputDecoration(labelText: "Rate B"), keyboardType: TextInputType.number),
+        TextField(controller: rCC, decoration: const InputDecoration(labelText: "Rate C"), keyboardType: TextInputType.number),
+        TextField(controller: stC, decoration: const InputDecoration(labelText: "Opening Stock"), keyboardType: TextInputType.number),
+      ])),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(c), child: const Text("Cancel")),
+        ElevatedButton(onPressed: () {
+          final m = Medicine(id: med?.id ?? DateTime.now().toString(), name: nameC.text.toUpperCase(), packing: packC.text.toUpperCase(), hsnCode: hsnC.text, gst: double.tryParse(gstC.text) ?? 12.0, mrp: double.tryParse(mrpC.text) ?? 0.0, rateA: double.tryParse(rAC.text) ?? 0.0, rateB: double.tryParse(rBC.text) ?? 0.0, rateC: double.tryParse(rCC.text) ?? 0.0, stock: int.tryParse(stC.text) ?? 0);
+          if (med == null) ph.medicines.add(m); else ph.medicines[ph.medicines.indexWhere((x)=>x.id==med.id)] = m;
+          ph.save(); Navigator.pop(c);
+        }, child: const Text("SAVE"))
+      ],
+    ));
+  }
+
   @override
   Widget build(BuildContext context) {
     final ph = Provider.of<PharoahManager>(context);
-    final filteredMeds = ph.medicines.where((m) => 
-      searchText.isEmpty ? true : m.name.toLowerCase().contains(searchText.toLowerCase())
-    ).toList();
-
+    final list = ph.medicines.where((m) => m.name.toLowerCase().contains(search.toLowerCase())).toList();
     return Scaffold(
-      appBar: AppBar(
-        title: const Text("Product Master"),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.add_circle, color: Colors.blue, size: 30),
-            onPressed: () => _showProductForm(context),
-          )
-        ],
-      ),
-      body: Column(
-        children: [
-          // Search Bar
-          Padding(
-            padding: const EdgeInsets.all(15),
-            child: TextField(
-              decoration: InputDecoration(
-                hintText: "Search Inventory...",
-                prefixIcon: const Icon(Icons.search),
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-                filled: true,
-                fillColor: Colors.white,
-              ),
-              onChanged: (val) => setState(() => searchText = val),
-            ),
-          ),
-          // List
-          Expanded(
-            child: ListView.builder(
-              itemCount: filteredMeds.length,
-              itemBuilder: (context, index) {
-                final med = filteredMeds[index];
-                return ListTile(
-                  title: Text(med.name, style: const TextStyle(fontWeight: FontWeight.bold)),
-                  subtitle: Text("Pack: ${med.packing} | Stock: ${med.stock}"),
-                  trailing: TextButton(
-                    child: const Text("EDIT"),
-                    onPressed: () => _showProductForm(context, med: med),
-                  ),
-                );
-              },
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // --- ADD/EDIT FORM ---
-  void _showProductForm(BuildContext context, {Medicine? med}) {
-    final ph = Provider.of<PharoahManager>(context, listen: false);
-    final nameController = TextEditingController(text: med?.name ?? "");
-    final packingController = TextEditingController(text: med?.packing ?? "");
-    final mrpController = TextEditingController(text: med?.mrp.toString() ?? "");
-    final rateAController = TextEditingController(text: med?.rateA.toString() ?? "");
-
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      builder: (context) => Padding(
-        padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom, left: 20, right: 20, top: 20),
-        child: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(med == null ? "New Product" : "Edit Product", style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-              TextField(controller: nameController, decoration: const InputDecoration(labelText: "Product Name")),
-              TextField(controller: packingController, decoration: const InputDecoration(labelText: "Packing")),
-              TextField(controller: mrpController, decoration: const InputDecoration(labelText: "MRP"), keyboardType: TextInputType.number),
-              TextField(controller: rateAController, decoration: const InputDecoration(labelText: "Rate A"), keyboardType: TextInputType.number),
-              const SizedBox(height: 20),
-              ElevatedButton(
-                style: ElevatedButton.styleFrom(minimumSize: const Size(double.infinity, 50), backgroundColor: Colors.blue),
-                onPressed: () {
-                  final newMed = Medicine(
-                    id: med?.id ?? DateTime.now().millisecondsSinceEpoch.toString(),
-                    name: nameController.text.toUpperCase(),
-                    packing: packingController.text,
-                    mrp: double.tryParse(mrpController.text) ?? 0,
-                    rateA: double.tryParse(rateAController.text) ?? 0,
-                    rateB: 0, rateC: 0, stock: med?.stock ?? 0,
-                  );
-                  
-                  if (med == null) {
-                    ph.medicines.add(newMed);
-                  } else {
-                    int idx = ph.medicines.indexWhere((m) => m.id == med.id);
-                    ph.medicines[idx] = newMed;
-                  }
-                  ph.save();
-                  Navigator.pop(context);
-                },
-                child: const Text("SAVE PRODUCT", style: TextStyle(color: Colors.white)),
-              ),
-              const SizedBox(height: 20),
-            ],
-          ),
-        ),
-      ),
+      appBar: AppBar(title: const Text("Inventory"), actions: [IconButton(icon: const Icon(Icons.add), onPressed: () => _showForm())]),
+      body: Column(children: [
+        Padding(padding: const EdgeInsets.all(10), child: TextField(decoration: const InputDecoration(hintText: "Search Item...", prefixIcon: Icon(Icons.search)), onChanged: (v)=>setState(()=>search=v))),
+        Expanded(child: ListView.builder(itemCount: list.length, itemBuilder: (c, i) => ListTile(title: Text(list[i].name), subtitle: Text("Pack: ${list[i].packing} | Stock: ${list[i].stock}"), trailing: Text("₹${list[i].mrp}"), onTap: () => _showForm(med: list[i]))))
+      ]),
     );
   }
 }
-// ... inside _showProductForm state ...
-// Add gstController and TextField for GST %
-final gstController = TextEditingController(text: med?.gst.toString() ?? "12");
-// ... inside the form Column ...
-TextField(controller: gstController, decoration: const InputDecoration(labelText: "GST %"), keyboardType: TextInputType.number),
-// ... inside the save logic ...
-gst: double.tryParse(gstController.text) ?? 12.0,
