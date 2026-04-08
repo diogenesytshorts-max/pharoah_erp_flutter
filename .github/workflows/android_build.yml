@@ -25,11 +25,12 @@ jobs:
         with:
           channel: 'stable'
           
-      - name: Get Dependencies
-        run: flutter pub get
+      - name: Clean and Get Dependencies
+        run: |
+          flutter clean
+          flutter pub get
         
       - name: Build APK
-        # Isme maine --no-tree-shake-icons joda hai, isse build fail nahi hoga
         run: flutter build apk --release --no-tree-shake-icons
         
       - name: Upload APK
