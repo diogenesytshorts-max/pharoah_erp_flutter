@@ -5,8 +5,7 @@ import 'models.dart';
 
 class PartyMasterView extends StatefulWidget {
   const PartyMasterView({super.key});
-  @override
-  State<PartyMasterView> createState() => _PartyMasterViewState();
+  @override State<PartyMasterView> createState() => _PartyMasterViewState();
 }
 
 class _PartyMasterViewState extends State<PartyMasterView> {
@@ -22,6 +21,7 @@ class _PartyMasterViewState extends State<PartyMasterView> {
     final dlC = TextEditingController(text: party?.dl ?? "");
     final gstC = TextEditingController(text: party?.gst ?? "");
     final balC = TextEditingController(text: party?.openingBalance.toString() ?? "0.0");
+    final discC = TextEditingController(text: party?.specialDiscount.toString() ?? "0.0");
 
     showDialog(context: context, builder: (c) => AlertDialog(
       title: Text(party == null ? "New Party" : "Edit Party"),
@@ -40,7 +40,11 @@ class _PartyMasterViewState extends State<PartyMasterView> {
           const SizedBox(width: 5),
           Expanded(child: TextField(controller: dlC, decoration: const InputDecoration(labelText: "Drug License"))),
         ]),
-        TextField(controller: balC, decoration: const InputDecoration(labelText: "Opening Bal"), keyboardType: TextInputType.number),
+        Row(children: [
+          Expanded(child: TextField(controller: balC, decoration: const InputDecoration(labelText: "Opening Bal"), keyboardType: TextInputType.number)),
+          const SizedBox(width: 5),
+          Expanded(child: TextField(controller: discC, decoration: const InputDecoration(labelText: "Special Disc%"), keyboardType: TextInputType.number)),
+        ]),
       ])),
       actions: [
         TextButton(onPressed: () => Navigator.pop(c), child: const Text("Cancel")),
@@ -51,7 +55,7 @@ class _PartyMasterViewState extends State<PartyMasterView> {
             name: nameC.text.toUpperCase(), phone: phoneC.text, email: emailC.text,
             address: addrC.text, city: cityC.text, route: routeC.text.toUpperCase(),
             gst: gstC.text.toUpperCase(), dl: dlC.text.toUpperCase(),
-            openingBalance: double.tryParse(balC.text) ?? 0.0, rateType: "A"
+            openingBalance: double.tryParse(balC.text) ?? 0.0, specialDiscount: double.tryParse(discC.text) ?? 0.0, rateType: "A"
           );
           if (party == null) ph.parties.add(p); else ph.parties[ph.parties.indexWhere((x)=>x.id==party.id)] = p;
           ph.save(); Navigator.pop(c);
@@ -60,8 +64,7 @@ class _PartyMasterViewState extends State<PartyMasterView> {
     ));
   }
 
-  @override
-  Widget build(BuildContext context) {
+  @override Widget build(BuildContext context) {
     final ph = Provider.of<PharoahManager>(context);
     final list = ph.parties.where((p) => p.name.toLowerCase().contains(search.toLowerCase())).toList();
     return Scaffold(
