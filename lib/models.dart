@@ -1,7 +1,5 @@
 import 'dart:convert';
 
-// --- PURANE MODELS (MEDICINE, PARTY, BATCH SAME RAHENGE) ---
-
 class BatchInfo {
   String batch, exp, packing;
   double mrp, rate;
@@ -27,8 +25,6 @@ class Party {
   factory Party.fromMap(Map<String, dynamic> map) => Party(id: map['id']??"", name: map['name']??"", address: map['address']??"", city: map['city']??"", route: map['route']??"", phone: map['phone']??"", email: map['email']??"", dl: map['dl']??"N/A", gst: map['gst']??"N/A", rateType: map['rateType']??"A", openingBalance: (map['openingBalance']??0.0).toDouble(), specialDiscount: (map['specialDiscount']??0.0).toDouble());
 }
 
-// --- SALES MODELS ---
-
 class BillItem {
   String id, medicineID, name, packing, batch, exp, hsn;
   int srNo;
@@ -47,37 +43,13 @@ class Sale {
   Map<String, dynamic> toMap() => {'id': id, 'billNo': billNo, 'date': date.toIso8601String(), 'partyName': partyName, 'paymentMode': paymentMode, 'totalAmount': totalAmount, 'status': status, 'items': items.map((i) => i.toMap()).toList()};
 }
 
-// =====================================================================
-// --- NAYA: PURCHASE MODELS (Step 1) ---
-// =====================================================================
-
 class PurchaseItem {
   String id, medicineID, name, packing, batch, exp;
   int srNo;
-  double mrp, qty, freeQty, purchaseRate, discountPercent, gstRate, total;
-
-  PurchaseItem({
-    required this.id, required this.srNo, required this.medicineID, required this.name, 
-    required this.packing, required this.batch, required this.exp, required this.mrp, 
-    required this.qty, this.freeQty = 0, required this.purchaseRate, 
-    this.discountPercent = 0.0, required this.gstRate, required this.total
-  });
-
-  Map<String, dynamic> toMap() => {
-    'id': id, 'srNo': srNo, 'medicineID': medicineID, 'name': name, 'packing': packing, 
-    'batch': batch, 'exp': exp, 'mrp': mrp, 'qty': qty, 'freeQty': freeQty, 
-    'purchaseRate': purchaseRate, 'discountPercent': discountPercent, 
-    'gstRate': gstRate, 'total': total
-  };
-
-  factory PurchaseItem.fromMap(Map<String, dynamic> map) => PurchaseItem(
-    id: map['id'], srNo: map['srNo'], medicineID: map['medicineID'], name: map['name'], 
-    packing: map['packing'], batch: map['batch'], exp: map['exp'], 
-    mrp: (map['mrp']??0).toDouble(), qty: (map['qty']??0).toDouble(), 
-    freeQty: (map['freeQty']??0).toDouble(), purchaseRate: (map['purchaseRate']??0).toDouble(), 
-    discountPercent: (map['discountPercent']??0).toDouble(), 
-    gstRate: (map['gstRate']??0).toDouble(), total: (map['total']??0).toDouble()
-  );
+  double mrp, qty, freeQty, purchaseRate, gstRate, total;
+  PurchaseItem({required this.id, required this.srNo, required this.medicineID, required this.name, required this.packing, required this.batch, required this.exp, required this.mrp, required this.qty, this.freeQty = 0, required this.purchaseRate, required this.gstRate, required this.total});
+  Map<String, dynamic> toMap() => {'id': id, 'srNo': srNo, 'medicineID': medicineID, 'name': name, 'packing': packing, 'batch': batch, 'exp': exp, 'mrp': mrp, 'qty': qty, 'freeQty': freeQty, 'purchaseRate': purchaseRate, 'gstRate': gstRate, 'total': total};
+  factory PurchaseItem.fromMap(Map<String, dynamic> map) => PurchaseItem(id: map['id'], srNo: map['srNo'], medicineID: map['medicineID'], name: map['name'], packing: map['packing'], batch: map['batch'], exp: map['exp'], mrp: (map['mrp']??0).toDouble(), qty: (map['qty']??0).toDouble(), freeQty: (map['freeQty']??0).toDouble(), purchaseRate: (map['purchaseRate']??0).toDouble(), gstRate: (map['gstRate']??0).toDouble(), total: (map['total']??0).toDouble());
 }
 
 class Purchase {
@@ -85,23 +57,7 @@ class Purchase {
   DateTime date;
   List<PurchaseItem> items;
   double totalAmount;
-
-  Purchase({
-    required this.id, required this.billNo, required this.date, 
-    required this.distributorName, required this.items, 
-    required this.totalAmount, required this.paymentMode
-  });
-
-  Map<String, dynamic> toMap() => {
-    'id': id, 'billNo': billNo, 'date': date.toIso8601String(), 
-    'distributorName': distributorName, 'paymentMode': paymentMode, 
-    'totalAmount': totalAmount, 'items': items.map((i) => i.toMap()).toList()
-  };
-
-  factory Purchase.fromMap(Map<String, dynamic> map) => Purchase(
-    id: map['id'], billNo: map['billNo'], distributorName: map['distributorName'], 
-    paymentMode: map['paymentMode'], date: DateTime.parse(map['date']), 
-    totalAmount: (map['totalAmount']??0).toDouble(), 
-    items: (map['items'] as List).map((i) => PurchaseItem.fromMap(i)).toList()
-  );
+  Purchase({required this.id, required this.billNo, required this.date, required this.distributorName, required this.items, required this.totalAmount, required this.paymentMode});
+  Map<String, dynamic> toMap() => {'id': id, 'billNo': billNo, 'date': date.toIso8601String(), 'distributorName': distributorName, 'paymentMode': paymentMode, 'totalAmount': totalAmount, 'items': items.map((i) => i.toMap()).toList()};
+  factory Purchase.fromMap(Map<String, dynamic> map) => Purchase(id: map['id'], billNo: map['billNo'], distributorName: map['distributorName'], paymentMode: map['paymentMode'], date: DateTime.parse(map['date']), totalAmount: (map['totalAmount']??0).toDouble(), items: (map['items'] as List).map((i) => PurchaseItem.fromMap(i)).toList());
 }
