@@ -19,7 +19,9 @@ class _FileManagementViewState extends State<FileManagementView> {
           tileColor: Colors.blue[50], leading: const Icon(Icons.calendar_month), title: const Text("Change Financial Year"), subtitle: Text("Current: $currentFy"),
           onTap: () {
             showDialog(context: context, builder: (c)=>SimpleDialog(title: const Text("Select Year"), children: ["2024-25", "2025-26", "2026-27"].map((y)=>SimpleDialogOption(child: Text(y), onPressed: () async {
-              final p = await SharedPreferences.getInstance(); await p.setString('fy', y); Navigator.pop(c); _load();
+              final p = await SharedPreferences.getInstance(); await p.setString('fy', y); 
+              ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("FY Changed to $y. Restart app for effects.")));
+              Navigator.pop(c); _load();
             })).toList()));
           },
         )
