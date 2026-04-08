@@ -21,13 +21,20 @@ class PharoahManager with ChangeNotifier {
   Future<void> save() async {
     final path = await _localPath;
     try {
-      File('$path/medicines.json').writeAsStringSync(jsonEncode(medicines.map((e) => e.toMap()).toList()));
-      File('$path/parties.json').writeAsStringSync(jsonEncode(parties.map((e) => e.toMap()).toList()));
-      File('$path/sales_final.json').writeAsStringSync(jsonEncode(sales.map((e) => e.toMap()).toList()));
+      final medsF = File('$path/medicines.json');
+      medsF.writeAsStringSync(jsonEncode(medicines.map((e) => e.toMap()).toList()));
+
+      final partF = File('$path/parties.json');
+      partF.writeAsStringSync(jsonEncode(parties.map((e) => e.toMap()).toList()));
+
+      final saleF = File('$path/sales_final.json');
+      saleF.writeAsStringSync(jsonEncode(sales.map((e) => e.toMap()).toList()));
       
+      final batF = File('$path/batches.json');
       Map<String, dynamic> historyMap = {};
       batchHistory.forEach((k, v) => historyMap[k] = v.map((b) => b.toMap()).toList());
-      File('$path/batches.json').writeAsStringSync(jsonEncode(historyMap));
+      batF.writeAsStringSync(jsonEncode(historyMap));
+      
       notifyListeners();
     } catch (e) { print("Save Error: $e"); }
   }
@@ -61,30 +68,30 @@ class PharoahManager with ChangeNotifier {
     } catch (e) { print("Load Error: $e"); }
   }
 
-  void reverseStock(String saleId) {
-    int sIdx = sales.indexWhere((s) => s.id == saleId);
-    if (sIdx != -1) {
-      for (var item in sales[sIdx].items) {
-        int mIdx = medicines.indexWhere((m) => m.id == item.medicineID);
-        if (mIdx != -1) medicines[mIdx].stock += item.qty.toInt();
+  void deleteBill(String saleId) {
+    int idx = sales.indexWhere((s) => s.id == saleId);
+    if (idx != -1) {
+      if (sales[idx].status == "Active") {
+        for (var item in sales[idx].items) {
+          int mIdx = medicines.indexWhere((m) => m.id == item.medicineID);
+          if (mIdx != -1) medicines[mIdx].stock += item.qty.toInt();
+        }
       }
+      sales.removeAt(idx);
+      save();
     }
   }
 
-  void deleteBill(String saleId) async {
-    reverseStock(saleId);
-    sales.removeWhere((s) => s.id == saleId);
-    // Series adjust: lastID - 1 is risky if not latest, so we keep it as is.
-    await save();
-  }
-
-  void cancelBill(String saleId) async {
+  void cancelBill(String saleId) {
     int idx = sales.indexWhere((s) => s.id == saleId);
     if (idx != -1 && sales[idx].status != "Cancelled") {
-      reverseStock(saleId);
+      for (var item in sales[idx].items) {
+        int mIdx = medicines.indexWhere((m) => m.id == item.medicineID);
+        if (mIdx != -1) medicines[mIdx].stock += item.qty.toInt();
+      }
       sales[idx].status = "Cancelled";
-      sales[idx].totalAmount = 0.0; // Outstanding removed
-      await save();
+      sales[idx].totalAmount = 0.0;
+      save();
     }
   }
 
