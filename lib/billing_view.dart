@@ -181,7 +181,6 @@ class _ItemEntryFormState extends State<ItemEntryForm> {
         children: [
           Row(children: [Text("${widget.srNo}. ${widget.med.name}", style: const TextStyle(fontWeight: FontWeight.bold)), const Spacer(), IconButton(icon: const Icon(Icons.close), onPressed: widget.onCancel)]),
           
-          // BATCH HISTORY CHIPS
           if (history.isNotEmpty)
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 5),
@@ -211,7 +210,8 @@ class _ItemEntryFormState extends State<ItemEntryForm> {
           Row(children: [
             Expanded(child: TextField(controller: mrpC, decoration: const InputDecoration(labelText: "MRP"), keyboardType: TextInputType.number, onChanged: (v) { if(rateType == 'C') _updateRate(); })),
             const SizedBox(width: 10),
-            Expanded(child: TextField(controller: rateC, decoration: const InputDecoration(labelText: "Rate"), keyboardType: TextInputType.number, disabled: rateType == 'C')),
+            // FIX: 'disabled' changed to 'enabled' and logic flipped
+            Expanded(child: TextField(controller: rateC, decoration: const InputDecoration(labelText: "Rate"), keyboardType: TextInputType.number, enabled: rateType != 'C')),
             const SizedBox(width: 10),
             Expanded(child: TextField(controller: qtyC, decoration: const InputDecoration(labelText: "Qty"), keyboardType: TextInputType.number)),
           ]),
