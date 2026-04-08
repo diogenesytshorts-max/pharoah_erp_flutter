@@ -8,12 +8,7 @@ import 'login_view.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  runApp(
-    ChangeNotifierProvider(
-      create: (_) => PharoahManager(),
-      child: const MyApp(),
-    ),
-  );
+  runApp(ChangeNotifierProvider(create: (_) => PharoahManager(), child: const MyApp()));
 }
 
 class MyApp extends StatefulWidget {
@@ -22,37 +17,23 @@ class MyApp extends StatefulWidget {
 }
 
 class _MyAppState extends State<MyApp> {
-  bool isSetupDone = false;
-  bool isLoggedIn = false;
-  bool isLoading = true;
-
-  @override void initState() {
-    super.initState();
-    _checkStatus();
-  }
-
-  void _checkStatus() async {
-    final prefs = await SharedPreferences.getInstance();
-    setState(() {
-      isSetupDone = prefs.getBool('isSetupDone') ?? false;
-      isLoading = false;
-      isLoggedIn = false; // Reset on every cold start
-    });
+  bool isSetupDone = false; bool isLoggedIn = false; bool isLoading = true;
+  @override void initState() { super.initState(); _check(); }
+  _check() async {
+    final p = await SharedPreferences.getInstance();
+    setState(() { isSetupDone = p.getBool('isSetupDone') ?? false; isLoading = false; });
   }
 
   @override Widget build(BuildContext context) {
     if (isLoading) return const MaterialApp(home: Scaffold(body: Center(child: CircularProgressIndicator())));
-
     return MaterialApp(
-      key: UniqueKey(), // Forces reload on FY change
+      key: UniqueKey(),
       title: 'Pharoah ERP',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue), useMaterial3: true),
       home: !isSetupDone 
         ? SetupView(onComplete: () => setState(() => isSetupDone = true))
-        : (!isLoggedIn 
-            ? LoginView(onLogin: () => setState(() => isLoggedIn = true)) 
-            : DashboardView(onLogout: () => setState(() => isLoggedIn = false))),
+        : (!isLoggedIn ? LoginView(onLogin: () => setState(() => isLoggedIn = true)) : DashboardView(onLogout: () => setState(() => isLoggedIn = false))),
     );
   }
 }
