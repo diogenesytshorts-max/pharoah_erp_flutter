@@ -122,3 +122,10 @@ class _ProductMasterViewState extends State<ProductMasterView> {
     );
   }
 }
+// ... inside _showProductForm state ...
+// Add gstController and TextField for GST %
+final gstController = TextEditingController(text: med?.gst.toString() ?? "12");
+// ... inside the form Column ...
+TextField(controller: gstController, decoration: const InputDecoration(labelText: "GST %"), keyboardType: TextInputType.number),
+// ... inside the save logic ...
+gst: double.tryParse(gstController.text) ?? 12.0,
