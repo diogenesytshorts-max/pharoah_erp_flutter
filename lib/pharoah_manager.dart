@@ -110,3 +110,5 @@ class PharoahManager with ChangeNotifier {
 
   void addToLocalInventory(Medicine med) { if (!medicines.any((m) => m.name == med.name)) { medicines.add(med); save(); } }
 }
+// (Ensure File is robust for storage)
+// Same as before, but with sync write for data persistence.
