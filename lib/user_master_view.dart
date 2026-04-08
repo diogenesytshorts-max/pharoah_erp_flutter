@@ -8,44 +8,33 @@ class UserMasterView extends StatefulWidget {
 }
 
 class _UserMasterViewState extends State<UserMasterView> {
-  final nameC = TextEditingController(); final addrC = TextEditingController(); final gstC = TextEditingController();
-  final dlC = TextEditingController(); final phoneC = TextEditingController(); final emailC = TextEditingController();
-  final userC = TextEditingController(); final passC = TextEditingController();
+  final nC = TextEditingController(); final aC = TextEditingController(); final gC = TextEditingController();
+  final dC = TextEditingController(); final pC = TextEditingController(); final eC = TextEditingController();
+  final uC = TextEditingController(); final pwC = TextEditingController();
 
   @override void initState() { super.initState(); _load(); }
   _load() async {
     final p = await SharedPreferences.getInstance();
-    setState(() {
-      nameC.text = p.getString('compName')??""; addrC.text = p.getString('compAddr')??"";
-      gstC.text = p.getString('compGST')??""; dlC.text = p.getString('compDL')??"";
-      phoneC.text = p.getString('compPh')??""; emailC.text = p.getString('compEmail')??"";
-      userC.text = p.getString('adminUser')??""; passC.text = p.getString('adminPass')??"";
-    });
-  }
-
-  void _update() async {
-    final p = await SharedPreferences.getInstance();
-    await p.setString('compName', nameC.text.toUpperCase()); await p.setString('compAddr', addrC.text);
-    await p.setString('compGST', gstC.text.toUpperCase()); await p.setString('compDL', dlC.text.toUpperCase());
-    await p.setString('compPh', phoneC.text); await p.setString('compEmail', emailC.text.toLowerCase());
-    await p.setString('adminUser', userC.text.toLowerCase()); await p.setString('adminPass', passC.text);
-    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Profile Updated!")));
+    setState(() { nC.text = p.getString('compName')??""; aC.text = p.getString('compAddr')??""; gC.text = p.getString('compGST')??""; dC.text = p.getString('compDL')??""; pC.text = p.getString('compPh')??""; eC.text = p.getString('compEmail')??""; uC.text = p.getString('adminUser')??""; pwC.text = p.getString('adminPass')??""; });
   }
 
   @override Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text("Company Settings")),
+      appBar: AppBar(title: const Text("Settings")),
       body: ListView(padding: const EdgeInsets.all(20), children: [
-        TextField(controller: nameC, decoration: const InputDecoration(labelText: "Firm Name")),
-        TextField(controller: addrC, decoration: const InputDecoration(labelText: "Address")),
-        Row(children: [Expanded(child: TextField(controller: gstC, decoration: const InputDecoration(labelText: "GSTIN"))), const SizedBox(width: 10), Expanded(child: TextField(controller: dlC, decoration: const InputDecoration(labelText: "DL No")))]),
-        Row(children: [Expanded(child: TextField(controller: phoneC, decoration: const InputDecoration(labelText: "Phone"))), const SizedBox(width: 10), Expanded(child: TextField(controller: emailC, decoration: const InputDecoration(labelText: "Email")))]),
+        TextField(controller: nC, decoration: const InputDecoration(labelText: "Firm Name")),
+        TextField(controller: aC, decoration: const InputDecoration(labelText: "Address")),
+        Row(children: [Expanded(child: TextField(controller: gC, decoration: const InputDecoration(labelText: "GSTIN"))), const SizedBox(width: 10), Expanded(child: TextField(controller: dC, decoration: const InputDecoration(labelText: "DL No")))]),
+        Row(children: [Expanded(child: TextField(controller: pC, decoration: const InputDecoration(labelText: "Phone"))), const SizedBox(width: 10), Expanded(child: TextField(controller: eC, decoration: const InputDecoration(labelText: "Email")))]),
         const Divider(height: 40),
-        TextField(controller: userC, decoration: const InputDecoration(labelText: "Username")),
-        TextField(controller: passC, decoration: const InputDecoration(labelText: "Password")),
+        TextField(controller: uC, decoration: const InputDecoration(labelText: "Admin User")),
+        TextField(controller: pwC, decoration: const InputDecoration(labelText: "Admin Pass")),
         const SizedBox(height: 20),
-        ElevatedButton(onPressed: _update, child: const Text("UPDATE DETAILS")),
-        const SizedBox(height: 10),
+        ElevatedButton(onPressed: () async {
+          final p = await SharedPreferences.getInstance();
+          await p.setString('compName', nC.text.toUpperCase()); await p.setString('compAddr', aC.text); await p.setString('compGST', gC.text.toUpperCase()); await p.setString('compDL', dC.text.toUpperCase()); await p.setString('compPh', pC.text); await p.setString('compEmail', eC.text.toLowerCase()); await p.setString('adminUser', uC.text.toLowerCase()); await p.setString('adminPass', pwC.text);
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Profile Updated!")));
+        }, child: const Text("UPDATE ALL DETAILS")),
         ElevatedButton(onPressed: widget.onLogout, style: ElevatedButton.styleFrom(backgroundColor: Colors.red), child: const Text("LOGOUT", style: TextStyle(color: Colors.white)))
       ]),
     );
