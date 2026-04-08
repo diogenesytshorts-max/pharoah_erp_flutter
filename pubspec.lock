@@ -1,7 +1,7 @@
 name: pharoah_erp
-description: Pharoah ERP Professional Billing Software for Android and iOS.
-publish_to: 'none'
+description: Pharoah ERP Professional Billing Software.
 version: 1.0.0+1
+publish_to: 'none'
 
 environment:
   sdk: '>=3.2.0 <4.0.0'
@@ -9,24 +9,13 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-
-  # Date and Currency formatting
   intl: ^0.19.0
-  
-  # App Settings and series persistence
   shared_preferences: ^2.2.2
-  
-  # Local File System Storage (JSON Files)
   path_provider: ^2.1.2
-  
-  # State Management (Data Sharing)
   provider: ^6.1.1
-  
-  # Professional PDF Generation (Landscape Support)
   pdf: ^3.10.7
-  
-  # Printing and Sharing PDF
   printing: ^5.11.0
+  share_plus: ^7.2.2 # NAYA: Backup share karne ke liye
 
 dev_dependencies:
   flutter_test:
@@ -35,7 +24,3 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
-  
-  # Agar aapne assets/logo.png rakha hai toh yahan list hoga
-  # assets:
-  #   - assets/
