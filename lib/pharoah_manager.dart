@@ -26,7 +26,6 @@ class PharoahManager with ChangeNotifier {
     return d.path;
   }
 
-  // Saare file names ab Year-Specific hain
   Future<void> save() async {
     final path = await _localPath;
     try {
@@ -44,26 +43,36 @@ class PharoahManager with ChangeNotifier {
     final path = await _localPath;
     try {
       final mf = File('$path/meds_$currentFY.json');
-      if (mf.existsSync()) medicines = (jsonDecode(mf.readAsStringSync()) as List).map((e)=>Medicine.fromMap(e)).toList();
-      else medicines = DemoData.getMedicines();
+      if (mf.existsSync()) {
+        medicines = (jsonDecode(mf.readAsStringSync()) as List).map((e)=>Medicine.fromMap(e)).toList();
+      } else {
+        medicines = DemoData.getMedicines();
+      }
 
       final pf = File('$path/parts_$currentFY.json');
-      if (pf.existsSync()) parties = (jsonDecode(pf.readAsStringSync()) as List).map((e)=>Party.fromMap(e)).toList();
-      else parties = [DemoData.getDemoParty()];
+      if (pf.existsSync()) {
+        parties = (jsonDecode(pf.readAsStringSync()) as List).map((e)=>Party.fromMap(e)).toList();
+      } else {
+        parties = [DemoData.getDemoParty()];
+      }
       
       if (!parties.any((p) => p.name == "CASH")) parties.insert(0, Party(id: 'cash', name: "CASH"));
 
       final sf = File('$path/sales_$currentFY.json');
       if (sf.existsSync()) {
         final List d = jsonDecode(sf.readAsStringSync());
-        sales = d.map((e) => Sale(id: e['id'], billNo: e['billNo'], partyName: e['partyName'], paymentMode: e['paymentMode'], status: e['status'] ?? "Active", date: DateTime.parse(e['date']), totalAmount: (e['totalAmount']??0).toDouble(), items: (e['items'] as List).map((i) => BillItem.fromMap(i)).toList())).toList();
+        sales = d.map((e) => Sale(
+          id: e['id'], billNo: e['billNo'], partyName: e['partyName'], paymentMode: e['paymentMode'],
+          status: e['status'] ?? "Active", date: DateTime.parse(e['date']), totalAmount: (e['totalAmount']??0).toDouble(),
+          items: (e['items'] as List).map((i) => BillItem.fromMap(i)).toList(),
+        )).toList();
       } else { sales = []; }
 
       final bf = File('$path/bats_$currentFY.json');
       if (bf.existsSync()) {
         Map<String, dynamic> d = jsonDecode(bf.readAsStringSync());
         d.forEach((k, v) => batchHistory[k] = (v as List).map((b) => BatchInfo.fromMap(b)).toList());
-      } else { batchHistory = {}; }
+      }
       notifyListeners();
     } catch (e) { debugPrint("Load Error: $e"); }
   }
@@ -95,14 +104,14 @@ class PharoahManager with ChangeNotifier {
     }
   }
 
-  void finalizeSale({required String bNo, required DateTime dt, required Party p, required List<BillItem> its, required double tot, required String md}) {
-    sales.add(Sale(id: DateTime.now().millisecondsSinceEpoch.toString(), billNo: bNo, date: dt, partyName: p.name, items: its, totalAmount: tot, paymentMode: md));
-    for (var it in its) {
-      int mi = medicines.indexWhere((m) => m.id == it.medicineID);
-      if (mi != -1) {
-        medicines[mi].stock -= it.qty.toInt();
-        if (!batchHistory.containsKey(it.medicineID)) batchHistory[it.medicineID] = [];
-        batchHistory[it.medicineID]!.add(BatchInfo(batch: it.batch, exp: it.exp, packing: it.packing, mrp: it.mrp, rate: it.rate));
+  void finalizeSale({required String billNo, required DateTime date, required Party party, required List<BillItem> items, required double total, required String mode}) {
+    sales.add(Sale(id: DateTime.now().millisecondsSinceEpoch.toString(), billNo: billNo, date: date, partyName: party.name, items: items, totalAmount: total, paymentMode: mode));
+    for (var item in items) {
+      int idx = medicines.indexWhere((m) => m.id == item.medicineID);
+      if (idx != -1) {
+        medicines[idx].stock -= item.qty.toInt();
+        if (!batchHistory.containsKey(item.medicineID)) batchHistory[item.medicineID] = [];
+        batchHistory[item.medicineID]!.add(BatchInfo(batch: item.batch, exp: item.exp, packing: item.packing, mrp: item.mrp, rate: item.rate));
       }
     }
     save();
