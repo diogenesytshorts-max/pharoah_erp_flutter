@@ -332,3 +332,35 @@ class _ItemEntryFormState extends State<ItemEntryForm> {
     );
   }
 }
+// --- Rate C Formula Logic Update ---
+void _updateRate() {
+  double mrp = double.tryParse(mrpC.text) ?? 0;
+  double gst = widget.med.gst;
+  if (rateType == "A") rateC.text = widget.med.rateA.toString();
+  if (rateType == "B") rateC.text = widget.med.rateB.toString();
+  if (rateType == "C") {
+    // Formula: Rate = MRP / (1 + GST/100)
+    double base = (mrp / (1 + (gst / 100)));
+    rateC.text = base.toStringAsFixed(2);
+  }
+}
+
+// --- Total Calculation including GST ---
+onPressed: () {
+  double r = double.tryParse(rateC.text) ?? 0;
+  double q = double.tryParse(qtyC.text) ?? 0;
+  double d = double.tryParse(discC.text) ?? 0;
+  double gstRate = widget.med.gst;
+
+  double taxable = (r * q) - d;
+  double gstAmt = taxable * (gstRate / 100);
+  double total = taxable + gstAmt;
+
+  widget.onAdd(BillItem(
+    // ... other fields ...
+    gstRate: gstRate,
+    cgst: gstAmt / 2,
+    sgst: gstAmt / 2,
+    total: total,
+  ));
+}
