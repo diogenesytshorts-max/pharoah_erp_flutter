@@ -2,31 +2,40 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'models.dart';
-import 'demo_data.dart'; // IMPORTED
+import 'demo_data.dart';
 
 class PharoahManager with ChangeNotifier {
   List<Medicine> medicines = [];
   List<Party> parties = [];
   List<Sale> sales = [];
   Map<String, List<BatchInfo>> batchHistory = {};
+  String currentFY = "2025-26";
 
-  PharoahManager() { loadAllData(); }
+  PharoahManager() { initManager(); }
 
-  Future<String> get _localPath async {
-    final directory = await getApplicationDocumentsDirectory();
-    return directory.path;
+  Future<void> initManager() async {
+    final p = await SharedPreferences.getInstance();
+    currentFY = p.getString('fy') ?? "2025-26";
+    await loadAllData();
   }
 
+  Future<String> get _localPath async {
+    final d = await getApplicationDocumentsDirectory();
+    return d.path;
+  }
+
+  // Saare file names ab Year-Specific hain
   Future<void> save() async {
     final path = await _localPath;
     try {
-      File('$path/meds.json').writeAsStringSync(jsonEncode(medicines.map((e) => e.toMap()).toList()));
-      File('$path/parts.json').writeAsStringSync(jsonEncode(parties.map((e) => e.toMap()).toList()));
-      File('$path/sales_final.json').writeAsStringSync(jsonEncode(sales.map((e) => e.toMap()).toList()));
+      File('$path/meds_$currentFY.json').writeAsStringSync(jsonEncode(medicines.map((e)=>e.toMap()).toList()));
+      File('$path/parts_$currentFY.json').writeAsStringSync(jsonEncode(parties.map((e)=>e.toMap()).toList()));
+      File('$path/sales_$currentFY.json').writeAsStringSync(jsonEncode(sales.map((e)=>e.toMap()).toList()));
       Map<String, dynamic> hMap = {};
       batchHistory.forEach((k, v) => hMap[k] = v.map((b) => b.toMap()).toList());
-      File('$path/bats.json').writeAsStringSync(jsonEncode(hMap));
+      File('$path/bats_$currentFY.json').writeAsStringSync(jsonEncode(hMap));
       notifyListeners();
     } catch (e) { debugPrint("Save Error: $e"); }
   }
@@ -34,81 +43,70 @@ class PharoahManager with ChangeNotifier {
   Future<void> loadAllData() async {
     final path = await _localPath;
     try {
-      final medsF = File('$path/meds.json');
-      if (medsF.existsSync()) {
-        medicines = (jsonDecode(medsF.readAsStringSync()) as List).map((e) => Medicine.fromMap(e)).toList();
-      }
-      // LOAD DEMO MEDICINES IF EMPTY
-      if (medicines.isEmpty) medicines = DemoData.getMedicines();
+      final mf = File('$path/meds_$currentFY.json');
+      if (mf.existsSync()) medicines = (jsonDecode(mf.readAsStringSync()) as List).map((e)=>Medicine.fromMap(e)).toList();
+      else medicines = DemoData.getMedicines();
 
-      final partF = File('$path/parties.json');
-      if (partF.existsSync()) {
-        parties = (jsonDecode(partF.readAsStringSync()) as List).map((e) => Party.fromMap(e)).toList();
-      }
-      // LOAD DEMO PARTY AND CASH IF EMPTY
-      if (parties.isEmpty || parties.length <= 1) {
-        if (!parties.any((p) => p.name == "CASH")) parties.insert(0, Party(id: 'cash', name: "CASH"));
-        parties.add(DemoData.getDemoParty());
-      }
+      final pf = File('$path/parts_$currentFY.json');
+      if (pf.existsSync()) parties = (jsonDecode(pf.readAsStringSync()) as List).map((e)=>Party.fromMap(e)).toList();
+      else parties = [DemoData.getDemoParty()];
+      
+      if (!parties.any((p) => p.name == "CASH")) parties.insert(0, Party(id: 'cash', name: "CASH"));
 
-      final saleF = File('$path/sales_final.json');
-      if (saleF.existsSync()) {
-        final List decoded = jsonDecode(saleF.readAsStringSync());
-        sales = decoded.map((e) => Sale(
-          id: e['id'], billNo: e['billNo'], partyName: e['partyName'], paymentMode: e['paymentMode'],
-          status: e['status'] ?? "Active", date: DateTime.parse(e['date']), totalAmount: (e['totalAmount']??0).toDouble(),
-          items: (e['items'] as List).map((i) => BillItem.fromMap(i)).toList(),
-        )).toList();
-      }
+      final sf = File('$path/sales_$currentFY.json');
+      if (sf.existsSync()) {
+        final List d = jsonDecode(sf.readAsStringSync());
+        sales = d.map((e) => Sale(id: e['id'], billNo: e['billNo'], partyName: e['partyName'], paymentMode: e['paymentMode'], status: e['status'] ?? "Active", date: DateTime.parse(e['date']), totalAmount: (e['totalAmount']??0).toDouble(), items: (e['items'] as List).map((i) => BillItem.fromMap(i)).toList())).toList();
+      } else { sales = []; }
 
-      final batF = File('$path/batches.json');
-      if (batF.existsSync()) {
-        Map<String, dynamic> decoded = jsonDecode(batF.readAsStringSync());
-        decoded.forEach((k, v) => batchHistory[k] = (v as List).map((b) => BatchInfo.fromMap(b)).toList());
-      }
+      final bf = File('$path/bats_$currentFY.json');
+      if (bf.existsSync()) {
+        Map<String, dynamic> d = jsonDecode(bf.readAsStringSync());
+        d.forEach((k, v) => batchHistory[k] = (v as List).map((b) => BatchInfo.fromMap(b)).toList());
+      } else { batchHistory = {}; }
       notifyListeners();
     } catch (e) { debugPrint("Load Error: $e"); }
   }
 
-  void deleteBill(String saleId) {
-    int idx = sales.indexWhere((s) => s.id == saleId);
-    if (idx != -1) {
-      if (sales[idx].status == "Active") {
-        for (var item in sales[idx].items) {
-          int mIdx = medicines.indexWhere((m) => m.id == item.medicineID);
-          if (mIdx != -1) medicines[mIdx].stock += item.qty.toInt();
+  void deleteBill(String id) {
+    int i = sales.indexWhere((s) => s.id == id);
+    if (i != -1) {
+      if (sales[i].status == "Active") {
+        for (var it in sales[i].items) {
+          int mi = medicines.indexWhere((m) => m.id == it.medicineID);
+          if (mi != -1) medicines[mi].stock += it.qty.toInt();
         }
       }
-      sales.removeAt(idx);
+      sales.removeAt(i);
       save();
     }
   }
 
-  void cancelBill(String saleId) {
-    int idx = sales.indexWhere((s) => s.id == saleId);
-    if (idx != -1 && sales[idx].status != "Cancelled") {
-      for (var item in sales[idx].items) {
-        int mIdx = medicines.indexWhere((m) => m.id == item.medicineID);
-        if (mIdx != -1) medicines[mIdx].stock += item.qty.toInt();
+  void cancelBill(String id) {
+    int i = sales.indexWhere((s) => s.id == id);
+    if (i != -1 && sales[i].status != "Cancelled") {
+      for (var it in sales[i].items) {
+        int mi = medicines.indexWhere((m) => m.id == it.medicineID);
+        if (mi != -1) medicines[mi].stock += it.qty.toInt();
       }
-      sales[idx].status = "Cancelled";
-      sales[idx].totalAmount = 0.0;
+      sales[i].status = "Cancelled";
+      sales[i].totalAmount = 0.0;
       save();
     }
   }
 
-  void finalizeSale({required String billNo, required DateTime date, required Party party, required List<BillItem> items, required double total, required String mode}) {
-    sales.add(Sale(id: DateTime.now().millisecondsSinceEpoch.toString(), billNo: billNo, date: date, partyName: party.name, items: items, totalAmount: total, paymentMode: mode));
-    for (var item in items) {
-      int idx = medicines.indexWhere((m) => m.id == item.medicineID);
-      if (idx != -1) {
-        medicines[idx].stock -= item.qty.toInt();
-        if (!batchHistory.containsKey(item.medicineID)) batchHistory[item.medicineID] = [];
-        batchHistory[item.medicineID]!.add(BatchInfo(batch: item.batch, exp: item.exp, packing: item.packing, mrp: item.mrp, rate: item.rate));
+  void finalizeSale({required String bNo, required DateTime dt, required Party p, required List<BillItem> its, required double tot, required String md}) {
+    sales.add(Sale(id: DateTime.now().millisecondsSinceEpoch.toString(), billNo: bNo, date: dt, partyName: p.name, items: its, totalAmount: tot, paymentMode: md));
+    for (var it in its) {
+      int mi = medicines.indexWhere((m) => m.id == it.medicineID);
+      if (mi != -1) {
+        medicines[mi].stock -= it.qty.toInt();
+        if (!batchHistory.containsKey(it.medicineID)) batchHistory[it.medicineID] = [];
+        batchHistory[it.medicineID]!.add(BatchInfo(batch: it.batch, exp: it.exp, packing: it.packing, mrp: it.mrp, rate: it.rate));
       }
     }
     save();
   }
 
-  void addToLocalInventory(Medicine med) { if (!medicines.any((m) => m.name == med.name)) { medicines.add(med); save(); } }
+  void addToLocalInventory(Medicine m) { if (!medicines.any((x) => x.name == m.name)) { medicines.add(m); save(); } }
 }
