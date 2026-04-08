@@ -23,8 +23,8 @@ class PharoahManager with ChangeNotifier {
   }
 
   Future<String> get _localPath async {
-    final d = await getApplicationDocumentsDirectory();
-    return d.path;
+    final directory = await getApplicationDocumentsDirectory();
+    return directory.path;
   }
 
   Future<void> save() async {
@@ -34,9 +34,11 @@ class PharoahManager with ChangeNotifier {
       File('$path/parts_$currentFY.json').writeAsStringSync(jsonEncode(parties.map((e)=>e.toMap()).toList()));
       File('$path/sales_$currentFY.json').writeAsStringSync(jsonEncode(sales.map((e)=>e.toMap()).toList()));
       File('$path/purc_$currentFY.json').writeAsStringSync(jsonEncode(purchases.map((e)=>e.toMap()).toList()));
-      Map<String, dynamic> hMap = {};
-      batchHistory.forEach((k, v) => hMap[k] = v.map((b) => b.toMap()).toList());
-      File('$path/bats_$currentFY.json').writeAsStringSync(jsonEncode(hMap));
+      
+      Map<String, dynamic> historyMap = {};
+      batchHistory.forEach((k, v) => historyMap[k] = v.map((b) => b.toMap()).toList());
+      File('$path/bats_$currentFY.json').writeAsStringSync(jsonEncode(historyMap));
+      
       notifyListeners();
     } catch (e) { debugPrint("Save Error: $e"); }
   }
@@ -50,7 +52,9 @@ class PharoahManager with ChangeNotifier {
 
       final pf = File('$path/parts_$currentFY.json');
       if (pf.existsSync()) parties = (jsonDecode(pf.readAsStringSync()) as List).map((e)=>Party.fromMap(e)).toList();
-      else { parties = [DemoData.getDemoParty()]; if (!parties.any((p) => p.name == "CASH")) parties.insert(0, Party(id: 'cash', name: "CASH")); }
+      else parties = [DemoData.getDemoParty()];
+      
+      if (!parties.any((p) => p.name == "CASH")) parties.insert(0, Party(id: 'cash', name: "CASH"));
 
       final sf = File('$path/sales_$currentFY.json');
       if (sf.existsSync()) {
@@ -60,8 +64,8 @@ class PharoahManager with ChangeNotifier {
 
       final purF = File('$path/purc_$currentFY.json');
       if (purF.existsSync()) {
-        final List d = jsonDecode(purF.readAsStringSync());
-        purchases = d.map((e) => Purchase.fromMap(e)).toList();
+        final List decoded = jsonDecode(purF.readAsStringSync());
+        purchases = decoded.map((e) => Purchase.fromMap(e)).toList();
       }
 
       final bf = File('$path/bats_$currentFY.json');
