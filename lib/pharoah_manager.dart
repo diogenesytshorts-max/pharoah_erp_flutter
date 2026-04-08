@@ -11,7 +11,7 @@ class PharoahManager with ChangeNotifier {
   List<Party> parties = [];
   List<Sale> sales = [];
   List<Purchase> purchases = [];
-  List<LogEntry> logs = []; // NAYA: History record
+  List<LogEntry> logs = [];
   Map<String, List<BatchInfo>> batchHistory = {};
   String currentFY = "2025-26";
 
@@ -40,7 +40,7 @@ class PharoahManager with ChangeNotifier {
       File('$path/parts_$currentFY.json').writeAsStringSync(jsonEncode(parties.map((e)=>e.toMap()).toList()));
       File('$path/sales_$currentFY.json').writeAsStringSync(jsonEncode(sales.map((e)=>e.toMap()).toList()));
       File('$path/purc_$currentFY.json').writeAsStringSync(jsonEncode(purchases.map((e)=>e.toMap()).toList()));
-      File('$path/logs_$currentFY.json').writeAsStringSync(jsonEncode(logs.map((e)=>e.toMap()).toList())); // Save Logs
+      File('$path/logs_$currentFY.json').writeAsStringSync(jsonEncode(logs.map((e)=>e.toMap()).toList()));
       
       Map<String, dynamic> hMap = {};
       batchHistory.forEach((k, v) => hMap[k] = v.map((b) => b.toMap()).toList());
@@ -64,7 +64,10 @@ class PharoahManager with ChangeNotifier {
       if (sf.existsSync()) sales = (jsonDecode(sf.readAsStringSync()) as List).map((e) => Sale(id: e['id'], billNo: e['billNo'], partyName: e['partyName'], paymentMode: e['paymentMode'], status: e['status'] ?? "Active", date: DateTime.parse(e['date']), totalAmount: (e['totalAmount']??0).toDouble(), items: (e['items'] as List).map((i) => BillItem.fromMap(i)).toList())).toList();
 
       final purF = File('$path/purc_$currentFY.json');
-      if (purF.existsSync()) purchases = (jsonDecode(purF.readAsStringSync()) as List).map((e) => Purchase.fromMap(e)).toList();
+      if (purF.existsSync()) {
+        final List d = jsonDecode(purF.readAsStringSync());
+        purchases = d.map((e) => Purchase.fromMap(e)).toList();
+      }
 
       final lf = File('$path/logs_$currentFY.json');
       if (lf.existsSync()) logs = (jsonDecode(lf.readAsStringSync()) as List).map((e)=>LogEntry.fromMap(e)).toList();
@@ -78,10 +81,45 @@ class PharoahManager with ChangeNotifier {
     } catch (e) { debugPrint("Load Error: $e"); }
   }
 
+  // --- FINAL SALE ---
+  void finalizeSale({required String billNo, required DateTime date, required Party party, required List<BillItem> items, required double total, required String mode}) {
+    addLog("SALE", "Bill $billNo for ${party.name}");
+    sales.add(Sale(id: DateTime.now().toString(), billNo: billNo, date: date, partyName: party.name, items: items, totalAmount: total, paymentMode: mode));
+    for (var item in items) {
+      int idx = medicines.indexWhere((m) => m.id == item.medicineID);
+      if (idx != -1) {
+        medicines[idx].stock -= item.qty.toInt();
+        _updateBatch(item.medicineID, BatchInfo(batch: item.batch, exp: item.exp, packing: item.packing, mrp: item.mrp, rate: item.rate));
+      }
+    }
+    save();
+  }
+
+  // --- FINAL PURCHASE (FIXED) ---
+  void finalizePurchase({required String billNo, required DateTime date, required Party party, required List<PurchaseItem> items, required double total, required String mode}) {
+    addLog("PURCHASE", "Bill $billNo from ${party.name}");
+    purchases.add(Purchase(id: DateTime.now().toString(), billNo: billNo, date: date, distributorName: party.name, items: items, totalAmount: total, paymentMode: mode));
+    for (var item in items) {
+      int idx = medicines.indexWhere((m) => m.id == item.medicineID);
+      if (idx != -1) {
+        medicines[idx].stock += (item.qty + item.freeQty).toInt();
+        medicines[idx].mrp = item.mrp;
+        _updateBatch(item.medicineID, BatchInfo(batch: item.batch, exp: item.exp, packing: item.packing, mrp: item.mrp, rate: item.purchaseRate));
+      }
+    }
+    save();
+  }
+
+  void _updateBatch(String mId, BatchInfo b) {
+    if (!batchHistory.containsKey(mId)) batchHistory[mId] = [];
+    int idx = batchHistory[mId]!.indexWhere((x) => x.batch == b.batch);
+    if (idx != -1) batchHistory[mId]![idx] = b; else batchHistory[mId]!.add(b);
+  }
+
   void deleteBill(String id) {
     int i = sales.indexWhere((s) => s.id == id);
     if (i != -1) {
-      addLog("DELETE", "Bill ${sales[i].billNo} of ${sales[i].partyName} deleted.");
+      addLog("DELETE", "Bill ${sales[i].billNo} deleted.");
       if (sales[i].status == "Active") {
         for (var it in sales[i].items) {
           int mi = medicines.indexWhere((m) => m.id == it.medicineID);
@@ -96,7 +134,7 @@ class PharoahManager with ChangeNotifier {
   void cancelBill(String id) {
     int i = sales.indexWhere((s) => s.id == id);
     if (i != -1 && sales[i].status != "Cancelled") {
-      addLog("CANCEL", "Bill ${sales[i].billNo} of ${sales[i].partyName} cancelled.");
+      addLog("CANCEL", "Bill ${sales[i].billNo} cancelled.");
       for (var it in sales[i].items) {
         int mi = medicines.indexWhere((m) => m.id == it.medicineID);
         if (mi != -1) medicines[mi].stock += it.qty.toInt();
@@ -105,20 +143,6 @@ class PharoahManager with ChangeNotifier {
       sales[i].totalAmount = 0.0;
       save();
     }
-  }
-
-  void finalizeSale({required String billNo, required DateTime date, required Party party, required List<BillItem> items, required double total, required String mode}) {
-    addLog("SALE", "New Bill $billNo created for ${party.name}. Total: $total");
-    sales.add(Sale(id: DateTime.now().millisecondsSinceEpoch.toString(), billNo: billNo, date: date, partyName: party.name, items: items, totalAmount: total, paymentMode: mode));
-    for (var item in items) {
-      int idx = medicines.indexWhere((m) => m.id == item.medicineID);
-      if (idx != -1) {
-        medicines[idx].stock -= item.qty.toInt();
-        if (!batchHistory.containsKey(item.medicineID)) batchHistory[item.medicineID] = [];
-        batchHistory[item.medicineID]!.add(BatchInfo(batch: item.batch, exp: item.exp, packing: item.packing, mrp: item.mrp, rate: item.rate));
-      }
-    }
-    save();
   }
 
   void addToLocalInventory(Medicine med) { if (!medicines.any((m) => m.name == med.name)) { medicines.add(med); save(); } }
