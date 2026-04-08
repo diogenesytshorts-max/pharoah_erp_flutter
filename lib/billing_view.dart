@@ -33,16 +33,16 @@ class _BillingViewState extends State<BillingView> {
       appBar: AppBar(
         backgroundColor: Colors.blue,
         foregroundColor: Colors.white,
-        title: Text(widget.party.name, style: const TextStyle(fontSize: 16)),
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(widget.party.name, style: const TextStyle(fontSize: 14)),
+            Text("${widget.billNo} | ${widget.mode}", style: const TextStyle(fontSize: 10)),
+          ],
+        ),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.print),
-            onPressed: items.isEmpty ? null : () => _saveAndPrint(ph),
-          ),
-          TextButton(
-            onPressed: items.isEmpty ? null : () => _saveAndClose(ph),
-            child: const Text("SAVE", style: TextStyle(color: Colors.white)),
-          )
+          IconButton(icon: const Icon(Icons.print), onPressed: items.isEmpty ? null : () => _saveAndPrint(ph)),
+          TextButton(onPressed: items.isEmpty ? null : () => _saveAndClose(ph), child: const Text("SAVE", style: TextStyle(color: Colors.white))),
         ],
       ),
       body: Stack(
@@ -78,7 +78,7 @@ class _BillingViewState extends State<BillingView> {
                     final item = items[index];
                     return ListTile(
                       title: Text(item.name, style: const TextStyle(fontWeight: FontWeight.bold)),
-                      subtitle: Text("Qty: ${item.qty.toInt()} | Rate: ${item.rate} | GST: ${item.gstRate}%"),
+                      subtitle: Text("Qty: ${item.qty.toInt()} | Batch: ${item.batch} | Rate: ${item.rate}"),
                       trailing: Text("₹${item.total.toStringAsFixed(2)}", style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.blue)),
                       onTap: () => setState(() { selectedMed = ph.medicines.firstWhere((m) => m.id == item.medicineID); editingIndex = index; }),
                     );
@@ -86,8 +86,8 @@ class _BillingViewState extends State<BillingView> {
                 ),
               ),
               Container(
-                padding: const EdgeInsets.all(20),
-                color: Colors.grey[200],
+                padding: const EdgeInsets.all(15),
+                color: Colors.blue[50],
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
@@ -103,6 +103,7 @@ class _BillingViewState extends State<BillingView> {
               top: 70, left: 10, right: 10,
               child: Material(
                 elevation: 5,
+                borderRadius: BorderRadius.circular(10),
                 child: Container(
                   constraints: const BoxConstraints(maxHeight: 250),
                   child: ListView(
@@ -170,12 +171,37 @@ class _ItemEntryFormState extends State<ItemEntryForm> {
 
   @override
   Widget build(BuildContext context) {
+    final ph = Provider.of<PharoahManager>(context);
+    final history = ph.batchHistory[widget.med.id] ?? [];
+
     return Container(
-      padding: const EdgeInsets.all(15), color: Colors.blue[50],
+      padding: const EdgeInsets.all(15), color: Colors.white,
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(children: [Text("${widget.srNo}. ${widget.med.name}", style: const TextStyle(fontWeight: FontWeight.bold)), const Spacer(), IconButton(icon: const Icon(Icons.close), onPressed: widget.onCancel)]),
-          Row(children: [Expanded(child: TextField(controller: batchC, decoration: const InputDecoration(labelText: "Batch"))), const SizedBox(width: 10), Expanded(child: TextField(controller: expC, decoration: const InputDecoration(labelText: "Exp")))]),
+          
+          // BATCH HISTORY CHIPS
+          if (history.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 5),
+              child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  children: history.map((b) => Padding(
+                    padding: const EdgeInsets.only(right: 5),
+                    child: ActionChip(
+                      label: Text("${b.batch} (${b.exp})", style: const TextStyle(fontSize: 10)),
+                      onPressed: () {
+                        setState(() { batchC.text = b.batch; expC.text = b.exp; mrpC.text = b.mrp.toString(); rateC.text = b.rate.toString(); });
+                      },
+                    ),
+                  )).toList(),
+                ),
+              ),
+            ),
+
+          Row(children: [Expanded(child: TextField(controller: batchC, decoration: const InputDecoration(labelText: "Batch"))), const SizedBox(width: 10), Expanded(child: TextField(controller: expC, decoration: const InputDecoration(labelText: "Exp (MM/YY)")))]),
           const SizedBox(height: 10),
           SegmentedButton<String>(
             segments: const [ButtonSegment(value: 'A', label: Text('Rate A')), ButtonSegment(value: 'B', label: Text('Rate B')), ButtonSegment(value: 'C', label: Text('Rate C'))],
@@ -183,34 +209,24 @@ class _ItemEntryFormState extends State<ItemEntryForm> {
             onSelectionChanged: (val) { setState(() => rateType = val.first); _updateRate(); },
           ),
           Row(children: [
-            Expanded(child: TextField(controller: mrpC, decoration: const InputDecoration(labelText: "MRP"), keyboardType: TextInputType.number)),
+            Expanded(child: TextField(controller: mrpC, decoration: const InputDecoration(labelText: "MRP"), keyboardType: TextInputType.number, onChanged: (v) { if(rateType == 'C') _updateRate(); })),
             const SizedBox(width: 10),
-            Expanded(child: TextField(controller: rateC, decoration: const InputDecoration(labelText: "Rate"), keyboardType: TextInputType.number)),
+            Expanded(child: TextField(controller: rateC, decoration: const InputDecoration(labelText: "Rate"), keyboardType: TextInputType.number, disabled: rateType == 'C')),
             const SizedBox(width: 10),
             Expanded(child: TextField(controller: qtyC, decoration: const InputDecoration(labelText: "Qty"), keyboardType: TextInputType.number)),
           ]),
-          const SizedBox(height: 10),
+          const SizedBox(height: 15),
           ElevatedButton(
-            style: ElevatedButton.styleFrom(minimumSize: const Size(double.infinity, 45), backgroundColor: Colors.blue),
+            style: ElevatedButton.styleFrom(minimumSize: const Size(double.infinity, 45), backgroundColor: Colors.green),
             onPressed: () {
               double r = double.tryParse(rateC.text) ?? 0; double q = double.tryParse(qtyC.text) ?? 0; double d = double.tryParse(discC.text) ?? 0;
               double taxable = (r * q) - d; double gstAmt = taxable * (widget.med.gst / 100);
               widget.onAdd(BillItem(id: DateTime.now().toString(), srNo: widget.srNo, medicineID: widget.med.id, name: widget.med.name, packing: widget.med.packing, batch: batchC.text.toUpperCase(), exp: expC.text, hsn: widget.med.hsnCode, mrp: double.tryParse(mrpC.text) ?? 0, qty: q, rate: r, discount: d, gstRate: widget.med.gst, cgst: gstAmt/2, sgst: gstAmt/2, total: taxable + gstAmt));
             },
-            child: const Text("ADD TO BILL", style: TextStyle(color: Colors.white)),
+            child: const Text("ADD TO BILL", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
           )
         ],
       ),
     );
   }
 }
-// ... inside ItemEntryForm State ...
-var matchingBatches = ph.batchHistory[widget.med.id] ?? [];
-
-// UI code to show matching batches
-if (matchingBatches.isNotEmpty)
-  SingleChildScrollView(scrollDirection: Axis.horizontal, child: Row(children: matchingBatches.map((b) => 
-    ActionChip(label: Text(b.batch), onTap: () {
-      setState(() { batchC.text = b.batch; expC.text = b.exp; mrpC.text = b.mrp.toString(); rateC.text = b.rate.toString(); });
-    })).toList()
-  )),
