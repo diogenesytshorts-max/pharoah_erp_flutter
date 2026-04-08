@@ -108,3 +108,4 @@ class _SaleEntryViewState extends State<SaleEntryView> {
     );
   }
 }
+// (Update validate function with Alert for Invoice/Date change)
