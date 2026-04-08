@@ -19,7 +19,7 @@ class Medicine {
 
 class Party {
   String id, name, address, city, route, phone, email, dl, gst, rateType;
-  double openingBalance, specialDiscount; // ADDED specialDiscount
+  double openingBalance, specialDiscount;
   Party({required this.id, required this.name, this.address = "", this.city = "", this.route = "", this.phone = "", this.email = "", this.dl = "N/A", this.gst = "N/A", this.rateType = "A", this.openingBalance = 0.0, this.specialDiscount = 0.0});
   Map<String, dynamic> toMap() => {'id': id, 'name': name, 'address': address, 'city': city, 'route': route, 'phone': phone, 'email': email, 'dl': dl, 'gst': gst, 'rateType': rateType, 'openingBalance': openingBalance, 'specialDiscount': specialDiscount};
   factory Party.fromMap(Map<String, dynamic> map) => Party(id: map['id'], name: map['name'], address: map['address']??"", city: map['city']??"", route: map['route']??"", phone: map['phone']??"", email: map['email']??"", dl: map['dl']??"N/A", gst: map['gst']??"N/A", rateType: map['rateType']??"A", openingBalance: (map['openingBalance']??0.0).toDouble(), specialDiscount: (map['specialDiscount']??0.0).toDouble());
