@@ -5,131 +5,56 @@ import 'models.dart';
 
 class PartyMasterView extends StatefulWidget {
   const PartyMasterView({super.key});
-
   @override
   State<PartyMasterView> createState() => _PartyMasterViewState();
 }
 
 class _PartyMasterViewState extends State<PartyMasterView> {
-  String searchText = "";
+  String search = "";
+  void _showForm({Party? party}) {
+    final ph = Provider.of<PharoahManager>(context, listen: false);
+    final nameC = TextEditingController(text: party?.name ?? "");
+    final phoneC = TextEditingController(text: party?.phone ?? "");
+    final addrC = TextEditingController(text: party?.address ?? "");
+    final cityC = TextEditingController(text: party?.city ?? "");
+    final routeC = TextEditingController(text: party?.route ?? "");
+    final dlC = TextEditingController(text: party?.dl ?? "");
+    final gstC = TextEditingController(text: party?.gst ?? "");
+    final balC = TextEditingController(text: party?.openingBalance.toString() ?? "0.0");
+
+    showDialog(context: context, builder: (c) => AlertDialog(
+      title: Text(party == null ? "New Party" : "Edit Party"),
+      content: SingleChildScrollView(child: Column(children: [
+        TextField(controller: nameC, decoration: const InputDecoration(labelText: "Firm Name")),
+        TextField(controller: phoneC, decoration: const InputDecoration(labelText: "Phone"), keyboardType: TextInputType.phone),
+        TextField(controller: addrC, decoration: const InputDecoration(labelText: "Address")),
+        TextField(controller: cityC, decoration: const InputDecoration(labelText: "City")),
+        TextField(controller: routeC, decoration: const InputDecoration(labelText: "Area / Route")),
+        TextField(controller: gstC, decoration: const InputDecoration(labelText: "GSTIN")),
+        TextField(controller: dlC, decoration: const InputDecoration(labelText: "DL Number")),
+        TextField(controller: balC, decoration: const InputDecoration(labelText: "Opening Balance"), keyboardType: TextInputType.number),
+      ])),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(c), child: const Text("Cancel")),
+        ElevatedButton(onPressed: () {
+          final p = Party(id: party?.id ?? DateTime.now().toString(), name: nameC.text.toUpperCase(), phone: phoneC.text, address: addrC.text, city: cityC.text, route: routeC.text.toUpperCase(), gst: gstC.text.toUpperCase(), dl: dlC.text.toUpperCase(), openingBalance: double.tryParse(balC.text) ?? 0.0);
+          if (party == null) ph.parties.add(p); else ph.parties[ph.parties.indexWhere((x)=>x.id==party.id)] = p;
+          ph.save(); Navigator.pop(c);
+        }, child: const Text("SAVE"))
+      ],
+    ));
+  }
 
   @override
   Widget build(BuildContext context) {
     final ph = Provider.of<PharoahManager>(context);
-    final filteredParties = ph.parties.where((p) => 
-      searchText.isEmpty ? true : p.name.toLowerCase().contains(searchText.toLowerCase())
-    ).toList();
-
+    final list = ph.parties.where((p) => p.name.toLowerCase().contains(search.toLowerCase())).toList();
     return Scaffold(
-      appBar: AppBar(
-        title: const Text("Party Master"),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.person_add, color: Colors.blue, size: 28),
-            onPressed: () => _showPartyForm(context),
-          )
-        ],
-      ),
-      body: Column(
-        children: [
-          // Search Bar
-          Padding(
-            padding: const EdgeInsets.all(15),
-            child: TextField(
-              decoration: InputDecoration(
-                hintText: "Search Party Name...",
-                prefixIcon: const Icon(Icons.search),
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-                filled: true,
-                fillColor: Colors.white,
-              ),
-              onChanged: (val) => setState(() => searchText = val),
-            ),
-          ),
-          // List
-          Expanded(
-            child: ListView.builder(
-              itemCount: filteredParties.length,
-              itemBuilder: (context, index) {
-                final party = filteredParties[index];
-                return ListTile(
-                  leading: CircleAvatar(child: Text(party.name[0])),
-                  title: Text(party.name, style: const TextStyle(fontWeight: FontWeight.bold)),
-                  subtitle: Text("City: ${party.city} | Phone: ${party.phone}"),
-                  trailing: IconButton(
-                    icon: const Icon(Icons.edit, color: Colors.blue),
-                    onPressed: () => _showPartyForm(context, party: party),
-                  ),
-                );
-              },
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // --- ADD/EDIT PARTY FORM ---
-  void _showPartyForm(BuildContext context, {Party? party}) {
-    final ph = Provider.of<PharoahManager>(context, listen: false);
-    final nameController = TextEditingController(text: party?.name ?? "");
-    final phoneController = TextEditingController(text: party?.phone ?? "");
-    final addressController = TextEditingController(text: party?.address ?? "");
-    final cityController = TextEditingController(text: party?.city ?? "");
-    final gstController = TextEditingController(text: party?.gst ?? "");
-
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      builder: (context) => Padding(
-        padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom, left: 20, right: 20, top: 20),
-        child: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(party == null ? "New Party Entry" : "Edit Party Details", 
-                  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-              const Divider(),
-              TextField(controller: nameController, decoration: const InputDecoration(labelText: "Firm Name")),
-              TextField(controller: phoneController, decoration: const InputDecoration(labelText: "Phone Number"), keyboardType: TextInputType.phone),
-              TextField(controller: addressController, decoration: const InputDecoration(labelText: "Full Address")),
-              TextField(controller: cityController, decoration: const InputDecoration(labelText: "City")),
-              TextField(controller: gstController, decoration: const InputDecoration(labelText: "GSTIN Number")),
-              const SizedBox(height: 25),
-              ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  minimumSize: const Size(double.infinity, 50),
-                  backgroundColor: Colors.blue,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))
-                ),
-                onPressed: () {
-                  if(nameController.text.isEmpty) return;
-                  
-                  final newParty = Party(
-                    id: party?.id ?? DateTime.now().millisecondsSinceEpoch.toString(),
-                    name: nameController.text.toUpperCase(),
-                    phone: phoneController.text,
-                    address: addressController.text,
-                    city: cityController.text,
-                    gst: gstController.text.toUpperCase(),
-                  );
-
-                  if (party == null) {
-                    ph.parties.add(newParty);
-                  } else {
-                    int idx = ph.parties.indexWhere((p) => p.id == party.id);
-                    ph.parties[idx] = newParty;
-                  }
-                  ph.save();
-                  Navigator.pop(context);
-                },
-                child: const Text("SAVE PARTY", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-              ),
-              const SizedBox(height: 20),
-            ],
-          ),
-        ),
-      ),
+      appBar: AppBar(title: const Text("Party Master"), actions: [IconButton(icon: const Icon(Icons.add), onPressed: () => _showForm())]),
+      body: Column(children: [
+        Padding(padding: const EdgeInsets.all(10), child: TextField(decoration: const InputDecoration(hintText: "Search Party...", prefixIcon: Icon(Icons.search)), onChanged: (v)=>setState(()=>search=v))),
+        Expanded(child: ListView.builder(itemCount: list.length, itemBuilder: (c, i) => ListTile(title: Text(list[i].name), subtitle: Text("${list[i].route} | ${list[i].city}"), trailing: IconButton(icon: const Icon(Icons.edit), onPressed: () => _showForm(party: list[i])))))
+      ]),
     );
   }
 }
