@@ -1,15 +1,13 @@
 name: Initialize Flutter Project
 
 on:
-  workflow_dispatch: # Yeh humein manual chalane ki permission dega
+  workflow_dispatch:
 
 jobs:
   setup:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Install Flutter
         uses: subosito/flutter-action@v2
@@ -18,25 +16,27 @@ jobs:
 
       - name: Create Files
         run: |
-          # Pehle se maujood files ko safe rakho
-          mkdir temp_lib
-          cp -r lib/* temp_lib/
-          cp pubspec.yaml temp_pubspec.yaml
-          
-          # Naya project create karo usi jagah
-          rm -rf *
+          # 1. Backup zaroori files
+          mkdir -p temp_backup
+          [ -f pubspec.yaml ] && cp pubspec.yaml temp_backup/ || echo "No pubspec"
+          [ -d lib ] && cp -r lib temp_backup/ || mkdir -p temp_backup/lib
+
+          # 2. Saaf karo directory
+          find . -maxdepth 1 ! -name 'temp_backup' ! -name '.git' ! -name '.' -exec rm -rf {} +
+
+          # 3. Flutter project create karo
           flutter create --org com.rawat . --project-name pharoah_erp
+
+          # 4. Restore files
+          [ -f temp_backup/pubspec.yaml ] && cp temp_backup/pubspec.yaml .
+          [ -d temp_backup/lib ] && cp -r temp_backup/lib/* ./lib/ || echo "Nothing to restore"
           
-          # Purani files wapas dalo
-          rm -rf lib/*
-          cp -r temp_lib/* lib/
-          cp temp_pubspec.yaml pubspec.yaml
-          rm -rf temp_lib temp_pubspec.yaml
+          rm -rf temp_backup
 
       - name: Commit Files
         run: |
           git config --global user.name "GitHub Action"
           git config --global user.email "action@github.com"
           git add .
-          git commit -m "Initialize Android and iOS system files"
+          git commit -m "Force Initialize Android and iOS system files" || echo "No changes to commit"
           git push
