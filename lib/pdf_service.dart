@@ -16,10 +16,10 @@ class PdfService {
     String cP = prefs.getString('compPh') ?? "";
     String cE = prefs.getString('compEmail') ?? "";
 
-    double totG = sale.items.fold(0, (s, i) => s + (i.rate * i.qty));
-    double totD = sale.items.fold(0, (s, i) => s + ((i.rate * i.qty) * (i.discountPercent / 100)) + i.discountRupees);
-    double totT = totG - totD;
-    double totGST = sale.items.fold(0, (s, i) => s + (i.cgst + i.sgst));
+    double tG = sale.items.fold(0, (s, i) => s + (i.rate * i.qty));
+    double tD = sale.items.fold(0, (s, i) => s + ((i.rate * i.qty) * (i.discountPercent / 100)) + i.discountRupees);
+    double tT = tG - tD;
+    double tGST = sale.items.fold(0, (s, i) => s + (i.cgst + i.sgst));
 
     pdf.addPage(pw.Page(
       pageFormat: PdfPageFormat.a4.landscape,
