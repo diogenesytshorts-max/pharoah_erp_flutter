@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'models.dart';
 
 class PharoahManager with ChangeNotifier {
@@ -12,82 +13,89 @@ class PharoahManager with ChangeNotifier {
 
   PharoahManager() { loadAllData(); }
 
-  Future<File> _getFile(String fileName) async {
+  Future<String> get _localPath async {
     final directory = await getApplicationDocumentsDirectory();
-    return File('${directory.path}/$fileName');
+    return directory.path;
   }
 
   Future<void> save() async {
+    final path = await _localPath;
     try {
-      final medsFile = await _getFile('medicines.json');
-      await medsFile.writeAsString(jsonEncode(medicines.map((e) => e.toMap()).toList()));
-      final partiesFile = await _getFile('parties.json');
-      await partiesFile.writeAsString(jsonEncode(parties.map((e) => e.toMap()).toList()));
-      final salesFile = await _getFile('sales_v2.json');
-      await salesFile.writeAsString(jsonEncode(sales.map((e) => e.toMap()).toList()));
+      File('$path/medicines.json').writeAsStringSync(jsonEncode(medicines.map((e) => e.toMap()).toList()));
+      File('$path/parties.json').writeAsStringSync(jsonEncode(parties.map((e) => e.toMap()).toList()));
+      File('$path/sales_final.json').writeAsStringSync(jsonEncode(sales.map((e) => e.toMap()).toList()));
       
-      final batchesFile = await _getFile('batch_history.json');
       Map<String, dynamic> historyMap = {};
-      batchHistory.forEach((key, value) => historyMap[key] = value.map((b) => b.toMap()).toList());
-      await batchesFile.writeAsString(jsonEncode(historyMap));
-      
+      batchHistory.forEach((k, v) => historyMap[k] = v.map((b) => b.toMap()).toList());
+      File('$path/batches.json').writeAsStringSync(jsonEncode(historyMap));
       notifyListeners();
-    } catch (e) { print(e); }
+    } catch (e) { print("Save Error: $e"); }
   }
 
   Future<void> loadAllData() async {
+    final path = await _localPath;
     try {
-      final medsFile = await _getFile('medicines.json');
-      if (await medsFile.exists()) medicines = (jsonDecode(await medsFile.readAsString()) as List).map((e) => Medicine.fromMap(e)).toList();
-      
-      final partiesFile = await _getFile('parties.json');
-      if (await partiesFile.exists()) parties = (jsonDecode(await partiesFile.readAsString()) as List).map((e) => Party.fromMap(e)).toList();
+      final medsF = File('$path/medicines.json');
+      if (medsF.existsSync()) medicines = (jsonDecode(medsF.readAsStringSync()) as List).map((e) => Medicine.fromMap(e)).toList();
+
+      final partF = File('$path/parties.json');
+      if (partF.existsSync()) parties = (jsonDecode(partF.readAsStringSync()) as List).map((e) => Party.fromMap(e)).toList();
       if (!parties.any((p) => p.name == "CASH")) parties.insert(0, Party(id: 'cash', name: "CASH"));
 
-      final salesFile = await _getFile('sales_v2.json');
-      if (await salesFile.exists()) {
-        final List decoded = jsonDecode(await salesFile.readAsString());
+      final saleF = File('$path/sales_final.json');
+      if (saleF.existsSync()) {
+        final List decoded = jsonDecode(saleF.readAsStringSync());
         sales = decoded.map((e) => Sale(
           id: e['id'], billNo: e['billNo'], partyName: e['partyName'], paymentMode: e['paymentMode'],
-          date: DateTime.parse(e['date']), totalAmount: e['totalAmount'].toDouble(),
+          status: e['status'] ?? "Active", date: DateTime.parse(e['date']), totalAmount: (e['totalAmount']??0).toDouble(),
           items: (e['items'] as List).map((i) => BillItem.fromMap(i)).toList(),
         )).toList();
       }
 
-      final batchesFile = await _getFile('batch_history.json');
-      if (await batchesFile.exists()) {
-        Map<String, dynamic> decoded = jsonDecode(await batchesFile.readAsString());
+      final batF = File('$path/batches.json');
+      if (batF.existsSync()) {
+        Map<String, dynamic> decoded = jsonDecode(batF.readAsStringSync());
         decoded.forEach((k, v) => batchHistory[k] = (v as List).map((b) => BatchInfo.fromMap(b)).toList());
       }
       notifyListeners();
-    } catch (e) { print(e); }
+    } catch (e) { print("Load Error: $e"); }
   }
 
-  // --- MODIFY KE LIYE STOCK REVERSE KARNA ---
-  void deleteSaleAndReverseStock(String saleId) {
-    int saleIdx = sales.indexWhere((s) => s.id == saleId);
-    if (saleIdx != -1) {
-      for (var item in sales[saleIdx].items) {
-        int medIdx = medicines.indexWhere((m) => m.id == item.medicineID);
-        if (medIdx != -1) {
-          medicines[medIdx].stock += item.qty.toInt(); // Stock Wapas Badhao
-        }
+  void reverseStock(String saleId) {
+    int sIdx = sales.indexWhere((s) => s.id == saleId);
+    if (sIdx != -1) {
+      for (var item in sales[sIdx].items) {
+        int mIdx = medicines.indexWhere((m) => m.id == item.medicineID);
+        if (mIdx != -1) medicines[mIdx].stock += item.qty.toInt();
       }
-      sales.removeAt(saleIdx);
-      save();
+    }
+  }
+
+  void deleteBill(String saleId) async {
+    reverseStock(saleId);
+    sales.removeWhere((s) => s.id == saleId);
+    // Series adjust: lastID - 1 is risky if not latest, so we keep it as is.
+    await save();
+  }
+
+  void cancelBill(String saleId) async {
+    int idx = sales.indexWhere((s) => s.id == saleId);
+    if (idx != -1 && sales[idx].status != "Cancelled") {
+      reverseStock(saleId);
+      sales[idx].status = "Cancelled";
+      sales[idx].totalAmount = 0.0; // Outstanding removed
+      await save();
     }
   }
 
   void finalizeSale({required String billNo, required DateTime date, required Party party, required List<BillItem> items, required double total, required String mode}) {
-    sales.add(Sale(id: DateTime.now().toString(), billNo: billNo, date: date, partyName: party.name, items: items, totalAmount: total, paymentMode: mode));
+    sales.add(Sale(id: DateTime.now().millisecondsSinceEpoch.toString(), billNo: billNo, date: date, partyName: party.name, items: items, totalAmount: total, paymentMode: mode));
     for (var item in items) {
       int idx = medicines.indexWhere((m) => m.id == item.medicineID);
       if (idx != -1) {
         medicines[idx].stock -= item.qty.toInt();
         if (!batchHistory.containsKey(item.medicineID)) batchHistory[item.medicineID] = [];
-        int bIdx = batchHistory[item.medicineID]!.indexWhere((b) => b.batch == item.batch);
-        var bInfo = BatchInfo(batch: item.batch, exp: item.exp, packing: item.packing, mrp: item.mrp, rate: item.rate);
-        if (bIdx != -1) batchHistory[item.medicineID]![bIdx] = bInfo; else batchHistory[item.medicineID]!.add(bInfo);
+        batchHistory[item.medicineID]!.add(BatchInfo(batch: item.batch, exp: item.exp, packing: item.packing, mrp: item.mrp, rate: item.rate));
       }
     }
     save();
