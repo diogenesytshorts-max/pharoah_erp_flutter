@@ -28,17 +28,18 @@ class Party {
 class BillItem {
   String id, medicineID, name, packing, batch, exp, hsn;
   int srNo;
-  double mrp, qty, rate, discount, gstRate, cgst, sgst, total;
-  BillItem({required this.id, required this.srNo, required this.medicineID, required this.name, required this.packing, required this.batch, required this.exp, required this.hsn, required this.mrp, required this.qty, required this.rate, required this.discount, required this.gstRate, required this.cgst, required this.sgst, required this.total});
-  Map<String, dynamic> toMap() => {'id': id, 'srNo': srNo, 'medicineID': medicineID, 'name': name, 'packing': packing, 'batch': batch, 'exp': exp, 'hsn': hsn, 'mrp': mrp, 'qty': qty, 'rate': rate, 'discount': discount, 'gstRate': gstRate, 'cgst': cgst, 'sgst': sgst, 'total': total};
-  factory BillItem.fromMap(Map<String, dynamic> map) => BillItem(id: map['id'], srNo: map['srNo'], medicineID: map['medicineID'], name: map['name'], packing: map['packing'], batch: map['batch'], exp: map['exp'], hsn: map['hsn'], mrp: map['mrp'].toDouble(), qty: map['qty'].toDouble(), rate: map['rate'].toDouble(), discount: map['discount'].toDouble(), gstRate: map['gstRate'].toDouble(), cgst: map['cgst'].toDouble(), sgst: map['sgst'].toDouble(), total: map['total'].toDouble());
+  double mrp, qty, rate, discountPercent, discountRupees, gstRate, cgst, sgst, total;
+  BillItem({required this.id, required this.srNo, required this.medicineID, required this.name, required this.packing, required this.batch, required this.exp, required this.hsn, required this.mrp, required this.qty, required this.rate, this.discountPercent = 0.0, this.discountRupees = 0.0, required this.gstRate, required this.cgst, required this.sgst, required this.total});
+  
+  Map<String, dynamic> toMap() => {'id': id, 'srNo': srNo, 'medicineID': medicineID, 'name': name, 'packing': packing, 'batch': batch, 'exp': exp, 'hsn': hsn, 'mrp': mrp, 'qty': qty, 'rate': rate, 'discountPercent': discountPercent, 'discountRupees': discountRupees, 'gstRate': gstRate, 'cgst': cgst, 'sgst': sgst, 'total': total};
+  factory BillItem.fromMap(Map<String, dynamic> map) => BillItem(id: map['id'], srNo: map['srNo'], medicineID: map['medicineID'], name: map['name'], packing: map['packing'], batch: map['batch'], exp: map['exp'], hsn: map['hsn'], mrp: (map['mrp']??0).toDouble(), qty: (map['qty']??0).toDouble(), rate: (map['rate']??0).toDouble(), discountPercent: (map['discountPercent']??0).toDouble(), discountRupees: (map['discountRupees']??0).toDouble(), gstRate: (map['gstRate']??0).toDouble(), cgst: (map['cgst']??0).toDouble(), sgst: (map['sgst']??0).toDouble(), total: (map['total']??0).toDouble());
 }
 
 class Sale {
-  String id, billNo, partyName, paymentMode;
+  String id, billNo, partyName, paymentMode, status; // status: "Active" or "Cancelled"
   DateTime date;
   List<BillItem> items;
   double totalAmount;
-  Sale({required this.id, required this.billNo, required this.date, required this.partyName, required this.items, required this.totalAmount, required this.paymentMode});
-  Map<String, dynamic> toMap() => {'id': id, 'billNo': billNo, 'date': date.toIso8601String(), 'partyName': partyName, 'paymentMode': paymentMode, 'totalAmount': totalAmount, 'items': items.map((i) => i.toMap()).toList()};
+  Sale({required this.id, required this.billNo, required this.date, required this.partyName, required this.items, required this.totalAmount, required this.paymentMode, this.status = "Active"});
+  Map<String, dynamic> toMap() => {'id': id, 'billNo': billNo, 'date': date.toIso8601String(), 'partyName': partyName, 'paymentMode': paymentMode, 'totalAmount': totalAmount, 'status': status, 'items': items.map((i) => i.toMap()).toList()};
 }
