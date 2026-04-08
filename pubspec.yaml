@@ -21,10 +21,10 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^3.0.0
-  # NAYA: Logo banane wala tool
+  # Logo generator tool
   flutter_launcher_icons: ^0.13.1
 
-# NAYA: Logo ki settings
+# LOGO SETTINGS
 flutter_launcher_icons:
   android: "launcher_icon"
   ios: true
@@ -33,6 +33,6 @@ flutter_launcher_icons:
 
 flutter:
   uses-material-design: true
-  # Assets folder ko activate karna
+  # Assets folder activate karna
   assets:
     - assets/logo.png
