@@ -12,6 +12,8 @@ dependencies:
   shared_preferences: ^2.2.2
   path_provider: ^2.1.2
   provider: ^6.1.1
+  pdf: ^3.10.7      # NAYA
+  printing: ^5.11.0 # NAYA
 
 dev_dependencies:
   flutter_test:
