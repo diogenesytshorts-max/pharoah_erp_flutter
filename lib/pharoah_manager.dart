@@ -2,7 +2,6 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'models.dart';
 
 class PharoahManager with ChangeNotifier {
@@ -21,22 +20,14 @@ class PharoahManager with ChangeNotifier {
   Future<void> save() async {
     final path = await _localPath;
     try {
-      final medsF = File('$path/medicines.json');
-      medsF.writeAsStringSync(jsonEncode(medicines.map((e) => e.toMap()).toList()));
-
-      final partF = File('$path/parties.json');
-      partF.writeAsStringSync(jsonEncode(parties.map((e) => e.toMap()).toList()));
-
-      final saleF = File('$path/sales_final.json');
-      saleF.writeAsStringSync(jsonEncode(sales.map((e) => e.toMap()).toList()));
-      
-      final batF = File('$path/batches.json');
+      File('$path/medicines.json').writeAsStringSync(jsonEncode(medicines.map((e) => e.toMap()).toList()));
+      File('$path/parties.json').writeAsStringSync(jsonEncode(parties.map((e) => e.toMap()).toList()));
+      File('$path/sales_final.json').writeAsStringSync(jsonEncode(sales.map((e) => e.toMap()).toList()));
       Map<String, dynamic> historyMap = {};
       batchHistory.forEach((k, v) => historyMap[k] = v.map((b) => b.toMap()).toList());
-      batF.writeAsStringSync(jsonEncode(historyMap));
-      
+      File('$path/batches.json').writeAsStringSync(jsonEncode(historyMap));
       notifyListeners();
-    } catch (e) { print("Save Error: $e"); }
+    } catch (e) { debugPrint("Save Error: $e"); }
   }
 
   Future<void> loadAllData() async {
@@ -44,28 +35,21 @@ class PharoahManager with ChangeNotifier {
     try {
       final medsF = File('$path/medicines.json');
       if (medsF.existsSync()) medicines = (jsonDecode(medsF.readAsStringSync()) as List).map((e) => Medicine.fromMap(e)).toList();
-
       final partF = File('$path/parties.json');
       if (partF.existsSync()) parties = (jsonDecode(partF.readAsStringSync()) as List).map((e) => Party.fromMap(e)).toList();
       if (!parties.any((p) => p.name == "CASH")) parties.insert(0, Party(id: 'cash', name: "CASH"));
-
       final saleF = File('$path/sales_final.json');
       if (saleF.existsSync()) {
         final List decoded = jsonDecode(saleF.readAsStringSync());
-        sales = decoded.map((e) => Sale(
-          id: e['id'], billNo: e['billNo'], partyName: e['partyName'], paymentMode: e['paymentMode'],
-          status: e['status'] ?? "Active", date: DateTime.parse(e['date']), totalAmount: (e['totalAmount']??0).toDouble(),
-          items: (e['items'] as List).map((i) => BillItem.fromMap(i)).toList(),
-        )).toList();
+        sales = decoded.map((e) => Sale(id: e['id'], billNo: e['billNo'], partyName: e['partyName'], paymentMode: e['paymentMode'], status: e['status'] ?? "Active", date: DateTime.parse(e['date']), totalAmount: (e['totalAmount']??0).toDouble(), items: (e['items'] as List).map((i) => BillItem.fromMap(i)).toList())).toList();
       }
-
       final batF = File('$path/batches.json');
       if (batF.existsSync()) {
         Map<String, dynamic> decoded = jsonDecode(batF.readAsStringSync());
         decoded.forEach((k, v) => batchHistory[k] = (v as List).map((b) => BatchInfo.fromMap(b)).toList());
       }
       notifyListeners();
-    } catch (e) { print("Load Error: $e"); }
+    } catch (e) { debugPrint("Load Error: $e"); }
   }
 
   void deleteBill(String saleId) {
@@ -102,7 +86,9 @@ class PharoahManager with ChangeNotifier {
       if (idx != -1) {
         medicines[idx].stock -= item.qty.toInt();
         if (!batchHistory.containsKey(item.medicineID)) batchHistory[item.medicineID] = [];
-        batchHistory[item.medicineID]!.add(BatchInfo(batch: item.batch, exp: item.exp, packing: item.packing, mrp: item.mrp, rate: item.rate));
+        int bIdx = batchHistory[item.medicineID]!.indexWhere((b) => b.batch == item.batch);
+        if (bIdx != -1) batchHistory[item.medicineID]![bIdx] = BatchInfo(batch: item.batch, exp: item.exp, packing: item.packing, mrp: item.mrp, rate: item.rate);
+        else batchHistory[item.medicineID]!.add(BatchInfo(batch: item.batch, exp: item.exp, packing: item.packing, mrp: item.mrp, rate: item.rate));
       }
     }
     save();
@@ -110,5 +96,3 @@ class PharoahManager with ChangeNotifier {
 
   void addToLocalInventory(Medicine med) { if (!medicines.any((m) => m.name == med.name)) { medicines.add(med); save(); } }
 }
-// (Ensure File is robust for storage)
-// Same as before, but with sync write for data persistence.
