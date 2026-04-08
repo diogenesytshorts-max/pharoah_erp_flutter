@@ -5,7 +5,6 @@ on:
     branches: [ main ]
   workflow_dispatch:
 
-# Warning ko chup karne ke liye environment variable
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
@@ -30,6 +29,7 @@ jobs:
         run: flutter pub get
         
       - name: Build APK
+        # Isme maine --no-tree-shake-icons joda hai, isse build fail nahi hoga
         run: flutter build apk --release --no-tree-shake-icons
         
       - name: Upload APK
