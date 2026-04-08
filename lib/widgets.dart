@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-// 1. STAT WIDGET (Top Cards ke liye)
 class StatWidget extends StatelessWidget {
   final String title, value, icon, period;
   final Color color;
@@ -42,14 +41,13 @@ class StatWidget extends StatelessWidget {
           const SizedBox(height: 10),
           Text(title, style: const TextStyle(color: Colors.grey, fontSize: 10, fontWeight: FontWeight.bold)),
           const SizedBox(height: 5),
-          Text(value, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.black)),
+          Text(value, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900)),
         ],
       ),
     );
   }
 }
 
-// 2. ACTION BUTTON (Main Menu ke liye)
 class ActionIconBtn extends StatelessWidget {
   final String title;
   final IconData icon;
