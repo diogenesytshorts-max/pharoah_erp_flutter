@@ -13,56 +13,51 @@ class SaleBillModifyView extends StatefulWidget {
 
 class _SaleBillModifyViewState extends State<SaleBillModifyView> {
   String duration = "Today"; String partyFilter = "All"; Party? selectedParty;
-  
   List<Sale> getFiltered(List<Sale> all) {
     DateTime now = DateTime.now();
     return all.where((s) {
       bool dateMatch = false;
       if (duration == "Today") dateMatch = s.date.day == now.day && s.date.month == now.month && s.date.year == now.year;
       else if (duration == "Yesterday") { DateTime y = now.subtract(const Duration(days: 1)); dateMatch = s.date.day == y.day && s.date.month == y.month && s.date.year == y.year; }
-      else if (duration == "Week") dateMatch = s.date.isAfter(now.subtract(const Duration(days: 7)));
       else if (duration == "Month") dateMatch = s.date.month == now.month && s.date.year == now.year;
       else dateMatch = true;
-
-      bool partyMatch = (partyFilter == "All") || (s.partyName == selectedParty?.name);
-      return dateMatch && partyMatch;
+      return dateMatch && (partyFilter == "All" || s.partyName == selectedParty?.name);
     }).toList().reversed.toList();
   }
 
   @override Widget build(BuildContext context) {
     final ph = Provider.of<PharoahManager>(context);
-    final filtered = getFiltered(ph.sales);
+    final list = getFiltered(ph.sales);
     return Scaffold(
       appBar: AppBar(title: const Text("Modify Sale Bill")),
       body: Column(children: [
-        Padding(padding: const EdgeInsets.all(10), child: Row(children: [
-          Expanded(child: DropdownButton(value: duration, items: ["Today", "Yesterday", "Week", "Month", "All"].map((e)=>DropdownMenuItem(value:e, child:Text(e))).toList(), onChanged: (v)=>setState(()=>duration=v!))),
-          const SizedBox(width: 10),
+        Row(children: [
+          Expanded(child: DropdownButton(value: duration, items: ["Today", "Yesterday", "Month", "All"].map((e)=>DropdownMenuItem(value:e, child:Text(e))).toList(), onChanged: (v)=>setState(()=>duration=v!))),
           Expanded(child: DropdownButton(value: partyFilter, items: ["All", "Single"].map((e)=>DropdownMenuItem(value:e, child:Text(e))).toList(), onChanged: (v)=>setState(()=>partyFilter=v!))),
-        ])),
+        ]),
         if (partyFilter == "Single") ListTile(title: Text(selectedParty?.name ?? "Select Party"), onTap: () {
           showDialog(context: context, builder: (c)=>SimpleDialog(children: ph.parties.map((p)=>SimpleDialogOption(child: Text(p.name), onPressed: (){ setState(()=>selectedParty=p); Navigator.pop(c); })).toList()));
         }),
-        Expanded(child: ListView.builder(itemCount: filtered.length, itemBuilder: (c, i) {
-          final s = filtered[i];
-          return Card(color: s.status == "Cancelled" ? Colors.red[50] : Colors.white, child: ListTile(
-            title: Text("${s.billNo} | ${s.partyName}"),
-            subtitle: Text("${DateFormat('dd/MM/yyyy').format(s.date)} | ₹${s.totalAmount} (${s.status})"),
-            trailing: PopupMenuButton(onSelected: (v) async {
-              if (v == 'view') Navigator.push(context, MaterialPageRoute(builder: (c)=>SaleEntryView(existingSale: s, isReadOnly: true)));
-              if (v == 'modify') Navigator.push(context, MaterialPageRoute(builder: (c)=>SaleEntryView(existingSale: s)));
-              if (v == 'print') PdfService.generateInvoice(s, ph.parties.firstWhere((p)=>p.name==s.partyName));
-              if (v == 'cancel') ph.cancelBill(s.id);
-              if (v == 'delete') ph.deleteBill(s.id);
+        Expanded(child: ListView.builder(itemCount: list.length, itemBuilder: (c, i) => Card(
+          color: list[i].status == "Cancelled" ? Colors.red[50] : Colors.white,
+          child: ListTile(
+            title: Text("${list[i].billNo} | ${list[i].partyName}"),
+            subtitle: Text("₹${list[i].totalAmount} (${list[i].status})"),
+            trailing: PopupMenuButton(onSelected: (v){
+              if(v=='v') Navigator.push(context, MaterialPageRoute(builder: (c)=>SaleEntryView(existingSale: list[i], isReadOnly: true)));
+              if(v=='m') Navigator.push(context, MaterialPageRoute(builder: (c)=>SaleEntryView(existingSale: list[i])));
+              if(v=='p') PdfService.generateInvoice(list[i], ph.parties.firstWhere((p)=>p.name==list[i].partyName));
+              if(v=='c') ph.cancelBill(list[i].id);
+              if(v=='d') ph.deleteBill(list[i].id);
             }, itemBuilder: (c)=>[
-              const PopupMenuItem(value: 'view', child: Text("View")),
-              const PopupMenuItem(value: 'modify', child: Text("Modify")),
-              const PopupMenuItem(value: 'print', child: Text("Print")),
-              const PopupMenuItem(value: 'cancel', child: Text("Cancel Bill")),
-              const PopupMenuItem(value: 'delete', child: Text("Delete Bill")),
+              const PopupMenuItem(value: 'v', child: Text("View")),
+              const PopupMenuItem(value: 'm', child: Text("Modify")),
+              const PopupMenuItem(value: 'p', child: Text("Print")),
+              const PopupMenuItem(value: 'c', child: Text("Cancel")),
+              const PopupMenuItem(value: 'd', child: Text("Delete")),
             ]),
-          ));
-        }))
+          ),
+        )))
       ]),
     );
   }
