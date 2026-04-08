@@ -15,30 +15,49 @@ class SaleEntryView extends StatefulWidget {
 
 class _SaleEntryViewState extends State<SaleEntryView> {
   String bN = ""; DateTime bD = DateTime.now(); String pM = "CASH"; Party? sP; String sPT = "";
-  DateTime firstDate = DateTime(2024, 4, 1);
-  DateTime lastDate = DateTime(2025, 3, 31);
+  DateTime fD = DateTime(2025, 4, 1); DateTime lD = DateTime(2026, 3, 31);
+  final bNoC = TextEditingController();
 
   @override void initState() {
     super.initState();
-    _loadFYConstraints();
-    if (widget.existingSale != null) { bN = widget.existingSale!.billNo; bD = widget.existingSale!.date; pM = widget.existingSale!.paymentMode; } 
-    else { _load(); }
+    _loadFY();
+    if (widget.existingSale != null) { bN = widget.existingSale!.billNo; bD = widget.existingSale!.date; pM = widget.existingSale!.paymentMode; bNoC.text = bN; } 
+    else { _loadNum(); }
   }
 
-  _loadFYConstraints() async {
+  _loadFY() async {
     final p = await SharedPreferences.getInstance();
     String fy = p.getString('fy') ?? "2025-26";
-    int startYear = int.parse(fy.split('-')[0]);
-    if (startYear < 100) startYear += 2000;
-    setState(() {
-      firstDate = DateTime(startYear, 4, 1);
-      lastDate = DateTime(startYear + 1, 3, 31);
-      // Agar current date FY se bahar hai toh FY ki start date pe set kardo
-      if (bD.isBefore(firstDate) || bD.isAfter(lastDate)) bD = firstDate;
-    });
+    int sY = int.parse(fy.split('-')[0]); if (sY < 2000) sY += 2000;
+    setState(() { fD = DateTime(sY, 4, 1); lD = DateTime(sY + 1, 3, 31); if (bD.isBefore(fD) || bD.isAfter(lD)) bD = fD; });
   }
 
-  _load() async { String n = await SaleBillNumber.getNextNumber(); setState(() => bN = n); }
+  _loadNum() async { bN = await SaleBillNumber.getNextNumber(); setState(() { bNoC.text = bN; }); }
+
+  void _validateAndProceed(PharoahManager ph) {
+    if (widget.isReadOnly) { _go(); return; }
+    
+    // DUPLICATE CHECK
+    bool isNew = widget.existingSale == null;
+    bool isChanged = !isNew && bNoC.text != widget.existingSale!.billNo;
+    
+    if (isNew || isChanged) {
+      final dup = ph.sales.firstWhere((s) => s.billNo == bNoC.text, orElse: () => Sale(id: '', billNo: '', date: DateTime.now(), partyName: '', items: [], totalAmount: 0, paymentMode: ''));
+      if (dup.id != '') {
+        showDialog(context: context, builder: (c)=>AlertDialog(title: const Text("Duplicate Bill!"), content: Text("Bill ${bNoC.text} already issued to ${dup.partyName}."), actions: [TextButton(onPressed: ()=>Navigator.pop(c), child: const Text("OK"))]));
+        return;
+      }
+    }
+
+    if (isNew && bNoC.text != bN) {
+      showDialog(context: context, builder: (c)=>AlertDialog(title: const Text("Change Series?"), content: Text("Do you want to start all future bills from ${bNoC.text}?"), actions: [
+        TextButton(onPressed: (){ _go(); Navigator.pop(c); }, child: const Text("Only this bill")),
+        TextButton(onPressed: () async { await SaleBillNumber.updateSeriesFromFull(bNoC.text); _go(); Navigator.pop(c); }, child: const Text("Yes, Change Series"))
+      ]));
+    } else { _go(); }
+  }
+
+  void _go() => Navigator.push(context, MaterialPageRoute(builder: (c) => BillingView(party: sP!, billNo: bNoC.text, billDate: bD, mode: pM, existingItems: widget.existingSale?.items, modifySaleId: widget.existingSale?.id, isReadOnly: widget.isReadOnly)));
 
   @override Widget build(BuildContext context) {
     final ph = Provider.of<PharoahManager>(context);
@@ -48,21 +67,18 @@ class _SaleEntryViewState extends State<SaleEntryView> {
       body: Column(children: [
         Container(padding: const EdgeInsets.all(15), color: widget.isReadOnly ? Colors.grey[200] : Colors.blue[50], child: Column(children: [
           Row(children: [
-            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [const Text("BILL NO", style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold)), Text(bN, style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: widget.isReadOnly ? Colors.grey : Colors.blue))])),
-            Expanded(child: InkWell(onTap: widget.isReadOnly ? null : () async { 
-              DateTime? p = await showDatePicker(context: context, initialDate: bD, firstDate: firstDate, lastDate: lastDate); 
-              if (p != null) setState(() => bD = p); 
-            }, child: Column(crossAxisAlignment: CrossAxisAlignment.end, children: [const Text("DATE", style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold)), Text(DateFormat('dd/MM/yyyy').format(bD), style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)) ])))
+            Expanded(child: TextField(controller: bNoC, enabled: !widget.isReadOnly, decoration: const InputDecoration(labelText: "BILL NO", labelStyle: TextStyle(fontSize: 10, fontWeight: FontWeight.bold)), style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.blue))),
+            Expanded(child: InkWell(onTap: widget.isReadOnly ? null : () async { DateTime? p = await showDatePicker(context: context, initialDate: bD, firstDate: fD, lastDate: lD); if (p != null) setState(() => bD = p); }, child: Column(crossAxisAlignment: CrossAxisAlignment.end, children: [const Text("DATE", style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold)), Text(DateFormat('dd/MM/yyyy').format(bD), style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)) ])))
           ]),
           const SizedBox(height: 15),
           AbsorbPointer(absorbing: widget.isReadOnly, child: SegmentedButton<String>(segments: const [ButtonSegment(value: 'CASH', label: Text('CASH')), ButtonSegment(value: 'CREDIT', label: Text('CREDIT'))], selected: {pM}, onSelectionChanged: (v) => setState(() => pM = v.first)))
         ])),
-        if (sP != null) ListTile(leading: const Icon(Icons.person), title: Text(sP!.name, style: const TextStyle(fontWeight: FontWeight.bold)), subtitle: Text(sP!.phone), trailing: widget.isReadOnly || widget.existingSale != null ? const Icon(Icons.lock) : IconButton(icon: const Icon(Icons.close), onPressed: () => setState(() => sP = null)))
+        if (sP != null) ListTile(leading: const Icon(Icons.person, color: Colors.blue), title: Text(sP!.name, style: const TextStyle(fontWeight: FontWeight.bold)), subtitle: Text(sP!.phone), trailing: widget.isReadOnly || widget.existingSale != null ? const Icon(Icons.lock) : IconButton(icon: const Icon(Icons.close), onPressed: () => setState(() => sP = null)))
         else Expanded(child: Column(children: [
-          Padding(padding: const EdgeInsets.symmetric(horizontal: 15), child: TextField(decoration: const InputDecoration(hintText: "Search Party..."), onChanged: (v) => setState(() => sPT = v))),
+          Padding(padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 10), child: TextField(decoration: const InputDecoration(hintText: "Search Party...", prefixIcon: Icon(Icons.search), border: OutlineInputBorder()), onChanged: (v) => setState(() => sPT = v))),
           Expanded(child: ListView(children: ph.parties.where((p) => p.name.toLowerCase().contains(sPT.toLowerCase())).map((p) => ListTile(title: Text(p.name), onTap: () => setState(() => sP = p))).toList()))
         ])),
-        if (sP != null) Padding(padding: const EdgeInsets.all(20), child: ElevatedButton(style: ElevatedButton.styleFrom(minimumSize: const Size(double.infinity, 55), backgroundColor: widget.isReadOnly ? Colors.purple : Colors.green), onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (c) => BillingView(party: sP!, billNo: bN, billDate: bD, mode: pM, existingItems: widget.existingSale?.items, modifySaleId: widget.existingSale?.id, isReadOnly: widget.isReadOnly))), child: Text(widget.isReadOnly ? "VIEW ITEMS" : "PROCEED", style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold))))
+        if (sP != null) Padding(padding: const EdgeInsets.all(20), child: ElevatedButton(style: ElevatedButton.styleFrom(minimumSize: const Size(double.infinity, 55), backgroundColor: widget.isReadOnly ? Colors.purple : Colors.green), onPressed: () => _validateAndProceed(ph), child: Text(widget.isReadOnly ? "VIEW ITEMS" : "PROCEED", style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold))))
       ]),
     );
   }
