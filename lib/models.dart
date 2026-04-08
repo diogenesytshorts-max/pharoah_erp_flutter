@@ -18,11 +18,11 @@ class Medicine {
 }
 
 class Party {
-  String id, name, address, city, route, phone, dl, gst, rateType;
+  String id, name, address, city, route, phone, email, dl, gst, rateType;
   double openingBalance;
-  Party({required this.id, required this.name, this.address = "", this.city = "", this.route = "", this.phone = "", this.dl = "N/A", this.gst = "N/A", this.rateType = "A", this.openingBalance = 0.0});
-  Map<String, dynamic> toMap() => {'id': id, 'name': name, 'address': address, 'city': city, 'route': route, 'phone': phone, 'dl': dl, 'gst': gst, 'rateType': rateType, 'openingBalance': openingBalance};
-  factory Party.fromMap(Map<String, dynamic> map) => Party(id: map['id'], name: map['name'], address: map['address'], city: map['city'], route: map['route'], phone: map['phone'], dl: map['dl'], gst: map['gst'], rateType: map['rateType'], openingBalance: map['openingBalance'].toDouble());
+  Party({required this.id, required this.name, this.address = "", this.city = "", this.route = "", this.phone = "", this.email = "", this.dl = "N/A", this.gst = "N/A", this.rateType = "A", this.openingBalance = 0.0});
+  Map<String, dynamic> toMap() => {'id': id, 'name': name, 'address': address, 'city': city, 'route': route, 'phone': phone, 'email': email, 'dl': dl, 'gst': gst, 'rateType': rateType, 'openingBalance': openingBalance};
+  factory Party.fromMap(Map<String, dynamic> map) => Party(id: map['id'], name: map['name'], address: map['address'], city: map['city'], route: map['route'], phone: map['phone'], email: map['email'] ?? "", dl: map['dl'], gst: map['gst'], rateType: map['rateType'], openingBalance: map['openingBalance'].toDouble());
 }
 
 class BillItem {
@@ -34,10 +34,9 @@ class BillItem {
 }
 
 class Sale {
-  String id, billNo, partyName;
+  String id, billNo, partyName, paymentMode;
   DateTime date;
   List<BillItem> items;
   double totalAmount;
-  String paymentMode;
   Sale({required this.id, required this.billNo, required this.date, required this.partyName, required this.items, required this.totalAmount, required this.paymentMode});
 }
