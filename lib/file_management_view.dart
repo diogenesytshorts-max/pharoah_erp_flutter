@@ -19,9 +19,15 @@ class _FileManagementViewState extends State<FileManagementView> {
           tileColor: Colors.blue[50], leading: const Icon(Icons.calendar_month), title: const Text("Change Financial Year"), subtitle: Text("Current: $currentFy"),
           onTap: () {
             showDialog(context: context, builder: (c)=>SimpleDialog(title: const Text("Select Year"), children: ["2024-25", "2025-26", "2026-27"].map((y)=>SimpleDialogOption(child: Text(y), onPressed: () async {
-              final p = await SharedPreferences.getInstance(); await p.setString('fy', y); 
-              ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("FY Changed to $y. Restart app for effects.")));
-              Navigator.pop(c); _load();
+              if (y == currentFy) { Navigator.pop(c); return; }
+              final p = await SharedPreferences.getInstance(); 
+              await p.setString('fy', y); 
+              // FORCE LOGOUT TO RE-INIT MANAGER WITH NEW FY FILES
+              showDialog(context: context, barrierDismissible: false, builder: (c2)=>AlertDialog(title: const Text("Restart Required"), content: Text("Switching to $y. App will now logout to load correct files."), actions: [
+                TextButton(onPressed: () { 
+                  Navigator.of(context).popUntil((route) => route.isFirst); 
+                }, child: const Text("OK, LOGOUT"))
+              ]));
             })).toList()));
           },
         )
