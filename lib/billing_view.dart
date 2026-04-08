@@ -26,7 +26,7 @@ class _BillingViewState extends State<BillingView> {
         Column(children: [
           if (selectedMed == null && !widget.isReadOnly) Padding(padding: const EdgeInsets.all(10), child: TextField(decoration: const InputDecoration(hintText: "Search Medicine...", border: OutlineInputBorder()), onChanged: (v) => setState(() => search = v))),
           if (selectedMed != null) ItemEntryForm(med: selectedMed!, srNo: editingIndex ?? items.length + 1, existingItem: editingIndex != null ? items[editingIndex!] : null, onAdd: (ni) { setState(() { if (editingIndex != null) items[editingIndex!] = ni; else { items.add(ni); ph.addToLocalInventory(selectedMed!); } selectedMed = null; editingIndex = null; search = ""; }); }, onCancel: () => setState(() { selectedMed = null; editingIndex = null; })),
-          Expanded(child: ListView.builder(itemCount: items.length, itemBuilder: (c, i) => ListTile(title: Text(items[i].name, style: const TextStyle(fontWeight: FontWeight.bold)), subtitle: Text("Qty: ${items[i].qty.toInt()} | B: ${items[i].batch}"), trailing: Row(mainAxisSize: MainAxisSize.min, children: [Text("₹${items[i].total.toStringAsFixed(2)}"), if(!widget.isReadOnly) IconButton(icon: const Icon(Icons.copy, size: 18, color: Colors.orange), onPressed: () => setState(() { selectedMed = ph.medicines.firstWhere((m) => m.id == items[i].medicineID); editingIndex = null; }))]), onTap: widget.isReadOnly ? null : () => setState(() { selectedMed = ph.medicines.firstWhere((m) => m.id == items[i].medicineID); editingIndex = i; })))),
+          Expanded(child: ListView.builder(itemCount: items.length, itemBuilder: (c, i) => ListTile(title: Text(items[i].name, style: const TextStyle(fontWeight: FontWeight.bold)), subtitle: Text("Qty: ${items[i].qty.toInt()} | B: ${items[i].batch} | E: ${items[i].exp}"), trailing: Row(mainAxisSize: MainAxisSize.min, children: [Text("₹${items[i].total.toStringAsFixed(2)}"), if(!widget.isReadOnly) IconButton(icon: const Icon(Icons.copy, size: 18, color: Colors.orange), onPressed: () => setState(() { selectedMed = ph.medicines.firstWhere((m) => m.id == items[i].medicineID); editingIndex = null; }))]), onTap: widget.isReadOnly ? null : () => setState(() { selectedMed = ph.medicines.firstWhere((m) => m.id == items[i].medicineID); editingIndex = i; })))),
           Container(padding: const EdgeInsets.all(12), color: Colors.blue[50], child: Column(children: [
             Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [Text("Taxable: ₹${(grandTotal - totalGst).toStringAsFixed(2)}"), Text("GST: ₹${totalGst.toStringAsFixed(2)}")]),
             const Divider(),
@@ -60,12 +60,11 @@ class _ItemEntryFormState extends State<ItemEntryForm> {
       mC.text = widget.existingItem!.mrp.toString(); rC.text = widget.existingItem!.rate.toString();
       qC.text = widget.existingItem!.qty.toString(); nDP.text = widget.existingItem!.discountPercent.toString(); nDR.text = widget.existingItem!.discountRupees.toString();
     } else { mC.text = widget.med.mrp.toString(); gC.text = widget.med.gst.toString(); rC.text = widget.med.rateA.toString(); qC.text = "1"; }
-    
     eC.addListener(() {
       String t = eC.text.replaceAll("/", "");
       if (t.length >= 2) {
-        int m = int.tryParse(t.substring(0, 2)) ?? 1;
-        if (m > 12) t = "12${t.substring(2)}"; if (m == 0) t = "01${t.substring(2)}";
+        int mon = int.tryParse(t.substring(0, 2)) ?? 1;
+        if (mon > 12) t = "12${t.substring(2)}"; if (mon == 0) t = "01${t.substring(2)}";
         String formatted = "${t.substring(0, 2)}/${t.substring(2)}";
         if (eC.text != formatted) { eC.text = formatted; eC.selection = TextSelection.fromPosition(TextPosition(offset: eC.text.length)); }
       }
@@ -83,7 +82,7 @@ class _ItemEntryFormState extends State<ItemEntryForm> {
     final ph = Provider.of<PharoahManager>(context);
     final history = ph.batchHistory[widget.med.id] ?? [];
     return Container(padding: const EdgeInsets.all(10), color: Colors.white, child: Column(children: [
-      Row(children: [Text("${widget.srNo}. ${widget.med.name}", style: const TextStyle(fontWeight: FontWeight.bold)), const Spacer(), IconButton(icon: const Icon(Icons.close), onPressed: widget.onCancel)]),
+      Row(children: [Text("${widget.srNo}. ${widget.med.name}", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)), const Spacer(), IconButton(icon: const Icon(Icons.close), onPressed: widget.onCancel)]),
       if (history.isNotEmpty) SingleChildScrollView(scrollDirection: Axis.horizontal, child: Row(children: history.map((b)=>ActionChip(label: Text(b.batch), onPressed: (){ setState(() { bC.text = b.batch; eC.text = b.exp; mC.text = b.mrp.toString(); rC.text = b.rate.toString(); }); })).toList())),
       Row(children: [
         Expanded(child: TextField(controller: bC, decoration: const InputDecoration(labelText: "Batch"))), const SizedBox(width: 5),
@@ -92,8 +91,17 @@ class _ItemEntryFormState extends State<ItemEntryForm> {
       ]),
       const SizedBox(height: 10),
       SegmentedButton<String>(segments: const [ButtonSegment(value: 'A', label: Text('Rate A')), ButtonSegment(value: 'B', label: Text('Rate B')), ButtonSegment(value: 'C', label: Text('Rate C'))], selected: {rT}, onSelectionChanged: (val) { setState(() => rT = val.first); _upd(); }),
-      Row(children: [if (rT == 'C') Expanded(child: TextField(controller: rCD, decoration: const InputDecoration(labelText: "RC Disc%"), keyboardType: TextInputType.number, onChanged: (v)=>_upd())), Expanded(child: TextField(controller: mC, decoration: const InputDecoration(labelText: "MRP"), keyboardType: TextInputType.number, onChanged: (v) => _upd())), Expanded(child: TextField(controller: rC, decoration: const InputDecoration(labelText: "Rate"), keyboardType: TextInputType.number, enabled: rT != 'C')), Expanded(child: TextField(controller: qC, decoration: const InputDecoration(labelText: "Qty"), keyboardType: TextInputType.number))]),
-      Row(children: [Expanded(child: TextField(controller: nDP, decoration: const InputDecoration(labelText: "Disc %"), keyboardType: TextInputType.number)), const SizedBox(width: 5), Expanded(child: TextField(controller: nDR, decoration: const InputDecoration(labelText: "Disc ₹"), keyboardType: TextInputType.number))]),
+      Row(children: [
+        if (rT == 'C') Expanded(child: TextField(controller: rCD, decoration: const InputDecoration(labelText: "RC Disc%"), keyboardType: TextInputType.number, onChanged: (v)=>_upd())),
+        Expanded(child: TextField(controller: mC, decoration: const InputDecoration(labelText: "MRP"), keyboardType: TextInputType.number, onChanged: (v) => _upd())),
+        Expanded(child: TextField(controller: rC, decoration: const InputDecoration(labelText: "Rate"), keyboardType: TextInputType.number, enabled: rT != 'C')),
+        Expanded(child: TextField(controller: qC, decoration: const InputDecoration(labelText: "Qty"), keyboardType: TextInputType.number)),
+      ]),
+      Row(children: [
+        Expanded(child: TextField(controller: nDP, decoration: const InputDecoration(labelText: "Disc %"), keyboardType: TextInputType.number)),
+        const SizedBox(width: 5),
+        Expanded(child: TextField(controller: nDR, decoration: const InputDecoration(labelText: "Disc ₹"), keyboardType: TextInputType.number)),
+      ]),
       const SizedBox(height: 10),
       ElevatedButton(style: ElevatedButton.styleFrom(minimumSize: const Size(double.infinity, 45), backgroundColor: Colors.green), onPressed: () {
         double r = double.tryParse(rC.text) ?? 0, q = double.tryParse(qC.text) ?? 0, dp = double.tryParse(nDP.text) ?? 0, dr = double.tryParse(nDR.text) ?? 0, g = double.tryParse(gC.text) ?? 0;
