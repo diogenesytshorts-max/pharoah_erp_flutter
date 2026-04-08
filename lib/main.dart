@@ -48,10 +48,16 @@ class _MyAppState extends State<MyApp> {
     return MaterialApp(
       title: 'Pharoah ERP',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue), useMaterial3: true),
+      theme: ThemeData(
+        colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
+        useMaterial3: true,
+      ),
+      // NAVIGATION FLOW
       home: !isSetupDone 
         ? SetupView(onComplete: () => setState(() => isSetupDone = true))
-        : (!isLoggedIn ? LoginView(onLogin: () => setState(() => isLoggedIn = true)) : const DashboardView()),
+        : (!isLoggedIn 
+            ? LoginView(onLogin: () => setState(() => isLoggedIn = true)) 
+            : DashboardView(onLogout: () => setState(() => isLoggedIn = false))),
     );
   }
 }
