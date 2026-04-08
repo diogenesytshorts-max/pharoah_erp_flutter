@@ -36,12 +36,15 @@ class _SetupViewState extends State<SetupView> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text("Company Setup")),
+      backgroundColor: Colors.white,
+      appBar: AppBar(title: const Text("Create Company")),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
+        padding: const EdgeInsets.all(25),
         child: Column(children: [
-          const Text("Firm Details", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.blue)),
+          const Icon(Icons.business_center, size: 60, color: Colors.blue),
           const SizedBox(height: 10),
+          const Text("Pharoah ERP Setup", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 20),
           TextField(controller: nameC, decoration: const InputDecoration(labelText: "Firm / Shop Name", border: OutlineInputBorder())),
           const SizedBox(height: 10),
           TextField(controller: addrC, decoration: const InputDecoration(labelText: "Full Address", border: OutlineInputBorder())),
@@ -49,21 +52,25 @@ class _SetupViewState extends State<SetupView> {
           Row(children: [
             Expanded(child: TextField(controller: gstC, decoration: const InputDecoration(labelText: "GSTIN", border: OutlineInputBorder()))),
             const SizedBox(width: 10),
-            Expanded(child: TextField(controller: dlC, decoration: const InputDecoration(labelText: "Drug License (DL)", border: OutlineInputBorder()))),
+            Expanded(child: TextField(controller: dlC, decoration: const InputDecoration(labelText: "Drug License", border: OutlineInputBorder()))),
           ]),
           const SizedBox(height: 10),
           Row(children: [
-            Expanded(child: TextField(controller: phoneC, decoration: const InputDecoration(labelText: "Mobile No", border: OutlineInputBorder()))),
+            Expanded(child: TextField(controller: phoneC, decoration: const InputDecoration(labelText: "Phone No", border: OutlineInputBorder()), keyboardType: TextInputType.phone)),
             const SizedBox(width: 10),
             Expanded(child: TextField(controller: emailC, decoration: const InputDecoration(labelText: "Email ID", border: OutlineInputBorder()))),
           ]),
-          const SizedBox(height: 20),
-          const Text("Admin Credentials", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.red)),
+          const Divider(height: 40),
+          const Align(alignment: Alignment.centerLeft, child: Text("Admin Login Info", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.red))),
           const SizedBox(height: 10),
           TextField(controller: userC, decoration: const InputDecoration(labelText: "Username")),
           TextField(controller: passC, decoration: const InputDecoration(labelText: "Password"), obscureText: true),
           const SizedBox(height: 30),
-          ElevatedButton(style: ElevatedButton.styleFrom(minimumSize: const Size(double.infinity, 55), backgroundColor: Colors.blue), onPressed: _saveSetup, child: const Text("SAVE & START", style: TextStyle(color: Colors.white)))
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(minimumSize: const Size(double.infinity, 55), backgroundColor: Colors.blue),
+            onPressed: _saveSetup,
+            child: const Text("CREATE COMPANY", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          )
         ]),
       ),
     );
