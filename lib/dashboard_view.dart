@@ -82,3 +82,12 @@ class DashboardView extends StatelessWidget {
     );
   }
 }
+// ... inside Quick Actions Grid ...
+ActionIconBtn(
+  title: "Reports / Bills", 
+  icon: Icons.receipt_long, 
+  color: Colors.orange, 
+  onTap: () {
+    Navigator.push(context, MaterialPageRoute(builder: (c) => const ReportsView()));
+  }
+),
