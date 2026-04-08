@@ -1,6 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-import 'pharoah_manager.dart';
 import 'widgets.dart';
 import 'product_master.dart';
 import 'party_master.dart';
@@ -18,7 +16,7 @@ class DashboardView extends StatelessWidget {
       backgroundColor: const Color(0xFFF7F7F7),
       body: Column(children: [
         Container(padding: const EdgeInsets.only(top: 50, left: 25, right: 25, bottom: 20), decoration: const BoxDecoration(color: Colors.white, boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 5)]), child: Row(children: [
-          const Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text("PHAROAH ERP", style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.blue)), Text("Business Manager", style: TextStyle(fontSize: 12, color: Colors.grey))]),
+          const Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text("PHAROAH ERP", style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.blue)), Text("Business Management System", style: TextStyle(fontSize: 12, color: Colors.grey))]),
           const Spacer(),
           CircleAvatar(backgroundColor: Colors.red, child: IconButton(icon: const Icon(Icons.power_settings_new, color: Colors.white), onPressed: onLogout))
         ])),
