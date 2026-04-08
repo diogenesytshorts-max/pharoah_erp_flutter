@@ -23,8 +23,8 @@ class PharoahManager with ChangeNotifier {
   }
 
   Future<String> get _localPath async {
-    final directory = await getApplicationDocumentsDirectory();
-    return directory.path;
+    final d = await getApplicationDocumentsDirectory();
+    return d.path;
   }
 
   Future<void> save() async {
@@ -33,7 +33,7 @@ class PharoahManager with ChangeNotifier {
       File('$path/meds_$currentFY.json').writeAsStringSync(jsonEncode(medicines.map((e)=>e.toMap()).toList()));
       File('$path/parts_$currentFY.json').writeAsStringSync(jsonEncode(parties.map((e)=>e.toMap()).toList()));
       File('$path/sales_$currentFY.json').writeAsStringSync(jsonEncode(sales.map((e)=>e.toMap()).toList()));
-      File('$path/purchases_$currentFY.json').writeAsStringSync(jsonEncode(purchases.map((e)=>e.toMap()).toList()));
+      File('$path/purc_$currentFY.json').writeAsStringSync(jsonEncode(purchases.map((e)=>e.toMap()).toList()));
       Map<String, dynamic> hMap = {};
       batchHistory.forEach((k, v) => hMap[k] = v.map((b) => b.toMap()).toList());
       File('$path/bats_$currentFY.json').writeAsStringSync(jsonEncode(hMap));
@@ -50,9 +50,7 @@ class PharoahManager with ChangeNotifier {
 
       final pf = File('$path/parts_$currentFY.json');
       if (pf.existsSync()) parties = (jsonDecode(pf.readAsStringSync()) as List).map((e)=>Party.fromMap(e)).toList();
-      else parties = [DemoData.getDemoParty()];
-      
-      if (!parties.any((p) => p.name == "CASH")) parties.insert(0, Party(id: 'cash', name: "CASH"));
+      else { parties = [DemoData.getDemoParty()]; if (!parties.any((p) => p.name == "CASH")) parties.insert(0, Party(id: 'cash', name: "CASH")); }
 
       final sf = File('$path/sales_$currentFY.json');
       if (sf.existsSync()) {
@@ -60,16 +58,16 @@ class PharoahManager with ChangeNotifier {
         sales = decoded.map((e) => Sale(id: e['id'], billNo: e['billNo'], partyName: e['partyName'], paymentMode: e['paymentMode'], status: e['status'] ?? "Active", date: DateTime.parse(e['date']), totalAmount: (e['totalAmount']??0).toDouble(), items: (e['items'] as List).map((i) => BillItem.fromMap(i)).toList())).toList();
       }
 
-      final purF = File('$path/purchases_$currentFY.json');
+      final purF = File('$path/purc_$currentFY.json');
       if (purF.existsSync()) {
-        final List decoded = jsonDecode(purF.readAsStringSync());
-        purchases = decoded.map((e) => Purchase.fromMap(e)).toList();
+        final List d = jsonDecode(purF.readAsStringSync());
+        purchases = d.map((e) => Purchase.fromMap(e)).toList();
       }
 
       final bf = File('$path/bats_$currentFY.json');
       if (bf.existsSync()) {
-        Map<String, dynamic> d = jsonDecode(bf.readAsStringSync());
-        d.forEach((k, v) => batchHistory[k] = (v as List).map((b) => BatchInfo.fromMap(b)).toList());
+        Map<String, dynamic> decoded = jsonDecode(bf.readAsStringSync());
+        decoded.forEach((k, v) => batchHistory[k] = (v as List).map((b) => BatchInfo.fromMap(b)).toList());
       }
       notifyListeners();
     } catch (e) { debugPrint("Load Error: $e"); }
@@ -108,10 +106,7 @@ class PharoahManager with ChangeNotifier {
       int idx = medicines.indexWhere((m) => m.id == item.medicineID);
       if (idx != -1) {
         medicines[idx].stock -= item.qty.toInt();
-        if (!batchHistory.containsKey(item.medicineID)) batchHistory[item.medicineID] = [];
-        int bIdx = batchHistory[item.medicineID]!.indexWhere((b) => b.batch == item.batch);
-        var bInfo = BatchInfo(batch: item.batch, exp: item.exp, packing: item.packing, mrp: item.mrp, rate: item.rate);
-        if (bIdx != -1) batchHistory[item.medicineID]![bIdx] = bInfo; else batchHistory[item.medicineID]!.add(bInfo);
+        _updateBatch(item.medicineID, BatchInfo(batch: item.batch, exp: item.exp, packing: item.packing, mrp: item.mrp, rate: item.rate));
       }
     }
     save();
@@ -124,12 +119,17 @@ class PharoahManager with ChangeNotifier {
       if (idx != -1) {
         medicines[idx].stock += (item.qty + item.freeQty).toInt();
         medicines[idx].mrp = item.mrp;
-        if (!batchHistory.containsKey(item.medicineID)) batchHistory[item.medicineID] = [];
-        batchHistory[item.medicineID]!.add(BatchInfo(batch: item.batch, exp: item.exp, packing: item.packing, mrp: item.mrp, rate: item.purchaseRate));
+        _updateBatch(item.medicineID, BatchInfo(batch: item.batch, exp: item.exp, packing: item.packing, mrp: item.mrp, rate: item.purchaseRate));
       }
     }
     save();
   }
 
-  void addToLocalInventory(Medicine med) { if (!medicines.any((m) => m.name == med.name)) { medicines.add(med); save(); } }
+  void _updateBatch(String mId, BatchInfo b) {
+    if (!batchHistory.containsKey(mId)) batchHistory[mId] = [];
+    int idx = batchHistory[mId]!.indexWhere((x) => x.batch == b.batch);
+    if (idx != -1) batchHistory[mId]![idx] = b; else batchHistory[mId]!.add(b);
+  }
+
+  void addToLocalInventory(Medicine m) { if (!medicines.any((x) => x.name == m.name)) { medicines.add(m); save(); } }
 }
