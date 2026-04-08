@@ -49,9 +49,7 @@ class _SaleBillModifyViewState extends State<SaleBillModifyView> {
               title: Text("${s.billNo} | ${s.partyName}", style: const TextStyle(fontWeight: FontWeight.bold)),
               subtitle: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Text("Date: ${DateFormat('dd/MM/yyyy').format(s.date)} | Total: ₹${s.totalAmount.toStringAsFixed(2)}"),
-                const SizedBox(height: 5),
-                // PRODUCT SUB-DETAILS
-                Text(s.items.map((it) => "${it.name}(Qty:${it.qty.toInt()}, B:${it.batch}, R:${it.rate})").join(", "), style: const TextStyle(fontSize: 10, color: Colors.blueGrey)),
+                Text(s.items.map((it) => "${it.name}(Q:${it.qty.toInt()}, B:${it.batch})").join(", "), style: const TextStyle(fontSize: 10, color: Colors.grey)),
               ]),
               isThreeLine: true,
               trailing: PopupMenuButton<String>(onSelected: (v){
@@ -64,8 +62,8 @@ class _SaleBillModifyViewState extends State<SaleBillModifyView> {
                 const PopupMenuItem(value: 'v', child: Text("View")),
                 const PopupMenuItem(value: 'm', child: Text("Modify")),
                 const PopupMenuItem(value: 'p', child: Text("Print")),
-                const PopupMenuItem(value: 'c', child: Text("Cancel")),
-                const PopupMenuItem(value: 'd', child: Text("Delete")),
+                const PopupMenuItem(value: 'c', child: Text("Cancel Bill")),
+                const PopupMenuItem(value: 'd', child: Text("Delete Bill")),
               ]),
             ),
           );
