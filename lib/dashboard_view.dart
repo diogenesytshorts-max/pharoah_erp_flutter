@@ -1,3 +1,4 @@
+import 'product_master.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'pharoah_manager.dart';
@@ -81,7 +82,9 @@ class DashboardView extends StatelessWidget {
                     children: [
                       ActionIconBtn(title: "New Sale", icon: Icons.add_box, color: Colors.green, onTap: () {}),
                       ActionIconBtn(title: "Parties", icon: Icons.people, color: Colors.blue, onTap: () {}),
-                      ActionIconBtn(title: "Inventory", icon: Icons.medication, color: Colors.orange, onTap: () {}),
+                      ActionIconBtn(title: "Inventory", icon: Icons.medication, color: Colors.orange, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => const ProductMasterView())),
+
+),
                       ActionIconBtn(title: "Modify Bill", icon: Icons.edit_document, color: Colors.orange, onTap: () {}),
                       ActionIconBtn(title: "Ledger", icon: Icons.menu_book, color: Colors.blue, onTap: () {}),
                       ActionIconBtn(title: "Settings", icon: Icons.manage_accounts, color: Colors.red, onTap: () {}),
