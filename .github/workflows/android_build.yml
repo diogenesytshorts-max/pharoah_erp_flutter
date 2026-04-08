@@ -5,14 +5,18 @@ on:
     branches: [ main ]
   workflow_dispatch:
 
+# Warning ko chup karne ke liye environment variable
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4 # Updated to v4
+      - uses: actions/checkout@v4
       
       - name: Install Java
-        uses: actions/setup-java@v4 # Updated to v4
+        uses: actions/setup-java@v4
         with:
           distribution: 'zulu'
           java-version: '17'
@@ -26,10 +30,10 @@ jobs:
         run: flutter pub get
         
       - name: Build APK
-        run: flutter build apk --release
+        run: flutter build apk --release --no-tree-shake-icons
         
       - name: Upload APK
-        uses: actions/upload-artifact@v4 # Updated to v4 (Important Fix)
+        uses: actions/upload-artifact@v4
         with:
           name: release-apk
           path: build/app/outputs/flutter-apk/app-release.apk
