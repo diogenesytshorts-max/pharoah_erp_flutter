@@ -4,10 +4,12 @@ import 'package:intl/intl.dart';
 import 'pharoah_manager.dart';
 import 'models.dart';
 import 'sale_bill_number.dart';
-import 'billing_view.dart'; // Agla step
+import 'billing_view.dart';
 
 class SaleEntryView extends StatefulWidget {
-  const SaleEntryView({super.key});
+  final Sale? existingSale;
+  final bool isReadOnly;
+  const SaleEntryView({super.key, this.existingSale, this.isReadOnly = false});
 
   @override
   State<SaleEntryView> createState() => _SaleEntryViewState();
@@ -23,10 +25,16 @@ class _SaleEntryViewState extends State<SaleEntryView> {
   @override
   void initState() {
     super.initState();
-    _loadBillNo();
+    if (widget.existingSale != null) {
+      billNo = widget.existingSale!.billNo;
+      billDate = widget.existingSale!.date;
+      paymentMode = widget.existingSale!.paymentMode;
+    } else {
+      _loadNextBillNo();
+    }
   }
 
-  void _loadBillNo() async {
+  void _loadNextBillNo() async {
     String next = await SaleBillNumber.getNextNumber();
     setState(() => billNo = next);
   }
@@ -34,120 +42,69 @@ class _SaleEntryViewState extends State<SaleEntryView> {
   @override
   Widget build(BuildContext context) {
     final ph = Provider.of<PharoahManager>(context);
+    if (widget.existingSale != null && selectedParty == null) {
+      selectedParty = ph.parties.firstWhere((p) => p.name == widget.existingSale!.partyName, orElse: () => ph.parties[0]);
+    }
 
     return Scaffold(
-      appBar: AppBar(title: const Text("New Sale Entry")),
-      body: Column(
-        children: [
-          // --- HEADER: Bill No, Date, Mode ---
-          Container(
-            padding: const EdgeInsets.all(15),
-            color: Colors.blue.withOpacity(0.05),
-            child: Column(
-              children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text("BILL NO", style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold)),
-                          Text(billNo, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.blue)),
-                        ],
-                      ),
-                    ),
-                    Expanded(
-                      child: InkWell(
-                        onTap: () async {
-                          DateTime? picked = await showDatePicker(
-                            context: context, initialDate: billDate,
-                            firstDate: DateTime(2000), lastDate: DateTime(2100)
-                          );
-                          if(picked != null) setState(() => billDate = picked);
-                        },
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.end,
-                          children: [
-                            const Text("DATE", style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold)),
-                            Text(DateFormat('dd/MM/yyyy').format(billDate), style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 15),
-                SegmentedButton<String>(
-                  segments: const [
-                    ButtonSegment(value: 'CASH', label: Text('CASH')),
-                    ButtonSegment(value: 'CREDIT', label: Text('CREDIT')),
-                  ],
-                  selected: {paymentMode},
-                  onSelectionChanged: (val) => setState(() => paymentMode = val.first),
-                ),
-              ],
-            ),
-          ),
-
-          // --- PARTY SELECTION ---
-          const Padding(
-            padding: EdgeInsets.all(15),
-            child: Align(alignment: Alignment.centerLeft, child: Text("SELECT PARTY / DISTRIBUTOR", style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey))),
-          ),
-
-          if (selectedParty != null)
-            ListTile(
-              leading: const Icon(Icons.person, color: Colors.blue),
-              title: Text(selectedParty!.name, style: const TextStyle(fontWeight: FontWeight.bold)),
-              subtitle: Text(selectedParty!.phone),
-              trailing: IconButton(icon: const Icon(Icons.close), onPressed: () => setState(() => selectedParty = null)),
-            )
-          else
-            Expanded(
-              child: Column(
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 15),
-                    child: TextField(
-                      decoration: const InputDecoration(hintText: "Search Party Name...", prefixIcon: Icon(Icons.search)),
-                      onChanged: (val) => setState(() => searchParty = val),
-                    ),
-                  ),
-                  Expanded(
-                    child: ListView.builder(
-                      itemCount: ph.parties.length,
-                      itemBuilder: (context, index) {
-                        final p = ph.parties[index];
-                        if (searchParty.isNotEmpty && !p.name.toLowerCase().contains(searchParty.toLowerCase())) return const SizedBox();
-                        return ListTile(
-                          title: Text(p.name),
-                          onTap: () => setState(() => selectedParty = p),
-                        );
-                      },
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          
-          if (selectedParty != null)
-            Padding(
-              padding: const EdgeInsets.all(20),
-              child: ElevatedButton(
-                style: ElevatedButton.styleFrom(minimumSize: const Size(double.infinity, 55), backgroundColor: Colors.green),
-                onPressed: () {
-                  Navigator.push(context, MaterialPageRoute(builder: (context) => BillingView(
-                    party: selectedParty!,
-                    billNo: billNo,
-                    billDate: billDate,
-                    mode: paymentMode,
-                  )));
+      appBar: AppBar(title: Text(widget.isReadOnly ? "View Bill" : (widget.existingSale == null ? "New Sale" : "Modify Sale"))),
+      body: Column(children: [
+        Container(
+          padding: const EdgeInsets.all(15),
+          color: widget.isReadOnly ? Colors.grey[200] : Colors.blue[50],
+          child: Column(children: [
+            Row(children: [
+              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text("BILL NO", style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold)),
+                Text(billNo, style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: widget.isReadOnly ? Colors.grey : Colors.blue)),
+              ])),
+              Expanded(child: InkWell(
+                onTap: widget.isReadOnly ? null : () async {
+                  DateTime? p = await showDatePicker(context: context, initialDate: billDate, firstDate: DateTime(2000), lastDate: DateTime(2100));
+                  if (p != null) setState(() => billDate = p);
                 },
-                child: const Text("CONTINUE TO BILLING", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                child: Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+                  Text("DATE", style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold)),
+                  Text(DateFormat('dd/MM/yyyy').format(billDate), style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                ]),
+              ))
+            ]),
+            const SizedBox(height: 15),
+            AbsorbPointer(
+              absorbing: widget.isReadOnly,
+              child: SegmentedButton<String>(
+                segments: const [ButtonSegment(value: 'CASH', label: Text('CASH')), ButtonSegment(value: 'CREDIT', label: Text('CREDIT'))],
+                selected: {paymentMode},
+                onSelectionChanged: (v) => setState(() => paymentMode = v.first),
               ),
-            ),
-        ],
-      ),
+            )
+          ]),
+        ),
+        const Padding(padding: EdgeInsets.all(15), child: Align(alignment: Alignment.centerLeft, child: Text("PARTY DETAILS", style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey)))),
+        if (selectedParty != null)
+          ListTile(
+            leading: const Icon(Icons.person, color: Colors.blue),
+            title: Text(selectedParty!.name, style: const TextStyle(fontWeight: FontWeight.bold)),
+            subtitle: Text(selectedParty!.phone),
+            trailing: widget.isReadOnly || widget.existingSale != null ? const Icon(Icons.lock, size: 16) : IconButton(icon: const Icon(Icons.close), onPressed: () => setState(() => selectedParty = null)),
+          )
+        else
+          Expanded(child: Column(children: [
+            Padding(padding: const EdgeInsets.symmetric(horizontal: 15), child: TextField(decoration: const InputDecoration(hintText: "Search Party..."), onChanged: (v) => setState(() => searchParty = v))),
+            Expanded(child: ListView(children: ph.parties.where((p) => p.name.toLowerCase().contains(searchParty.toLowerCase())).map((p) => ListTile(title: Text(p.name), onTap: () => setState(() => selectedParty = p))).toList()))
+          ])),
+        if (selectedParty != null)
+          Padding(padding: const EdgeInsets.all(20), child: ElevatedButton(
+            style: ElevatedButton.styleFrom(minimumSize: const Size(double.infinity, 55), backgroundColor: widget.isReadOnly ? Colors.purple : Colors.green),
+            onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (c) => BillingView(
+              party: selectedParty!, billNo: billNo, billDate: billDate, mode: paymentMode,
+              existingItems: widget.existingSale?.items, 
+              modifySaleId: widget.existingSale?.id,
+              isReadOnly: widget.isReadOnly,
+            ))),
+            child: Text(widget.isReadOnly ? "VIEW ITEMS" : "PROCEED TO BILLING", style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          )),
+      ]),
     );
   }
 }
