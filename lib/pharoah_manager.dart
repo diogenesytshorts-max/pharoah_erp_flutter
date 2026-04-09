@@ -64,10 +64,7 @@ class PharoahManager with ChangeNotifier {
       if (sf.existsSync()) sales = (jsonDecode(sf.readAsStringSync()) as List).map((e) => Sale(id: e['id'], billNo: e['billNo'], partyName: e['partyName'], paymentMode: e['paymentMode'], status: e['status'] ?? "Active", date: DateTime.parse(e['date']), totalAmount: (e['totalAmount']??0).toDouble(), items: (e['items'] as List).map((i) => BillItem.fromMap(i)).toList())).toList();
 
       final purF = File('$path/purc_$currentFY.json');
-      if (purF.existsSync()) {
-        final List d = jsonDecode(purF.readAsStringSync());
-        purchases = d.map((e) => Purchase.fromMap(e)).toList();
-      }
+      if (purF.existsSync()) purchases = (jsonDecode(purF.readAsStringSync()) as List).map((e) => Purchase.fromMap(e)).toList();
 
       final lf = File('$path/logs_$currentFY.json');
       if (lf.existsSync()) logs = (jsonDecode(lf.readAsStringSync()) as List).map((e)=>LogEntry.fromMap(e)).toList();
@@ -81,7 +78,6 @@ class PharoahManager with ChangeNotifier {
     } catch (e) { debugPrint("Load Error: $e"); }
   }
 
-  // --- FINAL SALE ---
   void finalizeSale({required String billNo, required DateTime date, required Party party, required List<BillItem> items, required double total, required String mode}) {
     addLog("SALE", "Bill $billNo for ${party.name}");
     sales.add(Sale(id: DateTime.now().toString(), billNo: billNo, date: date, partyName: party.name, items: items, totalAmount: total, paymentMode: mode));
@@ -95,15 +91,19 @@ class PharoahManager with ChangeNotifier {
     save();
   }
 
-  // --- FINAL PURCHASE (FIXED) ---
-  void finalizePurchase({required String billNo, required DateTime date, required Party party, required List<PurchaseItem> items, required double total, required String mode}) {
-    addLog("PURCHASE", "Bill $billNo from ${party.name}");
-    purchases.add(Purchase(id: DateTime.now().toString(), billNo: billNo, date: date, distributorName: party.name, items: items, totalAmount: total, paymentMode: mode));
+  void finalizePurchase({required String internalNo, required String billNo, required DateTime date, required Party party, required List<PurchaseItem> items, required double total, required String mode}) {
+    addLog("PURCHASE", "Entry $internalNo from ${party.name}");
+    purchases.add(Purchase(id: DateTime.now().toString(), internalNo: internalNo, billNo: billNo, date: date, distributorName: party.name, items: items, totalAmount: total, paymentMode: mode));
     for (var item in items) {
       int idx = medicines.indexWhere((m) => m.id == item.medicineID);
       if (idx != -1) {
         medicines[idx].stock += (item.qty + item.freeQty).toInt();
         medicines[idx].mrp = item.mrp;
+        medicines[idx].gst = item.gstRate;
+        // Selling Rates Update
+        medicines[idx].rateA = item.rateA;
+        medicines[idx].rateB = item.rateB;
+        medicines[idx].rateC = item.rateC;
         _updateBatch(item.medicineID, BatchInfo(batch: item.batch, exp: item.exp, packing: item.packing, mrp: item.mrp, rate: item.purchaseRate));
       }
     }
