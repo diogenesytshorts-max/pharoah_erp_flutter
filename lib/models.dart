@@ -28,12 +28,8 @@ class Medicine {
 class Party {
   String id, name, address, city, state, route, phone, email, dl, gst, rateType;
   double openingBalance, specialDiscount;
-  
   Party({required this.id, required this.name, this.address = "", this.city = "", this.state = "Rajasthan", this.route = "", this.phone = "", this.email = "", this.dl = "N/A", this.gst = "N/A", this.rateType = "A", this.openingBalance = 0.0, this.specialDiscount = 0.0});
-
-  // Helper: B2B hai ya B2C?
   bool get isB2B => gst != "N/A" && gst.trim().length >= 15;
-
   Map<String, dynamic> toMap() => {'id': id, 'name': name, 'address': address, 'city': city, 'state': state, 'route': route, 'phone': phone, 'email': email, 'dl': dl, 'gst': gst, 'rateType': rateType, 'openingBalance': openingBalance, 'specialDiscount': specialDiscount};
   factory Party.fromMap(Map<String, dynamic> map) => Party(id: map['id']??"", name: map['name']??"", address: map['address']??"", city: map['city']??"", state: map['state']??"Rajasthan", route: map['route']??"", phone: map['phone']??"", email: map['email']??"", dl: map['dl']??"N/A", gst: map['gst']??"N/A", rateType: map['rateType']??"A", openingBalance: (map['openingBalance']??0.0).toDouble(), specialDiscount: (map['specialDiscount']??0.0).toDouble());
 }
@@ -42,22 +38,29 @@ class BillItem {
   String id, medicineID, name, packing, batch, exp, hsn;
   int srNo;
   double mrp, qty, rate, discountPercent, discountRupees, gstRate, cgst, sgst, igst, total;
-
   BillItem({required this.id, required this.srNo, required this.medicineID, required this.name, required this.packing, required this.batch, required this.exp, required this.hsn, required this.mrp, required this.qty, required this.rate, this.discountPercent = 0.0, this.discountRupees = 0.0, required this.gstRate, this.cgst = 0, this.sgst = 0, this.igst = 0, required this.total});
-
   Map<String, dynamic> toMap() => {'id': id, 'srNo': srNo, 'medicineID': medicineID, 'name': name, 'packing': packing, 'batch': batch, 'exp': exp, 'hsn': hsn, 'mrp': mrp, 'qty': qty, 'rate': rate, 'discountPercent': discountPercent, 'discountRupees': discountRupees, 'gstRate': gstRate, 'cgst': cgst, 'sgst': sgst, 'igst': igst, 'total': total};
   factory BillItem.fromMap(Map<String, dynamic> map) => BillItem(id: map['id']??"", srNo: map['srNo']??0, medicineID: map['medicineID']??"", name: map['name']??"", packing: map['packing']??"", batch: map['batch']??"", exp: map['exp']??"", hsn: map['hsn']??"", mrp: (map['mrp']??0).toDouble(), qty: (map['qty']??0).toDouble(), rate: (map['rate']??0).toDouble(), discountPercent: (map['discountPercent']??0).toDouble(), discountRupees: (map['discountRupees']??0).toDouble(), gstRate: (map['gstRate']??0).toDouble(), cgst: (map['cgst']??0).toDouble(), sgst: (map['sgst']??0).toDouble(), igst: (map['igst']??0).toDouble(), total: (map['total']??0).toDouble());
 }
 
 class Sale {
-  String id, billNo, partyName, paymentMode, status, invoiceType; // B2B vs B2C
+  String id, billNo, partyName, paymentMode, status, invoiceType;
   DateTime date;
   List<BillItem> items;
   double totalAmount;
+  // Transport details for E-Way Bill
+  String transporterName, transporterId, vehicleNo;
 
-  Sale({required this.id, required this.billNo, required this.date, required this.partyName, required this.items, required this.totalAmount, required this.paymentMode, this.status = "Active", this.invoiceType = "B2C"});
+  Sale({required this.id, required this.billNo, required this.date, required this.partyName, required this.items, required this.totalAmount, required this.paymentMode, this.status = "Active", this.invoiceType = "B2C", this.transporterName = "", this.transporterId = "", this.vehicleNo = ""});
 
-  Map<String, dynamic> toMap() => {'id': id, 'billNo': billNo, 'date': date.toIso8601String(), 'partyName': partyName, 'paymentMode': paymentMode, 'totalAmount': totalAmount, 'status': status, 'invoiceType': invoiceType, 'items': items.map((i) => i.toMap()).toList()};
+  Map<String, dynamic> toMap() => {'id': id, 'billNo': billNo, 'date': date.toIso8601String(), 'partyName': partyName, 'paymentMode': paymentMode, 'totalAmount': totalAmount, 'status': status, 'invoiceType': invoiceType, 'transporterName': transporterName, 'transporterId': transporterId, 'vehicleNo': vehicleNo, 'items': items.map((i) => i.toMap()).toList()};
+  
+  factory Sale.fromMap(Map<String, dynamic> map) => Sale(
+    id: map['id'], billNo: map['billNo'], date: DateTime.parse(map['date']), partyName: map['partyName'], paymentMode: map['paymentMode'], 
+    totalAmount: (map['totalAmount']??0).toDouble(), status: map['status']??"Active", invoiceType: map['invoiceType']??"B2C",
+    transporterName: map['transporterName']??"", transporterId: map['transporterId']??"", vehicleNo: map['vehicleNo']??"",
+    items: (map['items'] as List).map((i) => BillItem.fromMap(i)).toList(),
+  );
 }
 
 class PurchaseItem {
