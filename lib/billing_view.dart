@@ -128,7 +128,7 @@ class _BillingViewState extends State<BillingView> {
                     final item = items[index];
                     return ListTile(
                       title: Text(item.name, style: const TextStyle(fontWeight: FontWeight.bold)),
-                      subtitle: Text("Qty: ${item.qty.toInt()} | B: ${item.batch} | MRP: ${item.mrp}"),
+                      subtitle: Text("Qty: ${item.qty.toInt()} | B: ${item.batch} | Rate: ${item.rate}"),
                       trailing: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
@@ -152,7 +152,7 @@ class _BillingViewState extends State<BillingView> {
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text("ITEMS: ${items.length}"),
+                    Text("ITEMS: ${items.length}", style: const TextStyle(fontWeight: FontWeight.bold)),
                     Text("TOTAL: ₹${grandTotal.toStringAsFixed(2)}", style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.green)),
                   ],
                 ),
@@ -189,10 +189,7 @@ class _BillingViewState extends State<BillingView> {
   void _saveAndClose(PharoahManager ph) async {
     if (widget.modifySaleId != null) ph.deleteBill(widget.modifySaleId!);
     ph.finalizeSale(billNo: widget.billNo, date: widget.billDate, party: widget.party, items: items, total: grandTotal, mode: widget.mode);
-    
-    // Agar gap wala bill tha toh counter nahi badhega, naya bill tha toh badhega
     if (widget.modifySaleId == null) await SaleBillNumber.incrementIfNecessary(widget.billNo);
-    
     if (mounted) Navigator.pop(context);
   }
 
@@ -218,6 +215,8 @@ class _ItemEntryFormState extends State<ItemEntryForm> {
   final bC = TextEditingController(); final eC = TextEditingController(); final gC = TextEditingController();
   final mC = TextEditingController(); final rC = TextEditingController(); final qC = TextEditingController();
   final dpC = TextEditingController(text: "0"); final drC = TextEditingController(text: "0");
+  final rCD = TextEditingController(text: "0"); // Rate C Discount %
+  String rT = "A"; // Rate Type Toggle
 
   @override
   void initState() {
@@ -233,34 +232,101 @@ class _ItemEntryFormState extends State<ItemEntryForm> {
     }
   }
 
+  // --- RATE C FORMULA ENGINE ---
+  void _calculateRateC() {
+    double mrp = double.tryParse(mC.text) ?? 0;
+    double gst = double.tryParse(gC.text) ?? 0;
+    double rCDisc = double.tryParse(rCD.text) ?? 0;
+
+    double baseTaxable = (mrp / (1 + (gst / 100)));
+    double finalRate = baseTaxable - (baseTaxable * (rCDisc / 100));
+    rC.text = finalRate.toStringAsFixed(2);
+  }
+
+  void _handleRateSwitch(String val) {
+    setState(() {
+      rT = val;
+      if (rT == "A") rC.text = widget.med.rateA.toString();
+      else if (rT == "B") rC.text = widget.med.rateB.toString();
+      else if (rT == "C") _calculateRateC();
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.all(15), color: Colors.blue[50],
       child: Column(
         children: [
-          Row(children: [Text(widget.med.name, style: const TextStyle(fontWeight: FontWeight.bold)), const Spacer(), IconButton(icon: const Icon(Icons.close), onPressed: widget.onCancel)]),
+          Row(children: [Text(widget.med.name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)), const Spacer(), IconButton(icon: const Icon(Icons.close, color: Colors.red), onPressed: widget.onCancel)]),
+          
+          // Row 1: Batch, Exp, GST
           Row(children: [
-            Expanded(child: TextField(controller: bC, decoration: const InputDecoration(labelText: "Batch"))),
-            Expanded(child: TextField(controller: eC, decoration: const InputDecoration(labelText: "Exp"))),
-            Expanded(child: TextField(controller: qC, decoration: const InputDecoration(labelText: "Qty"), keyboardType: TextInputType.number)),
+            Expanded(child: _f(bC, "Batch")),
+            const SizedBox(width: 5),
+            Expanded(child: _f(eC, "Exp (MM/YY)")),
+            const SizedBox(width: 5),
+            Expanded(child: _f(gC, "GST %", onChange: (v) { if(rT=="C") _calculateRateC(); })),
           ]),
-          Row(children: [
-            Expanded(child: TextField(controller: rC, decoration: const InputDecoration(labelText: "Rate"), keyboardType: TextInputType.number)),
-            Expanded(child: TextField(controller: dpC, decoration: const InputDecoration(labelText: "Disc %"), keyboardType: TextInputType.number)),
-            Expanded(child: TextField(controller: drC, decoration: const InputDecoration(labelText: "Disc ₹"), keyboardType: TextInputType.number)),
-          ]),
+
+          // Row 2: Rate Selector
           const SizedBox(height: 10),
-          ElevatedButton(onPressed: () {
-            double r = double.tryParse(rC.text) ?? 0; double q = double.tryParse(qC.text) ?? 0;
-            double dp = double.tryParse(dpC.text) ?? 0; double dr = double.tryParse(drC.text) ?? 0;
-            double g = double.tryParse(gC.text) ?? 0;
-            double taxable = (r * q) - ((r * q) * dp / 100) - dr;
-            double gst = taxable * g / 100;
-            widget.onAdd(BillItem(id: DateTime.now().toString(), srNo: widget.srNo, medicineID: widget.med.id, name: widget.med.name, packing: widget.med.packing, batch: bC.text.toUpperCase(), exp: eC.text, hsn: widget.med.hsnCode, mrp: double.tryParse(mC.text) ?? 0, qty: q, rate: r, discountPercent: dp, discountRupees: dr, gstRate: g, cgst: gst/2, sgst: gst/2, total: taxable + gst));
-          }, child: const Text("ADD TO BILL"))
+          SegmentedButton<String>(
+            segments: const [
+              ButtonSegment(value: 'A', label: Text('Rate A')),
+              ButtonSegment(value: 'B', label: Text('Rate B')),
+              ButtonSegment(value: 'C', label: Text('Rate C (Formula)')),
+            ],
+            selected: {rT},
+            onSelectionChanged: (val) => _handleRateSwitch(val.first),
+          ),
+          const SizedBox(height: 10),
+
+          // Row 3: MRP, RC Disc (if C selected), Rate, Qty
+          Row(children: [
+            Expanded(child: _f(mC, "MRP", onChange: (v) { if(rT=="C") _calculateRateC(); })),
+            if (rT == "C") ...[
+              const SizedBox(width: 5),
+              Expanded(child: _f(rCD, "RC Disc %", onChange: (v) => _calculateRateC())),
+            ],
+            const SizedBox(width: 5),
+            Expanded(child: _f(rC, "Net Rate", isEnabled: rT != "C")),
+            const SizedBox(width: 5),
+            Expanded(child: _f(qC, "Qty")),
+          ]),
+
+          // Row 4: Extra Discounts
+          Row(children: [
+            Expanded(child: _f(dpC, "Disc %")),
+            const SizedBox(width: 5),
+            Expanded(child: _f(drC, "Disc ₹")),
+          ]),
+
+          const SizedBox(height: 10),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(minimumSize: const Size(double.infinity, 45), backgroundColor: Colors.blue),
+            onPressed: () {
+              double r = double.tryParse(rC.text) ?? 0; double q = double.tryParse(qC.text) ?? 0;
+              double dp = double.tryParse(dpC.text) ?? 0; double dr = double.tryParse(drC.text) ?? 0;
+              double g = double.tryParse(gC.text) ?? 0;
+              double taxable = (r * q) - ((r * q) * dp / 100) - dr;
+              double gstAmt = taxable * g / 100;
+              widget.onAdd(BillItem(id: DateTime.now().toString(), srNo: widget.srNo, medicineID: widget.med.id, name: widget.med.name, packing: widget.med.packing, batch: bC.text.toUpperCase(), exp: eC.text, hsn: widget.med.hsnCode, mrp: double.tryParse(mC.text) ?? 0, qty: q, rate: r, discountPercent: dp, discountRupees: dr, gstRate: g, cgst: gstAmt/2, sgst: gstAmt/2, total: taxable + gstAmt));
+            }, 
+            child: const Text("ADD TO BILL", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold))
+          )
         ],
       ),
+    );
+  }
+
+  Widget _f(TextEditingController c, String l, {Function(String)? onChange, bool isEnabled = true}) {
+    return TextField(
+      controller: c, 
+      enabled: isEnabled,
+      onChanged: onChange,
+      decoration: InputDecoration(labelText: l, labelStyle: const TextStyle(fontSize: 10)), 
+      keyboardType: TextInputType.text
     );
   }
 }
