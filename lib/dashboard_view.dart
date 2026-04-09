@@ -16,90 +16,143 @@ class DashboardView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Access Manager for Data
     final ph = Provider.of<PharoahManager>(context);
     final now = DateTime.now();
 
-    // --- 1. NET SALES (Today's Active Bills - Cash + Credit) ---
-    double todaySales = ph.sales
-        .where((s) => 
-            s.date.day == now.day && 
-            s.date.month == now.month && 
-            s.date.year == now.year && 
-            s.status == "Active")
-        .fold(0.0, (sum, item) => sum + item.totalAmount);
+    // --- 1. LIVE CALCULATION: NET SALES (Today) ---
+    // Sirf Active bills aur aaj ki date wale
+    double todaySales = ph.sales.where((s) {
+      return s.status == "Active" &&
+          s.date.day == now.day &&
+          s.date.month == now.month &&
+          s.date.year == now.year;
+    }).fold(0.0, (sum, item) => sum + item.totalAmount);
 
-    // --- 2. PURCHASE (Today's Total Stock Inward) ---
-    double todayPurchase = ph.purchases
-        .where((p) => 
-            p.date.day == now.day && 
-            p.date.month == now.month && 
-            p.date.year == now.year)
-        .fold(0.0, (sum, item) => sum + item.totalAmount);
+    // --- 2. LIVE CALCULATION: PURCHASE (Today) ---
+    // Aaj ki total kharidari
+    double todayPurchase = ph.purchases.where((p) {
+      return p.date.day == now.day &&
+          p.date.month == now.month &&
+          p.date.year == now.year;
+    }).fold(0.0, (sum, item) => sum + item.totalAmount);
 
-    // --- 3. CASH (Today's Cash Collection - Only Sale Bills with CASH mode) ---
-    double todayCash = ph.sales
-        .where((s) => 
-            s.date.day == now.day && 
-            s.date.month == now.month && 
-            s.date.year == now.year && 
-            s.status == "Active" && 
-            s.paymentMode == "CASH")
-        .fold(0.0, (sum, item) => sum + item.totalAmount);
+    // --- 3. LIVE CALCULATION: CASH IN HAND (Today) ---
+    // Sirf wo sales jinka paymentMode "CASH" hai
+    double todayCash = ph.sales.where((s) {
+      return s.status == "Active" &&
+          s.paymentMode == "CASH" &&
+          s.date.day == now.day &&
+          s.date.month == now.month &&
+          s.date.year == now.year;
+    }).fold(0.0, (sum, item) => sum + item.totalAmount);
 
-    // --- 4. STOCK VALUE (Total Inventory Value at Rate A) ---
-    // Hum Rate A ko valuation standard maan rahe hain.
+    // --- 4. LIVE CALCULATION: STOCK VALUE (COST PRICE) ---
+    // Stock Qty * Purchase Rate (purRate)
     double totalStockValue = ph.medicines.fold(0.0, (sum, med) {
       double stockQty = med.stock > 0 ? med.stock.toDouble() : 0.0;
-      return sum + (stockQty * med.rateA);
+      return sum + (stockQty * med.purRate);
     });
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F6F9),
+      backgroundColor: const Color(0xFFF8F9FD),
       body: Column(
         children: [
-          // Header Section
+          // --- CUSTOM APP BAR / HEADER ---
           Container(
-            padding: const EdgeInsets.only(top: 50, left: 25, right: 25, bottom: 20),
-            decoration: const BoxDecoration(
+            padding: const EdgeInsets.only(top: 60, left: 25, right: 25, bottom: 25),
+            decoration: BoxDecoration(
               color: Colors.white,
-              borderRadius: BorderRadius.only(bottomLeft: Radius.circular(30), bottomRight: Radius.circular(30)),
-              boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 10)]
+              borderRadius: const BorderRadius.only(
+                bottomLeft: Radius.circular(35),
+                bottomRight: Radius.circular(35),
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.blue.withOpacity(0.1),
+                  blurRadius: 20,
+                  offset: const Offset(0, 10),
+                ),
+              ],
             ),
             child: Row(
               children: [
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text("PHAROAH ERP", style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.blue)),
+                    const Text(
+                      "PHAROAH ERP",
+                      style: TextStyle(
+                        fontSize: 26,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF1A237E),
+                        letterSpacing: 1,
+                      ),
+                    ),
+                    const SizedBox(height: 5),
                     Row(
                       children: [
-                        const Icon(Icons.calendar_today, size: 12, color: Colors.grey),
-                        const SizedBox(width: 5),
-                        Text("FY: ${ph.currentFY}", style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: Colors.blue[50],
+                            borderRadius: BorderRadius.circular(5),
+                          ),
+                          child: Text(
+                            "FY: ${ph.currentFY}",
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.blue[800],
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        const Text(
+                          "Business Manager",
+                          style: TextStyle(fontSize: 12, color: Colors.grey),
+                        ),
                       ],
                     ),
                   ],
                 ),
                 const Spacer(),
+                // Logout Button with UI feedback
                 GestureDetector(
                   onTap: onLogout,
                   child: Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(color: Colors.red[50], shape: BoxShape.circle),
-                    child: const Icon(Icons.power_settings_new, color: Colors.red),
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.red[50],
+                      shape: BoxShape.circle,
+                      border: Border.all(color: Colors.red.shade100),
+                    ),
+                    child: const Icon(Icons.power_settings_new, color: Colors.red, size: 26),
                   ),
-                )
+                ),
               ],
             ),
           ),
 
-          // Main Dashboard Scrollable Area
+          // --- DASHBOARD CONTENT ---
           Expanded(
             child: SingleChildScrollView(
               padding: const EdgeInsets.all(20),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  // Section Title
+                  const Text(
+                    "OVERVIEW",
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.blueGrey,
+                      letterSpacing: 1.2,
+                    ),
+                  ),
+                  const SizedBox(height: 15),
+
                   // --- STAT CARDS GRID ---
                   GridView.count(
                     shrinkWrap: true,
@@ -107,7 +160,7 @@ class DashboardView extends StatelessWidget {
                     crossAxisCount: 2,
                     crossAxisSpacing: 15,
                     mainAxisSpacing: 15,
-                    childAspectRatio: 1.3,
+                    childAspectRatio: 1.25,
                     children: [
                       StatWidget(
                         title: "NET SALES",
@@ -133,15 +186,25 @@ class DashboardView extends StatelessWidget {
                       StatWidget(
                         title: "STOCK (VAL)",
                         value: "₹${totalStockValue.toStringAsFixed(0)}",
-                        period: "At Rate A",
+                        period: "At Cost",
                         icon: "inventory_2",
                         color: Colors.purple,
                       ),
                     ],
                   ),
 
-                  const SizedBox(height: 30),
-                  const Text("QUICK ACTIONS", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.blueGrey, fontSize: 16)),
+                  const SizedBox(height: 35),
+
+                  // Quick Actions Title
+                  const Text(
+                    "QUICK ACTIONS",
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.blueGrey,
+                      letterSpacing: 1.2,
+                    ),
+                  ),
                   const SizedBox(height: 15),
 
                   // --- ACTION BUTTONS GRID ---
@@ -151,6 +214,7 @@ class DashboardView extends StatelessWidget {
                     crossAxisCount: 3,
                     crossAxisSpacing: 12,
                     mainAxisSpacing: 12,
+                    childAspectRatio: 0.9,
                     children: [
                       ActionIconBtn(
                         title: "Sale",
@@ -178,17 +242,29 @@ class DashboardView extends StatelessWidget {
                       ),
                       ActionIconBtn(
                         title: "Parties",
-                        icon: Icons.group,
+                        icon: Icons.groups_rounded,
                         color: Colors.teal,
                         onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => const PartyMasterView())),
                       ),
                       ActionIconBtn(
                         title: "Settings",
-                        icon: Icons.settings,
+                        icon: Icons.settings_suggest,
                         color: Colors.blueGrey,
                         onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => UserMasterView(onLogout: onLogout))),
                       ),
                     ],
+                  ),
+
+                  const SizedBox(height: 30),
+                  
+                  // Bottom Branding / Version
+                  const Center(
+                    child: Column(
+                      children: [
+                        Text("Pharoah ERP v1.0.4", style: TextStyle(color: Colors.grey, fontSize: 10)),
+                        Text("Powered by Rawat Systems", style: TextStyle(color: Colors.grey, fontSize: 10)),
+                      ],
+                    ),
                   ),
                 ],
               ),
