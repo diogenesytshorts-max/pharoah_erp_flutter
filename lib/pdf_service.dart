@@ -18,10 +18,29 @@ class PdfService {
     String cDl = prefs.getString('compDL') ?? "";
     String cEm = prefs.getString('compEmail') ?? "";
 
-    double totalGross = sale.items.fold(0, (sum, i) => sum + (i.rate * i.qty));
-    double totalDiscount = sale.items.fold(0, (sum, i) => sum + ((i.rate * i.qty) * (i.discountPercent / 100)) + i.discountRupees);
-    double totalGST = sale.items.fold(0, (sum, i) => sum + (i.cgst + i.sgst));
-    double totalTaxable = totalGross - totalDiscount;
+    // --- 1. GST GROUPING LOGIC (Har rate ke liye alag calculation) ---
+    Map<double, Map<String, double>> gstBuckets = {};
+    double grandTotalGross = 0;
+    double grandTotalDiscount = 0;
+    double grandTotalGST = 0;
+
+    for (var item in sale.items) {
+      double rate = item.gstRate;
+      double itemGross = item.rate * item.qty;
+      double itemDisc = (itemGross * (item.discountPercent / 100)) + item.discountRupees;
+      double itemTaxable = itemGross - itemDisc;
+
+      grandTotalGross += itemGross;
+      grandTotalDiscount += itemDisc;
+      grandTotalGST += (item.cgst + item.sgst);
+
+      if (!gstBuckets.containsKey(rate)) {
+        gstBuckets[rate] = {'taxable': 0, 'cgst': 0, 'sgst': 0};
+      }
+      gstBuckets[rate]!['taxable'] = gstBuckets[rate]!['taxable']! + itemTaxable;
+      gstBuckets[rate]!['cgst'] = gstBuckets[rate]!['cgst']! + item.cgst;
+      gstBuckets[rate]!['sgst'] = gstBuckets[rate]!['sgst']! + item.sgst;
+    }
 
     const int itemsPerPage = 15;
     int totalItems = sale.items.length;
@@ -35,13 +54,14 @@ class PdfService {
       final isLastPage = (pageIndex == totalPages - 1);
 
       pdf.addPage(pw.Page(
-        pageFormat: PdfPageFormat.a4.landscape,
+        // LANDSCAPE FORMAT PRESERVED
+        pageFormat: PdfPageFormat.a4.landscape, 
         margin: const pw.EdgeInsets.all(15),
         build: (pw.Context context) {
           return pw.Container(
             decoration: pw.BoxDecoration(border: pw.Border.all(width: 1.5)),
             child: pw.Column(children: [
-              // --- HEADER (3 BOXES) ---
+              // --- HEADER SECTION ---
               pw.Row(children: [
                 pw.Container(width: 300, height: 100, padding: const pw.EdgeInsets.all(8), decoration: pw.BoxDecoration(border: pw.Border.all(width: 0.5)), child: pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
                   pw.Text(cName, style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold, color: PdfColors.blue800)),
@@ -65,33 +85,49 @@ class PdfService {
                   pw.Text("GSTIN: ${party.gst} | Email: ${party.email}", style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold)),
                 ])),
               ]),
+
               // --- TABLE HEADER ---
               pw.Container(color: PdfColors.blue50, child: pw.Row(children: [
                 _c("S.N", 30), _c("Qty", 45), _c("Pack", 45), _c("Product Name", 180, a: pw.Alignment.centerLeft), _c("Batch", 80), _c("Exp", 50), _c("HSN", 50), _c("MRP", 60), _c("Rate", 60), _c("DIS%", 35), _c("SGST%", 45), _c("CGST%", 45), _c("Net Amt", 77),
               ])),
+
               // --- TABLE ROWS ---
               pw.Container(height: 280, decoration: pw.BoxDecoration(border: pw.Border.all(width: 1)), child: pw.Column(children: pageItems.map((i)=>pw.Container(decoration: const pw.BoxDecoration(border: pw.Border(bottom: pw.BorderSide(width: 0.2))), child: pw.Row(children: [
                 _ce("${i.srNo}", 30), _ce(i.qty.toStringAsFixed(2), 45), _ce(i.packing, 45), _ce(i.name, 180, a: pw.Alignment.centerLeft), _ce(i.batch, 80), _ce(i.exp, 50), _ce(i.hsn, 50), _ce(i.mrp.toStringAsFixed(2), 60), _ce(i.rate.toStringAsFixed(2), 60), _ce(i.discountPercent.toStringAsFixed(1), 35), _ce("${(i.gstRate/2).toStringAsFixed(2)}%", 45), _ce("${(i.gstRate/2).toStringAsFixed(2)}%", 45), _ce(i.total.toStringAsFixed(2), 77),
               ]))).toList())),
-              // --- FOOTER ---
+
+              // --- FOOTER SECTION (GST Breakdown and Totals) ---
               if (isLastPage) ...[
                 pw.Row(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
                   pw.Container(width: 340, child: pw.Column(children: [
                     pw.Container(color: PdfColors.grey200, child: pw.Row(children: [_sH("GST CLASS", 70), _sH("TAXABLE", 80), _sH("SGST", 60), _sH("CGST", 60), _sH("TOTAL GST", 70)])),
-                    pw.Row(children: [_sC("GST ${sale.items[0].gstRate.toInt()}%", 70), _sC(totalTaxable.toStringAsFixed(2), 80), _sC((totalGST/2).toStringAsFixed(2), 60), _sC((totalGST/2).toStringAsFixed(2), 60), _sC(totalGST.toStringAsFixed(2), 70)]),
+                    
+                    // Yahan multiple rows aayengi (5%, 12%, 18% etc.)
+                    ...gstBuckets.entries.map((entry) => pw.Row(children: [
+                      _sC("GST ${entry.key.toInt()}%", 70),
+                      _sC(entry.value['taxable']!.toStringAsFixed(2), 80),
+                      _sC(entry.value['sgst']!.toStringAsFixed(2), 60),
+                      _sC(entry.value['cgst']!.toStringAsFixed(2), 60),
+                      _sC((entry.value['sgst']! + entry.value['cgst']!).toStringAsFixed(2), 70),
+                    ])),
+
                     pw.Container(width: 340, height: 45, padding: const pw.EdgeInsets.all(5), decoration: pw.BoxDecoration(border: pw.Border.all(width: 0.5)), child: pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
                       pw.Text("Amount in Words:", style: const pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold)),
                       pw.Text("RUPEES ${sale.totalAmount.toInt()} ONLY", style: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold, color: PdfColors.blue800)),
                     ])),
                   ])),
+
                   pw.Container(width: 262, height: 105, padding: const pw.EdgeInsets.all(8), decoration: pw.BoxDecoration(border: pw.Border.all(width: 1)), child: pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
                     pw.Text("Total Items: ${sale.items.length} | Total Qty: ${sale.items.fold(0.0, (s, it)=>s+it.qty)}", style: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold)),
                     pw.Divider(),
                     pw.Text("Terms & Conditions:", style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold)),
                     pw.Text("• Goods once sold will not be taken back.\n• All disputes subject to local Jurisdiction only.", style: const pw.TextStyle(fontSize: 7)),
                   ])),
+
                   pw.Container(width: 200, height: 105, decoration: pw.BoxDecoration(border: pw.Border.all(width: 1)), child: pw.Column(children: [
-                    _fR("GROSS TOTAL", totalGross), _fR("DISC AMT.", totalDiscount, c: PdfColors.red), _fR("GST PAYABLE", totalGST),
+                    _fR("GROSS TOTAL", grandTotalGross), 
+                    _fR("DISC AMT.", grandTotalDiscount, c: PdfColors.red), 
+                    _fR("GST PAYABLE", grandTotalGST),
                     pw.Spacer(),
                     pw.Container(width: double.infinity, color: PdfColors.blue50, padding: const pw.EdgeInsets.all(5), decoration: pw.BoxDecoration(border: pw.Border.all(color: PdfColors.blue, width: 2)), child: pw.Column(children: [
                       pw.Text("Grand Total", style: const pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold)),
