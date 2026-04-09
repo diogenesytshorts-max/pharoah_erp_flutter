@@ -35,7 +35,7 @@ class _BillingViewState extends State<BillingView> {
   Medicine? selectedMed;
   int? editingIndex;
 
-  // Computed Totals
+  // --- GETTERS FOR REAL-TIME TOTALS ---
   double get grandTotal => items.fold(0, (sum, item) => sum + item.total);
   double get totalTaxable => items.fold(0, (sum, item) => sum + (item.total - (item.cgst + item.sgst + item.igst)));
   double get totalGstAmt => items.fold(0, (sum, item) => sum + (item.cgst + item.sgst + item.igst));
@@ -43,6 +43,7 @@ class _BillingViewState extends State<BillingView> {
   @override
   void initState() {
     super.initState();
+    // Load existing items if in modify mode
     if (widget.existingItems != null) {
       items = List.from(widget.existingItems!);
     }
@@ -57,21 +58,31 @@ class _BillingViewState extends State<BillingView> {
       backgroundColor: Colors.white,
       appBar: AppBar(
         elevation: 2,
-        backgroundColor: widget.isReadOnly ? Colors.purple : Colors.blue,
+        backgroundColor: widget.isReadOnly ? Colors.purple : Colors.blue.shade700,
         foregroundColor: Colors.white,
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(widget.party.name, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-            Text("${widget.billNo} | ${widget.mode} | TYPE: ${isB2B ? "B2B (Tax)" : "B2C (Retail)"}", style: const TextStyle(fontSize: 10)),
+            Text(
+              "${widget.billNo} | ${widget.mode} | ${isB2B ? "B2B (TAX)" : "B2C (RETAIL)"}", 
+              style: const TextStyle(fontSize: 10, letterSpacing: 0.5)
+            ),
           ],
         ),
         actions: [
-          IconButton(icon: const Icon(Icons.print), onPressed: items.isEmpty ? null : () => _saveAndPrint(ph)),
+          IconButton(
+            icon: const Icon(Icons.print_rounded), 
+            onPressed: items.isEmpty ? null : () => _saveAndPrint(ph)
+          ),
           if (!widget.isReadOnly)
-            TextButton(
-              onPressed: items.isEmpty ? null : () => _saveAndClose(ph),
-              child: const Text("SAVE", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+            Padding(
+              padding: const EdgeInsets.only(right: 8.0),
+              child: TextButton(
+                onPressed: items.isEmpty ? null : () => _saveAndClose(ph),
+                style: TextButton.styleFrom(backgroundColor: Colors.white.withOpacity(0.2)),
+                child: const Text("SAVE", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+              ),
             )
         ],
       ),
@@ -79,25 +90,26 @@ class _BillingViewState extends State<BillingView> {
         children: [
           Column(
             children: [
-              // Search Bar
+              // --- 1. SEARCH BAR ---
               if (selectedMed == null && !widget.isReadOnly)
                 Container(
                   padding: const EdgeInsets.all(12),
-                  color: Colors.grey[100],
+                  color: Colors.grey.shade100,
                   child: TextField(
                     autofocus: true,
                     decoration: InputDecoration(
-                      hintText: "Search Product...",
+                      hintText: "Search Medicine / Product Name...",
                       prefixIcon: const Icon(Icons.search, color: Colors.blue),
                       filled: true,
                       fillColor: Colors.white,
                       border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
+                      contentPadding: const EdgeInsets.symmetric(vertical: 0),
                     ),
                     onChanged: (val) => setState(() => search = val),
                   ),
                 ),
 
-              // Dynamic Item Entry Form
+              // --- 2. ITEM ENTRY FORM (RESTORED WITH ALL RATES) ---
               if (selectedMed != null)
                 ItemEntryForm(
                   med: selectedMed!,
@@ -117,10 +129,13 @@ class _BillingViewState extends State<BillingView> {
                       search = "";
                     });
                   },
-                  onCancel: () => setState(() { selectedMed = null; editingIndex = null; }),
+                  onCancel: () => setState(() {
+                    selectedMed = null;
+                    editingIndex = null;
+                  }),
                 ),
 
-              // Items List
+              // --- 3. ITEMS LIST ---
               Expanded(
                 child: ListView.separated(
                   itemCount: items.length,
@@ -128,14 +143,28 @@ class _BillingViewState extends State<BillingView> {
                   itemBuilder: (context, index) {
                     final item = items[index];
                     return ListTile(
-                      title: Text(item.name, style: const TextStyle(fontWeight: FontWeight.bold)),
-                      subtitle: Text("Qty: ${item.qty.toInt()} | Batch: ${item.batch} | Rate: ₹${item.rate}"),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 15, vertical: 5),
+                      title: Text(item.name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+                      subtitle: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text("Qty: ${item.qty.toInt()} | Batch: ${item.batch} | Exp: ${item.exp}"),
+                          Text(
+                            "Rate: ₹${item.rate} | Taxable: ₹${(item.total - (item.cgst + item.sgst + item.igst)).toStringAsFixed(2)}",
+                            style: const TextStyle(fontSize: 11, color: Colors.blueGrey),
+                          ),
+                        ],
+                      ),
                       trailing: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Text("₹${item.total.toStringAsFixed(2)}", style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.blue)),
+                          Text("₹${item.total.toStringAsFixed(2)}", 
+                            style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.blue, fontSize: 16)),
                           if (!widget.isReadOnly)
-                            IconButton(icon: const Icon(Icons.delete_outline, color: Colors.red), onPressed: () => setState(() => items.removeAt(index))),
+                            IconButton(
+                              icon: const Icon(Icons.delete_sweep_outlined, color: Colors.red),
+                              onPressed: () => setState(() => items.removeAt(index)),
+                            ),
                         ],
                       ),
                       onTap: widget.isReadOnly ? null : () => setState(() {
@@ -147,47 +176,85 @@ class _BillingViewState extends State<BillingView> {
                 ),
               ),
 
-              // Professional Footer
+              // --- 4. PROFESSIONAL SUMMARY FOOTER ---
               Container(
                 padding: const EdgeInsets.all(15),
-                decoration: const BoxDecoration(color: Colors.white, boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 10)]),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 10, offset: const Offset(0, -5))],
+                ),
+                child: Column(
                   children: [
-                    Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      Text("TAXABLE: ₹${totalTaxable.toStringAsFixed(2)}", style: const TextStyle(fontSize: 12, color: Colors.grey)),
-                      Text("GST AMT: ₹${totalGstAmt.toStringAsFixed(2)}", style: const TextStyle(fontSize: 12, color: Colors.grey)),
-                    ]),
-                    Text("TOTAL: ₹${grandTotal.toStringAsFixed(2)}", style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.green)),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        _footerStat("TAXABLE", "₹${totalTaxable.toStringAsFixed(2)}"),
+                        _footerStat("TOTAL GST", "₹${totalGstAmt.toStringAsFixed(2)}"),
+                        _footerStat("ITEMS", "${items.length}"),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                      decoration: BoxDecoration(
+                        color: Colors.green.shade50,
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: Colors.green.shade200),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text("GRAND TOTAL", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.green)),
+                          Text("₹${grandTotal.toStringAsFixed(2)}", 
+                            style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w900, color: Colors.green)),
+                        ],
+                      ),
+                    ),
                   ],
                 ),
               ),
             ],
           ),
 
-          // Search Suggestions Overlay
+          // --- 5. SEARCH OVERLAY ---
           if (search.isNotEmpty && selectedMed == null)
             Positioned(
               top: 70, left: 15, right: 15,
               child: Material(
-                elevation: 10,
+                elevation: 15,
+                borderRadius: BorderRadius.circular(10),
                 child: Container(
                   constraints: const BoxConstraints(maxHeight: 300),
+                  decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(10)),
                   child: ListView(
                     shrinkWrap: true,
-                    children: ph.medicines.where((m) => m.name.toLowerCase().contains(search.toLowerCase()))
+                    children: ph.medicines
+                        .where((m) => m.name.toLowerCase().contains(search.toLowerCase()))
                         .map((m) => ListTile(
-                              leading: const Icon(Icons.medication),
-                              title: Text(m.name),
-                              subtitle: Text("Pack: ${m.packing} | Stock: ${m.stock}"),
-                              onTap: () => setState(() { selectedMed = m; search = ""; }),
-                            )).toList(),
+                              leading: const Icon(Icons.medication_liquid, color: Colors.blue),
+                              title: Text(m.name, style: const TextStyle(fontWeight: FontWeight.bold)),
+                              subtitle: Text("Pack: ${m.packing} | Stock: ${m.stock} | MRP: ${m.mrp}"),
+                              onTap: () => setState(() {
+                                selectedMed = m;
+                                search = "";
+                              }),
+                            ))
+                        .toList(),
                   ),
                 ),
               ),
             ),
         ],
       ),
+    );
+  }
+
+  Widget _footerStat(String label, String val) {
+    return Column(
+      children: [
+        Text(label, style: const TextStyle(fontSize: 10, color: Colors.grey, fontWeight: FontWeight.bold)),
+        Text(val, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
+      ],
     );
   }
 
@@ -210,6 +277,9 @@ class _BillingViewState extends State<BillingView> {
   }
 }
 
+// =====================================================================
+// --- ITEM ENTRY FORM (THE CALCULATION ENGINE) ---
+// =====================================================================
 class ItemEntryForm extends StatefulWidget {
   final Medicine med; 
   final String partyState; 
@@ -251,7 +321,7 @@ class _ItemEntryFormState extends State<ItemEntryForm> {
     }
   }
 
-  // --- RATE C FORMULA ENGINE ---
+  // --- RATE C FORMULA: (MRP / (1 + GST/100)) - (Rate C Disc %) ---
   void _calculateRateC() {
     double mrp = double.tryParse(mC.text) ?? 0;
     double gst = double.tryParse(gC.text) ?? 0;
@@ -273,21 +343,31 @@ class _ItemEntryFormState extends State<ItemEntryForm> {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(15), color: Colors.blue[50],
+      padding: const EdgeInsets.all(15), 
+      decoration: BoxDecoration(color: Colors.blue.shade50, border: Border(bottom: BorderSide(color: Colors.blue.shade200, width: 2))),
       child: Column(
         children: [
           Row(children: [
-            Text("${widget.srNo}. ${widget.med.name}", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-            const Spacer(), IconButton(icon: const Icon(Icons.close, color: Colors.red), onPressed: widget.onCancel)
-          ]),
-          Row(children: [
-            Expanded(child: _f(bC, "Batch")),
-            const SizedBox(width: 5),
-            Expanded(child: _f(eC, "Exp")),
-            const SizedBox(width: 5),
-            Expanded(child: _f(gC, "GST %", onChange: (v) { if(rT=="C") _calculateRateC(); })),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              decoration: BoxDecoration(color: Colors.blue.shade700, borderRadius: BorderRadius.circular(5)),
+              child: Text("${widget.srNo}", style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+            ),
+            const SizedBox(width: 10),
+            Expanded(child: Text(widget.med.name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 17, color: Colors.blue))),
+            IconButton(icon: const Icon(Icons.cancel, color: Colors.red), onPressed: widget.onCancel)
           ]),
           const SizedBox(height: 10),
+          // Row 1: Batch, Exp, GST
+          Row(children: [
+            Expanded(child: _field(bC, "Batch No")),
+            const SizedBox(width: 5),
+            Expanded(child: _field(eC, "Exp (MM/YY)")),
+            const SizedBox(width: 5),
+            Expanded(child: _field(gC, "GST %", onChange: (v) { if(rT=="C") _calculateRateC(); })),
+          ]),
+          const SizedBox(height: 12),
+          // Row 2: Rate Switcher
           SegmentedButton<String>(
             segments: const [
               ButtonSegment(value: 'A', label: Text('Rate A')),
@@ -297,35 +377,42 @@ class _ItemEntryFormState extends State<ItemEntryForm> {
             selected: {rT},
             onSelectionChanged: (val) => _handleRateSwitch(val.first),
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 12),
+          // Row 3: MRP, RC Disc, Rate, Qty
           Row(children: [
-            Expanded(child: _f(mC, "MRP", onChange: (v) { if(rT=="C") _calculateRateC(); })),
+            Expanded(child: _field(mC, "MRP", onChange: (v) { if(rT=="C") _calculateRateC(); })),
             if (rT == "C") ...[
               const SizedBox(width: 5),
-              Expanded(child: _f(rCD, "RC Disc %", onChange: (v) => _calculateRateC())),
+              Expanded(child: _field(rCD, "RC Disc %", onChange: (v) => _calculateRateC())),
             ],
             const SizedBox(width: 5),
-            Expanded(child: _f(rC, "Net Rate", isEnabled: rT != "C")),
+            Expanded(child: _field(rC, "Net Rate", isEnabled: rT != "C")),
             const SizedBox(width: 5),
-            Expanded(child: _f(qC, "Qty")),
+            Expanded(child: _field(qC, "Quantity")),
           ]),
+          // Row 4: Extra Discounts
           Row(children: [
-            Expanded(child: _f(dpC, "Disc %")),
+            Expanded(child: _field(dpC, "Cash Disc %")),
             const SizedBox(width: 5),
-            Expanded(child: _f(drC, "Disc ₹")),
+            Expanded(child: _field(drC, "Cash Disc ₹")),
           ]),
-          const SizedBox(height: 10),
+          const SizedBox(height: 15),
           ElevatedButton(
-            style: ElevatedButton.styleFrom(minimumSize: const Size(double.infinity, 45), backgroundColor: Colors.blue),
+            style: ElevatedButton.styleFrom(
+              minimumSize: const Size(double.infinity, 50), 
+              backgroundColor: Colors.blue.shade700,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))
+            ),
             onPressed: () {
               double r = double.tryParse(rC.text) ?? 0; double q = double.tryParse(qC.text) ?? 0;
               double dp = double.tryParse(dpC.text) ?? 0; double dr = double.tryParse(drC.text) ?? 0;
               double g = double.tryParse(gC.text) ?? 0;
 
-              double taxable = (r * q) - ((r * q) * dp / 100) - dr;
+              double gross = r * q;
+              double taxable = gross - (gross * dp / 100) - dr;
               double gstAmt = taxable * (g / 100);
               
-              // --- IGST vs CGST/SGST LOGIC ---
+              // --- STATE-BASED GST LOGIC (IGST vs CGST/SGST) ---
               double cgst = 0, sgst = 0, igst = 0;
               if (widget.partyState.trim().toLowerCase() == widget.shopState.trim().toLowerCase()) {
                 cgst = gstAmt / 2; sgst = gstAmt / 2;
@@ -341,17 +428,22 @@ class _ItemEntryFormState extends State<ItemEntryForm> {
                 cgst: cgst, sgst: sgst, igst: igst, total: taxable + gstAmt
               ));
             }, 
-            child: const Text("ADD TO BILL", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold))
+            child: const Text("ADD TO BILL", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16))
           )
         ],
       ),
     );
   }
 
-  Widget _f(TextEditingController c, String l, {Function(String)? onChange, bool isEnabled = true}) {
+  Widget _field(TextEditingController c, String l, {Function(String)? onChange, bool isEnabled = true}) {
     return TextField(
       controller: c, enabled: isEnabled, onChanged: onChange,
-      decoration: InputDecoration(labelText: l, labelStyle: const TextStyle(fontSize: 10)), 
+      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+      decoration: InputDecoration(
+        labelText: l, 
+        labelStyle: const TextStyle(fontSize: 10, fontWeight: FontWeight.normal),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+      ), 
       keyboardType: TextInputType.text
     );
   }
