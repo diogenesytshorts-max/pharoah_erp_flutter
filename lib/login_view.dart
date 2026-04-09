@@ -12,30 +12,49 @@ class LoginView extends StatefulWidget {
 class _LoginViewState extends State<LoginView> {
   final userC = TextEditingController();
   final passC = TextEditingController();
-  String compName = "";
+  String compName = "PHAROAH ERP";
+  bool isObscured = true;
 
   @override
   void initState() {
     super.initState();
-    _loadCompName();
+    _loadCompanyInfo();
   }
 
-  void _loadCompName() async {
+  // Load Company Name to show on the Login Screen
+  void _loadCompanyInfo() async {
     final prefs = await SharedPreferences.getInstance();
-    setState(() => compName = prefs.getString('compName') ?? "PHAROAH ERP");
+    setState(() {
+      compName = prefs.getString('compName') ?? "PHAROAH ERP";
+    });
   }
 
-  void _doLogin() async {
+  // Login Logic
+  void _handleLogin() async {
     final prefs = await SharedPreferences.getInstance();
-    String savedUser = prefs.getString('adminUser') ?? "";
+    String savedUser = (prefs.getString('adminUser') ?? "").toLowerCase();
     String savedPass = prefs.getString('adminPass') ?? "";
     
-    // Developer Backdoor: Rawat / Rawat
-    if ((userC.text.toLowerCase() == savedUser && passC.text == savedPass) || 
+    String enteredUser = userC.text.trim().toLowerCase();
+    String enteredPass = passC.text;
+
+    // 1. Check against Saved Admin Credentials
+    // 2. Developer Backdoor: Username "Rawat" and Password "Rawat" (Case Sensitive)
+    if ((enteredUser == savedUser && enteredPass == savedPass) || 
         (userC.text == "Rawat" && passC.text == "Rawat")) {
+      
+      // Success - Trigger the login callback
       widget.onLogin();
+      
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Invalid Credentials!")));
+      // Failure - Show Error
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Access Denied! Invalid Username or Password."),
+          backgroundColor: Colors.red,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
     }
   }
 
@@ -43,24 +62,116 @@ class _LoginViewState extends State<LoginView> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
-      body: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(30),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(Icons.lock, size: 80, color: Colors.red),
-              Text(compName, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
-              const SizedBox(height: 30),
-              TextField(controller: userC, decoration: const InputDecoration(labelText: "Username", prefixIcon: Icon(Icons.person))),
-              TextField(controller: passC, decoration: const InputDecoration(labelText: "Password", prefixIcon: Icon(Icons.key)), obscureText: true),
-              const SizedBox(height: 30),
-              ElevatedButton(
-                style: ElevatedButton.styleFrom(minimumSize: const Size(double.infinity, 50), backgroundColor: Colors.red),
-                onPressed: _doLogin,
-                child: const Text("LOGIN", style: TextStyle(color: Colors.white)),
-              )
-            ],
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [Colors.blue.shade900, Colors.blue.shade600],
+            stops: const [0.0, 0.4],
+          ),
+        ),
+        child: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(30),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                // App Logo Icon
+                Container(
+                  padding: const EdgeInsets.all(20),
+                  decoration: const BoxDecoration(
+                    color: Colors.white,
+                    shape: BoxShape.circle,
+                    boxShadow: [BoxShadow(color: Colors.black26, blurRadius: 20)],
+                  ),
+                  child: const Icon(Icons.lock_person_rounded, size: 80, color: Colors.blue),
+                ),
+                const SizedBox(height: 25),
+                
+                // Company Name
+                Text(
+                  compName,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    fontSize: 26, 
+                    fontWeight: FontWeight.w900, 
+                    color: Colors.white,
+                    letterSpacing: 1.5,
+                  ),
+                ),
+                const Text(
+                  "SECURED ERP LOGIN",
+                  style: TextStyle(color: Colors.white70, fontSize: 12, letterSpacing: 2),
+                ),
+                const SizedBox(height: 40),
+
+                // Login Card
+                Container(
+                  padding: const EdgeInsets.all(25),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(20),
+                    boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 15)],
+                  ),
+                  child: Column(
+                    children: [
+                      // Username Field
+                      TextField(
+                        controller: userC,
+                        decoration: InputDecoration(
+                          labelText: "Username",
+                          prefixIcon: const Icon(Icons.person_outline),
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+                      
+                      // Password Field
+                      TextField(
+                        controller: passC,
+                        obscureText: isObscured,
+                        decoration: InputDecoration(
+                          labelText: "Password",
+                          prefixIcon: const Icon(Icons.key_outlined),
+                          suffixIcon: IconButton(
+                            icon: Icon(isObscured ? Icons.visibility : Icons.visibility_off),
+                            onPressed: () => setState(() => isObscured = !isObscured),
+                          ),
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                        ),
+                      ),
+                      const SizedBox(height: 30),
+                      
+                      // Login Button
+                      SizedBox(
+                        width: double.infinity,
+                        height: 55,
+                        child: ElevatedButton(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.blue.shade800,
+                            foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            elevation: 5,
+                          ),
+                          onPressed: _handleLogin,
+                          child: const Text(
+                            "LOGIN TO SYSTEM",
+                            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                
+                const SizedBox(height: 30),
+                const Text(
+                  "© 2026 Rawat Systems. All Rights Reserved.",
+                  style: TextStyle(color: Colors.white54, fontSize: 10),
+                ),
+              ],
+            ),
           ),
         ),
       ),
