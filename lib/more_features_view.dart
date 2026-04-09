@@ -1,124 +1,87 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'audit_logs_view.dart';
 import 'file_management_view.dart';
 import 'user_master_view.dart';
+import 'pharoah_manager.dart';
 import 'widgets.dart';
 
 class MoreFeaturesView extends StatelessWidget {
   final VoidCallback onLogout;
   const MoreFeaturesView({super.key, required this.onLogout});
 
+  void _startResetProcess(BuildContext context) {
+    final List<Map<String, String>> steps = [
+      {"t": "Step 1/7", "m": "Kya aap vastav me sara data delete karna chahte hain?", "b": "AGREE"},
+      {"t": "Step 2/7", "m": "Isse aapki saari Sales, Purchase aur Inventory zero ho jayegi. Sure?", "b": "YES, I KNOW"},
+      {"t": "Step 3/7", "m": "Kya aapne pehle backup le liya hai? Bina backup data wapas nahi aayega!", "b": "I HAVE BACKUP"},
+      {"t": "Step 4/7", "m": "Ye action permanent hai. Kya aap abhi bhi aage badhna chahte hain?", "b": "YES, PROCEED"},
+      {"t": "Step 5/7", "m": "Final warning: Pharoah ERP ka sara setup reset ho jayega.", "b": "AGREE & RESET"},
+      {"t": "Step 6/7", "m": "Are you REALLY REALLY SURE? Last chance to go back.", "b": "YES, DELETE ALL"},
+      {"t": "FINAL - 7/7", "m": "Ok, Tap below to wipe everything. No undo possible!", "b": "WIPE EVERYTHING NOW"},
+    ];
+    _showStep(context, steps, 0);
+  }
+
+  void _showStep(BuildContext context, List<Map<String, String>> steps, int index) {
+    showDialog(
+      context: context, barrierDismissible: false,
+      builder: (c) => AlertDialog(
+        title: Text(steps[index]['t']!, style: const TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
+        content: Text(steps[index]['m']!),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(c), child: const Text("NO / CANCEL")),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () {
+              Navigator.pop(c);
+              if (index < steps.length - 1) {
+                _showStep(context, steps, index + 1);
+              } else {
+                Provider.of<PharoahManager>(context, listen: false).masterReset();
+                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("MASTER RESET COMPLETED!")));
+              }
+            },
+            child: Text(steps[index]['b']!, style: const TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF5F6F9),
-      appBar: AppBar(
-        title: const Text("More Features & Tools"),
-        backgroundColor: Colors.indigo,
-        foregroundColor: Colors.white,
-        elevation: 0,
-      ),
+      appBar: AppBar(title: const Text("More Features & Tools"), backgroundColor: Colors.indigo, foregroundColor: Colors.white, elevation: 0),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(20),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // --- SECTION 1: GST & TAX REPORTS ---
             _buildSectionTitle("GST & RETURNS"),
             const SizedBox(height: 15),
             GridView.count(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              crossAxisCount: 3,
-              crossAxisSpacing: 12,
-              mainAxisSpacing: 12,
-              childAspectRatio: 0.85,
+              shrinkWrap: true, physics: const NeverScrollableScrollPhysics(), crossAxisCount: 3, crossAxisSpacing: 12, mainAxisSpacing: 12, childAspectRatio: 0.85,
               children: [
-                ActionIconBtn(
-                  title: "GSTR-1 (Sales)",
-                  icon: Icons.pie_chart_outline_rounded,
-                  color: Colors.green.shade700,
-                  onTap: () => _showComingSoon(context, "GSTR-1 Report"),
-                ),
-                ActionIconBtn(
-                  title: "GSTR-2 (Purc)",
-                  icon: Icons.analytics_outlined,
-                  color: Colors.orange.shade700,
-                  onTap: () => _showComingSoon(context, "GSTR-2 Report"),
-                ),
-                ActionIconBtn(
-                  title: "GST Summary",
-                  icon: Icons.account_balance_wallet_outlined,
-                  color: Colors.blue.shade700,
-                  onTap: () => _showComingSoon(context, "GST Tax Summary"),
-                ),
+                ActionIconBtn(title: "GSTR-1", icon: Icons.pie_chart_outline, color: Colors.green, onTap: () {}),
+                ActionIconBtn(title: "GSTR-2", icon: Icons.analytics_outlined, color: Colors.orange, onTap: () {}),
+                ActionIconBtn(title: "GST Sum", icon: Icons.account_balance_wallet, color: Colors.blue, onTap: () {}),
               ],
             ),
-
             const SizedBox(height: 35),
-
-            // --- SECTION 2: SYSTEM & ADMINISTRATION (THE 6 CORE TOOLS) ---
             _buildSectionTitle("SYSTEM & ADMINISTRATION"),
             const SizedBox(height: 15),
             GridView.count(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              crossAxisCount: 3,
-              crossAxisSpacing: 12,
-              mainAxisSpacing: 12,
-              childAspectRatio: 0.85,
+              shrinkWrap: true, physics: const NeverScrollableScrollPhysics(), crossAxisCount: 3, crossAxisSpacing: 12, mainAxisSpacing: 12, childAspectRatio: 0.85,
               children: [
-                // 1. Company Profile
-                ActionIconBtn(
-                  title: "Company",
-                  icon: Icons.business_rounded,
-                  color: Colors.indigo,
-                  onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => UserMasterView(onLogout: onLogout))),
-                ),
-                // 2. Audit Logs
-                ActionIconBtn(
-                  title: "Audit Logs",
-                  icon: Icons.history_edu_rounded,
-                  color: Colors.brown,
-                  onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => const AuditLogsView())),
-                ),
-                // 3. Backup & Share
-                ActionIconBtn(
-                  title: "Backup",
-                  icon: Icons.cloud_done_rounded,
-                  color: Colors.blueGrey,
-                  onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => const FileManagementView())),
-                ),
-                // 4. Change FY
-                ActionIconBtn(
-                  title: "Change FY",
-                  icon: Icons.calendar_month_rounded,
-                  color: Colors.teal,
-                  onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => const FileManagementView())),
-                ),
-                // 5. User Settings
-                ActionIconBtn(
-                  title: "Admin User",
-                  icon: Icons.admin_panel_settings_rounded,
-                  color: Colors.deepPurple,
-                  onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => UserMasterView(onLogout: onLogout))),
-                ),
-                // 6. Master Reset
-                ActionIconBtn(
-                  title: "Reset Data",
-                  icon: Icons.restart_alt_rounded,
-                  color: Colors.red,
-                  onTap: () => _confirmReset(context),
-                ),
+                ActionIconBtn(title: "Company", icon: Icons.business, color: Colors.indigo, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => UserMasterView(onLogout: onLogout)))),
+                ActionIconBtn(title: "Audit Logs", icon: Icons.history_edu, color: Colors.brown, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => const AuditLogsView()))),
+                ActionIconBtn(title: "Backup", icon: Icons.cloud_done, color: Colors.blueGrey, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => const FileManagementView()))),
+                ActionIconBtn(title: "Change FY", icon: Icons.calendar_month, color: Colors.teal, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => const FileManagementView()))),
+                ActionIconBtn(title: "Admin User", icon: Icons.admin_panel_settings, color: Colors.deepPurple, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => UserMasterView(onLogout: onLogout)))),
+                ActionIconBtn(title: "Reset Data", icon: Icons.delete_forever, color: Colors.red, onTap: () => _startResetProcess(context)),
               ],
-            ),
-
-            const SizedBox(height: 40),
-            Center(
-              child: Text(
-                "Pharoah ERP Toolset v1.0.5",
-                style: TextStyle(color: Colors.grey.shade400, fontSize: 10),
-              ),
             ),
           ],
         ),
@@ -126,47 +89,7 @@ class MoreFeaturesView extends StatelessWidget {
     );
   }
 
-  // --- HELPER METHODS ---
-
   Widget _buildSectionTitle(String title) {
-    return Padding(
-      padding: const EdgeInsets.only(left: 5),
-      child: Text(
-        title,
-        style: const TextStyle(
-          fontSize: 13,
-          fontWeight: FontWeight.bold,
-          color: Colors.blueGrey,
-          letterSpacing: 1.2,
-        ),
-      ),
-    );
-  }
-
-  void _showComingSoon(BuildContext context, String feature) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text("$feature is being prepared for next update.")),
-    );
-  }
-
-  void _confirmReset(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (c) => AlertDialog(
-        title: const Text("Master Reset?"),
-        content: const Text("This will delete all dummy data and reset masters. This action cannot be undone!"),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(c), child: const Text("CANCEL")),
-          TextButton(
-            onPressed: () {
-              // Reset logic will go here
-              Navigator.pop(c);
-              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Reset requested.")));
-            },
-            child: const Text("YES, RESET", style: TextStyle(color: Colors.red)),
-          ),
-        ],
-      ),
-    );
+    return Padding(padding: const EdgeInsets.only(left: 5), child: Text(title, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.blueGrey, letterSpacing: 1.2)));
   }
 }
