@@ -11,15 +11,16 @@ class PdfService {
     final pdf = pw.Document();
     final prefs = await SharedPreferences.getInstance();
 
+    // --- 1. LOAD COMPANY PROFILE FROM SETTINGS ---
     String cName = prefs.getString('compName') ?? "Pharoah ERP";
-    String cAddr = prefs.getString('compAddr') ?? "";
-    String cPh = prefs.getString('compPh') ?? "";
-    String cGst = prefs.getString('compGST') ?? "";
-    String cDl = prefs.getString('compDL') ?? "";
-    String cEm = prefs.getString('compEmail') ?? "";
+    String cAddr = prefs.getString('compAddr') ?? "Your Address Line";
+    String cPh = prefs.getString('compPh') ?? "0000000000";
+    String cGst = prefs.getString('compGST') ?? "GSTIN NOT SET";
+    String cDl = prefs.getString('compDL') ?? "DL NO NOT SET";
+    String cEm = prefs.getString('compEmail') ?? "email@example.com";
     String cState = prefs.getString('compState') ?? "Rajasthan";
 
-    // --- GST GROUPING & CALCULATION ---
+    // --- 2. CALCULATE TAX BUCKETS & TOTALS ---
     Map<double, Map<String, double>> gstBuckets = {};
     double grandTotalGross = 0;
     double grandTotalDiscount = 0;
@@ -35,6 +36,8 @@ class PdfService {
       grandTotalGross += itemGross;
       grandTotalDiscount += itemDisc;
       grandTotalTax += (item.cgst + item.sgst + item.igst);
+      
+      // If any item has IGST, we change the table header globally for this bill
       if (item.igst > 0) hasIGST = true;
 
       if (!gstBuckets.containsKey(rate)) {
@@ -46,65 +49,78 @@ class PdfService {
       gstBuckets[rate]!['igst'] = gstBuckets[rate]!['igst']! + item.igst;
     }
 
-    const int itemsPerPage = 12;
+    // --- 3. PAGINATION LOGIC ---
+    const int itemsPerPage = 12; // Adjusted to leave space for summary on last page
     int totalItems = sale.items.length;
     int totalPages = (totalItems / itemsPerPage).ceil();
     if (totalPages == 0) totalPages = 1;
 
     for (int pageIndex = 0; pageIndex < totalPages; pageIndex++) {
+      final startIndex = pageIndex * itemsPerPage;
+      final endIndex = min(startIndex + itemsPerPage, totalItems);
+      final pageItems = sale.items.sublist(startIndex, endIndex);
+      final isLastPage = (pageIndex == totalPages - 1);
+
       pdf.addPage(pw.Page(
-        pageFormat: PdfPageFormat.a4.landscape,
+        pageFormat: PdfPageFormat.a4.landscape, // LANDSCAPE MODE
         margin: const pw.EdgeInsets.all(15),
         build: (pw.Context context) {
           return pw.Container(
             decoration: pw.BoxDecoration(border: pw.Border.all(width: 1.5)),
             child: pw.Column(children: [
-              // --- HEADER ---
+              // --- HEADER: 3 DISTINCT BOXES ---
               pw.Row(children: [
+                // Box 1: Seller Details
                 pw.Container(width: 300, height: 100, padding: const pw.EdgeInsets.all(8), decoration: pw.BoxDecoration(border: pw.Border.all(width: 0.5)), child: pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
                   pw.Text(cName, style: pw.TextStyle(fontSize: 15, fontWeight: pw.FontWeight.bold, color: PdfColors.blue800)),
                   pw.Text(cAddr, style: const pw.TextStyle(fontSize: 8), maxLines: 2),
                   pw.Spacer(),
-                  pw.Text("State: $cState", style: const pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold)),
+                  pw.Text("State: $cState", style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold)),
                   pw.Text("Phone: $cPh | GSTIN: $cGst", style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold)),
+                  pw.Text("Email: $cEm", style: const pw.TextStyle(fontSize: 7)),
                 ])),
+                
+                // Box 2: Invoice Info
                 pw.Container(width: 180, height: 100, decoration: pw.BoxDecoration(border: pw.Border.all(width: 0.5)), child: pw.Column(children: [
                   pw.Container(width: double.infinity, color: isPurchase ? PdfColors.orange100 : PdfColors.blue100, padding: const pw.EdgeInsets.all(4), child: pw.Center(child: pw.Text(isPurchase ? "PURCHASE BILL" : "SALE INVOICE", style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold)))),
                   pw.Text(sale.paymentMode.toUpperCase(), style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold)),
                   pw.Spacer(),
                   pw.Padding(padding: const pw.EdgeInsets.all(4), child: pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
-                    pw.Text("Inv No: ${sale.billNo}", style: const pw.TextStyle(fontSize: 9)),
+                    pw.Text("Invoice No: ${sale.billNo}", style: const pw.TextStyle(fontSize: 9)),
                     pw.Text("Date: ${DateFormat('dd/MM/yyyy').format(sale.date)}", style: const pw.TextStyle(fontSize: 9)),
-                    pw.Text("Page ${pageIndex + 1} of $totalPages", style: pw.TextStyle(fontSize: 7)),
+                    pw.Text("Page ${pageIndex + 1} of $totalPages", style: pw.TextStyle(fontSize: 7, color: PdfColors.grey700)),
                   ])),
                 ])),
+
+                // Box 3: Buyer Details
                 pw.Container(width: 322, height: 100, padding: const pw.EdgeInsets.all(8), decoration: pw.BoxDecoration(border: pw.Border.all(width: 0.5)), child: pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
-                  pw.Text("BILL TO / PARTY DETAILS:", style: pw.TextStyle(fontSize: 7, color: PdfColors.grey700)),
+                  pw.Text("BILL TO / CUSTOMER DETAILS:", style: pw.TextStyle(fontSize: 7, color: PdfColors.grey700)),
                   pw.Text(party.name, style: pw.TextStyle(fontSize: 12, fontWeight: pw.FontWeight.bold, color: PdfColors.blue800)),
                   pw.Text(party.address, style: const pw.TextStyle(fontSize: 8), maxLines: 2),
                   pw.Spacer(),
-                  pw.Text("State: ${party.state} | Phone: ${party.phone}", style: const pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold)),
+                  pw.Text("State: ${party.state} | Phone: ${party.phone}", style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold)),
                   pw.Text("GSTIN: ${party.gst} | DL: ${party.dl}", style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold)),
                 ])),
               ]),
 
-              // --- TABLE HEADER ---
+              // --- PRODUCT TABLE HEADER ---
               pw.Container(color: PdfColors.blue50, child: pw.Row(children: [
                 _c("S.N", 30), _c("Qty", 45), _c("Pack", 45), _c("Product Name", 180, a: pw.Alignment.centerLeft), _c("Batch", 80), _c("Exp", 50), _c("HSN", 50), _c("MRP", 60), _c(isPurchase ? "Pur.Rate" : "Rate", 60), _c("DIS%", 35),
                 if (hasIGST) _c("IGST%", 90) else ...[_c("SGST%", 45), _c("CGST%", 45)],
                 _c("Net Amt", 77),
               ])),
 
-              // --- TABLE ROWS ---
-              pw.Container(height: 260, decoration: pw.BoxDecoration(border: pw.Border.all(width: 1)), child: pw.Column(children: sale.items.sublist(pageIndex * itemsPerPage, min((pageIndex + 1) * itemsPerPage, totalItems)).map((i)=>pw.Container(decoration: const pw.BoxDecoration(border: pw.Border(bottom: pw.BorderSide(width: 0.2))), child: pw.Row(children: [
+              // --- PRODUCT TABLE ROWS ---
+              pw.Container(height: 260, decoration: pw.BoxDecoration(border: pw.Border.all(width: 1)), child: pw.Column(children: pageItems.map((i)=>pw.Container(decoration: const pw.BoxDecoration(border: pw.Border(bottom: pw.BorderSide(width: 0.2))), child: pw.Row(children: [
                 _ce("${i.srNo}", 30), _ce(i.qty.toStringAsFixed(2), 45), _ce(i.packing, 45), _ce(i.name, 180, a: pw.Alignment.centerLeft), _ce(i.batch, 80), _ce(i.exp, 50), _ce(i.hsn, 50), _ce(i.mrp.toStringAsFixed(2), 60), _ce(i.rate.toStringAsFixed(2), 60), _ce(i.discountPercent.toStringAsFixed(1), 35),
                 if (hasIGST) _ce("${i.gstRate.toInt()}%", 90) else ...[_ce("${(i.gstRate/2).toStringAsFixed(1)}%", 45), _ce("${(i.gstRate/2).toStringAsFixed(1)}%", 45)],
                 _ce(i.total.toStringAsFixed(2), 77),
               ]))).toList())),
 
-              // --- FOOTER ---
-              if (pageIndex == totalPages - 1) ...[
+              // --- FOOTER: SUMMARY & TAX BREAKDOWN (On Last Page) ---
+              if (isLastPage) ...[
                 pw.Row(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
+                  // Tax Details Table
                   pw.Container(width: 340, child: pw.Column(children: [
                     pw.Container(color: PdfColors.grey200, child: pw.Row(children: [_sH("TAX SLAB", 60), _sH("TAXABLE", 70), if(hasIGST) _sH("IGST", 70) else ...[_sH("SGST", 70), _sH("CGST", 70)], _sH("TOTAL TAX", 70)])),
                     ...gstBuckets.entries.map((entry) => pw.Row(children: [
@@ -115,32 +131,44 @@ class PdfService {
                     pw.Container(width: 340, padding: const pw.EdgeInsets.all(5), decoration: pw.BoxDecoration(border: pw.Border.all(width: 0.5)), child: pw.Text("Amt in Words: RUPEES ${sale.totalAmount.toInt()} ONLY", style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold, color: PdfColors.blue800))),
                   ])),
                   pw.Spacer(),
+                  // Totals Box
                   pw.Container(width: 200, height: 100, decoration: pw.BoxDecoration(border: pw.Border.all(width: 1)), child: pw.Column(children: [
                     _fR("GROSS TOTAL", grandTotalGross), _fR("TAX TOTAL", grandTotalTax), _fR("DISCOUNT", grandTotalDiscount, c: PdfColors.red),
                     pw.Spacer(),
                     pw.Container(width: double.infinity, color: PdfColors.blue50, padding: const pw.EdgeInsets.all(5), child: pw.Column(children: [
                       pw.Text("Grand Total", style: const pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold)),
-                      pw.Text("Rs. ${sale.totalAmount.toStringAsFixed(2)}", style: pw.TextStyle(fontSize: 20, fontWeight: pw.FontWeight.bold)),
+                      pw.Text("Rs. ${sale.totalAmount.toStringAsFixed(2)}", style: pw.TextStyle(fontSize: 22, fontWeight: pw.FontWeight.bold)),
                     ])),
                   ])),
                 ]),
-                pw.Padding(padding: const pw.EdgeInsets.symmetric(horizontal: 10, vertical: 5), child: pw.Row(mainAxisAlignment: pw.MainAxisAlignment.spaceBetween, children: [
+                // Signatures
+                pw.Padding(padding: const pw.EdgeInsets.symmetric(horizontal: 10, vertical: 10), child: pw.Row(mainAxisAlignment: pw.MainAxisAlignment.spaceBetween, children: [
                   pw.Text("Receiver's Signature", style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold)),
                   pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.end, children: [
                     pw.Text("For $cName", style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold)),
-                    pw.SizedBox(height: 15),
+                    pw.SizedBox(height: 20),
                     pw.Text("Authorised Signatory", style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold)),
                   ]),
                 ])),
+              ] else ...[
+                // Continued Label for long bills
+                pw.Container(height: 120, decoration: pw.BoxDecoration(border: pw.Border.all(width: 1)), child: pw.Center(child: pw.Text("Continued to Page ${pageIndex + 2}...", style: pw.TextStyle(fontSize: 12, color: PdfColors.grey700)))),
               ]
             ]),
           );
         },
       ));
     }
-    await Printing.layoutPdf(onLayout: (f) async => pdf.save(), name: "Invoice_${sale.billNo}", format: PdfPageFormat.a4.landscape);
+
+    // --- 4. PRINT OR SAVE ---
+    await Printing.layoutPdf(
+      onLayout: (f) async => pdf.save(), 
+      name: isPurchase ? "Purchase_${sale.billNo}" : "Sale_${sale.billNo}", 
+      format: PdfPageFormat.a4.landscape
+    );
   }
 
+  // --- HELPER WIDGETS ---
   static pw.Widget _c(String t, double w, {pw.Alignment a = pw.Alignment.center}) => pw.Container(width: w, height: 25, alignment: a, decoration: pw.BoxDecoration(border: pw.Border.all(width: 0.5)), child: pw.Text(t, style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold)));
   static pw.Widget _ce(String t, double w, {pw.Alignment a = pw.Alignment.center}) => pw.Container(width: w, alignment: a, padding: const pw.EdgeInsets.symmetric(vertical: 3, horizontal: 2), child: pw.Text(t, style: const pw.TextStyle(fontSize: 8)));
   static pw.Widget _sH(String t, double w) => pw.Container(width: w, height: 15, alignment: pw.Alignment.center, decoration: pw.BoxDecoration(border: pw.Border.all(width: 0.2)), child: pw.Text(t, style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold)));
