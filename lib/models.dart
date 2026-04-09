@@ -18,11 +18,43 @@ class LogEntry {
 
 class Medicine {
   String id, name, packing, manufacturer, hsnCode;
-  double gst, mrp, rateA, rateB, rateC;
+  double gst, mrp, purRate, rateA, rateB, rateC; // purRate add kiya
   int stock;
-  Medicine({required this.id, required this.name, required this.packing, this.manufacturer = "N/A", this.hsnCode = "N/A", this.gst = 12.0, required this.mrp, required this.rateA, required this.rateB, required this.rateC, this.stock = 0});
-  Map<String, dynamic> toMap() => {'id': id, 'name': name, 'packing': packing, 'manufacturer': manufacturer, 'hsnCode': hsnCode, 'gst': gst, 'mrp': mrp, 'rateA': rateA, 'rateB': rateB, 'rateC': rateC, 'stock': stock};
-  factory Medicine.fromMap(Map<String, dynamic> map) => Medicine(id: map['id']??"", name: map['name']??"", packing: map['packing']??"", manufacturer: map['manufacturer']??"N/A", hsnCode: map['hsnCode']??"N/A", gst: (map['gst']??12).toDouble(), mrp: (map['mrp']??0).toDouble(), rateA: (map['rateA']??0).toDouble(), rateB: (map['rateB']??0).toDouble(), rateC: (map['rateC']??0).toDouble(), stock: map['stock']??0);
+  Medicine({
+    required this.id, 
+    required this.name, 
+    required this.packing, 
+    this.manufacturer = "N/A", 
+    this.hsnCode = "N/A", 
+    this.gst = 12.0, 
+    required this.mrp, 
+    this.purRate = 0.0, // Default 0
+    required this.rateA, 
+    required this.rateB, 
+    required this.rateC, 
+    this.stock = 0
+  });
+
+  Map<String, dynamic> toMap() => {
+    'id': id, 'name': name, 'packing': packing, 'manufacturer': manufacturer, 
+    'hsnCode': hsnCode, 'gst': gst, 'mrp': mrp, 'purRate': purRate, 
+    'rateA': rateA, 'rateB': rateB, 'rateC': rateC, 'stock': stock
+  };
+
+  factory Medicine.fromMap(Map<String, dynamic> map) => Medicine(
+    id: map['id']??"", 
+    name: map['name']??"", 
+    packing: map['packing']??"", 
+    manufacturer: map['manufacturer']??"N/A", 
+    hsnCode: map['hsnCode']??"N/A", 
+    gst: (map['gst']??12).toDouble(), 
+    mrp: (map['mrp']??0).toDouble(), 
+    purRate: (map['purRate']??0).toDouble(), // Load purRate
+    rateA: (map['rateA']??0).toDouble(), 
+    rateB: (map['rateB']??0).toDouble(), 
+    rateC: (map['rateC']??0).toDouble(), 
+    stock: map['stock']??0
+  );
 }
 
 class Party {
