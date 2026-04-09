@@ -100,10 +100,13 @@ class PharoahManager with ChangeNotifier {
         medicines[idx].stock += (item.qty + item.freeQty).toInt();
         medicines[idx].mrp = item.mrp;
         medicines[idx].gst = item.gstRate;
-        // Selling Rates Update
+        
+        // --- STOCK VALUATION UPDATES ---
+        medicines[idx].purRate = item.purchaseRate; // Latest Purchase Rate save kiya
         medicines[idx].rateA = item.rateA;
         medicines[idx].rateB = item.rateB;
         medicines[idx].rateC = item.rateC;
+        
         _updateBatch(item.medicineID, BatchInfo(batch: item.batch, exp: item.exp, packing: item.packing, mrp: item.mrp, rate: item.purchaseRate));
       }
     }
