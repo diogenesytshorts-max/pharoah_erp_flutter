@@ -18,6 +18,7 @@ void main() async {
 
 class MyApp extends StatefulWidget {
   const MyApp({super.key});
+
   @override
   State<MyApp> createState() => _MyAppState();
 }
@@ -43,7 +44,11 @@ class _MyAppState extends State<MyApp> {
 
   @override
   Widget build(BuildContext context) {
-    if (isLoading) return const MaterialApp(home: Scaffold(body: Center(child: CircularProgressIndicator())));
+    if (isLoading) {
+      return const MaterialApp(
+        home: Scaffold(body: Center(child: CircularProgressIndicator())),
+      );
+    }
 
     return MaterialApp(
       key: UniqueKey(),
@@ -52,7 +57,7 @@ class _MyAppState extends State<MyApp> {
       theme: ThemeData(
         useMaterial3: true,
         colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF0D47A1)),
-        // FIX: CardThemeData use kiya gaya hai CardTheme ki jagah
+        // FIX: CardTheme ki jagah CardThemeData use kiya gaya hai
         cardTheme: CardThemeData(
           elevation: 2,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
