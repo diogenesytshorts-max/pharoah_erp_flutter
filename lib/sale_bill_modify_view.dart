@@ -16,12 +16,12 @@ class _SaleBillModifyViewState extends State<SaleBillModifyView> {
   String pF = "All"; 
   Party? sP;
 
-  // --- FILTER LOGIC ---
+  // --- CORE FILTER LOGIC ---
   List<Sale> getFilteredSales(List<Sale> all) {
     DateTime n = DateTime.now();
     
     return all.where((s) {
-      // 1. Date Filter
+      // 1. Filter by Date Duration
       bool dateMatch = false;
       if (dur == "Today") {
         dateMatch = s.date.day == n.day && s.date.month == n.month && s.date.year == n.year;
@@ -31,22 +31,22 @@ class _SaleBillModifyViewState extends State<SaleBillModifyView> {
       } else if (dur == "Month") {
         dateMatch = s.date.month == n.month && s.date.year == n.year;
       } else {
-        dateMatch = true; // For "All" duration
+        dateMatch = true; // All time
       }
       
-      // 2. Party Filter
+      // 2. Filter by Party
       bool partyMatch = true;
       if (pF == "Single") {
         if (sP == null) {
-          partyMatch = false; // Agar party select nahi ki toh kuch mat dikhao
+          partyMatch = false; 
         } else {
-          // Robust comparison: dono sides ko trim aur uppercase karke match karein
+          // Robust comparison: match by party name string
           partyMatch = s.partyName.trim().toUpperCase() == sP!.name.trim().toUpperCase();
         }
       }
 
       return dateMatch && partyMatch;
-    }).toList().reversed.toList(); // Newest first
+    }).toList().reversed.toList(); // Most recent first
   }
 
   // --- SEARCHABLE PARTY DIALOG ---
@@ -62,7 +62,7 @@ class _SaleBillModifyViewState extends State<SaleBillModifyView> {
                 .toList();
 
             return AlertDialog(
-              title: const Text("Select Party"),
+              title: const Text("Filter by Party"),
               content: SizedBox(
                 width: double.maxFinite,
                 child: Column(
@@ -71,7 +71,7 @@ class _SaleBillModifyViewState extends State<SaleBillModifyView> {
                     TextField(
                       autofocus: true,
                       decoration: const InputDecoration(
-                        hintText: "Type Party Name...",
+                        hintText: "Type name to search...",
                         prefixIcon: Icon(Icons.search),
                         border: OutlineInputBorder(),
                       ),
@@ -89,10 +89,7 @@ class _SaleBillModifyViewState extends State<SaleBillModifyView> {
                             title: Text(filteredList[i].name, style: const TextStyle(fontWeight: FontWeight.bold)),
                             subtitle: Text(filteredList[i].city),
                             onTap: () {
-                              // Main State ko update karein
-                              setState(() {
-                                sP = filteredList[i];
-                              });
+                              setState(() { sP = filteredList[i]; });
                               Navigator.pop(context);
                             },
                           );
@@ -118,175 +115,149 @@ class _SaleBillModifyViewState extends State<SaleBillModifyView> {
     final list = getFilteredSales(ph.sales);
 
     return Scaffold(
+      backgroundColor: const Color(0xFFF5F6F9),
       appBar: AppBar(
-        title: const Text("Sale Bill Modify & Reports"),
-        backgroundColor: Colors.orange,
+        title: const Text("Modify Bills & Reports"),
+        backgroundColor: Colors.orange.shade800,
         foregroundColor: Colors.white,
+        elevation: 0,
       ),
       body: Column(
         children: [
-          // --- TOP FILTERS ---
+          // --- FILTER HEADER ---
           Container(
             padding: const EdgeInsets.all(12),
-            color: Colors.orange[50],
+            decoration: BoxDecoration(
+              color: Colors.white,
+              boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 5)],
+            ),
             child: Row(
               children: [
                 Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text("DURATION", style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold)),
-                      DropdownButton<String>(
-                        isExpanded: true,
-                        value: dur,
-                        items: ["Today", "Yesterday", "Month", "All"]
-                            .map((e) => DropdownMenuItem(value: e, child: Text(e)))
-                            .toList(),
-                        onChanged: (v) => setState(() => dur = v!),
-                      ),
-                    ],
-                  ),
+                  child: _buildFilterDropdown("DURATION", dur, ["Today", "Yesterday", "Month", "All"], (v) => setState(() => dur = v!)),
                 ),
                 const SizedBox(width: 15),
                 Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text("FILTER BY", style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold)),
-                      DropdownButton<String>(
-                        isExpanded: true,
-                        value: pF,
-                        items: ["All", "Single"]
-                            .map((e) => DropdownMenuItem(value: e, child: Text(e)))
-                            .toList(),
-                        onChanged: (v) {
-                          setState(() {
-                            pF = v!;
-                            if (pF == "All") sP = null;
-                          });
-                        },
-                      ),
-                    ],
-                  ),
+                  child: _buildFilterDropdown("FILTER BY", pF, ["All", "Single"], (v) {
+                    setState(() { pF = v!; if (pF == "All") sP = null; });
+                  }),
                 ),
               ],
             ),
           ),
 
-          // --- PARTY SELECTION BUTTON ---
+          // --- PARTY SELECTION BUTTON (Show only if Single selected) ---
           if (pF == "Single")
-            Container(
+            Padding(
               padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 8),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                border: Border(bottom: BorderSide(color: Colors.grey[300]!)),
-              ),
               child: ListTile(
-                tileColor: Colors.grey[100],
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                leading: const Icon(Icons.person, color: Colors.orange),
+                tileColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.orange.shade100)),
+                leading: const Icon(Icons.person_search, color: Colors.orange),
                 title: Text(
                   sP?.name ?? "TAP TO SELECT PARTY",
-                  style: TextStyle(
-                    color: sP == null ? Colors.red : Colors.black,
-                    fontWeight: FontWeight.bold,
-                  ),
+                  style: TextStyle(fontWeight: FontWeight.bold, color: sP == null ? Colors.red : Colors.black87),
                 ),
-                trailing: const Icon(Icons.search),
+                trailing: const Icon(Icons.arrow_drop_down),
                 onTap: () => _showPartySearchDialog(ph.parties),
               ),
             ),
 
-          // --- SUMMARY INFO ---
-          Padding(
-            padding: const EdgeInsets.all(8.0),
-            child: Text(
-              "Found ${list.length} Bills",
-              style: const TextStyle(fontSize: 12, color: Colors.grey, fontWeight: FontWeight.bold),
-            ),
-          ),
+          const SizedBox(height: 5),
+          Text("Found ${list.length} bills", style: const TextStyle(fontSize: 11, color: Colors.grey, fontWeight: FontWeight.bold)),
 
-          // --- SALES LIST ---
+          // --- BILLS LIST ---
           Expanded(
             child: list.isEmpty
-                ? Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const Icon(Icons.receipt_long, size: 60, color: Colors.grey),
-                        const SizedBox(height: 10),
-                        Text(
-                          pF == "Single" && sP == null 
-                          ? "Please select a party to see bills" 
-                          : "No Bills Found",
-                          style: const TextStyle(color: Colors.grey),
-                        ),
-                      ],
-                    ),
-                  )
+                ? Center(child: Text(pF == "Single" && sP == null ? "Select a party to begin" : "No bills found for this filter."))
                 : ListView.builder(
+                    padding: const EdgeInsets.all(10),
                     itemCount: list.length,
-                    itemBuilder: (c, i) {
-                      final s = list[i];
+                    itemBuilder: (context, index) {
+                      final s = list[index];
+                      bool isCancelled = s.status == "Cancelled";
+
                       return Card(
                         elevation: 2,
-                        margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                        color: s.status == "Cancelled" ? Colors.red[50] : Colors.white,
+                        margin: const EdgeInsets.only(bottom: 10),
+                        color: isCancelled ? Colors.red.shade50 : Colors.white,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                         child: ListTile(
-                          title: Text("${s.billNo} | ${s.partyName}", style: const TextStyle(fontWeight: FontWeight.bold)),
+                          contentPadding: const EdgeInsets.all(12),
+                          title: Row(
+                            children: [
+                              Text(s.billNo, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.blue)),
+                              const Spacer(),
+                              Text("₹${s.totalAmount.toStringAsFixed(2)}", style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
+                            ],
+                          ),
                           subtitle: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text("Date: ${DateFormat('dd/MM/yyyy').format(s.date)} | Total: ₹${s.totalAmount.toStringAsFixed(2)}"),
+                              Text(s.partyName, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.black87)),
+                              Text("Date: ${DateFormat('dd/MM/yyyy').format(s.date)} | ${s.paymentMode}"),
                               Text(
                                 s.items.map((it) => "${it.name}(${it.qty.toInt()})").join(", "),
                                 style: const TextStyle(fontSize: 10, color: Colors.blueGrey),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
+                                maxLines: 1, overflow: TextOverflow.ellipsis,
                               ),
                             ],
                           ),
-                          isThreeLine: true,
                           trailing: PopupMenuButton<String>(
+                            icon: const Icon(Icons.more_vert),
                             onSelected: (v) async {
+                              final p = ph.parties.firstWhere((x) => x.name == s.partyName, orElse: () => ph.parties[0]);
                               if (v == 'v') Navigator.push(context, MaterialPageRoute(builder: (c) => SaleEntryView(existingSale: s, isReadOnly: true)));
                               if (v == 'm') Navigator.push(context, MaterialPageRoute(builder: (c) => SaleEntryView(existingSale: s)));
-                              if (v == 'p') PdfService.generateInvoice(s, ph.parties.firstWhere((p) => p.name == s.partyName, orElse: () => ph.parties[0]));
-                              if (v == 'c') _confirmAction("Cancel", () => ph.cancelBill(s.id));
-                              if (v == 'd') _confirmAction("Delete", () => ph.deleteBill(s.id));
+                              if (v == 'p') PdfService.generateInvoice(s, p);
+                              if (v == 'c') _confirmAction(context, "Cancel", () => ph.cancelBill(s.id));
+                              if (v == 'd') _confirmAction(context, "Delete", () => ph.deleteBill(s.id));
                             },
                             itemBuilder: (c) => [
-                              const PopupMenuItem(value: 'v', child: Text("👁️ View Bill")),
-                              const PopupMenuItem(value: 'm', child: Text("✏️ Modify Bill")),
-                              const PopupMenuItem(value: 'p', child: Text("🖨️ Print Bill")),
-                              const PopupMenuItem(value: 'c', child: Text("🚫 Cancel Bill")),
-                              const PopupMenuItem(value: 'd', child: Text("🗑️ Delete Bill")),
+                              const PopupMenuItem(value: 'v', child: Row(children: [Icon(Icons.visibility, size: 18), SizedBox(width: 10), Text("View")])),
+                              const PopupMenuItem(value: 'm', child: Row(children: [Icon(Icons.edit, size: 18), SizedBox(width: 10), Text("Modify")])),
+                              const PopupMenuItem(value: 'p', child: Row(children: [Icon(Icons.print, size: 18), SizedBox(width: 10), Text("Print")])),
+                              const PopupMenuItem(value: 'c', child: Row(children: [Icon(Icons.block, size: 18, color: Colors.orange), SizedBox(width: 10), Text("Cancel Bill")])),
+                              const PopupMenuItem(value: 'd', child: Row(children: [Icon(Icons.delete_forever, size: 18, color: Colors.red), SizedBox(width: 10), Text("Delete Bill")])),
                             ],
                           ),
                         ),
                       );
                     },
                   ),
-          )
+          ),
         ],
       ),
     );
   }
 
-  void _confirmAction(String action, VoidCallback onConfirm) {
+  Widget _buildFilterDropdown(String label, String value, List<String> items, Function(String?) onChanged) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.blueGrey)),
+        DropdownButton<String>(
+          isExpanded: true,
+          value: value,
+          items: items.map((e) => DropdownMenuItem(value: e, child: Text(e, style: const TextStyle(fontSize: 14)))).toList(),
+          onChanged: onChanged,
+        ),
+      ],
+    );
+  }
+
+  void _confirmAction(BuildContext context, String action, VoidCallback onConfirm) {
     showDialog(
       context: context,
       builder: (c) => AlertDialog(
         title: Text("$action Bill?"),
-        content: Text("Are you sure you want to $action this bill? Stock will be reversed."),
+        content: Text("Warning: This will reverse the stock levels for all items in this bill. Are you sure?"),
         actions: [
           TextButton(onPressed: () => Navigator.pop(c), child: const Text("NO")),
-          TextButton(
-            onPressed: () {
-              onConfirm();
-              Navigator.pop(c);
-            },
-            child: const Text("YES"),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () { onConfirm(); Navigator.pop(c); },
+            child: const Text("YES, PROCEED", style: TextStyle(color: Colors.white)),
           )
         ],
       ),
