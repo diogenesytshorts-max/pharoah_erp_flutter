@@ -8,50 +8,123 @@ import 'models.dart';
 
 class EWayBillManagementView extends StatefulWidget {
   const EWayBillManagementView({super.key});
-  @override State<EWayBillManagementView> createState() => _EWayBillManagementViewState();
+
+  @override
+  State<EWayBillManagementView> createState() => _EWayBillManagementViewState();
 }
 
 class _EWayBillManagementViewState extends State<EWayBillManagementView> {
   @override
   Widget build(BuildContext context) {
     final ph = Provider.of<PharoahManager>(context);
-    // Filter bills above ₹50,000
-    List<Sale> highValueBills = ph.sales.where((s) => s.totalAmount >= 50000 && s.status == "Active").toList();
+    
+    // --- 1. FILTERING HIGH VALUE BILLS ---
+    // GST rules suggest E-Way bill is mandatory for transactions above ₹50,000
+    List<Sale> highValueBills = ph.sales.where((s) => 
+      s.totalAmount >= 50000 && s.status == "Active"
+    ).toList();
 
     return Scaffold(
-      appBar: AppBar(title: const Text("E-Way Bill & E-Invoicing"), backgroundColor: Colors.indigo, foregroundColor: Colors.white),
+      backgroundColor: const Color(0xFFF5F6F9),
+      appBar: AppBar(
+        title: const Text("E-Way Bill & E-Invoicing"),
+        backgroundColor: Colors.indigo,
+        foregroundColor: Colors.white,
+        elevation: 0,
+      ),
       body: Column(
         children: [
+          // info header
           Container(
-            width: double.infinity, padding: const EdgeInsets.all(15), color: Colors.indigo.shade50,
-            child: Text("Total ${highValueBills.length} bills found above ₹50,000 threshold.", style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.indigo)),
-          ),
-          Expanded(
-            child: highValueBills.isEmpty 
-              ? const Center(child: Text("No high-value bills found."))
-              : ListView.builder(
-                  itemCount: highValueBills.length,
-                  itemBuilder: (c, i) {
-                    final s = highValueBills[i];
-                    return Card(
-                      margin: const EdgeInsets.symmetric(horizontal: 15, vertical: 8),
-                      child: ListTile(
-                        title: Text(s.partyName, style: const TextStyle(fontWeight: FontWeight.bold)),
-                        subtitle: Text("Inv: ${s.billNo} | Amt: ₹${s.totalAmount.toStringAsFixed(2)}"),
-                        trailing: ElevatedButton(
-                          onPressed: () => _showTransportDialog(context, s),
-                          child: const Text("GENERATE JSON"),
-                        ),
-                      ),
-                    );
-                  },
+            width: double.infinity,
+            padding: const EdgeInsets.all(15),
+            color: Colors.indigo.shade50,
+            child: Row(
+              children: [
+                const Icon(Icons.info_outline, color: Colors.indigo, size: 20),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    "Showing ${highValueBills.length} active bills exceeding ₹50,000 threshold.",
+                    style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.indigo, fontSize: 13),
+                  ),
                 ),
+              ],
+            ),
+          ),
+
+          Expanded(
+            child: highValueBills.isEmpty
+                ? Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.local_shipping_outlined, size: 80, color: Colors.grey.shade300),
+                        const SizedBox(height: 10),
+                        const Text("No bills require E-Way bill generation.", style: TextStyle(color: Colors.grey)),
+                      ],
+                    ),
+                  )
+                : ListView.builder(
+                    padding: const EdgeInsets.all(12),
+                    itemCount: highValueBills.length,
+                    itemBuilder: (context, index) {
+                      final s = highValueBills[index];
+                      bool hasDetails = s.vehicleNo.isNotEmpty || s.transporterId.isNotEmpty;
+
+                      return Card(
+                        elevation: 3,
+                        margin: const EdgeInsets.only(bottom: 12),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        child: Column(
+                          children: [
+                            ListTile(
+                              contentPadding: const EdgeInsets.all(15),
+                              title: Text(s.partyName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                              subtitle: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text("Inv No: ${s.billNo} | Date: ${DateFormat('dd/MM/yyyy').format(s.date)}"),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    "Amount: ₹${s.totalAmount.toStringAsFixed(2)}",
+                                    style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.indigo),
+                                  ),
+                                  if (hasDetails) ...[
+                                    const SizedBox(height: 8),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                      decoration: BoxDecoration(color: Colors.green.shade50, borderRadius: BorderRadius.circular(5)),
+                                      child: Text(
+                                        "Vehicle: ${s.vehicleNo} | ID: ${s.transporterId}",
+                                        style: TextStyle(fontSize: 11, color: Colors.green.shade800, fontWeight: FontWeight.bold),
+                                      ),
+                                    )
+                                  ]
+                                ],
+                              ),
+                              trailing: ElevatedButton(
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.indigo,
+                                  foregroundColor: Colors.white,
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                ),
+                                onPressed: () => _showTransportDialog(context, s),
+                                child: Text(hasDetails ? "EDIT DETAILS" : "ADD DETAILS"),
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
           ),
         ],
       ),
     );
   }
 
+  // --- DIALOG FOR TRANSPORT DATA ENTRY ---
   void _showTransportDialog(BuildContext context, Sale sale) {
     final tNameC = TextEditingController(text: sale.transporterName);
     final tIdC = TextEditingController(text: sale.transporterId);
@@ -59,48 +132,58 @@ class _EWayBillManagementViewState extends State<EWayBillManagementView> {
 
     showDialog(
       context: context,
+      barrierDismissible: false,
       builder: (c) => AlertDialog(
-        title: const Text("Transport Details"),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(controller: tNameC, decoration: const InputDecoration(labelText: "Transporter Name")),
-            TextField(controller: tIdC, decoration: const InputDecoration(labelText: "Transporter ID (GSTIN)")),
-            TextField(controller: vNoC, decoration: const InputDecoration(labelText: "Vehicle Number (e.g. RJ14GB1234)")),
-          ],
+        title: const Text("Transport & E-Way Details"),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text("Please enter transportation details for JSON generation.", style: TextStyle(fontSize: 12, color: Colors.grey)),
+              const SizedBox(height: 20),
+              _dialogField(tNameC, "Transporter Name"),
+              _dialogField(tIdC, "Transporter GSTIN / ID"),
+              _dialogField(vNoC, "Vehicle Number (RJ14AB1234)"),
+            ],
+          ),
         ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(c), child: const Text("CANCEL")),
           ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.indigo),
             onPressed: () {
-              // Update Sale Object
-              sale.transporterName = tNameC.text;
-              sale.transporterId = tIdC.text;
-              sale.vehicleNo = vNoC.text;
+              // Update existing sale object
+              setState(() {
+                sale.transporterName = tNameC.text.toUpperCase();
+                sale.transporterId = tIdC.text.toUpperCase();
+                sale.vehicleNo = vNoC.text.toUpperCase();
+              });
+              
               Provider.of<PharoahManager>(context, listen: false).save();
               Navigator.pop(c);
               _generatePortalJson(sale);
-            }, 
-            child: const Text("EXPORT JSON"),
+            },
+            child: const Text("GENERATE & SHARE JSON", style: TextStyle(color: Colors.white)),
           )
         ],
       ),
     );
   }
 
+  // --- JSON EXPORT LOGIC FOR PORTAL ---
   void _generatePortalJson(Sale s) {
-    // Standard GST Portal E-Way Bill Schema (Simplified)
+    // Standard E-Way Bill JSON Structure (Simplified for Government Offline Utility)
     Map<String, dynamic> ewayJson = {
       "version": "1.0.0",
       "billLists": [{
-        "userGstin": "YOUR_GSTIN",
+        "userGstin": "YOUR_COMPANY_GSTIN", // Should ideally fetch from settings
         "supplyType": "Outward",
         "subSupplyType": "Supply",
         "docType": "Invoice",
         "docNo": s.billNo,
         "docDate": DateFormat('dd/MM/yyyy').format(s.date),
-        "fromGstin": "YOUR_GSTIN",
-        "toGstin": s.invoiceType == "B2B" ? "PARTY_GSTIN" : "URP",
+        "fromGstin": "YOUR_COMPANY_GSTIN",
+        "toGstin": s.invoiceType == "B2B" ? "PARTY_GSTIN_HERE" : "URP",
         "totalValue": s.totalAmount,
         "transporterId": s.transporterId,
         "transporterName": s.transporterName,
@@ -109,13 +192,32 @@ class _EWayBillManagementViewState extends State<EWayBillManagementView> {
           "itemDesc": it.name,
           "hsnCode": it.hsn,
           "quantity": it.qty,
-          "taxableAmount": it.total - (it.cgst + it.sgst + it.igst),
+          "taxableAmount": (it.total - (it.cgst + it.sgst + it.igst)).toStringAsFixed(2),
           "gstRate": it.gstRate
         }).toList()
       }]
     };
 
     String jsonString = const JsonEncoder.withIndent('  ').convert(ewayJson);
-    Share.share(jsonString, subject: 'E-Way Bill JSON - ${s.billNo}');
+    
+    // Share as text so it can be pasted or saved to a file
+    Share.share(
+      jsonString, 
+      subject: 'E-WayBill_JSON_${s.billNo}',
+    );
+  }
+
+  Widget _dialogField(TextEditingController ctrl, String label) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 15),
+      child: TextField(
+        controller: ctrl,
+        decoration: InputDecoration(
+          labelText: label,
+          border: const OutlineInputBorder(),
+          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        ),
+      ),
+    );
   }
 }
