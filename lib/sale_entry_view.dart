@@ -18,38 +18,49 @@ class SaleEntryView extends StatefulWidget {
 
 class _SaleEntryViewState extends State<SaleEntryView> {
   String bN = ""; 
-  DateTime bD = DateTime.now(); 
+  DateTime bD = DateTime.now(); // Default hamesha Aaj ki date
   String pM = "CASH"; 
   Party? sP; 
   String sPT = "";
-  DateTime fD = DateTime(2025, 4, 1); 
-  DateTime lD = DateTime(2026, 3, 31);
+  
+  // Date Picker ki limits
+  DateTime fD = DateTime(2024, 1, 1); 
+  DateTime lD = DateTime(2030, 12, 31);
   final bNoC = TextEditingController();
 
   @override
   void initState() {
     super.initState();
-    _loadFY();
+    _loadFYSettings();
+    
     if (widget.existingSale != null) { 
+      // Agar purana bill modify kar rahe hain toh wahi details load karein
       bN = widget.existingSale!.billNo; 
       bD = widget.existingSale!.date; 
       pM = widget.existingSale!.paymentMode; 
       bNoC.text = bN; 
     } else { 
+      // Naya bill hai toh naya number load karein aur date Aaj ki hi rakhein
       _loadNum(); 
+      bD = DateTime.now(); 
     }
   }
 
-  _loadFY() async {
+  _loadFYSettings() async {
     final p = await SharedPreferences.getInstance();
     String fy = p.getString('fy') ?? "2025-26";
     try {
       int sY = int.parse(fy.split('-')[0]); 
       if (sY < 2000) sY += 2000;
+      
       setState(() { 
-        fD = DateTime(sY, 4, 1); 
-        lD = DateTime(sY + 1, 3, 31); 
-        if (bD.isBefore(fD) || bD.isAfter(lD)) bD = fD; 
+        // FY ke hisab se range set karein but Aaj ki date ko allow karein
+        DateTime startOfFY = DateTime(sY, 4, 1);
+        DateTime endOfFY = DateTime(sY + 1, 3, 31);
+        
+        // Agar aaj ki date FY range se bahar hai, tab bhi use allow karein
+        fD = DateTime.now().isBefore(startOfFY) ? DateTime.now() : startOfFY;
+        lD = endOfFY.isBefore(DateTime.now()) ? DateTime.now() : endOfFY;
       });
     } catch (e) {
       debugPrint("FY Load Error: $e");
@@ -67,14 +78,10 @@ class _SaleEntryViewState extends State<SaleEntryView> {
       return;
     }
 
-    if (widget.isReadOnly) { 
-      _go(); 
-      return; 
-    }
+    if (widget.isReadOnly) { _go(); return; }
 
     bool isNew = widget.existingSale == null;
 
-    // 1. Duplicate Bill Check
     if (isNew || bNoC.text != widget.existingSale!.billNo) {
       bool exists = ph.sales.any((s) => s.billNo == bNoC.text && s.id != widget.existingSale?.id);
       if (exists) {
@@ -91,36 +98,24 @@ class _SaleEntryViewState extends State<SaleEntryView> {
       }
     }
 
-    // 2. Bill Series Change Check
     if (isNew && bNoC.text != bN) {
       showDialog(
         context: context, 
         barrierDismissible: false,
         builder: (c) => AlertDialog(
           title: const Text("Change Series?"), 
-          content: Text("You changed the Bill No from $bN to ${bNoC.text}.\n\nDo you want to start future bills from this new number?"), 
+          content: Text("Start future bills from ${bNoC.text}?"), 
           actions: [
-            TextButton(
-              onPressed: () { 
-                Navigator.pop(c); // Pehle dialog band karo
-                _go();           // Phir aage badho
-              }, 
-              child: const Text("ONLY THIS BILL")
-            ),
-            TextButton(
-              onPressed: () async { 
-                Navigator.pop(c); // Pehle dialog band karo
-                await SaleBillNumber.updateSeriesFromFull(bNoC.text); 
-                _go();           // Phir aage badho
-              }, 
-              child: const Text("YES, CHANGE SERIES")
-            )
+            TextButton(onPressed: () { Navigator.pop(c); _go(); }, child: const Text("ONLY THIS BILL")),
+            TextButton(onPressed: () async { 
+              Navigator.pop(c); 
+              await SaleBillNumber.updateSeriesFromFull(bNoC.text); 
+              _go(); 
+            }, child: const Text("YES, CHANGE SERIES"))
           ]
         )
       );
-    } else { 
-      _go(); 
-    }
+    } else { _go(); }
   }
 
   void _go() {
@@ -143,8 +138,6 @@ class _SaleEntryViewState extends State<SaleEntryView> {
   @override 
   Widget build(BuildContext context) {
     final ph = Provider.of<PharoahManager>(context);
-    
-    // Agar modify mode hai toh party auto-select karein
     if (widget.existingSale != null && sP == null) { 
       sP = ph.parties.firstWhere((p) => p.name == widget.existingSale!.partyName, orElse: () => ph.parties[0]); 
     }
@@ -157,7 +150,6 @@ class _SaleEntryViewState extends State<SaleEntryView> {
       ),
       body: Column(
         children: [
-          // Header Section
           Container(
             padding: const EdgeInsets.all(15), 
             color: widget.isReadOnly ? Colors.grey[200] : Colors.blue[50], 
@@ -169,12 +161,7 @@ class _SaleEntryViewState extends State<SaleEntryView> {
                       child: TextField(
                         controller: bNoC, 
                         enabled: !widget.isReadOnly, 
-                        decoration: const InputDecoration(
-                          labelText: "BILL NO",
-                          border: OutlineInputBorder(),
-                          filled: true,
-                          fillColor: Colors.white
-                        )
+                        decoration: const InputDecoration(labelText: "BILL NO", border: OutlineInputBorder(), filled: true, fillColor: Colors.white)
                       )
                     ),
                     const SizedBox(width: 10),
@@ -191,11 +178,7 @@ class _SaleEntryViewState extends State<SaleEntryView> {
                         }, 
                         child: Container(
                           padding: const EdgeInsets.all(10),
-                          decoration: BoxDecoration(
-                            border: Border.all(color: Colors.grey),
-                            borderRadius: BorderRadius.circular(4),
-                            color: Colors.white
-                          ),
+                          decoration: BoxDecoration(border: Border.all(color: Colors.grey), borderRadius: BorderRadius.circular(4), color: Colors.white),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.end, 
                             children: [
@@ -212,10 +195,7 @@ class _SaleEntryViewState extends State<SaleEntryView> {
                 AbsorbPointer(
                   absorbing: widget.isReadOnly, 
                   child: SegmentedButton<String>(
-                    segments: const [
-                      ButtonSegment(value: 'CASH', label: Text('CASH')), 
-                      ButtonSegment(value: 'CREDIT', label: Text('CREDIT'))
-                    ], 
+                    segments: const [ButtonSegment(value: 'CASH', label: Text('CASH')), ButtonSegment(value: 'CREDIT', label: Text('CREDIT'))], 
                     selected: {pM}, 
                     onSelectionChanged: (v) => setState(() => pM = v.first)
                   )
@@ -223,17 +203,15 @@ class _SaleEntryViewState extends State<SaleEntryView> {
               ],
             ),
           ),
-
-          // Party Selection Section
           if (sP != null) 
             Card(
               margin: const EdgeInsets.all(15),
               child: ListTile(
-                leading: const Icon(Icons.person, color: Colors.blue, size: 30), 
+                leading: const Icon(Icons.person, color: Colors.blue), 
                 title: Text(sP!.name, style: const TextStyle(fontWeight: FontWeight.bold)), 
                 subtitle: Text("${sP!.city} | ${sP!.phone}"), 
                 trailing: widget.isReadOnly || widget.existingSale != null 
-                  ? const Icon(Icons.lock, color: Colors.grey) 
+                  ? const Icon(Icons.lock) 
                   : IconButton(icon: const Icon(Icons.close, color: Colors.red), onPressed: () => setState(() => sP = null))
               ),
             )
@@ -244,11 +222,7 @@ class _SaleEntryViewState extends State<SaleEntryView> {
                   Padding(
                     padding: const EdgeInsets.all(15), 
                     child: TextField(
-                      decoration: const InputDecoration(
-                        hintText: "Search Party...",
-                        prefixIcon: Icon(Icons.search),
-                        border: OutlineInputBorder()
-                      ), 
+                      decoration: const InputDecoration(hintText: "Search Party...", prefixIcon: Icon(Icons.search), border: OutlineInputBorder()), 
                       onChanged: (v) => setState(() => sPT = v)
                     )
                   ),
@@ -256,34 +230,20 @@ class _SaleEntryViewState extends State<SaleEntryView> {
                     child: ListView(
                       children: ph.parties
                           .where((p) => p.name.toLowerCase().contains(sPT.toLowerCase()))
-                          .map((p) => ListTile(
-                                leading: const Icon(Icons.person_outline),
-                                title: Text(p.name), 
-                                subtitle: Text(p.city),
-                                onTap: () => setState(() => sP = p)
-                              ))
+                          .map((p) => ListTile(title: Text(p.name), subtitle: Text(p.city), onTap: () => setState(() => sP = p)))
                           .toList()
                     ),
                   )
                 ],
               )
             ),
-
-          // Bottom Button
           if (sP != null) 
             Padding(
               padding: const EdgeInsets.all(20), 
               child: ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  minimumSize: const Size(double.infinity, 55), 
-                  backgroundColor: widget.isReadOnly ? Colors.purple : Colors.green,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))
-                ), 
+                style: ElevatedButton.styleFrom(minimumSize: const Size(double.infinity, 55), backgroundColor: widget.isReadOnly ? Colors.purple : Colors.green), 
                 onPressed: () => _validate(ph), 
-                child: Text(
-                  widget.isReadOnly ? "VIEW ITEMS" : "PROCEED TO BILLING", 
-                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)
-                )
+                child: Text(widget.isReadOnly ? "VIEW ITEMS" : "PROCEED", style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold))
               ),
             )
         ],
