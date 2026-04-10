@@ -107,9 +107,29 @@ class PharoahManager with ChangeNotifier {
     }
   }
 
+  void finalizeSale({required String billNo, required DateTime date, required Party party, required List<BillItem> items, required double total, required String mode}) {
+    sales.add(Sale(
+      id: DateTime.now().toString(), 
+      billNo: billNo, 
+      date: date, 
+      partyName: party.name, 
+      items: items, 
+      totalAmount: total, 
+      paymentMode: mode,
+      invoiceType: party.isB2B ? "B2B" : "B2C"
+    ));
+
+    for (var item in items) {
+      int idx = medicines.indexWhere((m) => m.id == item.medicineID);
+      if (idx != -1) {
+        medicines[idx].stock -= item.qty.toInt();
+        _updateBatch(item.medicineID, BatchInfo(batch: item.batch, exp: item.exp, packing: item.packing, mrp: item.mrp, rate: item.rate));
+      }
+    }
+    save();
+  }
+
   void finalizePurchase({required String internalNo, required String billNo, required DateTime date, required Party party, required List<PurchaseItem> items, required double total, required String mode}) {
-    addLog("PURCHASE", "Entry $internalNo (Bill: $billNo) from ${party.name}");
-    
     purchases.add(Purchase(
       id: DateTime.now().toString(), 
       internalNo: internalNo, 
@@ -137,7 +157,6 @@ class PharoahManager with ChangeNotifier {
   void deletePurchase(String id) {
     int i = purchases.indexWhere((p) => p.id == id);
     if (i != -1) {
-      addLog("DELETE", "Purchase Bill ${purchases[i].billNo} deleted. Stock reduced.");
       for (var it in purchases[i].items) {
         int mi = medicines.indexWhere((m) => m.id == it.medicineID);
         if (mi != -1) {
@@ -149,32 +168,14 @@ class PharoahManager with ChangeNotifier {
     }
   }
 
-  void finalizeSale({required String billNo, required DateTime date, required Party party, required List<BillItem> items, required double total, required String mode, String? invoiceType}) {
-    sales.add(Sale(
-      id: DateTime.now().toString(), 
-      billNo: billNo, 
-      date: date, 
-      partyName: party.name, 
-      items: items, 
-      totalAmount: total, 
-      paymentMode: mode,
-      invoiceType: party.isB2B ? "B2B" : "B2C"
-    ));
-
-    for (var item in items) {
-      int idx = medicines.indexWhere((m) => m.id == item.medicineID);
-      if (idx != -1) {
-        medicines[idx].stock -= item.qty.toInt();
-        _updateBatch(item.medicineID, BatchInfo(batch: item.batch, exp: item.exp, packing: item.packing, mrp: item.mrp, rate: item.rate));
-      }
-    }
-    save();
-  }
-
   void _updateBatch(String mId, BatchInfo b) {
     if (!batchHistory.containsKey(mId)) batchHistory[mId] = [];
     int idx = batchHistory[mId]!.indexWhere((x) => x.batch == b.batch);
-    if (idx != -1) batchHistory[mId]![idx] = b; else batchHistory[mId]!.add(b);
+    if (idx != -1) {
+      batchHistory[mId]![idx] = b;
+    } else {
+      batchHistory[mId]!.add(b);
+    }
   }
 
   void deleteBill(String id) {
