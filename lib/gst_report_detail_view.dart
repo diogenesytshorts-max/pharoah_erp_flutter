@@ -27,7 +27,12 @@ class _GSTReportDetailViewState extends State<GSTReportDetailView> {
       backgroundColor: const Color(0xFFF5F6F9),
       appBar: AppBar(
         title: Text(widget.reportType), backgroundColor: Colors.indigo.shade800, foregroundColor: Colors.white,
-        actions: [IconButton(icon: const Icon(Icons.picture_as_pdf), onPressed: () => _generateGstPdf(mSales, mPurchases))],
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.picture_as_pdf), 
+            onPressed: () => PdfService.generateGstReport("${widget.reportType} - ${DateFormat('MMM yyyy').format(selectedDate)}", mSales, mPurchases)
+          )
+        ],
       ),
       body: Column(
         children: [
@@ -44,7 +49,7 @@ class _GSTReportDetailViewState extends State<GSTReportDetailView> {
     return Container(
       padding: const EdgeInsets.all(15), color: Colors.white,
       child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-        const Text("Tax Period:", style: TextStyle(fontWeight: FontWeight.bold)),
+        const Text("Select Period:", style: TextStyle(fontWeight: FontWeight.bold)),
         InkWell(
           onTap: () async {
             DateTime? p = await showDatePicker(context: context, initialDate: selectedDate, firstDate: DateTime(2020), lastDate: DateTime(2100));
@@ -57,42 +62,38 @@ class _GSTReportDetailViewState extends State<GSTReportDetailView> {
     );
   }
 
-  // --- GSTR-1: SALES VIEW (B2B / B2C / HSN) ---
+  // --- GSTR-1: SALES VIEW ---
   Widget _buildGstr1View(List<Sale> sales) {
     List<Sale> b2b = sales.where((s) => s.invoiceType == "B2B").toList();
     List<Sale> b2c = sales.where((s) => s.invoiceType == "B2C").toList();
 
     return Expanded(
       child: DefaultTabController(
-        length: 3,
+        length: 2,
         child: Column(children: [
-          const TabBar(labelColor: Colors.indigo, tabs: [Tab(text: "B2B"), Tab(text: "B2C"), Tab(text: "HSN SUM")]),
+          const TabBar(labelColor: Colors.indigo, tabs: [Tab(text: "B2B (Registered)"), Tab(text: "B2C (Small)")]),
           Expanded(child: TabBarView(children: [
-            _list(b2b, "Registered Sales"),
-            _list(b2c, "Consumer Sales"),
-            _hsnSummary(sales),
+            _simpleList(b2b),
+            _simpleList(b2c),
           ])),
         ]),
       ),
     );
   }
 
-  // --- GSTR-2: PURCHASE & RECONCILIATION ---
+  // --- GSTR-2: PURCHASE REGISTER ---
   Widget _buildGstr2View(List<Purchase> purchases) {
     return Expanded(
       child: ListView.builder(
         itemCount: purchases.length,
         itemBuilder: (c, i) {
           final p = purchases[i];
-          bool isMatched = p.gstStatus == "Matched";
           return Card(
             margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
-            color: isMatched ? Colors.green.shade50 : Colors.red.shade50,
             child: ListTile(
-              leading: Icon(Icons.circle, color: isMatched ? Colors.green : Colors.red, size: 12),
               title: Text(p.distributorName, style: const TextStyle(fontWeight: FontWeight.bold)),
-              subtitle: Text("Bill: ${p.billNo} | Status: ${p.gstStatus}"),
-              trailing: Text("₹${p.totalAmount.toStringAsFixed(2)}", style: TextStyle(color: isMatched ? Colors.green.shade900 : Colors.red.shade900, fontWeight: FontWeight.bold)),
+              subtitle: Text("Bill No: ${p.billNo} | Status: ${p.gstStatus}"),
+              trailing: Text("₹${p.totalAmount.toStringAsFixed(2)}", style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.orange)),
             ),
           );
         },
@@ -100,59 +101,49 @@ class _GSTReportDetailViewState extends State<GSTReportDetailView> {
     );
   }
 
-  // --- GSTR-3B: SUMMARY FORMAT ---
+  // --- GSTR-3B: SUMMARY ---
   Widget _buildGstr3BView(List<Sale> sales, List<Purchase> purchases) {
     double saleTax = 0; sales.forEach((s) => s.items.forEach((it) => saleTax += (it.cgst + it.sgst + it.igst)));
     double purTax = 0; purchases.forEach((p) => p.items.forEach((it) => purTax += (it.purchaseRate * it.qty * it.gstRate / 100)));
 
     return Expanded(
       child: ListView(padding: const EdgeInsets.all(15), children: [
-        _margTable("3.1 Outward Taxable Supplies (Sales)", saleTax, Colors.green),
+        _statCard("3.1 Outward Taxable Supplies", saleTax, Colors.green),
         const SizedBox(height: 10),
-        _margTable("4. Eligible ITC (Purchases)", purTax, Colors.orange),
+        _statCard("4.0 Eligible ITC", purTax, Colors.orange),
         const SizedBox(height: 20),
-        Container(padding: const EdgeInsets.all(20), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.indigo)),
+        Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.indigo, width: 2)),
           child: Column(children: [
-            const Text("NET GST PAYABLE", style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-            Text("₹${(saleTax - purTax).toStringAsFixed(2)}", style: TextStyle(fontSize: 28, fontWeight: FontWeight.w900, color: (saleTax - purTax) > 0 ? Colors.red : Colors.green)),
+            const Text("NET TAX TO BE PAID", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+            Text("₹${(saleTax - purTax).toStringAsFixed(2)}", style: TextStyle(fontSize: 30, fontWeight: FontWeight.w900, color: (saleTax - purTax) > 0 ? Colors.red : Colors.green)),
           ]),
         )
       ]),
     );
   }
 
-  Widget _list(List<Sale> list, String title) {
+  Widget _simpleList(List<Sale> list) {
     return ListView.builder(
       itemCount: list.length,
       itemBuilder: (c, i) => ListTile(
         title: Text(list[i].partyName),
-        subtitle: Text("Inv: ${list[i].billNo}"),
+        subtitle: Text("Invoice: ${list[i].billNo}"),
         trailing: Text("₹${list[i].totalAmount.toStringAsFixed(2)}"),
       ),
     );
   }
 
-  Widget _hsnSummary(List<Sale> sales) {
-    Map<String, double> hsnMap = {};
-    for (var s in sales) {
-      for (var it in s.items) {
-        hsnMap[it.hsn] = (hsnMap[it.hsn] ?? 0) + it.total;
-      }
-    }
-    return ListView(children: hsnMap.entries.map((e) => ListTile(title: Text("HSN: ${e.key}"), trailing: Text("₹${e.value.toStringAsFixed(2)}"))).toList());
-  }
-
-  Widget _margTable(String title, double amt, Color col) {
-    return Container(padding: const EdgeInsets.all(15), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8)),
-      child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-        Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-        Text("₹${amt.toStringAsFixed(2)}", style: TextStyle(color: col, fontWeight: FontWeight.bold, fontSize: 16)),
-      ]),
+  Widget _statCard(String title, double val, Color col) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(15),
+        child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+          Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
+          Text("₹${val.toStringAsFixed(2)}", style: TextStyle(color: col, fontWeight: FontWeight.bold, fontSize: 16)),
+        ]),
+      ),
     );
-  }
-
-  void _generateGstPdf(List<Sale> s, List<Purchase> p) async {
-    // PDF trigger logic
-    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Generating Marg Style PDF Report...")));
   }
 }
