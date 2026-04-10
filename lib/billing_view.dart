@@ -187,22 +187,39 @@ class _BillingViewState extends State<BillingView> {
     );
   }
 
+  // --- SAVE AND GO TO MAIN SCREEN ---
   void _saveAndClose(PharoahManager ph) async {
     if (widget.modifySaleId != null) ph.deleteBill(widget.modifySaleId!);
     ph.finalizeSale(billNo: widget.billNo, date: widget.billDate, party: widget.party, items: items, total: grandTotal, mode: widget.mode);
     if (widget.modifySaleId == null) await SaleBillNumber.incrementIfNecessary(widget.billNo);
-    if (mounted) Navigator.pop(context);
+    
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("✅ Sale Invoice Saved Successfully!"), backgroundColor: Colors.green, behavior: SnackBarBehavior.floating)
+      );
+      // Go back to the Dashboard (the very first screen)
+      Navigator.of(context).popUntil((route) => route.isFirst);
+    }
   }
 
+  // --- SAVE, PRINT AND GO TO MAIN SCREEN ---
   void _saveAndPrint(PharoahManager ph) async {
     final sale = Sale(id: DateTime.now().toString(), billNo: widget.billNo, date: widget.billDate, partyName: widget.party.name, items: items, totalAmount: grandTotal, paymentMode: widget.mode);
+    
     if (!widget.isReadOnly) {
       if (widget.modifySaleId != null) ph.deleteBill(widget.modifySaleId!);
       ph.finalizeSale(billNo: widget.billNo, date: widget.billDate, party: widget.party, items: items, total: grandTotal, mode: widget.mode);
       if (widget.modifySaleId == null) await SaleBillNumber.incrementIfNecessary(widget.billNo);
     }
+
     await PdfService.generateInvoice(sale, widget.party);
-    if (!widget.isReadOnly && mounted) Navigator.pop(context);
+    
+    if (!widget.isReadOnly && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("✅ Invoice Saved & Sent to Print!"), backgroundColor: Colors.blue, behavior: SnackBarBehavior.floating)
+      );
+      Navigator.of(context).popUntil((route) => route.isFirst);
+    }
   }
 }
 
@@ -227,7 +244,6 @@ class _ItemEntryFormState extends State<ItemEntryForm> {
   final mC = TextEditingController(); 
   final rC = TextEditingController(); 
   final qC = TextEditingController();
-  
   String? originalExp;
 
   @override
