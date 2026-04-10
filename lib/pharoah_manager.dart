@@ -107,26 +107,49 @@ class PharoahManager with ChangeNotifier {
     }
   }
 
-  Future<void> masterReset() async {
-    final path = await _localPath;
-    final files = [
-      '$path/meds_$currentFY.json', '$path/parts_$currentFY.json',
-      '$path/sales_$currentFY.json', '$path/purc_$currentFY.json',
-      '$path/logs_$currentFY.json', '$path/bats_$currentFY.json'
-    ];
-    for (var f in files) {
-      File file = File(f);
-      if (file.existsSync()) file.deleteSync();
+  void finalizePurchase({required String internalNo, required String billNo, required DateTime date, required Party party, required List<PurchaseItem> items, required double total, required String mode}) {
+    addLog("PURCHASE", "Entry $internalNo (Bill: $billNo) from ${party.name}");
+    
+    purchases.add(Purchase(
+      id: DateTime.now().toString(), 
+      internalNo: internalNo, 
+      billNo: billNo, 
+      date: date, 
+      distributorName: party.name, 
+      items: items, 
+      totalAmount: total, 
+      paymentMode: mode
+    ));
+
+    for (var item in items) {
+      int idx = medicines.indexWhere((m) => m.id == item.medicineID);
+      if (idx != -1) {
+        medicines[idx].stock += (item.qty + item.freeQty).toInt();
+        medicines[idx].purRate = item.purchaseRate;
+        medicines[idx].mrp = item.mrp;
+        medicines[idx].gst = item.gstRate;
+        _updateBatch(item.medicineID, BatchInfo(batch: item.batch, exp: item.exp, packing: item.packing, mrp: item.mrp, rate: item.purchaseRate));
+      }
     }
-    final p = await SharedPreferences.getInstance();
-    await p.setInt('lastBillID', 0);
-    await p.setInt('lastPurID', 0);
-    batchHistory.clear();
-    await loadAllData();
-    addLog("SYSTEM RESET", "Database was completely wiped clean.");
+    save();
   }
 
-  void finalizeSale({required String billNo, required DateTime date, required Party party, required List<BillItem> items, required double total, required String mode}) {
+  void deletePurchase(String id) {
+    int i = purchases.indexWhere((p) => p.id == id);
+    if (i != -1) {
+      addLog("DELETE", "Purchase Bill ${purchases[i].billNo} deleted. Stock reduced.");
+      for (var it in purchases[i].items) {
+        int mi = medicines.indexWhere((m) => m.id == it.medicineID);
+        if (mi != -1) {
+          medicines[mi].stock -= (it.qty + it.freeQty).toInt();
+        }
+      }
+      purchases.removeAt(i);
+      save();
+    }
+  }
+
+  void finalizeSale({required String billNo, required DateTime date, required Party party, required List<BillItem> items, required double total, required String mode, String? invoiceType}) {
     sales.add(Sale(
       id: DateTime.now().toString(), 
       billNo: billNo, 
@@ -148,42 +171,10 @@ class PharoahManager with ChangeNotifier {
     save();
   }
 
-  void finalizePurchase({required String internalNo, required String billNo, required DateTime date, required Party party, required List<PurchaseItem> items, required double total, required String mode}) {
-    purchases.add(Purchase(
-      id: DateTime.now().toString(), 
-      internalNo: internalNo, 
-      billNo: billNo, 
-      date: date, 
-      distributorName: party.name, 
-      items: items, 
-      totalAmount: total, 
-      paymentMode: mode
-    ));
-
-    for (var item in items) {
-      int idx = medicines.indexWhere((m) => m.id == item.medicineID);
-      if (idx != -1) {
-        medicines[idx].stock += (item.qty + item.freeQty).toInt();
-        medicines[idx].purRate = item.purchaseRate;
-        medicines[idx].mrp = item.mrp;
-        medicines[idx].gst = item.gstRate;
-        medicines[idx].rateA = item.rateA;
-        medicines[idx].rateB = item.rateB;
-        medicines[idx].rateC = item.rateC;
-        _updateBatch(item.medicineID, BatchInfo(batch: item.batch, exp: item.exp, packing: item.packing, mrp: item.mrp, rate: item.purchaseRate));
-      }
-    }
-    save();
-  }
-
   void _updateBatch(String mId, BatchInfo b) {
     if (!batchHistory.containsKey(mId)) batchHistory[mId] = [];
     int idx = batchHistory[mId]!.indexWhere((x) => x.batch == b.batch);
-    if (idx != -1) {
-      batchHistory[mId]![idx] = b;
-    } else {
-      batchHistory[mId]!.add(b);
-    }
+    if (idx != -1) batchHistory[mId]![idx] = b; else batchHistory[mId]!.add(b);
   }
 
   void deleteBill(String id) {
@@ -211,5 +202,15 @@ class PharoahManager with ChangeNotifier {
       sales[i].totalAmount = 0.0;
       save();
     }
+  }
+
+  Future<void> masterReset() async {
+    final path = await _localPath;
+    final files = ['$path/meds_$currentFY.json', '$path/parts_$currentFY.json', '$path/sales_$currentFY.json', '$path/purc_$currentFY.json', '$path/logs_$currentFY.json', '$path/bats_$currentFY.json'];
+    for (var f in files) { if (File(f).existsSync()) File(f).deleteSync(); }
+    final p = await SharedPreferences.getInstance();
+    await p.setInt('lastBillID', 0); await p.setInt('lastPurID', 0);
+    batchHistory.clear();
+    await loadAllData();
   }
 }
