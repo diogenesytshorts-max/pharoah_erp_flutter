@@ -1,8 +1,10 @@
+import 'dart:convert';
 import 'dart:math';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:share_plus/share_plus.dart';
 import 'models.dart';
 import 'package:intl/intl.dart';
 
@@ -41,7 +43,7 @@ class PdfService {
   }
 
   // ===================================================
-  // 2. GOVERNMENT GST REPORT (Portal Filing ke liye)
+  // 2. GOVERNMENT GST REPORT (PDF Format)
   // ===================================================
   static Future<void> generateGstReport(String title, List<Sale> sales, List<Purchase> purchases, String currentMonth) async {
     final pdf = pw.Document();
@@ -49,7 +51,7 @@ class PdfService {
     String cName = prefs.getString('compName') ?? "Pharoah ERP";
 
     pdf.addPage(pw.MultiPage(
-      pageFormat: PdfPageFormat.a4.landscape, // Landscape best hai tabular data ke liye
+      pageFormat: PdfPageFormat.a4.landscape,
       margin: const pw.EdgeInsets.all(20),
       header: (pw.Context context) => pw.Column(children: [
         pw.Text(cName, style: pw.TextStyle(fontSize: 18, fontWeight: pw.FontWeight.bold)),
@@ -57,11 +59,9 @@ class PdfService {
         pw.Divider(),
       ]),
       build: (pw.Context context) {
-        
-        // --- SECTION A: GSTR-1 (SALES) DETAIL ---
         if (title.contains("GSTR-1")) {
           return [
-            pw.Text("Detailed Sales Register (Table 4A, 4B, 7)", style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
+            pw.Text("Detailed Sales Register", style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
             pw.SizedBox(height: 10),
             pw.TableHelper.fromTextArray(
               headerStyle: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold),
@@ -73,78 +73,83 @@ class PdfService {
                   taxable += (it.rate * it.qty) - it.discountRupees;
                   cgst += it.cgst; sgst += it.sgst; igst += it.igst;
                 }
-                return [
-                  DateFormat('dd/MM').format(s.date),
-                  s.billNo,
-                  s.partyName,
-                  "N/A", // Party GSTIN Model se fetch hona baki hai
-                  taxable.toStringAsFixed(2),
-                  cgst.toStringAsFixed(2),
-                  sgst.toStringAsFixed(2),
-                  igst.toStringAsFixed(2),
-                  s.totalAmount.toStringAsFixed(2)
-                ];
+                return [DateFormat('dd/MM').format(s.date), s.billNo, s.partyName, "N/A", taxable.toStringAsFixed(2), cgst.toStringAsFixed(2), sgst.toStringAsFixed(2), igst.toStringAsFixed(2), s.totalAmount.toStringAsFixed(2)];
               }).toList(),
             ),
             pw.SizedBox(height: 20),
-            pw.Text("HSN Wise Summary (Table 12)", style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
+            pw.Text("HSN Wise Summary", style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
             _buildHsnTable(sales),
           ];
         }
-
-        // --- SECTION B: GSTR-3B (SUMMARY) ---
-        if (title.contains("GSTR-3B")) {
-          double sTaxable = 0; double sCgst = 0; double sSgst = 0; double sIgst = 0;
-          for (var s in sales) {
-            for (var it in s.items) {
-              sTaxable += (it.rate * it.qty) - it.discountRupees;
-              sCgst += it.cgst; sSgst += it.sgst; sIgst += it.igst;
-            }
-          }
-          return [
-            pw.Text("Consolidated Tax Summary", style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
-            pw.SizedBox(height: 10),
-            pw.TableHelper.fromTextArray(
-              headers: ['Nature of Supplies', 'Total Taxable Value', 'Integrated Tax', 'Central Tax', 'State Tax'],
-              data: [
-                ['3.1 Outward Taxable Supplies (Sales)', sTaxable.toStringAsFixed(2), sIgst.toStringAsFixed(2), sCgst.toStringAsFixed(2), sSgst.toStringAsFixed(2)],
-                ['4. Eligible ITC (Purchases)', 'As per Books', '...', '...', '...'],
-              ],
-            ),
-          ];
-        }
-
-        return [pw.Text("Report type not defined.")];
+        return [pw.Text("Summary Report generated.")];
       },
     ));
-
     await Printing.layoutPdf(onLayout: (f) async => pdf.save(), name: "GST_REPORT_$currentMonth");
   }
 
-  // --- HELPER: HSN SUMMARY TABLE ---
+  // ===================================================
+  // 3. GOVERNMENT JSON EXPORT (Portal Filing)
+  // ===================================================
+  static Future<void> generateGstJson(List<Sale> sales, String monthYear) async {
+    final prefs = await SharedPreferences.getInstance();
+    String myGstin = prefs.getString('compGST') ?? "YOUR_GSTIN";
+
+    // Build HSN Summary for JSON
+    Map<String, Map<String, dynamic>> hsnData = {};
+    List<Map<String, dynamic>> b2bList = [];
+
+    for (var s in sales) {
+      double taxable = 0; double igst = 0; double cgst = 0; double sgst = 0;
+      for (var it in s.items) {
+        taxable += (it.rate * it.qty);
+        igst += it.igst; cgst += it.cgst; sgst += it.sgst;
+        
+        // HSN Grouping
+        if (!hsnData.containsKey(it.hsn)) {
+          hsnData[it.hsn] = {"hsn_sc": it.hsn, "desc": it.name, "uqc": "OTH", "qty": 0.0, "txval": 0.0, "iamt": 0.0, "camt": 0.0, "samt": 0.0};
+        }
+        hsnData[it.hsn]!['qty'] += it.qty;
+        hsnData[it.hsn]!['txval'] += (it.rate * it.qty);
+        hsnData[it.hsn]!['iamt'] += it.igst;
+        hsnData[it.hsn]!['camt'] += it.cgst;
+        hsnData[it.hsn]!['samt'] += it.sgst;
+      }
+
+      if (s.invoiceType == "B2B") {
+        b2bList.add({
+          "inv": [{
+            "inum": s.billNo, "idt": DateFormat('dd-MM-yyyy').format(s.date), "val": s.totalAmount, "pos": "08", "rchrg": "N", "inv_typ": "R",
+            "itms": [{"num": 1, "itm_det": {"txval": taxable, "rt": 12, "iamt": igst, "camt": cgst, "samt": sgst}}]
+          }]
+        });
+      }
+    }
+
+    Map<String, dynamic> finalJson = {
+      "gstin": myGstin,
+      "fp": monthYear, // Format: MMYYYY
+      "gt": 0.0, "cur_gt": 0.0,
+      "b2b": b2bList,
+      "hsn": {"data": hsnData.values.toList()}
+    };
+
+    String jsonString = jsonEncode(finalJson);
+    await Share.share(jsonString, subject: "GSTR1_JSON_$monthYear");
+  }
+
   static pw.Widget _buildHsnTable(List<Sale> sales) {
     Map<String, Map<String, dynamic>> hsnMap = {};
     for (var s in sales) {
       for (var it in s.items) {
-        if (!hsnMap.containsKey(it.hsn)) {
-          hsnMap[it.hsn] = {'qty': 0.0, 'taxable': 0.0, 'tax': 0.0};
-        }
+        if (!hsnMap.containsKey(it.hsn)) hsnMap[it.hsn] = {'qty': 0.0, 'taxable': 0.0, 'tax': 0.0};
         hsnMap[it.hsn]!['qty'] += it.qty;
         hsnMap[it.hsn]!['taxable'] += (it.rate * it.qty);
         hsnMap[it.hsn]!['tax'] += (it.cgst + it.sgst + it.igst);
       }
     }
-
     return pw.TableHelper.fromTextArray(
-      headerStyle: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold),
-      cellStyle: const pw.TextStyle(fontSize: 8),
-      headers: ['HSN Code', 'Total Qty', 'Total Taxable Value', 'Total GST Amount'],
-      data: hsnMap.entries.map((e) => [
-        e.key,
-        e.value['qty'].toString(),
-        e.value['taxable'].toStringAsFixed(2),
-        e.value['tax'].toStringAsFixed(2)
-      ]).toList(),
+      headers: ['HSN', 'Qty', 'Taxable Value', 'GST Amount'],
+      data: hsnMap.entries.map((e) => [e.key, e.value['qty'].toString(), e.value['taxable'].toStringAsFixed(2), e.value['tax'].toStringAsFixed(2)]).toList(),
     );
   }
 }
