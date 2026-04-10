@@ -7,7 +7,6 @@ import 'models.dart';
 import 'demo_data.dart';
 
 class PharoahManager with ChangeNotifier {
-  // --- STATE DATA ---
   List<Medicine> medicines = [];
   List<Party> parties = [];
   List<Sale> sales = [];
@@ -16,13 +15,12 @@ class PharoahManager with ChangeNotifier {
   Map<String, List<BatchInfo>> batchHistory = {};
   
   String currentFY = "2025-26";
-  String companyState = "Rajasthan"; // Standard for GST calculation
+  String companyState = "Rajasthan";
 
   PharoahManager() {
     initManager();
   }
 
-  // --- INITIALIZATION ---
   Future<void> initManager() async {
     final p = await SharedPreferences.getInstance();
     currentFY = p.getString('fy') ?? "2025-26";
@@ -30,7 +28,6 @@ class PharoahManager with ChangeNotifier {
     await loadAllData();
   }
 
-  // --- STORAGE HELPERS ---
   Future<String> get _localPath async {
     final d = await getApplicationDocumentsDirectory();
     return d.path;
@@ -46,7 +43,6 @@ class PharoahManager with ChangeNotifier {
     save();
   }
 
-  // --- PERSISTENCE: SAVE ALL TO JSON ---
   Future<void> save() async {
     final path = await _localPath;
     try {
@@ -56,22 +52,19 @@ class PharoahManager with ChangeNotifier {
       File('$path/purc_$currentFY.json').writeAsStringSync(jsonEncode(purchases.map((e) => e.toMap()).toList()));
       File('$path/logs_$currentFY.json').writeAsStringSync(jsonEncode(logs.map((e) => e.toMap()).toList()));
       
-      // Save batch history map
       Map<String, dynamic> hMap = {};
       batchHistory.forEach((k, v) => hMap[k] = v.map((b) => b.toMap()).toList());
       File('$path/bats_$currentFY.json').writeAsStringSync(jsonEncode(hMap));
       
-      notifyListeners(); // Refresh UI components
+      notifyListeners();
     } catch (e) {
       debugPrint("System Save Error: $e");
     }
   }
 
-  // --- PERSISTENCE: LOAD ALL FROM JSON ---
   Future<void> loadAllData() async {
     final path = await _localPath;
     try {
-      // 1. Load Medicines
       final mf = File('$path/meds_$currentFY.json');
       if (mf.existsSync()) {
         medicines = (jsonDecode(mf.readAsStringSync()) as List).map((e) => Medicine.fromMap(e)).toList();
@@ -79,7 +72,6 @@ class PharoahManager with ChangeNotifier {
         medicines = DemoData.getMedicines();
       }
 
-      // 2. Load Parties
       final pf = File('$path/parts_$currentFY.json');
       if (pf.existsSync()) {
         parties = (jsonDecode(pf.readAsStringSync()) as List).map((e) => Party.fromMap(e)).toList();
@@ -88,27 +80,21 @@ class PharoahManager with ChangeNotifier {
         if (!parties.any((p) => p.name == "CASH")) parties.insert(0, Party(id: 'cash', name: "CASH"));
       }
 
-      // 3. Load Sales
       final sf = File('$path/sales_$currentFY.json');
       if (sf.existsSync()) {
-        final List d = jsonDecode(sf.readAsStringSync());
-        sales = d.map((e) => Sale.fromMap(e)).toList();
+        sales = (jsonDecode(sf.readAsStringSync()) as List).map((e) => Sale.fromMap(e)).toList();
       }
 
-      // 4. Load Purchases
       final purF = File('$path/purc_$currentFY.json');
       if (purF.existsSync()) {
-        final List d = jsonDecode(purF.readAsStringSync());
-        purchases = d.map((e) => Purchase.fromMap(e)).toList();
+        purchases = (jsonDecode(purF.readAsStringSync()) as List).map((e) => Purchase.fromMap(e)).toList();
       }
 
-      // 5. Load Audit Logs
       final lf = File('$path/logs_$currentFY.json');
       if (lf.existsSync()) {
         logs = (jsonDecode(lf.readAsStringSync()) as List).map((e) => LogEntry.fromMap(e)).toList();
       }
 
-      // 6. Load Batch History
       final bf = File('$path/bats_$currentFY.json');
       if (bf.existsSync()) {
         Map<String, dynamic> d = jsonDecode(bf.readAsStringSync());
@@ -121,7 +107,6 @@ class PharoahManager with ChangeNotifier {
     }
   }
 
-  // --- MASTER RESET: DATA WIPE ---
   Future<void> masterReset() async {
     final path = await _localPath;
     final files = [
@@ -136,11 +121,11 @@ class PharoahManager with ChangeNotifier {
     final p = await SharedPreferences.getInstance();
     await p.setInt('lastBillID', 0);
     await p.setInt('lastPurID', 0);
+    batchHistory.clear();
     await loadAllData();
     addLog("SYSTEM RESET", "Database was completely wiped clean.");
   }
 
-  // --- BUSINESS LOGIC: FINALIZE SALE ---
   void finalizeSale({required String billNo, required DateTime date, required Party party, required List<BillItem> items, required double total, required String mode}) {
     String invType = party.isB2B ? "B2B" : "B2C";
     addLog("SALE", "Invoice $billNo ($invType) issued to ${party.name}");
@@ -159,15 +144,13 @@ class PharoahManager with ChangeNotifier {
     for (var item in items) {
       int idx = medicines.indexWhere((m) => m.id == item.medicineID);
       if (idx != -1) {
-        medicines[idx].stock -= item.qty.toInt(); // Reduce Stock
-        // Record this batch info for future sale suggestions
+        medicines[idx].stock -= item.qty.toInt();
         _updateBatch(item.medicineID, BatchInfo(batch: item.batch, exp: item.exp, packing: item.packing, mrp: item.mrp, rate: item.rate));
       }
     }
     save();
   }
 
-  // --- BUSINESS LOGIC: FINALIZE PURCHASE ---
   void finalizePurchase({required String internalNo, required String billNo, required DateTime date, required Party party, required List<PurchaseItem> items, required double total, required String mode}) {
     addLog("PURCHASE", "Entry $internalNo (Bill: $billNo) from ${party.name}");
     
@@ -185,30 +168,29 @@ class PharoahManager with ChangeNotifier {
     for (var item in items) {
       int idx = medicines.indexWhere((m) => m.id == item.medicineID);
       if (idx != -1) {
-        // Update Stock and Master Pricing
         medicines[idx].stock += (item.qty + item.freeQty).toInt();
-        medicines[idx].purRate = item.purchaseRate; // For Stock Valuation
+        medicines[idx].purRate = item.purchaseRate;
         medicines[idx].mrp = item.mrp;
         medicines[idx].gst = item.gstRate;
         medicines[idx].rateA = item.rateA;
         medicines[idx].rateB = item.rateB;
         medicines[idx].rateC = item.rateC;
-        
-        // Save batch info
         _updateBatch(item.medicineID, BatchInfo(batch: item.batch, exp: item.exp, packing: item.packing, mrp: item.mrp, rate: item.purchaseRate));
       }
     }
     save();
   }
 
-  // Batch Suggestion Helper
   void _updateBatch(String mId, BatchInfo b) {
     if (!batchHistory.containsKey(mId)) batchHistory[mId] = [];
     int idx = batchHistory[mId]!.indexWhere((x) => x.batch == b.batch);
-    if (idx != -1) batchHistory[mId]![idx] = b; else batchHistory[mId]!.add(b);
+    if (idx != -1) {
+      batchHistory[mId]![idx] = b;
+    } else {
+      batchHistory[mId]!.add(b);
+    }
   }
 
-  // --- STOCK REVERSAL: DELETE BILL ---
   void deleteBill(String id) {
     int i = sales.indexWhere((s) => s.id == id);
     if (i != -1) {
@@ -216,7 +198,7 @@ class PharoahManager with ChangeNotifier {
       if (sales[i].status == "Active") {
         for (var it in sales[i].items) {
           int mi = medicines.indexWhere((m) => m.id == it.medicineID);
-          if (mi != -1) medicines[mi].stock += it.qty.toInt(); // Reverse Stock
+          if (mi != -1) medicines[mi].stock += it.qty.toInt();
         }
       }
       sales.removeAt(i);
@@ -224,26 +206,17 @@ class PharoahManager with ChangeNotifier {
     }
   }
 
-  // --- STOCK REVERSAL: CANCEL BILL ---
   void cancelBill(String id) {
     int i = sales.indexWhere((s) => s.id == id);
     if (i != -1 && sales[i].status != "Cancelled") {
       addLog("CANCEL", "Invoice ${sales[i].billNo} cancelled. Stock reversed.");
       for (var it in sales[i].items) {
         int mi = medicines.indexWhere((m) => m.id == it.medicineID);
-        if (mi != -1) medicines[mi].stock += it.qty.toInt(); // Reverse Stock
+        if (mi != -1) medicines[mi].stock += it.qty.toInt();
       }
       sales[i].status = "Cancelled";
       sales[i].totalAmount = 0.0;
       save();
     }
-  }
-
-  // Safety helper
-  void addToLocalInventory(Medicine med) { 
-    if (!medicines.any((m) => m.name == med.name)) { 
-      medicines.add(med); 
-      save(); 
-    } 
   }
 }
