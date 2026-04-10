@@ -7,7 +7,9 @@ import 'setup_view.dart';
 import 'login_view.dart';
 
 void main() async {
+  // Ensure Flutter engine is ready before starting the app
   WidgetsFlutterBinding.ensureInitialized();
+  
   runApp(
     ChangeNotifierProvider(
       create: (_) => PharoahManager(),
@@ -34,9 +36,13 @@ class _MyAppState extends State<MyApp> {
     _checkInitialState();
   }
 
+  // --- APP FLOW LOGIC ---
+  // Yeh function check karega ki Company Setup ho chuka hai ya nahi
   Future<void> _checkInitialState() async {
     final prefs = await SharedPreferences.getInstance();
+    
     setState(() {
+      // Agar 'isSetupDone' true hai, matlab user setup kar chuka hai
       isSetupDone = prefs.getBool('isSetupDone') ?? false;
       isLoading = false;
     });
@@ -44,9 +50,13 @@ class _MyAppState extends State<MyApp> {
 
   @override
   Widget build(BuildContext context) {
+    // Jab tak check ho raha hai, Loading spinner dikhao
     if (isLoading) {
       return const MaterialApp(
-        home: Scaffold(body: Center(child: CircularProgressIndicator())),
+        debugShowCheckedModeBanner: false,
+        home: Scaffold(
+          body: Center(child: CircularProgressIndicator()),
+        ),
       );
     }
 
@@ -54,15 +64,25 @@ class _MyAppState extends State<MyApp> {
       key: UniqueKey(),
       title: 'Pharoah ERP',
       debugShowCheckedModeBanner: false,
+      
+      // Professional Blue Theme for ERP
       theme: ThemeData(
         useMaterial3: true,
         colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF0D47A1)),
-        // FIX: CardTheme ki jagah CardThemeData use kiya gaya hai
-        cardTheme: CardThemeData(
-          elevation: 2,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        cardTheme: CardTheme(
+          elevation: 3,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+        ),
+        appBarTheme: const AppBarTheme(
+          centerTitle: false,
+          elevation: 0,
         ),
       ),
+
+      // --- HOME NAVIGATION LOGIC ---
+      // 1. Agar Setup nahi hua -> SetupView
+      // 2. Agar Setup ho gaya par Login nahi hai -> LoginView
+      // 3. Sab sahi hai toh -> DashboardView
       home: !isSetupDone 
           ? SetupView(onComplete: () => setState(() => isSetupDone = true))
           : (!isLoggedIn 
