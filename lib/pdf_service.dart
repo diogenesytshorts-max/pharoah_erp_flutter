@@ -7,112 +7,144 @@ import 'models.dart';
 import 'package:intl/intl.dart';
 
 class PdfService {
-  // ==========================================
-  // 1. STANDARD SALE INVOICE (CUSTOMER BILL)
-  // ==========================================
+  // ===================================================
+  // 1. RETAIL/TAX INVOICE (Customer ke liye)
+  // ===================================================
   static Future<void> generateInvoice(Sale sale, Party party, {bool isPurchase = false}) async {
     final pdf = pw.Document();
     final prefs = await SharedPreferences.getInstance();
-
     String cName = prefs.getString('compName') ?? "Pharoah ERP";
     String cGst = prefs.getString('compGST') ?? "GSTIN NOT SET";
-    String cAddr = prefs.getString('compAddr') ?? "Address";
 
     pdf.addPage(pw.Page(
       pageFormat: PdfPageFormat.a4.landscape,
-      margin: const pw.EdgeInsets.all(20),
       build: (pw.Context context) {
         return pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
-          pw.Text(cName, style: pw.TextStyle(fontSize: 22, fontWeight: pw.FontWeight.bold, color: PdfColors.blue900)),
-          pw.Text("GSTIN: $cGst | $cAddr", style: const pw.TextStyle(fontSize: 10)),
-          pw.Divider(thickness: 2, color: PdfColors.blueGrey),
+          pw.Text(cName, style: pw.TextStyle(fontSize: 20, fontWeight: pw.FontWeight.bold)),
+          pw.Text("GSTIN: $cGst"),
+          pw.Divider(),
           pw.Row(mainAxisAlignment: pw.MainAxisAlignment.spaceBetween, children: [
-            pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
-              pw.Text("BILL TO:", style: pw.TextStyle(fontSize: 8, color: PdfColors.grey700)),
-              pw.Text(party.name, style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold)),
-              pw.Text("GSTIN: ${party.gst}"),
-            ]),
-            pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.end, children: [
-              pw.Text(isPurchase ? "PURCHASE ENTRY" : "TAX INVOICE", style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold)),
-              pw.Text("Inv No: ${sale.billNo}"),
-              pw.Text("Date: ${DateFormat('dd/MM/yyyy').format(sale.date)}"),
-            ]),
+            pw.Text("Bill To: ${party.name}\nGSTIN: ${party.gst}"),
+            pw.Text("Invoice: ${sale.billNo}\nDate: ${DateFormat('dd/MM/yyyy').format(sale.date)}"),
           ]),
-          pw.SizedBox(height: 15),
+          pw.SizedBox(height: 10),
           pw.TableHelper.fromTextArray(
-            headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold, color: PdfColors.white),
-            headerDecoration: const pw.BoxDecoration(color: PdfColors.blueGrey900),
-            headers: ['S.N', 'Product Description', 'Batch', 'Exp', 'Qty', 'Rate', 'GST%', 'Total'],
-            data: sale.items.map((i) => [i.srNo, i.name, i.batch, i.exp, i.qty.toInt(), i.rate, "${i.gstRate}%", i.total.toStringAsFixed(2)]).toList(),
+            headers: ['S.N', 'Product', 'Batch', 'Qty', 'Rate', 'GST%', 'Total'],
+            data: sale.items.map((i) => [i.srNo, i.name, i.batch, i.qty.toInt(), i.rate, "${i.gstRate}%", i.total.toStringAsFixed(2)]).toList(),
           ),
-          pw.Spacer(),
-          pw.Row(mainAxisAlignment: pw.MainAxisAlignment.end, children: [
-            pw.Container(
-              padding: const pw.EdgeInsets.all(10),
-              decoration: const pw.BoxDecoration(color: PdfColors.grey200),
-              child: pw.Text("Grand Total: ₹${sale.totalAmount.toStringAsFixed(2)}", style: pw.TextStyle(fontSize: 18, fontWeight: pw.FontWeight.bold)),
-            )
-          ]),
+          pw.Divider(),
+          pw.Align(alignment: pw.Alignment.centerRight, child: pw.Text("Grand Total: ₹${sale.totalAmount.toStringAsFixed(2)}", style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold))),
         ]);
       },
     ));
-
-    await Printing.layoutPdf(onLayout: (f) async => pdf.save(), name: "Bill_${sale.billNo}");
+    await Printing.layoutPdf(onLayout: (f) async => pdf.save(), name: "Invoice_${sale.billNo}");
   }
 
-  // ==========================================
-  // 2. MARG STYLE GST REPORT (FOR FILING)
-  // ==========================================
-  static Future<void> generateGstReport(String title, List<Sale> sales, List<Purchase> purchases) async {
+  // ===================================================
+  // 2. GOVERNMENT GST REPORT (Portal Filing ke liye)
+  // ===================================================
+  static Future<void> generateGstReport(String title, List<Sale> sales, List<Purchase> purchases, String currentMonth) async {
     final pdf = pw.Document();
     final prefs = await SharedPreferences.getInstance();
     String cName = prefs.getString('compName') ?? "Pharoah ERP";
 
     pdf.addPage(pw.MultiPage(
-      pageFormat: PdfPageFormat.a4,
-      margin: const pw.EdgeInsets.all(30),
+      pageFormat: PdfPageFormat.a4.landscape, // Landscape best hai tabular data ke liye
+      margin: const pw.EdgeInsets.all(20),
       header: (pw.Context context) => pw.Column(children: [
         pw.Text(cName, style: pw.TextStyle(fontSize: 18, fontWeight: pw.FontWeight.bold)),
-        pw.Text(title, style: const pw.TextStyle(fontSize: 14)),
+        pw.Text(title, style: const pw.TextStyle(fontSize: 12)),
         pw.Divider(),
       ]),
       build: (pw.Context context) {
+        
+        // --- SECTION A: GSTR-1 (SALES) DETAIL ---
         if (title.contains("GSTR-1")) {
           return [
-            pw.Text("Outward Supplies (Sales Register)", style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
+            pw.Text("Detailed Sales Register (Table 4A, 4B, 7)", style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
             pw.SizedBox(height: 10),
             pw.TableHelper.fromTextArray(
-              headers: ['Date', 'Bill No', 'Party Name', 'GSTIN', 'Taxable', 'GST Amt', 'Total'],
+              headerStyle: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold),
+              cellStyle: const pw.TextStyle(fontSize: 8),
+              headers: ['Date', 'Bill No', 'Party Name', 'GSTIN', 'Taxable Val', 'CGST', 'SGST', 'IGST', 'Total Amt'],
               data: sales.map((s) {
-                double taxable = 0; double gstAmt = 0;
+                double taxable = 0; double cgst = 0; double sgst = 0; double igst = 0;
                 for (var it in s.items) {
-                  taxable += (it.rate * it.qty);
-                  gstAmt += (it.cgst + it.sgst + it.igst);
+                  taxable += (it.rate * it.qty) - it.discountRupees;
+                  cgst += it.cgst; sgst += it.sgst; igst += it.igst;
                 }
-                return [DateFormat('dd/MM').format(s.date), s.billNo, s.partyName, "Registered", taxable.toStringAsFixed(2), gstAmt.toStringAsFixed(2), s.totalAmount.toStringAsFixed(2)];
+                return [
+                  DateFormat('dd/MM').format(s.date),
+                  s.billNo,
+                  s.partyName,
+                  "N/A", // Party GSTIN Model se fetch hona baki hai
+                  taxable.toStringAsFixed(2),
+                  cgst.toStringAsFixed(2),
+                  sgst.toStringAsFixed(2),
+                  igst.toStringAsFixed(2),
+                  s.totalAmount.toStringAsFixed(2)
+                ];
               }).toList(),
             ),
+            pw.SizedBox(height: 20),
+            pw.Text("HSN Wise Summary (Table 12)", style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
+            _buildHsnTable(sales),
           ];
-        } else if (title.contains("GSTR-3B")) {
-          double sTax = 0; double sTotal = 0;
-          for (var s in sales) { sTotal += s.totalAmount; s.items.forEach((it) => sTax += (it.cgst + it.sgst + it.igst)); }
-          
+        }
+
+        // --- SECTION B: GSTR-3B (SUMMARY) ---
+        if (title.contains("GSTR-3B")) {
+          double sTaxable = 0; double sCgst = 0; double sSgst = 0; double sIgst = 0;
+          for (var s in sales) {
+            for (var it in s.items) {
+              sTaxable += (it.rate * it.qty) - it.discountRupees;
+              sCgst += it.cgst; sSgst += it.sgst; sIgst += it.igst;
+            }
+          }
           return [
-            pw.Text("Monthly Tax Summary", style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
-            pw.SizedBox(height: 15),
+            pw.Text("Consolidated Tax Summary", style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
+            pw.SizedBox(height: 10),
             pw.TableHelper.fromTextArray(
-              headers: ['Table No', 'Description', 'Taxable Value', 'Integrated Tax'],
+              headers: ['Nature of Supplies', 'Total Taxable Value', 'Integrated Tax', 'Central Tax', 'State Tax'],
               data: [
-                ['3.1', 'Outward Taxable Supplies (Sales)', sTotal.toStringAsFixed(2), sTax.toStringAsFixed(2)],
-                ['4.0', 'Eligible ITC (Purchases)', 'Calculated', 'From Purchases'],
+                ['3.1 Outward Taxable Supplies (Sales)', sTaxable.toStringAsFixed(2), sIgst.toStringAsFixed(2), sCgst.toStringAsFixed(2), sSgst.toStringAsFixed(2)],
+                ['4. Eligible ITC (Purchases)', 'As per Books', '...', '...', '...'],
               ],
             ),
           ];
         }
-        return [pw.Text("No Report Data")];
+
+        return [pw.Text("Report type not defined.")];
       },
     ));
 
-    await Printing.layoutPdf(onLayout: (f) async => pdf.save(), name: "GST_Report");
+    await Printing.layoutPdf(onLayout: (f) async => pdf.save(), name: "GST_REPORT_$currentMonth");
+  }
+
+  // --- HELPER: HSN SUMMARY TABLE ---
+  static pw.Widget _buildHsnTable(List<Sale> sales) {
+    Map<String, Map<String, dynamic>> hsnMap = {};
+    for (var s in sales) {
+      for (var it in s.items) {
+        if (!hsnMap.containsKey(it.hsn)) {
+          hsnMap[it.hsn] = {'qty': 0.0, 'taxable': 0.0, 'tax': 0.0};
+        }
+        hsnMap[it.hsn]!['qty'] += it.qty;
+        hsnMap[it.hsn]!['taxable'] += (it.rate * it.qty);
+        hsnMap[it.hsn]!['tax'] += (it.cgst + it.sgst + it.igst);
+      }
+    }
+
+    return pw.TableHelper.fromTextArray(
+      headerStyle: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold),
+      cellStyle: const pw.TextStyle(fontSize: 8),
+      headers: ['HSN Code', 'Total Qty', 'Total Taxable Value', 'Total GST Amount'],
+      data: hsnMap.entries.map((e) => [
+        e.key,
+        e.value['qty'].toString(),
+        e.value['taxable'].toStringAsFixed(2),
+        e.value['tax'].toStringAsFixed(2)
+      ]).toList(),
+    );
   }
 }
