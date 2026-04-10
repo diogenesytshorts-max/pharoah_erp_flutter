@@ -44,11 +44,13 @@ class PharoahManager with ChangeNotifier {
       File('$path/sales_$currentFY.json').writeAsStringSync(jsonEncode(sales.map((e) => e.toMap()).toList()));
       File('$path/purc_$currentFY.json').writeAsStringSync(jsonEncode(purchases.map((e) => e.toMap()).toList()));
       File('$path/logs_$currentFY.json').writeAsStringSync(jsonEncode(logs.map((e) => e.toMap()).toList()));
+      
       Map<String, dynamic> hMap = {};
       batchHistory.forEach((k, v) => hMap[k] = v.map((b) => b.toMap()).toList());
       File('$path/bats_$currentFY.json').writeAsStringSync(jsonEncode(hMap));
+      
       notifyListeners();
-    } catch (e) { debugPrint("Save Error: $e"); }
+    } catch (e) { debugPrint("System Save Error: $e"); }
   }
 
   Future<void> loadAllData() async {
@@ -71,16 +73,13 @@ class PharoahManager with ChangeNotifier {
       final purF = File('$path/purc_$currentFY.json');
       if (purF.existsSync()) purchases = (jsonDecode(purF.readAsStringSync()) as List).map((e) => Purchase.fromMap(e)).toList();
 
-      final lf = File('$path/logs_$currentFY.json');
-      if (lf.existsSync()) logs = (jsonDecode(lf.readAsStringSync()) as List).map((e) => LogEntry.fromMap(e)).toList();
-
       final bf = File('$path/bats_$currentFY.json');
       if (bf.existsSync()) {
         Map<String, dynamic> d = jsonDecode(bf.readAsStringSync());
         d.forEach((k, v) => batchHistory[k] = (v as List).map((b) => BatchInfo.fromMap(b)).toList());
       }
       notifyListeners();
-    } catch (e) { debugPrint("Load Error: $e"); }
+    } catch (e) { debugPrint("System Load Error: $e"); }
   }
 
   void finalizeSale({required String billNo, required DateTime date, required Party party, required List<BillItem> items, required double total, required String mode}) {
@@ -140,10 +139,5 @@ class PharoahManager with ChangeNotifier {
       sales.removeAt(i);
       save();
     }
-  }
-
-  void updateGstStatus(String pId, String status) {
-    int i = purchases.indexWhere((p) => p.id == pId);
-    if (i != -1) { purchases[i].gstStatus = status; save(); }
   }
 }
