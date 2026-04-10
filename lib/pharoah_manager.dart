@@ -127,9 +127,6 @@ class PharoahManager with ChangeNotifier {
   }
 
   void finalizeSale({required String billNo, required DateTime date, required Party party, required List<BillItem> items, required double total, required String mode}) {
-    String invType = party.isB2B ? "B2B" : "B2C";
-    addLog("SALE", "Invoice $billNo ($invType) issued to ${party.name}");
-    
     sales.add(Sale(
       id: DateTime.now().toString(), 
       billNo: billNo, 
@@ -138,7 +135,7 @@ class PharoahManager with ChangeNotifier {
       items: items, 
       totalAmount: total, 
       paymentMode: mode,
-      invoiceType: invType
+      invoiceType: party.isB2B ? "B2B" : "B2C"
     ));
 
     for (var item in items) {
@@ -152,8 +149,6 @@ class PharoahManager with ChangeNotifier {
   }
 
   void finalizePurchase({required String internalNo, required String billNo, required DateTime date, required Party party, required List<PurchaseItem> items, required double total, required String mode}) {
-    addLog("PURCHASE", "Entry $internalNo (Bill: $billNo) from ${party.name}");
-    
     purchases.add(Purchase(
       id: DateTime.now().toString(), 
       internalNo: internalNo, 
@@ -194,7 +189,6 @@ class PharoahManager with ChangeNotifier {
   void deleteBill(String id) {
     int i = sales.indexWhere((s) => s.id == id);
     if (i != -1) {
-      addLog("DELETE", "Invoice ${sales[i].billNo} deleted. Stock reversed.");
       if (sales[i].status == "Active") {
         for (var it in sales[i].items) {
           int mi = medicines.indexWhere((m) => m.id == it.medicineID);
@@ -209,7 +203,6 @@ class PharoahManager with ChangeNotifier {
   void cancelBill(String id) {
     int i = sales.indexWhere((s) => s.id == id);
     if (i != -1 && sales[i].status != "Cancelled") {
-      addLog("CANCEL", "Invoice ${sales[i].billNo} cancelled. Stock reversed.");
       for (var it in sales[i].items) {
         int mi = medicines.indexWhere((m) => m.id == it.medicineID);
         if (mi != -1) medicines[mi].stock += it.qty.toInt();
