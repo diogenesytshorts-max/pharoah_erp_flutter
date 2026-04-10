@@ -11,7 +11,7 @@ class MoreFeaturesView extends StatelessWidget {
     return Scaffold(
       backgroundColor: const Color(0xFFF5F6F9),
       appBar: AppBar(
-        title: const Text("More Features & Tools"),
+        title: const Text("More Features & Advanced Tools"),
         backgroundColor: Colors.indigo.shade800,
         foregroundColor: Colors.white,
         elevation: 0,
@@ -22,11 +22,11 @@ class MoreFeaturesView extends StatelessWidget {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              // --- 1. GST & TAXATION FOLDER CARD ---
+              // --- 1. GST & TAXATION SECTION ---
               _buildLargeMenuCard(
                 context,
                 title: "GST & TAXATION",
-                subtitle: "GSTR-1, GSTR-3B, E-Way Bill & Tax Reports",
+                subtitle: "GSTR-1, GSTR-3B, HSN Summary & JSON Export for Portal",
                 icon: Icons.account_balance_rounded,
                 color: Colors.green.shade600,
                 onTap: () => Navigator.push(
@@ -37,11 +37,11 @@ class MoreFeaturesView extends StatelessWidget {
               
               const SizedBox(height: 25),
 
-              // --- 2. SYSTEM & ADMINISTRATION FOLDER CARD ---
+              // --- 2. SYSTEM & ADMINISTRATION SECTION ---
               _buildLargeMenuCard(
                 context,
                 title: "SYSTEM & ADMIN",
-                subtitle: "Company Setup, Backup, Audit Logs & Reset",
+                subtitle: "Company Setup, Database Backup, Audit Logs & System Reset",
                 icon: Icons.settings_suggest_rounded,
                 color: Colors.blue.shade700,
                 onTap: () => Navigator.push(
@@ -52,15 +52,17 @@ class MoreFeaturesView extends StatelessWidget {
                 ),
               ),
 
-              const SizedBox(height: 40),
+              const SizedBox(height: 50),
               
-              // App Version Info at the bottom
+              // Bottom Branding
+              const Icon(Icons.verified_user_rounded, color: Colors.blueGrey, size: 30),
+              const SizedBox(height: 10),
               Text(
-                "Pharoah ERP Technical Suite",
+                "Pharoah ERP Premium Technical Suite",
                 style: TextStyle(color: Colors.grey.shade400, fontSize: 12, fontWeight: FontWeight.bold),
               ),
               Text(
-                "Secure Admin Access Only",
+                "Secure Administrator Access Only",
                 style: TextStyle(color: Colors.grey.shade400, fontSize: 10),
               ),
             ],
@@ -70,7 +72,7 @@ class MoreFeaturesView extends StatelessWidget {
     );
   }
 
-  // Helper Widget to build the Large Folder-style Cards
+  // --- HELPER WIDGET FOR LARGE MENU CARDS ---
   Widget _buildLargeMenuCard(
     BuildContext context, {
     required String title,
@@ -81,35 +83,35 @@ class MoreFeaturesView extends StatelessWidget {
   }) {
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(20),
+      borderRadius: BorderRadius.circular(25),
       child: Container(
         width: double.infinity,
         padding: const EdgeInsets.all(25),
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(20),
+          borderRadius: BorderRadius.circular(25),
           boxShadow: [
             BoxShadow(
-              color: color.withOpacity(0.12),
+              color: color.withOpacity(0.1),
               blurRadius: 20,
               offset: const Offset(0, 10),
             ),
           ],
-          border: Border.all(color: color.withOpacity(0.1), width: 1.5),
+          border: Border.all(color: color.withOpacity(0.1), width: 2),
         ),
         child: Row(
           children: [
-            // Icon Container with soft background
+            // Icon Background
             Container(
               padding: const EdgeInsets.all(18),
               decoration: BoxDecoration(
                 color: color.withOpacity(0.1),
                 shape: BoxShape.circle,
               ),
-              child: Icon(icon, size: 42, color: color),
+              child: Icon(icon, size: 40, color: color),
             ),
             const SizedBox(width: 20),
-            // Text Details
+            // Text Content
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -117,29 +119,29 @@ class MoreFeaturesView extends StatelessWidget {
                   Text(
                     title,
                     style: TextStyle(
-                      fontSize: 20, 
+                      fontSize: 18, 
                       fontWeight: FontWeight.w900, 
                       color: color.withOpacity(0.9),
                       letterSpacing: 0.5,
                     ),
                   ),
-                  const SizedBox(height: 6),
+                  const SizedBox(height: 5),
                   Text(
                     subtitle,
                     style: TextStyle(
                       fontSize: 12, 
                       color: Colors.grey.shade600,
-                      height: 1.3,
+                      height: 1.4,
                     ),
                   ),
                 ],
               ),
             ),
-            // Decorative Arrow
+            // Forward Arrow
             Icon(
               Icons.arrow_forward_ios_rounded, 
               color: color.withOpacity(0.3), 
-              size: 20,
+              size: 18,
             ),
           ],
         ),
