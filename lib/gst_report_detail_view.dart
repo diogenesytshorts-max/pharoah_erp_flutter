@@ -1,53 +1,267 @@
+import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-import 'package:intl/intl.dart';
-import 'pharoah_manager.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'models.dart';
-import 'pdf_service.dart';
+import 'demo_data.dart';
 
-class GSTReportDetailView extends StatefulWidget {
-  final String reportType;
-  const GSTReportDetailView({super.key, required this.reportType});
-  @override State<GSTReportDetailView> createState() => _GSTReportDetailViewState();
-}
+class PharoahManager with ChangeNotifier {
+  // --- STATE DATA ---
+  List<Medicine> medicines = [];
+  List<Party> parties = [];
+  List<Sale> sales = [];
+  List<Purchase> purchases = [];
+  List<LogEntry> logs = [];
+  Map<String, List<BatchInfo>> batchHistory = {};
+  
+  String currentFY = "2025-26";
+  String companyState = "Rajasthan";
 
-class _GSTReportDetailViewState extends State<GSTReportDetailView> {
-  DateTime selectedDate = DateTime.now();
-
-  @override Widget build(BuildContext context) {
-    final ph = Provider.of<PharoahManager>(context);
-    List<Sale> mSales = ph.sales.where((s) => s.status == "Active" && s.date.month == selectedDate.month && s.date.year == selectedDate.year).toList();
-    List<Purchase> mPurchases = ph.purchases.where((p) => p.date.month == selectedDate.month && p.date.year == selectedDate.year).toList();
-
-    return Scaffold(
-      backgroundColor: const Color(0xFFF5F6F9),
-      appBar: AppBar(title: Text(widget.reportType), backgroundColor: Colors.indigo.shade800, foregroundColor: Colors.white,
-        actions: [
-          IconButton(icon: const Icon(Icons.picture_as_pdf), onPressed: () => PdfService.generateGstReport(widget.reportType, mSales, DateFormat('MMYYYY').format(selectedDate))),
-          if (widget.reportType.contains("GSTR-1")) IconButton(icon: const Icon(Icons.code), onPressed: () => PdfService.generateGstJson(mSales, DateFormat('MMYYYY').format(selectedDate))),
-        ],
-      ),
-      body: Column(children: [
-        Container(padding: const EdgeInsets.all(15), color: Colors.white, child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [const Text("Reporting Period:"), InkWell(onTap: () async { DateTime? p = await showDatePicker(context: context, initialDate: selectedDate, firstDate: DateTime(2020), lastDate: DateTime(2100)); if (p != null) setState(() => selectedDate = p); }, child: Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: Colors.indigo.shade50, borderRadius: BorderRadius.circular(5)), child: Text(DateFormat('MMMM yyyy').format(selectedDate), style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.indigo))))])),
-        if (widget.reportType.contains("GSTR-3B")) _build3B(mSales, mPurchases) else _buildList(mSales)
-      ]),
-    );
+  PharoahManager() {
+    initManager();
   }
 
-  Widget _build3B(List<Sale> s, List<Purchase> p) {
-    double saleTax = 0; s.forEach((x) => x.items.forEach((it) => saleTax += (it.cgst + it.sgst + it.igst)));
-    double purTax = 0; p.forEach((x) => x.items.forEach((it) => purTax += (it.purchaseRate * it.qty * it.gstRate / 100)));
-    return Expanded(child: ListView(padding: const EdgeInsets.all(15), children: [
-      _card("3.1 Outward Taxable Supplies", saleTax, Colors.green),
-      _card("4.0 Eligible ITC", purTax, Colors.orange),
-      const Divider(height: 40),
-      Center(child: Text("NET PAYABLE: ₹${(saleTax - purTax).toStringAsFixed(2)}", style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.red)))
-    ]));
+  // --- INITIALIZATION ---
+  Future<void> initManager() async {
+    final p = await SharedPreferences.getInstance();
+    currentFY = p.getString('fy') ?? "2025-26";
+    companyState = p.getString('compState') ?? "Rajasthan";
+    await loadAllData();
   }
 
-  Widget _buildList(List<Sale> list) {
-    return Expanded(child: ListView.builder(itemCount: list.length, itemBuilder: (c, i) => ListTile(title: Text(list[i].partyName), subtitle: Text("Inv: ${list[i].billNo}"), trailing: Text("₹${list[i].totalAmount.toStringAsFixed(2)}"))));
+  // --- FINANCIAL YEAR BOUNDARY CALCULATIONS ---
+  DateTime get fyStartDate {
+    try {
+      int startYear = int.parse(currentFY.split('-')[0]);
+      if (startYear < 2000) startYear += 2000;
+      return DateTime(startYear, 4, 1);
+    } catch (e) {
+      return DateTime(DateTime.now().year, 4, 1);
+    }
   }
 
-  Widget _card(String t, double v, Color c) { return Card(child: ListTile(title: Text(t), trailing: Text("₹${v.toStringAsFixed(2)}", style: TextStyle(color: c, fontWeight: FontWeight.bold)))); }
+  DateTime get fyEndDate {
+    try {
+      int startYear = int.parse(currentFY.split('-')[0]);
+      if (startYear < 2000) startYear += 2000;
+      return DateTime(startYear + 1, 3, 31);
+    } catch (e) {
+      return DateTime(DateTime.now().year + 1, 3, 31);
+    }
+  }
+
+  // --- STORAGE HELPERS ---
+  Future<String> get _localPath async {
+    final d = await getApplicationDocumentsDirectory();
+    return d.path;
+  }
+
+  void addLog(String action, String details) {
+    logs.add(LogEntry(
+      id: DateTime.now().toString(), 
+      action: action, 
+      details: details, 
+      time: DateTime.now()
+    ));
+    save();
+  }
+
+  // --- PERSISTENCE: SAVE ALL TO JSON ---
+  Future<void> save() async {
+    final path = await _localPath;
+    try {
+      File('$path/meds_$currentFY.json').writeAsStringSync(jsonEncode(medicines.map((e) => e.toMap()).toList()));
+      File('$path/parts_$currentFY.json').writeAsStringSync(jsonEncode(parties.map((e) => e.toMap()).toList()));
+      File('$path/sales_$currentFY.json').writeAsStringSync(jsonEncode(sales.map((e) => e.toMap()).toList()));
+      File('$path/purc_$currentFY.json').writeAsStringSync(jsonEncode(purchases.map((e) => e.toMap()).toList()));
+      File('$path/logs_$currentFY.json').writeAsStringSync(jsonEncode(logs.map((e) => e.toMap()).toList()));
+      
+      Map<String, dynamic> hMap = {};
+      batchHistory.forEach((k, v) => hMap[k] = v.map((b) => b.toMap()).toList());
+      File('$path/bats_$currentFY.json').writeAsStringSync(jsonEncode(hMap));
+      
+      notifyListeners();
+    } catch (e) {
+      debugPrint("System Save Error: $e");
+    }
+  }
+
+  // --- PERSISTENCE: LOAD ALL FROM JSON ---
+  Future<void> loadAllData() async {
+    final path = await _localPath;
+    try {
+      final mf = File('$path/meds_$currentFY.json');
+      if (mf.existsSync()) {
+        medicines = (jsonDecode(mf.readAsStringSync()) as List).map((e) => Medicine.fromMap(e)).toList();
+      } else {
+        medicines = DemoData.getMedicines();
+      }
+
+      final pf = File('$path/parts_$currentFY.json');
+      if (pf.existsSync()) {
+        parties = (jsonDecode(pf.readAsStringSync()) as List).map((e) => Party.fromMap(e)).toList();
+      } else {
+        parties = [DemoData.getDemoParty(), Party(id: 'cash', name: "CASH")];
+      }
+
+      final sf = File('$path/sales_$currentFY.json');
+      if (sf.existsSync()) {
+        final List d = jsonDecode(sf.readAsStringSync());
+        sales = d.map((e) => Sale.fromMap(e)).toList();
+      }
+
+      final purF = File('$path/purc_$currentFY.json');
+      if (purF.existsSync()) {
+        final List d = jsonDecode(purF.readAsStringSync());
+        purchases = d.map((e) => Purchase.fromMap(e)).toList();
+      }
+
+      final lf = File('$path/logs_$currentFY.json');
+      if (lf.existsSync()) {
+        logs = (jsonDecode(lf.readAsStringSync()) as List).map((e) => LogEntry.fromMap(e)).toList();
+      }
+
+      final bf = File('$path/bats_$currentFY.json');
+      if (bf.existsSync()) {
+        Map<String, dynamic> d = jsonDecode(bf.readAsStringSync());
+        d.forEach((k, v) => batchHistory[k] = (v as List).map((b) => BatchInfo.fromMap(b)).toList());
+      }
+      
+      notifyListeners();
+    } catch (e) {
+      debugPrint("System Load Error: $e");
+    }
+  }
+
+  // --- MASTER DATA ACTIONS ---
+  void deleteParty(String id) {
+    int i = parties.indexWhere((p) => p.id == id);
+    if (i != -1) {
+      if (parties[i].name == "CASH") return; // Safety check
+      addLog("DELETE", "Party ${parties[i].name} removed from Master.");
+      parties.removeAt(i);
+      save();
+    }
+  }
+
+  // --- BUSINESS LOGIC: FINALIZE SALE ---
+  void finalizeSale({required String billNo, required DateTime date, required Party party, required List<BillItem> items, required double total, required String mode}) {
+    sales.add(Sale(
+      id: DateTime.now().toString(), 
+      billNo: billNo, 
+      date: date, 
+      partyName: party.name, 
+      partyGstin: party.gst,
+      partyState: party.state,
+      items: items, 
+      totalAmount: total, 
+      paymentMode: mode,
+      invoiceType: party.isB2B ? "B2B" : "B2C"
+    ));
+
+    for (var item in items) {
+      int idx = medicines.indexWhere((m) => m.id == item.medicineID);
+      if (idx != -1) {
+        medicines[idx].stock -= item.qty.toInt();
+        _updateBatch(item.medicineID, BatchInfo(batch: item.batch, exp: item.exp, packing: item.packing, mrp: item.mrp, rate: item.rate));
+      }
+    }
+    save();
+  }
+
+  // --- BUSINESS LOGIC: FINALIZE PURCHASE ---
+  void finalizePurchase({required String internalNo, required String billNo, required DateTime date, required Party party, required List<PurchaseItem> items, required double total, required String mode}) {
+    purchases.add(Purchase(
+      id: DateTime.now().toString(), 
+      internalNo: internalNo, 
+      billNo: billNo, 
+      date: date, 
+      distributorName: party.name, 
+      items: items, 
+      totalAmount: total, 
+      paymentMode: mode
+    ));
+
+    for (var item in items) {
+      int idx = medicines.indexWhere((m) => m.id == item.medicineID);
+      if (idx != -1) {
+        medicines[idx].stock += (item.qty + item.freeQty).toInt();
+        medicines[idx].purRate = item.purchaseRate;
+        medicines[idx].mrp = item.mrp;
+        medicines[idx].gst = item.gstRate;
+        medicines[idx].rateA = item.rateA;
+        medicines[idx].rateB = item.rateB;
+        medicines[idx].rateC = item.rateC;
+        _updateBatch(item.medicineID, BatchInfo(batch: item.batch, exp: item.exp, packing: item.packing, mrp: item.mrp, rate: item.purchaseRate));
+      }
+    }
+    save();
+  }
+
+  // --- STOCK REVERSAL LOGIC ---
+  void deletePurchase(String id) {
+    int i = purchases.indexWhere((p) => p.id == id);
+    if (i != -1) {
+      addLog("DELETE", "Purchase Bill ${purchases[i].billNo} deleted. Stock reduced.");
+      for (var it in purchases[i].items) {
+        int mi = medicines.indexWhere((m) => m.id == it.medicineID);
+        if (mi != -1) {
+          medicines[mi].stock -= (it.qty + it.freeQty).toInt();
+        }
+      }
+      purchases.removeAt(i);
+      save();
+    }
+  }
+
+  void _updateBatch(String mId, BatchInfo b) {
+    if (!batchHistory.containsKey(mId)) batchHistory[mId] = [];
+    int idx = batchHistory[mId]!.indexWhere((x) => x.batch == b.batch);
+    if (idx != -1) {
+      batchHistory[mId]![idx] = b;
+    } else {
+      batchHistory[mId]!.add(b);
+    }
+  }
+
+  void deleteBill(String id) {
+    int i = sales.indexWhere((s) => s.id == id);
+    if (i != -1) {
+      addLog("DELETE", "Invoice ${sales[i].billNo} deleted. Stock reversed.");
+      if (sales[i].status == "Active") {
+        for (var it in sales[i].items) {
+          int mi = medicines.indexWhere((m) => m.id == it.medicineID);
+          if (mi != -1) medicines[mi].stock += it.qty.toInt();
+        }
+      }
+      sales.removeAt(i);
+      save();
+    }
+  }
+
+  void cancelBill(String id) {
+    int i = sales.indexWhere((s) => s.id == id);
+    if (i != -1 && sales[i].status != "Cancelled") {
+      addLog("CANCEL", "Invoice ${sales[i].billNo} cancelled. Stock reversed.");
+      for (var it in sales[i].items) {
+        int mi = medicines.indexWhere((m) => m.id == it.medicineID);
+        if (mi != -1) medicines[mi].stock += it.qty.toInt();
+      }
+      sales[i].status = "Cancelled";
+      sales[i].totalAmount = 0.0;
+      save();
+    }
+  }
+
+  // --- MASTER RESET ---
+  Future<void> masterReset() async {
+    final path = await _localPath;
+    final files = ['$path/meds_$currentFY.json', '$path/parts_$currentFY.json', '$path/sales_$currentFY.json', '$path/purc_$currentFY.json', '$path/logs_$currentFY.json', '$path/bats_$currentFY.json'];
+    for (var f in files) { if (File(f).existsSync()) File(f).deleteSync(); }
+    final p = await SharedPreferences.getInstance();
+    await p.setInt('lastBillID', 0); await p.setInt('lastPurID', 0);
+    batchHistory.clear();
+    await loadAllData();
+  }
 }
