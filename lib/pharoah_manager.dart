@@ -71,9 +71,6 @@ class PharoahManager with ChangeNotifier {
       final purF = File('$path/purc_$currentFY.json');
       if (purF.existsSync()) purchases = (jsonDecode(purF.readAsStringSync()) as List).map((e) => Purchase.fromMap(e)).toList();
 
-      final lf = File('$path/logs_$currentFY.json');
-      if (lf.existsSync()) logs = (jsonDecode(lf.readAsStringSync()) as List).map((e) => LogEntry.fromMap(e)).toList();
-
       final bf = File('$path/bats_$currentFY.json');
       if (bf.existsSync()) {
         Map<String, dynamic> d = jsonDecode(bf.readAsStringSync());
@@ -95,23 +92,6 @@ class PharoahManager with ChangeNotifier {
     save();
   }
 
-  // FIXED: cancelBill function was missing, now re-added
-  void cancelBill(String id) {
-    int i = sales.indexWhere((s) => s.id == id);
-    if (i != -1 && sales[i].status != "Cancelled") {
-      addLog("CANCEL", "Invoice ${sales[i].billNo} cancelled. Stock reversed.");
-      for (var it in sales[i].items) {
-        int mi = medicines.indexWhere((m) => m.id == it.medicineID);
-        if (mi != -1) {
-          medicines[mi].stock += it.qty.toInt(); // Stock wapas badhao
-        }
-      }
-      sales[i].status = "Cancelled";
-      sales[i].totalAmount = 0.0;
-      save();
-    }
-  }
-
   void finalizePurchase({required String internalNo, required String billNo, required DateTime date, required Party party, required List<PurchaseItem> items, required double total, required String mode}) {
     purchases.add(Purchase(id: DateTime.now().toString(), internalNo: internalNo, billNo: billNo, date: date, distributorName: party.name, items: items, totalAmount: total, paymentMode: mode));
     for (var item in items) {
@@ -121,6 +101,9 @@ class PharoahManager with ChangeNotifier {
         medicines[idx].purRate = item.purchaseRate;
         medicines[idx].mrp = item.mrp;
         medicines[idx].gst = item.gstRate;
+        medicines[idx].rateA = item.rateA;
+        medicines[idx].rateB = item.rateB;
+        medicines[idx].rateC = item.rateC;
         _updateBatch(item.medicineID, BatchInfo(batch: item.batch, exp: item.exp, packing: item.packing, mrp: item.mrp, rate: item.purchaseRate));
       }
     }
@@ -132,9 +115,7 @@ class PharoahManager with ChangeNotifier {
     if (i != -1) {
       for (var it in purchases[i].items) {
         int mi = medicines.indexWhere((m) => m.id == it.medicineID);
-        if (mi != -1) {
-          medicines[mi].stock -= (it.qty + it.freeQty).toInt(); // Purchase delete par stock ghatana hoga
-        }
+        if (mi != -1) medicines[mi].stock -= (it.qty + it.freeQty).toInt();
       }
       purchases.removeAt(i);
       save();
@@ -150,7 +131,6 @@ class PharoahManager with ChangeNotifier {
   void deleteBill(String id) {
     int i = sales.indexWhere((s) => s.id == id);
     if (i != -1) {
-      addLog("DELETE", "Invoice ${sales[i].billNo} deleted. Stock reversed.");
       if (sales[i].status == "Active") {
         for (var it in sales[i].items) {
           int mi = medicines.indexWhere((m) => m.id == it.medicineID);
@@ -162,13 +142,16 @@ class PharoahManager with ChangeNotifier {
     }
   }
 
-  Future<void> masterReset() async {
-    final path = await _localPath;
-    final files = ['$path/meds_$currentFY.json', '$path/parts_$currentFY.json', '$path/sales_$currentFY.json', '$path/purc_$currentFY.json', '$path/logs_$currentFY.json', '$path/bats_$currentFY.json'];
-    for (var f in files) { if (File(f).existsSync()) File(f).deleteSync(); }
-    final p = await SharedPreferences.getInstance();
-    await p.setInt('lastBillID', 0); await p.setInt('lastPurID', 0);
-    batchHistory.clear();
-    await loadAllData();
+  void cancelBill(String id) {
+    int i = sales.indexWhere((s) => s.id == id);
+    if (i != -1 && sales[i].status != "Cancelled") {
+      for (var it in sales[i].items) {
+        int mi = medicines.indexWhere((m) => m.id == it.medicineID);
+        if (mi != -1) medicines[mi].stock += it.qty.toInt();
+      }
+      sales[i].status = "Cancelled";
+      sales[i].totalAmount = 0.0;
+      save();
+    }
   }
 }
