@@ -26,6 +26,19 @@ class PharoahManager with ChangeNotifier {
     await loadAllData();
   }
 
+  // --- GET START & END DATE OF CURRENT FY ---
+  DateTime get fyStartDate {
+    int startYear = int.parse(currentFY.split('-')[0]);
+    if (startYear < 2000) startYear += 2000;
+    return DateTime(startYear, 4, 1);
+  }
+
+  DateTime get fyEndDate {
+    int startYear = int.parse(currentFY.split('-')[0]);
+    if (startYear < 2000) startYear += 2000;
+    return DateTime(startYear + 1, 3, 31);
+  }
+
   Future<String> get _localPath async {
     final d = await getApplicationDocumentsDirectory();
     return d.path;
@@ -115,7 +128,9 @@ class PharoahManager with ChangeNotifier {
     if (i != -1) {
       for (var it in purchases[i].items) {
         int mi = medicines.indexWhere((m) => m.id == it.medicineID);
-        if (mi != -1) medicines[mi].stock -= (it.qty + it.freeQty).toInt();
+        if (mi != -1) {
+          medicines[mi].stock -= (it.qty + it.freeQty).toInt();
+        }
       }
       purchases.removeAt(i);
       save();
@@ -153,5 +168,15 @@ class PharoahManager with ChangeNotifier {
       sales[i].totalAmount = 0.0;
       save();
     }
+  }
+
+  Future<void> masterReset() async {
+    final path = await _localPath;
+    final files = ['$path/meds_$currentFY.json', '$path/parts_$currentFY.json', '$path/sales_$currentFY.json', '$path/purc_$currentFY.json', '$path/logs_$currentFY.json', '$path/bats_$currentFY.json'];
+    for (var f in files) { if (File(f).existsSync()) File(f).deleteSync(); }
+    final p = await SharedPreferences.getInstance();
+    await p.setInt('lastBillID', 0); await p.setInt('lastPurID', 0);
+    batchHistory.clear();
+    await loadAllData();
   }
 }
