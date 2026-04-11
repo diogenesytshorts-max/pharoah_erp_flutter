@@ -6,17 +6,13 @@ import 'models.dart';
 import 'sale_bill_number.dart';
 import 'pdf_service.dart';
 
-// --- CUSTOM FORMATTER FOR AUTO SLASH MM/YY ---
 class ExpiryDateFormatter extends TextInputFormatter {
   @override
   TextEditingValue formatEditUpdate(TextEditingValue oldValue, TextEditingValue newValue) {
     var text = newValue.text;
     if (newValue.selection.baseOffset < oldValue.selection.baseOffset) return newValue;
     if (text.length == 2 && !text.contains('/')) {
-      return TextEditingValue(
-        text: '$text/',
-        selection: TextSelection.collapsed(offset: 3),
-      );
+      return TextEditingValue(text: '$text/', selection: TextSelection.collapsed(offset: 3));
     }
     return newValue;
   }
@@ -25,9 +21,7 @@ class ExpiryDateFormatter extends TextInputFormatter {
 class BillingView extends StatefulWidget {
   final Party party; final String billNo; final DateTime billDate; final String mode;
   final List<BillItem>? existingItems; final String? modifySaleId; final bool isReadOnly;
-
   const BillingView({super.key, required this.party, required this.billNo, required this.billDate, required this.mode, this.existingItems, this.modifySaleId, this.isReadOnly = false});
-
   @override State<BillingView> createState() => _BillingViewState();
 }
 
@@ -43,8 +37,8 @@ class _BillingViewState extends State<BillingView> {
       backgroundColor: Colors.white,
       appBar: AppBar(backgroundColor: Colors.blue.shade700, foregroundColor: Colors.white, title: Text(widget.party.name),
         actions: [
-          IconButton(icon: const Icon(Icons.print_rounded), onPressed: items.isEmpty ? null : () => _saveAndPrint(ph)),
-          if (!widget.isReadOnly) TextButton(onPressed: items.isEmpty ? null : () => _saveAndClose(ph), child: const Text("SAVE", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)))
+          IconButton(icon: const Icon(Icons.print), onPressed: items.isEmpty ? null : () => _saveAndPrint(ph)),
+          if(!widget.isReadOnly) TextButton(onPressed: items.isEmpty ? null : () => _saveAndClose(ph), child: const Text("SAVE", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)))
         ],
       ),
       body: Stack(children: [
@@ -58,7 +52,7 @@ class _BillingViewState extends State<BillingView> {
               onAdd: (newItem) { setState(() { if (editingIndex != null) items[editingIndex!] = newItem; else items.add(newItem); selectedMed = null; editingIndex = null; search = ""; }); },
               onCancel: () => setState(() { selectedMed = null; editingIndex = null; }),
             ),
-          Expanded(child: ListView.separated(itemCount: items.length, separatorBuilder: (c, i) => const Divider(), itemBuilder: (c, i) => ListTile(title: Text(items[i].name, style: const TextStyle(fontWeight: FontWeight.bold)), subtitle: Text("Qty: ${items[i].qty.toInt()} | Batch: ${items[i].batch} | Exp: ${items[i].exp}"), trailing: Text("₹${items[i].total.toStringAsFixed(2)}", style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.blue)), onTap: widget.isReadOnly ? null : () => setState(() { selectedMed = ph.medicines.firstWhere((m) => m.id == items[i].medicineID); editingIndex = i; })))),
+          Expanded(child: ListView.separated(itemCount: items.length, separatorBuilder: (c, i) => const Divider(), itemBuilder: (c, i) => ListTile(title: Text(items[i].name), subtitle: Text("Qty: ${items[i].qty.toInt()} | Batch: ${items[i].batch} | Exp: ${items[i].exp}"), trailing: Text("₹${items[i].total.toStringAsFixed(2)}", style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.blue)), onTap: widget.isReadOnly ? null : () => setState(() { selectedMed = ph.medicines.firstWhere((m) => m.id == items[i].medicineID); editingIndex = i; })))),
           Container(padding: const EdgeInsets.all(15), color: Colors.blue.shade50, child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [const Text("GRAND TOTAL", style: TextStyle(fontWeight: FontWeight.bold)), Text("₹${grandTotal.toStringAsFixed(2)}", style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: Colors.blue))])),
         ]),
         if (search.isNotEmpty && selectedMed == null)
@@ -92,7 +86,8 @@ class ItemEntryForm extends StatefulWidget {
 class _ItemEntryFormState extends State<ItemEntryForm> {
   final bC = TextEditingController(); final eC = TextEditingController(); final gC = TextEditingController();
   final mC = TextEditingController(); final rC = TextEditingController(); final qC = TextEditingController();
-  String? originalExp;
+  final rCD = TextEditingController(text: "0"); // Rate C Discount %
+  String rT = "A"; String? originalExp;
 
   @override void initState() {
     super.initState();
@@ -100,27 +95,38 @@ class _ItemEntryFormState extends State<ItemEntryForm> {
     if (widget.existingItem != null) { bC.text = widget.existingItem!.batch; eC.text = widget.existingItem!.exp; originalExp = widget.existingItem!.exp; }
   }
 
+  void _calcRateC() {
+    double mrp = double.tryParse(mC.text) ?? 0; double gst = double.tryParse(gC.text) ?? 0; double disc = double.tryParse(rCD.text) ?? 0;
+    double taxable = mrp / (1 + (gst / 100));
+    rC.text = (taxable - (taxable * disc / 100)).toStringAsFixed(2);
+  }
+
   @override Widget build(BuildContext context) {
-    return Container(padding: const EdgeInsets.all(15), decoration: BoxDecoration(color: Colors.blue.shade50, border: const Border(bottom: BorderSide(color: Colors.blue, width: 2))), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Row(children: [Expanded(child: Text("${widget.srNo}. ${widget.med.name}", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 17, color: Colors.blue))), IconButton(icon: const Icon(Icons.cancel, color: Colors.red), onPressed: widget.onCancel)]),
+    return Container(padding: const EdgeInsets.all(15), color: Colors.blue.shade50, child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Row(children: [Expanded(child: Text("${widget.srNo}. ${widget.med.name}", style: const TextStyle(fontWeight: FontWeight.bold))), IconButton(icon: const Icon(Icons.close, color: Colors.red), onPressed: widget.onCancel)]),
       if (widget.batchHistory.isNotEmpty) ...[
-        const Text("Purane Batches:", style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.blueGrey)),
-        SizedBox(height: 40, child: ListView(scrollDirection: Axis.horizontal, children: widget.batchHistory.map((b) => Padding(padding: const EdgeInsets.only(right: 8), child: ActionChip(label: Text("${b.batch} (${b.exp})"), onPressed: () { setState(() { bC.text = b.batch; eC.text = b.exp; mC.text = b.mrp.toString(); rC.text = b.rate.toString(); originalExp = b.exp; }); }))).toList())),
+        SizedBox(height: 35, child: ListView(scrollDirection: Axis.horizontal, children: widget.batchHistory.map((b) => Padding(padding: const EdgeInsets.only(right: 5), child: ActionChip(label: Text(b.batch), onPressed: () { setState(() { bC.text = b.batch; eC.text = b.exp; mC.text = b.mrp.toString(); rC.text = b.rate.toString(); originalExp = b.exp; }); }))).toList())),
       ],
+      const SizedBox(height: 5),
+      SegmentedButton<String>(
+        segments: const [ButtonSegment(value: 'A', label: Text('Rate A')), ButtonSegment(value: 'B', label: Text('Rate B')), ButtonSegment(value: 'C', label: Text('Rate C (Formula)'))],
+        selected: {rT}, onSelectionChanged: (v) { setState(() { rT = v.first; if (rT == 'A') rC.text = widget.med.rateA.toString(); else if (rT == 'B') rC.text = widget.med.rateB.toString(); else _calcRateC(); }); },
+      ),
+      const SizedBox(height: 10),
       Row(children: [Expanded(child: _f(bC, "Batch")), const SizedBox(width: 5), Expanded(child: _f(eC, "Exp", fmt: [ExpiryDateFormatter()])), const SizedBox(width: 5), Expanded(child: _f(gC, "GST%"))]),
       const SizedBox(height: 10),
-      Row(children: [Expanded(child: _f(mC, "MRP")), const SizedBox(width: 5), Expanded(child: _f(rC, "Rate")), const SizedBox(width: 5), Expanded(child: _f(qC, "Qty"))]),
-      const SizedBox(height: 15),
+      Row(children: [Expanded(child: _f(mC, "MRP")), const SizedBox(width: 5), if(rT == 'C') Expanded(child: _f(rCD, "RC Disc%", onCh: (v) => _calcRateC())), const SizedBox(width: 5), Expanded(child: _f(rC, "Net Rate", en: rT != 'C')), const SizedBox(width: 5), Expanded(child: _f(qC, "Qty"))]),
+      const SizedBox(height: 10),
       ElevatedButton(style: ElevatedButton.styleFrom(minimumSize: const Size(double.infinity, 50), backgroundColor: Colors.blue.shade700), onPressed: () async {
         if (originalExp != null && originalExp != eC.text) {
-          bool confirm = await showDialog(context: context, builder: (c) => AlertDialog(title: const Text("Update Expiry?"), content: const Text("Aap purane batch ki expiry badal rahe hain. Sure?"), actions: [TextButton(onPressed: () => Navigator.pop(c, false), child: const Text("NO")), TextButton(onPressed: () => Navigator.pop(c, true), child: const Text("YES"))])) ?? false;
-          if (!confirm) return;
+          bool c = await showDialog(context: context, builder: (c) => AlertDialog(title: const Text("Update Expiry?"), content: const Text("Expiry change ho rahi hai, sure?"), actions: [TextButton(onPressed: () => Navigator.pop(c, false), child: const Text("NO")), TextButton(onPressed: () => Navigator.pop(c, true), child: const Text("YES"))])) ?? false;
+          if (!c) return;
         }
         double r = double.tryParse(rC.text) ?? 0, q = double.tryParse(qC.text) ?? 0, g = double.tryParse(gC.text) ?? 0, tax = r * q, gstAmt = tax * (g / 100);
         double cgst = 0, sgst = 0, igst = 0; if (widget.partyState == widget.shopState) { cgst = gstAmt/2; sgst = gstAmt/2; } else { igst = gstAmt; }
         widget.onAdd(BillItem(id: DateTime.now().toString(), srNo: widget.srNo, medicineID: widget.med.id, name: widget.med.name, packing: widget.med.packing, batch: bC.text.toUpperCase(), exp: eC.text, hsn: widget.med.hsnCode, mrp: double.tryParse(mC.text) ?? 0, qty: q, rate: r, gstRate: g, cgst: cgst, sgst: sgst, igst: igst, total: tax + gstAmt));
-      }, child: const Text("ADD TO BILL", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)))
+      }, child: const Text("ADD TO BILL", style: TextStyle(color: Colors.white)))
     ]));
   }
-  Widget _f(TextEditingController c, String l, {List<TextInputFormatter>? fmt}) => TextField(controller: c, inputFormatters: fmt, decoration: InputDecoration(labelText: l, border: const OutlineInputBorder(), contentPadding: const EdgeInsets.all(10)), keyboardType: TextInputType.text);
+  Widget _f(TextEditingController c, String l, {List<TextInputFormatter>? fmt, bool en = true, Function(String)? onCh}) => TextField(controller: c, enabled: en, inputFormatters: fmt, onChanged: onCh, decoration: InputDecoration(labelText: l, border: const OutlineInputBorder(), contentPadding: const EdgeInsets.all(8)), keyboardType: TextInputType.text);
 }
