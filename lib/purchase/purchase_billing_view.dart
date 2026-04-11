@@ -43,9 +43,16 @@ class _PurchaseBillingViewState extends State<PurchaseBillingView> {
     final ph = Provider.of<PharoahManager>(context);
 
     return Scaffold(
+      backgroundColor: Colors.white,
       appBar: AppBar(
         backgroundColor: Colors.orange.shade800, foregroundColor: Colors.white,
-        title: Text(widget.distributor.name, style: const TextStyle(fontSize: 14)),
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(widget.distributor.name, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
+            Text("${widget.internalNo} | Bill: ${widget.distBillNo}", style: const TextStyle(fontSize: 10)),
+          ],
+        ),
         actions: [
           TextButton(
             onPressed: items.isEmpty ? null : () => _handleSave(ph), 
@@ -53,54 +60,118 @@ class _PurchaseBillingViewState extends State<PurchaseBillingView> {
           )
         ],
       ),
-      body: Column(
+      body: Stack(
         children: [
-          if (selectedMed == null)
-            Padding(
-              padding: const EdgeInsets.all(10),
-              child: TextField(
-                autofocus: true,
-                decoration: const InputDecoration(hintText: "Search Product for Stock-In...", prefixIcon: Icon(Icons.search, color: Colors.orange), border: OutlineInputBorder()),
-                onChanged: (v) => setState(() => searchQuery = v),
+          Column(
+            children: [
+              // --- 1. SEARCH BAR ---
+              if (selectedMed == null)
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  color: Colors.orange.shade50,
+                  child: TextField(
+                    autofocus: true,
+                    decoration: InputDecoration(
+                      hintText: "Search Product for Stock-In...", 
+                      prefixIcon: const Icon(Icons.search, color: Colors.orange), 
+                      filled: true, fillColor: Colors.white,
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
+                    ), 
+                    onChanged: (v) => setState(() => searchQuery = v)
+                  ),
+                ),
+
+              // --- 2. ITEM ENTRY FORM ---
+              if (selectedMed != null)
+                PurchaseItemEntryForm(
+                  med: selectedMed!, 
+                  srNo: items.length + 1,
+                  batchHistory: ph.batchHistory[selectedMed!.id] ?? [],
+                  onAdd: (newItem) { 
+                    setState(() { 
+                      items.add(newItem); 
+                      selectedMed = null; 
+                      searchQuery = ""; 
+                    }); 
+                  },
+                  onCancel: () => setState(() => selectedMed = null),
+                ),
+
+              // --- 3. ADDED ITEMS LIST ---
+              Expanded(
+                child: ListView.separated(
+                  itemCount: items.length,
+                  separatorBuilder: (c, i) => const Divider(),
+                  itemBuilder: (c, i) => ListTile(
+                    title: Text(items[i].name, style: const TextStyle(fontWeight: FontWeight.bold)),
+                    subtitle: Text("Qty: ${items[i].qty.toInt()} + ${items[i].freeQty.toInt()} | Batch: ${items[i].batch} | Pur.Rate: ₹${items[i].purchaseRate}"),
+                    trailing: Text("₹${items[i].total.toStringAsFixed(2)}", style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.deepOrange, fontSize: 15)),
+                  )
+                )
               ),
-            ),
-          if (selectedMed != null)
-            PurchaseItemEntryForm(
-              med: selectedMed!, 
-              srNo: items.length + 1,
-              batchHistory: ph.batchHistory[selectedMed!.id] ?? [],
-              onAdd: (newItem) { 
-                setState(() { 
-                  items.add(newItem); 
-                  selectedMed = null; 
-                  searchQuery = ""; 
-                }); 
-              },
-              onCancel: () => setState(() => selectedMed = null),
-            ),
-          Expanded(
-            child: ListView.builder(
-              itemCount: items.length,
-              itemBuilder: (c, i) => ListTile(
-                title: Text(items[i].name, style: const TextStyle(fontWeight: FontWeight.bold)),
-                subtitle: Text("Qty: ${items[i].qty} + ${items[i].freeQty} | Batch: ${items[i].batch}"),
-                trailing: Text("₹${items[i].total.toStringAsFixed(2)}", style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.deepOrange)),
-              ),
-            ),
+
+              // --- 4. SUMMARY FOOTER ---
+              Container(
+                padding: const EdgeInsets.all(15),
+                decoration: BoxDecoration(color: Colors.orange.shade50, border: const Border(top: BorderSide(color: Colors.orange, width: 1))),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween, 
+                  children: [
+                    Text("Total Items: ${items.length}", style: const TextStyle(fontWeight: FontWeight.bold)), 
+                    Text("TOTAL: ₹${totalAmt.toStringAsFixed(2)}", style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: Colors.deepOrange)),
+                  ]
+                )
+              )
+            ],
           ),
+          
+          // --- 5. SEARCH RESULTS OVERLAY ---
+          if (searchQuery.isNotEmpty && selectedMed == null)
+            Positioned(
+              top: 70, left: 15, right: 15, 
+              child: Material(
+                elevation: 10, 
+                borderRadius: BorderRadius.circular(10),
+                child: Container(
+                  constraints: const BoxConstraints(maxHeight: 250), 
+                  decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(10)),
+                  child: ListView(
+                    shrinkWrap: true, 
+                    children: ph.medicines
+                        .where((m) => m.name.toLowerCase().contains(searchQuery.toLowerCase()))
+                        .map((m) => ListTile(
+                              leading: const Icon(Icons.medication, color: Colors.orange), 
+                              title: Text(m.name, style: const TextStyle(fontWeight: FontWeight.bold)), 
+                              subtitle: Text("Pack: ${m.packing} | Stock: ${m.stock}"), 
+                              onTap: () => setState(() { selectedMed = m; searchQuery = ""; })
+                            ))
+                        .toList()
+                  )
+                )
+              )
+            )
         ],
       ),
     );
   }
 
   void _handleSave(PharoahManager ph) async {
-    ph.finalizePurchase(internalNo: widget.internalNo, billNo: widget.distBillNo, date: widget.billDate, party: widget.distributor, items: items, total: totalAmt, mode: widget.mode);
+    ph.finalizePurchase(
+      internalNo: widget.internalNo, 
+      billNo: widget.distBillNo, 
+      date: widget.billDate, 
+      party: widget.distributor, 
+      items: items, 
+      total: totalAmt, 
+      mode: widget.mode
+    );
+    
     final prefs = await SharedPreferences.getInstance();
     int lastId = prefs.getInt('lastPurID') ?? 0;
     await prefs.setInt('lastPurID', lastId + 1);
     
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("✅ Purchase Entry Saved & Stock Updated!"), backgroundColor: Colors.orange));
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("✅ Purchase Saved & Stock Updated!"), backgroundColor: Colors.orange));
       Navigator.of(context).popUntil((route) => route.isFirst);
     }
   }
@@ -147,6 +218,25 @@ class _PurchaseItemEntryFormState extends State<PurchaseItemEntryForm> {
             Expanded(child: Text("${widget.srNo}. ${widget.med.name}", style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.deepOrange))),
             IconButton(icon: const Icon(Icons.close, color: Colors.red), onPressed: widget.onCancel)
           ]),
+
+          if (widget.batchHistory.isNotEmpty) ...[
+            const Text("Old Batches:", style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold)),
+            SizedBox(
+              height: 40,
+              child: ListView(
+                scrollDirection: Axis.horizontal,
+                children: widget.batchHistory.map((b) => Padding(
+                  padding: const EdgeInsets.only(right: 5),
+                  child: ActionChip(label: Text(b.batch), onPressed: () {
+                    setState(() {
+                      bC.text = b.batch; eC.text = b.exp; mC.text = b.mrp.toString();
+                      pRC.text = b.rate.toString();
+                    });
+                  }),
+                )).toList(),
+              ),
+            ),
+          ],
           
           Row(children: [
             Expanded(child: _field(bC, "Batch")),
