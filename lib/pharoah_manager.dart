@@ -91,7 +91,6 @@ class PharoahManager with ChangeNotifier {
   Future<void> loadAllData() async {
     final path = await _localPath;
     try {
-      // 1. Load Medicines
       final mf = File('$path/meds_$currentFY.json');
       if (mf.existsSync()) {
         medicines = (jsonDecode(mf.readAsStringSync()) as List).map((e) => Medicine.fromMap(e)).toList();
@@ -99,7 +98,6 @@ class PharoahManager with ChangeNotifier {
         medicines = DemoData.getMedicines();
       }
 
-      // 2. Load Parties
       final pf = File('$path/parts_$currentFY.json');
       if (pf.existsSync()) {
         parties = (jsonDecode(pf.readAsStringSync()) as List).map((e) => Party.fromMap(e)).toList();
@@ -108,27 +106,23 @@ class PharoahManager with ChangeNotifier {
         if (!parties.any((p) => p.name == "CASH")) parties.insert(0, Party(id: 'cash', name: "CASH"));
       }
 
-      // 3. Load Sales
       final sf = File('$path/sales_$currentFY.json');
       if (sf.existsSync()) {
         final List d = jsonDecode(sf.readAsStringSync());
         sales = d.map((e) => Sale.fromMap(e)).toList();
       }
 
-      // 4. Load Purchases
       final purF = File('$path/purc_$currentFY.json');
       if (purF.existsSync()) {
         final List d = jsonDecode(purF.readAsStringSync());
         purchases = d.map((e) => Purchase.fromMap(e)).toList();
       }
 
-      // 5. Load Audit Logs
       final lf = File('$path/logs_$currentFY.json');
       if (lf.existsSync()) {
         logs = (jsonDecode(lf.readAsStringSync()) as List).map((e) => LogEntry.fromMap(e)).toList();
       }
 
-      // 6. Load Batch History
       final bf = File('$path/bats_$currentFY.json');
       if (bf.existsSync()) {
         Map<String, dynamic> d = jsonDecode(bf.readAsStringSync());
@@ -159,6 +153,17 @@ class PharoahManager with ChangeNotifier {
     batchHistory.clear();
     await loadAllData();
     addLog("SYSTEM RESET", "Database was completely wiped clean.");
+  }
+
+  // --- PARTY ACTIONS ---
+  void deleteParty(String id) {
+    int i = parties.indexWhere((p) => p.id == id);
+    if (i != -1) {
+      if (parties[i].name == "CASH") return; // Safety: Don't delete CASH party
+      addLog("DELETE", "Party ${parties[i].name} deleted from master.");
+      parties.removeAt(i);
+      save();
+    }
   }
 
   // --- BUSINESS LOGIC: FINALIZE SALE ---
