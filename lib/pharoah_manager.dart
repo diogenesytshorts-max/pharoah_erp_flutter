@@ -7,7 +7,6 @@ import 'models.dart';
 import 'demo_data.dart';
 
 class PharoahManager with ChangeNotifier {
-  // --- STATE DATA ---
   List<Medicine> medicines = [];
   List<Party> parties = [];
   List<Sale> sales = [];
@@ -18,11 +17,8 @@ class PharoahManager with ChangeNotifier {
   String currentFY = "2025-26";
   String companyState = "Rajasthan";
 
-  PharoahManager() {
-    initManager();
-  }
+  PharoahManager() { initManager(); }
 
-  // --- INITIALIZATION ---
   Future<void> initManager() async {
     final p = await SharedPreferences.getInstance();
     currentFY = p.getString('fy') ?? "2025-26";
@@ -30,25 +26,21 @@ class PharoahManager with ChangeNotifier {
     await loadAllData();
   }
 
-  // --- FINANCIAL YEAR DATES (Strict Boundaries) ---
+  // --- FINANCIAL YEAR BOUNDARIES ---
   DateTime get fyStartDate {
     try {
-      int startYear = int.parse(currentFY.split('-')[0]);
-      if (startYear < 2000) startYear += 2000;
-      return DateTime(startYear, 4, 1);
-    } catch (e) {
-      return DateTime(DateTime.now().year, 4, 1);
-    }
+      int y = int.parse(currentFY.split('-')[0]);
+      if (y < 2000) y += 2000;
+      return DateTime(y, 4, 1);
+    } catch (e) { return DateTime(DateTime.now().year, 4, 1); }
   }
 
   DateTime get fyEndDate {
     try {
-      int startYear = int.parse(currentFY.split('-')[0]);
-      if (startYear < 2000) startYear += 2000;
-      return DateTime(startYear + 1, 3, 31);
-    } catch (e) {
-      return DateTime(DateTime.now().year + 1, 3, 31);
-    }
+      int y = int.parse(currentFY.split('-')[0]);
+      if (y < 2000) y += 2000;
+      return DateTime(y + 1, 3, 31);
+    } catch (e) { return DateTime(DateTime.now().year + 1, 3, 31); }
   }
 
   Future<String> get _localPath async {
@@ -56,154 +48,102 @@ class PharoahManager with ChangeNotifier {
     return d.path;
   }
 
-  void addLog(String action, String details) {
-    logs.add(LogEntry(
-      id: DateTime.now().toString(), 
-      action: action, 
-      details: details, 
-      time: DateTime.now()
-    ));
-    save();
-  }
-
-  // --- PERSISTENCE: SAVE ALL TO JSON ---
-  Future<void> save() async {
+  // ===================================================
+  // 🛡️ DATA SECURITY: ROBUST SAVE & LOAD
+  // ===================================================
+  Future<void> _robustSave(String fileName, String content) async {
     final path = await _localPath;
+    final file = File('$path/$fileName');
+    final bak = File('$path/$fileName.bak');
+    final tmp = File('$path/$fileName.tmp');
     try {
-      File('$path/meds_$currentFY.json').writeAsStringSync(jsonEncode(medicines.map((e) => e.toMap()).toList()));
-      File('$path/parts_$currentFY.json').writeAsStringSync(jsonEncode(parties.map((e) => e.toMap()).toList()));
-      File('$path/sales_$currentFY.json').writeAsStringSync(jsonEncode(sales.map((e) => e.toMap()).toList()));
-      File('$path/purc_$currentFY.json').writeAsStringSync(jsonEncode(purchases.map((e) => e.toMap()).toList()));
-      File('$path/logs_$currentFY.json').writeAsStringSync(jsonEncode(logs.map((e) => e.toMap()).toList()));
-      
-      Map<String, dynamic> hMap = {};
-      batchHistory.forEach((k, v) => hMap[k] = v.map((b) => b.toMap()).toList());
-      File('$path/bats_$currentFY.json').writeAsStringSync(jsonEncode(hMap));
-      
-      notifyListeners();
-    } catch (e) {
-      debugPrint("System Save Error: $e");
-    }
+      tmp.writeAsStringSync(content);
+      if (tmp.existsSync()) {
+        file.writeAsStringSync(content);
+        bak.writeAsStringSync(content);
+        tmp.deleteSync();
+      }
+    } catch (e) { debugPrint("Save Error ($fileName): $e"); }
   }
 
-  // --- PERSISTENCE: LOAD ALL FROM JSON ---
+  dynamic _robustLoad(String fileName) {
+    try {
+      final f = File(fileName);
+      final b = File('$fileName.bak');
+      if (f.existsSync()) {
+        String c = f.readAsStringSync();
+        if (c.isNotEmpty) return jsonDecode(c);
+      }
+      if (b.existsSync()) {
+        debugPrint("Restoring from Backup: $fileName");
+        return jsonDecode(b.readAsStringSync());
+      }
+    } catch (e) { debugPrint("Load Error ($fileName): $e"); }
+    return null;
+  }
+
+  Future<void> save() async {
+    await _robustSave('meds_$currentFY.json', jsonEncode(medicines.map((e)=>e.toMap()).toList()));
+    await _robustSave('parts_$currentFY.json', jsonEncode(parties.map((e)=>e.toMap()).toList()));
+    await _robustSave('sales_$currentFY.json', jsonEncode(sales.map((e)=>e.toMap()).toList()));
+    await _robustSave('purc_$currentFY.json', jsonEncode(purchases.map((e)=>e.toMap()).toList()));
+    await _robustSave('logs_$currentFY.json', jsonEncode(logs.map((e)=>e.toMap()).toList()));
+    await _robustSave('bats_$currentFY.json', jsonEncode(batchHistory.map((k, v) => MapEntry(k, v.map((b) => b.toMap()).toList()))));
+    notifyListeners();
+  }
+
   Future<void> loadAllData() async {
     final path = await _localPath;
-    try {
-      final mf = File('$path/meds_$currentFY.json');
-      if (mf.existsSync()) {
-        medicines = (jsonDecode(mf.readAsStringSync()) as List).map((e) => Medicine.fromMap(e)).toList();
-      } else {
-        medicines = DemoData.getMedicines();
-      }
+    var mD = _robustLoad('$path/meds_$currentFY.json');
+    medicines = mD != null ? (mD as List).map((e)=>Medicine.fromMap(e)).toList() : DemoData.getMedicines();
+    
+    var pD = _robustLoad('$path/parts_$currentFY.json');
+    parties = pD != null ? (pD as List).map((e)=>Party.fromMap(e)).toList() : [DemoData.getDemoParty(), Party(id: 'cash', name: "CASH")];
+    
+    var sD = _robustLoad('$path/sales_$currentFY.json');
+    sales = sD != null ? (sD as List).map((e)=>Sale.fromMap(e)).toList() : [];
+    
+    var purD = _robustLoad('$path/purc_$currentFY.json');
+    purchases = purD != null ? (purD as List).map((e)=>Purchase.fromMap(e)).toList() : [];
 
-      final pf = File('$path/parts_$currentFY.json');
-      if (pf.existsSync()) {
-        parties = (jsonDecode(pf.readAsStringSync()) as List).map((e) => Party.fromMap(e)).toList();
-      } else {
-        parties = [DemoData.getDemoParty(), Party(id: 'cash', name: "CASH")];
-      }
+    var lD = _robustLoad('$path/logs_$currentFY.json');
+    logs = lD != null ? (lD as List).map((e)=>LogEntry.fromMap(e)).toList() : [];
 
-      final sf = File('$path/sales_$currentFY.json');
-      if (sf.existsSync()) {
-        sales = (jsonDecode(sf.readAsStringSync()) as List).map((e) => Sale.fromMap(e)).toList();
-      }
-
-      final purF = File('$path/purc_$currentFY.json');
-      if (purF.existsSync()) {
-        purchases = (jsonDecode(purF.readAsStringSync()) as List).map((e) => Purchase.fromMap(e)).toList();
-      }
-
-      final lf = File('$path/logs_$currentFY.json');
-      if (lf.existsSync()) {
-        logs = (jsonDecode(lf.readAsStringSync()) as List).map((e) => LogEntry.fromMap(e)).toList();
-      }
-
-      final bf = File('$path/bats_$currentFY.json');
-      if (bf.existsSync()) {
-        Map<String, dynamic> d = jsonDecode(bf.readAsStringSync());
-        d.forEach((k, v) => batchHistory[k] = (v as List).map((b) => BatchInfo.fromMap(b)).toList());
-      }
-      
-      notifyListeners();
-    } catch (e) {
-      debugPrint("System Load Error: $e");
-    }
+    var bD = _robustLoad('$path/bats_$currentFY.json');
+    if (bD != null) { bD.forEach((k, v) => batchHistory[k] = (v as List).map((b) => BatchInfo.fromMap(b)).toList()); }
+    notifyListeners();
   }
 
-  // --- MASTER ACTIONS ---
-  void deleteParty(String id) {
-    int i = parties.indexWhere((p) => p.id == id);
-    if (i != -1 && parties[i].name != "CASH") {
-      parties.removeAt(i);
-      save();
-    }
-  }
-
-  // --- BUSINESS LOGIC: FINALIZE SALE ---
+  // ===================================================
+  // 💼 BUSINESS LOGIC (SALE / PURCHASE / DELETE)
+  // ===================================================
   void finalizeSale({required String billNo, required DateTime date, required Party party, required List<BillItem> items, required double total, required String mode}) {
     sales.add(Sale(
-      id: DateTime.now().toString(), 
-      billNo: billNo, 
-      date: date, 
-      partyName: party.name, 
-      partyGstin: party.gst,
-      partyState: party.state,
-      partyAddress: party.address,
-      partyDl: party.dl,
-      items: items, 
-      totalAmount: total, 
-      paymentMode: mode,
-      invoiceType: party.isB2B ? "B2B" : "B2C"
+      id: DateTime.now().toString(), billNo: billNo, date: date, partyName: party.name, 
+      partyGstin: party.gst, partyState: party.state, partyAddress: party.address, 
+      partyDl: party.dl, partyEmail: party.email, items: items, totalAmount: total, 
+      paymentMode: mode, invoiceType: party.isB2B ? "B2B" : "B2C"
     ));
-
-    for (var item in items) {
-      int idx = medicines.indexWhere((m) => m.id == item.medicineID);
+    for (var it in items) {
+      int idx = medicines.indexWhere((m) => m.id == it.medicineID);
       if (idx != -1) {
-        medicines[idx].stock -= item.qty.toInt();
-        _updateBatch(item.medicineID, BatchInfo(batch: item.batch, exp: item.exp, packing: item.packing, mrp: item.mrp, rate: item.rate));
+        medicines[idx].stock -= it.qty.toInt();
+        _updateBatch(it.medicineID, BatchInfo(batch: it.batch, exp: it.exp, packing: it.packing, mrp: it.mrp, rate: it.rate));
       }
     }
     save();
   }
 
-  void cancelBill(String id) {
-    int i = sales.indexWhere((s) => s.id == id);
-    if (i != -1 && sales[i].status != "Cancelled") {
-      for (var it in sales[i].items) {
-        int mi = medicines.indexWhere((m) => m.id == it.medicineID);
-        if (mi != -1) medicines[mi].stock += it.qty.toInt();
-      }
-      sales[i].status = "Cancelled";
-      sales[i].totalAmount = 0.0;
-      save();
-    }
-  }
-
-  // --- BUSINESS LOGIC: FINALIZE PURCHASE ---
   void finalizePurchase({required String internalNo, required String billNo, required DateTime date, required Party party, required List<PurchaseItem> items, required double total, required String mode}) {
-    purchases.add(Purchase(
-      id: DateTime.now().toString(), 
-      internalNo: internalNo, 
-      billNo: billNo, 
-      date: date, 
-      distributorName: party.name, 
-      items: items, 
-      totalAmount: total, 
-      paymentMode: mode
-    ));
-
-    for (var item in items) {
-      int idx = medicines.indexWhere((m) => m.id == item.medicineID);
+    purchases.add(Purchase(id: DateTime.now().toString(), internalNo: internalNo, billNo: billNo, date: date, distributorName: party.name, items: items, totalAmount: total, paymentMode: mode));
+    for (var it in items) {
+      int idx = medicines.indexWhere((m) => m.id == it.medicineID);
       if (idx != -1) {
-        medicines[idx].stock += (item.qty + item.freeQty).toInt();
-        medicines[idx].purRate = item.purchaseRate;
-        medicines[idx].mrp = item.mrp;
-        medicines[idx].gst = item.gstRate;
-        medicines[idx].rateA = item.rateA;
-        medicines[idx].rateB = item.rateB;
-        medicines[idx].rateC = item.rateC;
-        _updateBatch(item.medicineID, BatchInfo(batch: item.batch, exp: item.exp, packing: item.packing, mrp: item.mrp, rate: item.purchaseRate));
+        medicines[idx].stock += (it.qty + it.freeQty).toInt();
+        medicines[idx].purRate = it.purchaseRate;
+        medicines[idx].mrp = it.mrp; medicines[idx].gst = it.gstRate;
+        medicines[idx].rateA = it.rateA; medicines[idx].rateB = it.rateB; medicines[idx].rateC = it.rateC;
+        _updateBatch(it.medicineID, BatchInfo(batch: it.batch, exp: it.exp, packing: it.packing, mrp: it.mrp, rate: it.purchaseRate));
       }
     }
     save();
@@ -221,12 +161,6 @@ class PharoahManager with ChangeNotifier {
     }
   }
 
-  void _updateBatch(String mId, BatchInfo b) {
-    if (!batchHistory.containsKey(mId)) batchHistory[mId] = [];
-    int idx = batchHistory[mId]!.indexWhere((x) => x.batch == b.batch);
-    if (idx != -1) batchHistory[mId]![idx] = b; else batchHistory[mId]!.add(b);
-  }
-
   void deleteBill(String id) {
     int i = sales.indexWhere((s) => s.id == id);
     if (i != -1) {
@@ -241,7 +175,41 @@ class PharoahManager with ChangeNotifier {
     }
   }
 
-  // --- UTILITIES ---
+  void cancelBill(String id) {
+    int i = sales.indexWhere((s) => s.id == id);
+    if (i != -1 && sales[i].status != "Cancelled") {
+      for (var it in sales[i].items) {
+        int mi = medicines.indexWhere((m) => m.id == it.medicineID);
+        if (mi != -1) medicines[mi].stock += it.qty.toInt();
+      }
+      sales[i].status = "Cancelled";
+      sales[i].totalAmount = 0.0;
+      save();
+    }
+  }
+
+  void deleteParty(String id) {
+    int i = parties.indexWhere((p) => p.id == id);
+    if (i != -1 && parties[i].name != "CASH") {
+      parties.removeAt(i);
+      save();
+    }
+  }
+
+  void _updateBatch(String mId, BatchInfo b) {
+    if (!batchHistory.containsKey(mId)) batchHistory[mId] = [];
+    int idx = batchHistory[mId]!.indexWhere((x) => x.batch == b.batch);
+    if (idx != -1) batchHistory[mId]![idx] = b; else batchHistory[mId]!.add(b);
+  }
+
+  void addLog(String action, String details) {
+    logs.add(LogEntry(id: DateTime.now().toString(), action: action, details: details, time: DateTime.now()));
+    save();
+  }
+
+  // ===================================================
+  // 🛠️ SYSTEM UTILITIES (BACKUP / MAINTENANCE / RESET)
+  // ===================================================
   Future<void> runAutoBackup() async {
     try {
       final path = await _localPath;
@@ -251,7 +219,10 @@ class PharoahManager with ChangeNotifier {
       files.sort((a, b) => a.statSync().modified.compareTo(b.statSync().modified));
       if (files.length >= 10) await files.first.delete();
       String ts = DateTime.now().toString().replaceAll(' ', '_').replaceAll(':', '-').split('.').first;
-      File('$path/backups/auto_$ts.json').writeAsStringSync(jsonEncode({'meds': medicines.map((e)=>e.toMap()).toList(), 'sales': sales.map((e)=>e.toMap()).toList()}));
+      File('$path/backups/auto_$ts.json').writeAsStringSync(jsonEncode({
+        'meds': medicines.map((e)=>e.toMap()).toList(),
+        'sales': sales.map((e)=>e.toMap()).toList()
+      }));
     } catch (e) {}
   }
 
