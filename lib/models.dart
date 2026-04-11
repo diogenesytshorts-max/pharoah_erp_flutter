@@ -17,9 +17,9 @@ class Medicine {
 class Party {
   String id, name, address, city, state, phone, gst, dl, email;
   Party({required this.id, required this.name, this.address = "", this.city = "", this.state = "Rajasthan", this.phone = "", this.gst = "N/A", this.dl = "N/A", this.email = "N/A"});
-  bool get isB2B => gst != "N/A" && gst.trim().length >= 15;
   Map<String, dynamic> toMap() => {'id': id, 'name': name, 'address': address, 'city': city, 'state': state, 'phone': phone, 'gst': gst, 'dl': dl, 'email': email};
   factory Party.fromMap(Map<String, dynamic> map) => Party(id: map['id'] ?? "", name: map['name'] ?? "", address: map['address'] ?? "", city: map['city'] ?? "", state: map['state'] ?? "Rajasthan", phone: map['phone'] ?? "", gst: map['gst'] ?? "N/A", dl: map['dl'] ?? "N/A", email: map['email'] ?? "N/A");
+  bool get isB2B => gst != "N/A" && gst.length >= 15;
 }
 
 class BillItem {
@@ -30,10 +30,10 @@ class BillItem {
 }
 
 class Sale {
-  String id, billNo, partyName, partyGstin, partyState, partyAddress, partyDl, status, invoiceType, paymentMode; DateTime date; List<BillItem> items; double totalAmount;
-  Sale({required this.id, required this.billNo, required this.date, required this.partyName, required this.partyGstin, required this.partyState, required this.partyAddress, required this.partyDl, required this.items, required this.totalAmount, required this.paymentMode, this.status = "Active", this.invoiceType = "B2C"});
-  Map<String, dynamic> toMap() => {'id': id, 'billNo': billNo, 'date': date.toIso8601String(), 'partyName': partyName, 'partyGstin': partyGstin, 'partyState': partyState, 'partyAddress': partyAddress, 'partyDl': partyDl, 'paymentMode': paymentMode, 'totalAmount': totalAmount, 'status': status, 'invoiceType': invoiceType, 'items': items.map((i) => i.toMap()).toList()};
-  factory Sale.fromMap(Map<String, dynamic> map) => Sale(id: map['id'], billNo: map['billNo'], date: DateTime.parse(map['date']), partyName: map['partyName'], partyGstin: map['partyGstin'] ?? "N/A", partyState: map['partyState'] ?? "Rajasthan", partyAddress: map['partyAddress'] ?? "", partyDl: map['partyDl'] ?? "N/A", paymentMode: map['paymentMode'] ?? "CASH", totalAmount: (map['totalAmount'] ?? 0).toDouble(), status: map['status'] ?? "Active", invoiceType: map['invoiceType'] ?? "B2C", items: (map['items'] as List).map((i) => BillItem.fromMap(i)).toList());
+  String id, billNo, partyName, partyGstin, partyState, partyAddress, partyDl, partyEmail, status, invoiceType, paymentMode; DateTime date; List<BillItem> items; double totalAmount;
+  Sale({required this.id, required this.billNo, required this.date, required this.partyName, required this.partyGstin, required this.partyState, required this.partyAddress, required this.partyDl, required this.partyEmail, required this.items, required this.totalAmount, required this.paymentMode, this.status = "Active", this.invoiceType = "B2C"});
+  Map<String, dynamic> toMap() => {'id': id, 'billNo': billNo, 'date': date.toIso8601String(), 'partyName': partyName, 'partyGstin': partyGstin, 'partyState': partyState, 'partyAddress': partyAddress, 'partyDl': partyDl, 'partyEmail': partyEmail, 'paymentMode': paymentMode, 'totalAmount': totalAmount, 'status': status, 'invoiceType': invoiceType, 'items': items.map((i) => i.toMap()).toList()};
+  factory Sale.fromMap(Map<String, dynamic> map) => Sale(id: map['id'], billNo: map['billNo'], date: DateTime.parse(map['date']), partyName: map['partyName'], partyGstin: map['partyGstin'] ?? "N/A", partyState: map['partyState'] ?? "Rajasthan", partyAddress: map['partyAddress'] ?? "", partyDl: map['partyDl'] ?? "N/A", partyEmail: map['partyEmail'] ?? "N/A", paymentMode: map['paymentMode'] ?? "CASH", totalAmount: (map['totalAmount'] ?? 0).toDouble(), status: map['status'] ?? "Active", invoiceType: map['invoiceType'] ?? "B2C", items: (map['items'] as List).map((i) => BillItem.fromMap(i)).toList());
 }
 
 class LogEntry {
