@@ -23,6 +23,8 @@ class _PurchaseEntryViewState extends State<PurchaseEntryView> {
   void initState() {
     super.initState();
     final ph = Provider.of<PharoahManager>(context, listen: false);
+    
+    // Ensure default date is valid for this FY
     if (selectedBillDate.isBefore(ph.fyStartDate) || selectedBillDate.isAfter(ph.fyEndDate)) {
       selectedBillDate = ph.fyStartDate;
     }
@@ -55,7 +57,12 @@ class _PurchaseEntryViewState extends State<PurchaseEntryView> {
                 const SizedBox(height: 15),
                 Row(children: [
                   Expanded(child: InkWell(onTap: () async { 
-                    DateTime? p = await showDatePicker(context: context, initialDate: selectedBillDate, firstDate: ph.fyStartDate, lastDate: ph.fyEndDate); 
+                    DateTime? p = await showDatePicker(
+                      context: context, 
+                      initialDate: selectedBillDate, 
+                      firstDate: ph.fyStartDate, // Strict Boundary
+                      lastDate: ph.fyEndDate     // Strict Boundary
+                    ); 
                     if (p != null) setState(() => selectedBillDate = p); 
                   }, child: Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(border: Border.all(color: Colors.grey.shade400), borderRadius: BorderRadius.circular(5)), child: Text(DateFormat('dd/MM/yyyy').format(selectedBillDate))))),
                   const SizedBox(width: 15),
@@ -70,6 +77,13 @@ class _PurchaseEntryViewState extends State<PurchaseEntryView> {
             Expanded(child: Column(children: [Padding(padding: const EdgeInsets.all(20), child: TextField(decoration: const InputDecoration(hintText: "Search Supplier...", prefixIcon: Icon(Icons.search), border: OutlineInputBorder()), onChanged: (v) => setState(() => distSearch = v))), Expanded(child: ListView(children: ph.parties.where((p) => p.name.toLowerCase().contains(distSearch.toLowerCase())).map((p) => ListTile(title: Text(p.name), subtitle: Text(p.city), onTap: () => setState(() => selectedDistributor = p))).toList()))])),
           if (selectedDistributor != null) Padding(padding: const EdgeInsets.all(20), child: ElevatedButton(style: ElevatedButton.styleFrom(minimumSize: const Size(double.infinity, 60), backgroundColor: Colors.orange.shade800), onPressed: () {
             if (supplierBillNoC.text.trim().isEmpty) return;
+            
+            // Final check before proceeding
+            if (selectedBillDate.isBefore(ph.fyStartDate) || selectedBillDate.isAfter(ph.fyEndDate)) {
+               ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Date out of range!")));
+               return;
+            }
+
             Navigator.push(context, MaterialPageRoute(builder: (c) => PurchaseBillingView(distributor: selectedDistributor!, internalNo: internalEntryNoC.text, distBillNo: supplierBillNoC.text.trim(), billDate: selectedBillDate, mode: paymentMode)));
           }, child: const Text("PROCEED TO ITEMS", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18)))),
         ],
