@@ -19,12 +19,13 @@ class _GSTReportDetailViewState extends State<GSTReportDetailView> {
   Widget build(BuildContext context) {
     final ph = Provider.of<PharoahManager>(context);
     
-    // Monthly Filtering
+    // Logic: Filter sales and purchases for the selected month
     List<Sale> allSales = ph.sales.where((s) => 
       s.date.month == selectedDate.month && s.date.year == selectedDate.year
     ).toList();
     
     List<Sale> activeSales = allSales.where((s) => s.status == "Active").toList();
+    
     List<Purchase> mPurchases = ph.purchases.where((p) => 
       p.date.month == selectedDate.month && p.date.year == selectedDate.year
     ).toList();
@@ -36,17 +37,17 @@ class _GSTReportDetailViewState extends State<GSTReportDetailView> {
         backgroundColor: Colors.indigo.shade900,
         foregroundColor: Colors.white,
         actions: [
-          // Export PDF Button
+          // Export PDF Tool
           IconButton(
             icon: const Icon(Icons.picture_as_pdf), 
-            tooltip: "Export PDF",
+            tooltip: "Export PDF Report",
             onPressed: () => PdfService.generateGstReport(widget.reportType, allSales, DateFormat('MMMM-yyyy').format(selectedDate))
           ),
-          // Export JSON Button (Only for GSTR-1)
+          // Export JSON Tool (Specifically for GSTR-1)
           if (widget.reportType.contains("GSTR-1"))
             IconButton(
               icon: const Icon(Icons.code), 
-              tooltip: "Export JSON",
+              tooltip: "Export JSON for Portal",
               onPressed: () => PdfService.generateGstJson(allSales, DateFormat('MMYYYY').format(selectedDate))
             ),
         ],
@@ -55,17 +56,17 @@ class _GSTReportDetailViewState extends State<GSTReportDetailView> {
         children: [
           _buildMonthHeader(),
           if (widget.reportType.contains("GSTR-1"))
-            _buildGstr1DetailedTabs(activeSales, allSales)
+            _buildGstr1DetailedTableView(activeSales, allSales)
           else if (widget.reportType.contains("GSTR-2"))
-            _buildGstr2View(mPurchases)
+            _buildGstr2ReconciliationView(mPurchases)
           else if (widget.reportType.contains("GSTR-3B"))
-            _buildGstr3BView(activeSales, mPurchases),
+            _buildGstr3BSummaryView(activeSales, mPurchases),
         ],
       ),
     );
   }
 
-  // --- HEADER: PERIOD SELECTOR ---
+  // --- HEADER: MONTH & YEAR SELECTOR ---
   Widget _buildMonthHeader() {
     return Container(
       padding: const EdgeInsets.all(12),
@@ -73,14 +74,14 @@ class _GSTReportDetailViewState extends State<GSTReportDetailView> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          const Text("GST REPORTING PERIOD:", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11, color: Colors.blueGrey)),
+          const Text("REPORTING PERIOD:", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11, color: Colors.blueGrey)),
           InkWell(
             onTap: () async {
               DateTime? p = await showDatePicker(context: context, initialDate: selectedDate, firstDate: DateTime(2020), lastDate: DateTime(2100));
               if (p != null) setState(() => selectedDate = p);
             },
             child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
               decoration: BoxDecoration(color: Colors.white, border: Border.all(color: Colors.indigo), borderRadius: BorderRadius.circular(5)),
               child: Text(DateFormat('MMMM yyyy').format(selectedDate), style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.indigo)),
             ),
@@ -90,8 +91,8 @@ class _GSTReportDetailViewState extends State<GSTReportDetailView> {
     );
   }
 
-  // --- GSTR-1: MARG STYLE TABS & TABLES ---
-  Widget _buildGstr1DetailedTabs(List<Sale> active, List<Sale> all) {
+  // --- GSTR-1: TABBED TABLE VIEW (MARG STYLE) ---
+  Widget _buildGstr1DetailedTableView(List<Sale> active, List<Sale> all) {
     return Expanded(
       child: DefaultTabController(
         length: 4,
@@ -105,20 +106,20 @@ class _GSTReportDetailViewState extends State<GSTReportDetailView> {
                 unselectedLabelColor: Colors.grey,
                 indicatorColor: Colors.indigo,
                 tabs: [
-                  Tab(text: "B2B (Table 4)"),
-                  Tab(text: "B2C (Table 7)"),
-                  Tab(text: "HSN (Table 12)"),
-                  Tab(text: "DOCS (Table 13)"),
+                  Tab(text: "Table 4: B2B"),
+                  Tab(text: "Table 7: B2C"),
+                  Tab(text: "Table 12: HSN"),
+                  Tab(text: "Table 13: DOCS"),
                 ],
               ),
             ),
             Expanded(
               child: TabBarView(
                 children: [
-                  _buildSalesTable(active.where((s) => s.invoiceType == "B2B").toList(), true),
-                  _buildSalesTable(active.where((s) => s.invoiceType == "B2C").toList(), false),
+                  _buildDataTable(active.where((s) => s.invoiceType == "B2B").toList(), true),  // Registered
+                  _buildDataTable(active.where((s) => s.invoiceType == "B2C").toList(), false), // Unregistered
                   _buildHsnSummaryTable(active),
-                  _buildDocumentSummaryView(all),
+                  _buildDocumentSummaryTable(all),
                 ],
               ),
             )
@@ -128,10 +129,10 @@ class _GSTReportDetailViewState extends State<GSTReportDetailView> {
     );
   }
 
-  // --- REUSABLE DATA TABLE FOR SALES (HORIZONTAL SCROLL) ---
-  Widget _buildSalesTable(List<Sale> list, bool showGstin) {
-    if (list.isEmpty) return const Center(child: Text("No transactions in this category."));
-    
+  // --- REUSABLE WIDE DATA TABLE (HORIZONTAL SCROLL) ---
+  Widget _buildDataTable(List<Sale> list, bool showGstin) {
+    if (list.isEmpty) return const Center(child: Text("No records found for this period."));
+
     return SingleChildScrollView(
       scrollDirection: Axis.vertical,
       child: SingleChildScrollView(
@@ -139,7 +140,7 @@ class _GSTReportDetailViewState extends State<GSTReportDetailView> {
         child: DataTable(
           headingRowColor: MaterialStateProperty.all(Colors.blueGrey.shade800),
           headingTextStyle: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
-          columnSpacing: 20,
+          columnSpacing: 25,
           columns: [
             const DataColumn(label: Text('DATE')),
             const DataColumn(label: Text('BILL NO')),
@@ -151,7 +152,7 @@ class _GSTReportDetailViewState extends State<GSTReportDetailView> {
             const DataColumn(label: Text('TOTAL')),
           ],
           rows: list.map((s) {
-            double taxable = s.totalAmount / 1.12; // Example calculation
+            double taxable = s.totalAmount / 1.12; // Example tax back-calc
             double gst = s.totalAmount - taxable;
             return DataRow(cells: [
               DataCell(Text(DateFormat('dd/MM').format(s.date))),
@@ -169,7 +170,7 @@ class _GSTReportDetailViewState extends State<GSTReportDetailView> {
     );
   }
 
-  // --- HSN SUMMARY TABLE ---
+  // --- HSN SUMMARY TABLE (TABLE 12) ---
   Widget _buildHsnSummaryTable(List<Sale> sales) {
     Map<String, Map<String, dynamic>> hsnMap = {};
     for (var s in sales) {
@@ -201,43 +202,43 @@ class _GSTReportDetailViewState extends State<GSTReportDetailView> {
     );
   }
 
-  // --- DOCUMENT SUMMARY VIEW ---
-  Widget _buildDocumentSummaryView(List<Sale> all) {
+  // --- DOCUMENT SUMMARY (TABLE 13) ---
+  Widget _buildDocumentSummaryTable(List<Sale> all) {
     int total = all.length;
     int cancelled = all.where((s) => s.status == "Cancelled").length;
     return Padding(
       padding: const EdgeInsets.all(20),
       child: Column(
         children: [
-          _summaryRow("Total Invoices Issued", total.toString(), Colors.black),
-          _summaryRow("Cancelled Invoices", cancelled.toString(), Colors.red),
-          const Divider(height: 30),
-          _summaryRow("Net Valid Invoices", (total - cancelled).toString(), Colors.green, isBold: true),
+          _summaryItem("Total Invoices Issued", total.toString(), Colors.black),
+          _summaryItem("Cancelled Invoices", cancelled.toString(), Colors.red),
+          const Divider(height: 40),
+          _summaryItem("Net Valid for Filing", (total - cancelled).toString(), Colors.green, isBold: true),
         ],
       ),
     );
   }
 
-  Widget _summaryRow(String label, String value, Color col, {bool isBold = false}) {
+  Widget _summaryItem(String label, String value, Color col, {bool isBold = false}) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 10),
+      padding: const EdgeInsets.symmetric(vertical: 12),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Text(label, style: TextStyle(fontSize: 14, fontWeight: isBold ? FontWeight.bold : FontWeight.normal)),
-          Text(value, style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: col)),
+          Text(value, style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: col)),
         ],
       ),
     );
   }
 
-  // --- GSTR-2: PURCHASE REGISTER ---
-  Widget _buildGstr2View(List<Purchase> purchases) {
+  // --- GSTR-2: PURCHASE LIST ---
+  Widget _buildGstr2ReconciliationView(List<Purchase> purchases) {
     return Expanded(
       child: ListView.builder(
         itemCount: purchases.length,
         itemBuilder: (c, i) => Card(
-          margin: const EdgeInsets.symmetric(horizontal: 15, vertical: 5),
+          margin: const EdgeInsets.symmetric(horizontal: 15, vertical: 6),
           child: ListTile(
             title: Text(purchases[i].distributorName, style: const TextStyle(fontWeight: FontWeight.bold)),
             subtitle: Text("Bill: ${purchases[i].billNo} | Date: ${DateFormat('dd/MM/yy').format(purchases[i].date)}"),
@@ -248,8 +249,8 @@ class _GSTReportDetailViewState extends State<GSTReportDetailView> {
     );
   }
 
-  // --- GSTR-3B: SUMMARY ---
-  Widget _buildGstr3BView(List<Sale> sales, List<Purchase> purchases) {
+  // --- GSTR-3B: SUMMARY VIEW ---
+  Widget _buildGstr3BSummaryView(List<Sale> sales, List<Purchase> purchases) {
     double saleTax = 0; sales.forEach((s) => s.items.forEach((it) => saleTax += (it.cgst + it.sgst + it.igst)));
     double purTax = 0; purchases.forEach((p) => p.items.forEach((it) => purTax += (it.purchaseRate * it.qty * it.gstRate / 100)));
 
@@ -257,17 +258,17 @@ class _GSTReportDetailViewState extends State<GSTReportDetailView> {
       child: ListView(
         padding: const EdgeInsets.all(15),
         children: [
-          _statCard("3.1 Outward Taxable Supplies", saleTax, Colors.green),
+          _statBox("3.1 Total Tax Collected (Sales)", saleTax, Colors.green),
           const SizedBox(height: 10),
-          _statCard("4.0 Eligible ITC (Purchases)", purTax, Colors.orange),
-          const SizedBox(height: 25),
+          _statBox("4.0 Total Tax Paid (ITC)", purTax, Colors.orange),
+          const SizedBox(height: 30),
           Container(
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.indigo, width: 2)),
+            padding: const EdgeInsets.all(25),
+            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(15), border: Border.all(color: Colors.indigo, width: 2)),
             child: Column(children: [
-              const Text("NET TAX PAYABLE / (REFUNDABLE)", style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
-              const SizedBox(height: 5),
-              Text("₹${(saleTax - purTax).toStringAsFixed(2)}", style: TextStyle(fontSize: 28, fontWeight: FontWeight.w900, color: (saleTax - purTax) > 0 ? Colors.red : Colors.green)),
+              const Text("NET TAX PAYABLE TO GOVT", style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.blueGrey)),
+              const SizedBox(height: 8),
+              Text("₹${(saleTax - purTax).toStringAsFixed(2)}", style: TextStyle(fontSize: 32, fontWeight: FontWeight.w900, color: (saleTax - purTax) > 0 ? Colors.red : Colors.green)),
             ]),
           )
         ],
@@ -275,7 +276,7 @@ class _GSTReportDetailViewState extends State<GSTReportDetailView> {
     );
   }
 
-  Widget _statCard(String t, double v, Color c) {
+  Widget _statBox(String t, double v, Color c) {
     return Card(
       elevation: 2,
       child: ListTile(
