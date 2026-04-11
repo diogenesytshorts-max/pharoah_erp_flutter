@@ -5,7 +5,6 @@ import 'pharoah_manager.dart';
 import 'models.dart';
 import 'sale_bill_number.dart';
 import 'pdf_service.dart';
-import 'package:intl/intl.dart';
 
 // --- CUSTOM FORMATTER FOR AUTO SLASH MM/YY ---
 class ExpiryDateFormatter extends TextInputFormatter {
@@ -76,7 +75,7 @@ class _BillingViewState extends State<BillingView> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(widget.party.name, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-            Text("${widget.billNo} | ${widget.mode} | ${widget.party.gst}", style: const TextStyle(fontSize: 10)),
+            Text("${widget.billNo} | ${widget.mode}", style: const TextStyle(fontSize: 10)),
           ],
         ),
         actions: [
@@ -92,7 +91,6 @@ class _BillingViewState extends State<BillingView> {
         children: [
           Column(
             children: [
-              // --- 1. SEARCH BAR ---
               if (selectedMed == null && !widget.isReadOnly)
                 Container(
                   padding: const EdgeInsets.all(12),
@@ -100,7 +98,7 @@ class _BillingViewState extends State<BillingView> {
                   child: TextField(
                     autofocus: true,
                     decoration: InputDecoration(
-                      hintText: "Search Product Name...",
+                      hintText: "Search Medicine...",
                       prefixIcon: const Icon(Icons.search, color: Colors.blue),
                       filled: true, fillColor: Colors.white,
                       border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
@@ -109,7 +107,6 @@ class _BillingViewState extends State<BillingView> {
                   ),
                 ),
 
-              // --- 2. ITEM ENTRY FORM (THE CALCULATION ENGINE) ---
               if (selectedMed != null)
                 ItemEntryForm(
                   med: selectedMed!,
@@ -128,7 +125,6 @@ class _BillingViewState extends State<BillingView> {
                   onCancel: () => setState(() { selectedMed = null; editingIndex = null; }),
                 ),
 
-              // --- 3. ADDED ITEMS LIST ---
               Expanded(
                 child: ListView.separated(
                   itemCount: items.length,
@@ -148,7 +144,6 @@ class _BillingViewState extends State<BillingView> {
                 ),
               ),
 
-              // --- 4. SUMMARY FOOTER ---
               Container(
                 padding: const EdgeInsets.all(15),
                 decoration: BoxDecoration(color: Colors.blue.shade50, border: Border(top: BorderSide(color: Colors.blue.shade200))),
@@ -163,7 +158,6 @@ class _BillingViewState extends State<BillingView> {
             ],
           ),
 
-          // --- 5. SEARCH RESULTS OVERLAY ---
           if (search.isNotEmpty && selectedMed == null)
             Positioned(
               top: 70, left: 15, right: 15,
@@ -204,16 +198,13 @@ class _BillingViewState extends State<BillingView> {
   }
 
   void _saveAndPrint(PharoahManager ph) async {
-    final sale = Sale(id: DateTime.now().toString(), billNo: widget.billNo, date: widget.billDate, partyName: widget.party.name, partyGstin: widget.party.gst, partyState: widget.party.state, items: items, totalAmount: grandTotal, paymentMode: widget.mode);
+    final sale = Sale(id: DateTime.now().toString(), billNo: widget.billNo, date: widget.billDate, partyName: widget.party.name, partyGstin: widget.party.gst, partyState: widget.party.state, partyAddress: widget.party.address, partyDl: widget.party.dl, items: items, totalAmount: grandTotal, paymentMode: widget.mode);
     ph.finalizeSale(billNo: widget.billNo, date: widget.billDate, party: widget.party, items: items, total: grandTotal, mode: widget.mode);
     await PdfService.generateInvoice(sale, widget.party);
     Navigator.of(context).popUntil((route) => route.isFirst);
   }
 }
 
-// =====================================================================
-// --- ITEM ENTRY FORM (THE CALCULATION ENGINE) ---
-// =====================================================================
 class ItemEntryForm extends StatefulWidget {
   final Medicine med;
   final String partyState, shopState;
@@ -235,7 +226,7 @@ class _ItemEntryFormState extends State<ItemEntryForm> {
   final mC = TextEditingController(); 
   final rC = TextEditingController(); 
   final qC = TextEditingController();
-  final rCD = TextEditingController(text: "0"); // Rate C Discount %
+  final rCD = TextEditingController(text: "0"); 
   String rT = "A"; 
   String? originalExp;
 
@@ -255,7 +246,6 @@ class _ItemEntryFormState extends State<ItemEntryForm> {
     }
   }
 
-  // --- RATE C FORMULA: (MRP / (1 + GST/100)) - (Rate C Disc %) ---
   void _calcRateC() {
     double mrp = double.tryParse(mC.text) ?? 0;
     double gst = double.tryParse(gC.text) ?? 0;
