@@ -5,6 +5,7 @@ import 'pharoah_manager.dart';
 import 'models.dart';
 import 'sale_bill_number.dart';
 import 'pdf_service.dart';
+import 'package:intl/intl.dart';
 
 // --- CUSTOM FORMATTER FOR AUTO SLASH MM/YY ---
 class ExpiryDateFormatter extends TextInputFormatter {
@@ -75,7 +76,7 @@ class _BillingViewState extends State<BillingView> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(widget.party.name, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-            Text("${widget.billNo} | ${widget.mode}", style: const TextStyle(fontSize: 10)),
+            Text("${widget.billNo} | ${widget.mode} | GST: ${widget.party.gst}", style: const TextStyle(fontSize: 10)),
           ],
         ),
         actions: [
@@ -91,6 +92,7 @@ class _BillingViewState extends State<BillingView> {
         children: [
           Column(
             children: [
+              // --- 1. SEARCH BAR ---
               if (selectedMed == null && !widget.isReadOnly)
                 Container(
                   padding: const EdgeInsets.all(12),
@@ -98,7 +100,7 @@ class _BillingViewState extends State<BillingView> {
                   child: TextField(
                     autofocus: true,
                     decoration: InputDecoration(
-                      hintText: "Search Medicine...",
+                      hintText: "Search Product Name...",
                       prefixIcon: const Icon(Icons.search, color: Colors.blue),
                       filled: true, fillColor: Colors.white,
                       border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
@@ -107,6 +109,7 @@ class _BillingViewState extends State<BillingView> {
                   ),
                 ),
 
+              // --- 2. ITEM ENTRY FORM ---
               if (selectedMed != null)
                 ItemEntryForm(
                   med: selectedMed!,
@@ -125,6 +128,7 @@ class _BillingViewState extends State<BillingView> {
                   onCancel: () => setState(() { selectedMed = null; editingIndex = null; }),
                 ),
 
+              // --- 3. ITEMS LIST ---
               Expanded(
                 child: ListView.separated(
                   itemCount: items.length,
@@ -144,6 +148,7 @@ class _BillingViewState extends State<BillingView> {
                 ),
               ),
 
+              // --- 4. SUMMARY FOOTER ---
               Container(
                 padding: const EdgeInsets.all(15),
                 decoration: BoxDecoration(color: Colors.blue.shade50, border: Border(top: BorderSide(color: Colors.blue.shade200))),
@@ -158,6 +163,7 @@ class _BillingViewState extends State<BillingView> {
             ],
           ),
 
+          // --- 5. SEARCH RESULTS OVERLAY ---
           if (search.isNotEmpty && selectedMed == null)
             Positioned(
               top: 70, left: 15, right: 15,
@@ -198,10 +204,31 @@ class _BillingViewState extends State<BillingView> {
   }
 
   void _saveAndPrint(PharoahManager ph) async {
-    final sale = Sale(id: DateTime.now().toString(), billNo: widget.billNo, date: widget.billDate, partyName: widget.party.name, partyGstin: widget.party.gst, partyState: widget.party.state, partyAddress: widget.party.address, partyDl: widget.party.dl, items: items, totalAmount: grandTotal, paymentMode: widget.mode);
-    ph.finalizeSale(billNo: widget.billNo, date: widget.billDate, party: widget.party, items: items, total: grandTotal, mode: widget.mode);
+    // Creating Sale object with all new required parameters for the updated Model
+    final sale = Sale(
+      id: DateTime.now().toString(), 
+      billNo: widget.billNo, 
+      date: widget.billDate, 
+      partyName: widget.party.name, 
+      partyGstin: widget.party.gst, 
+      partyState: widget.party.state, 
+      partyAddress: widget.party.address, 
+      partyDl: widget.party.dl, 
+      partyEmail: widget.party.email, 
+      items: items, 
+      totalAmount: grandTotal, 
+      paymentMode: widget.mode,
+      invoiceType: widget.party.isB2B ? "B2B" : "B2C"
+    );
+
+    if (!widget.isReadOnly) {
+      if (widget.modifySaleId != null) ph.deleteBill(widget.modifySaleId!);
+      ph.finalizeSale(billNo: widget.billNo, date: widget.billDate, party: widget.party, items: items, total: grandTotal, mode: widget.mode);
+      if (widget.modifySaleId == null) await SaleBillNumber.incrementIfNecessary(widget.billNo);
+    }
+
     await PdfService.generateInvoice(sale, widget.party);
-    Navigator.of(context).popUntil((route) => route.isFirst);
+    if (!widget.isReadOnly && mounted) Navigator.of(context).popUntil((route) => route.isFirst);
   }
 }
 
@@ -226,7 +253,7 @@ class _ItemEntryFormState extends State<ItemEntryForm> {
   final mC = TextEditingController(); 
   final rC = TextEditingController(); 
   final qC = TextEditingController();
-  final rCD = TextEditingController(text: "0"); 
+  final rCD = TextEditingController(text: "0"); // Rate C Discount %
   String rT = "A"; 
   String? originalExp;
 
@@ -268,7 +295,7 @@ class _ItemEntryFormState extends State<ItemEntryForm> {
           ]),
 
           if (widget.batchHistory.isNotEmpty) ...[
-            const Text("Purane Batches (Tap to Select):", style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.blueGrey)),
+            const Text("Old Batches (Tap to Select):", style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.blueGrey)),
             const SizedBox(height: 5),
             SizedBox(
               height: 40,
@@ -350,19 +377,4 @@ class _ItemEntryFormState extends State<ItemEntryForm> {
                 qty: q, rate: r, gstRate: g, cgst: cgst, sgst: sgst, igst: igst, total: tax + gstAmt
               ));
             }, 
-            child: const Text("ADD TO BILL", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold))
-          )
-        ],
-      ),
-    );
-  }
-
-  Widget _field(TextEditingController c, String l, {List<TextInputFormatter>? fmt, bool en = true, Function(String)? onCh}) {
-    return TextField(
-      controller: c, enabled: en, inputFormatters: fmt, onChanged: onCh,
-      style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
-      decoration: InputDecoration(labelText: l, border: const OutlineInputBorder(), contentPadding: const EdgeInsets.all(10)),
-      keyboardType: TextInputType.text,
-    );
-  }
-}
+            child: const Text("ADD TO BILL", style: TextStyle(
