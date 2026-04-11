@@ -33,19 +33,11 @@ class _PurchaseBillingViewState extends State<PurchaseBillingView> {
       appBar: AppBar(backgroundColor: Colors.orange.shade800, foregroundColor: Colors.white, title: Text(widget.distributor.name),
         actions: [TextButton(onPressed: items.isEmpty ? null : () => _handleSave(ph), child: const Text("SAVE", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)))],
       ),
-      body: Column(
-        children: [
-          if (selectedMed == null)
-            Padding(padding: const EdgeInsets.all(10), child: TextField(decoration: const InputDecoration(hintText: "Search Product...", prefixIcon: Icon(Icons.search)), onChanged: (v) => setState(() => searchQuery = v))),
-          if (selectedMed != null)
-            PurchaseItemEntryForm(
-              med: selectedMed!, srNo: items.length + 1, batchHistory: ph.batchHistory[selectedMed!.id] ?? [],
-              onAdd: (newItem) { setState(() { items.add(newItem); selectedMed = null; searchQuery = ""; }); },
-              onCancel: () => setState(() => selectedMed = null),
-            ),
+      body: Column(children: [
+          if (selectedMed == null) Padding(padding: const EdgeInsets.all(10), child: TextField(decoration: const InputDecoration(hintText: "Search Product...", prefixIcon: Icon(Icons.search)), onChanged: (v) => setState(() => searchQuery = v))),
+          if (selectedMed != null) PurchaseItemEntryForm(med: selectedMed!, srNo: items.length + 1, batchHistory: ph.batchHistory[selectedMed!.id] ?? [], onAdd: (newItem) { setState(() { items.add(newItem); selectedMed = null; searchQuery = ""; }); }, onCancel: () => setState(() => selectedMed = null)),
           Expanded(child: ListView.builder(itemCount: items.length, itemBuilder: (c, i) => ListTile(title: Text(items[i].name), subtitle: Text("Qty: ${items[i].qty} | Batch: ${items[i].batch}"), trailing: Text("₹${items[i].total.toStringAsFixed(2)}")))),
-        ],
-      ),
+      ]),
     );
   }
 
@@ -53,7 +45,6 @@ class _PurchaseBillingViewState extends State<PurchaseBillingView> {
     ph.finalizePurchase(internalNo: widget.internalNo, billNo: widget.distBillNo, date: widget.billDate, party: widget.distributor, items: items, total: totalAmt, mode: widget.mode);
     final prefs = await SharedPreferences.getInstance();
     await prefs.setInt('lastPurID', (prefs.getInt('lastPurID') ?? 0) + 1);
-    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("✅ Purchase Entry Saved!"), backgroundColor: Colors.orange));
     Navigator.of(context).popUntil((route) => route.isFirst);
   }
 }
@@ -65,35 +56,38 @@ class PurchaseItemEntryForm extends StatefulWidget {
 }
 
 class _PurchaseItemEntryFormState extends State<PurchaseItemEntryForm> {
-  final bC = TextEditingController(); final eC = TextEditingController(); 
-  final gC = TextEditingController(); final mC = TextEditingController(); 
-  final pRC = TextEditingController(); final qC = TextEditingController(text: "1");
-  String? originalExp;
+  final bC = TextEditingController(); final eC = TextEditingController(); final gC = TextEditingController();
+  final mC = TextEditingController(); final pRC = TextEditingController(); final qC = TextEditingController(text: "1");
+  final rAC = TextEditingController(); final rBC = TextEditingController(); final rCC = TextEditingController();
+  final rCD = TextEditingController(text: "0"); // Rate C Discount %
 
   @override void initState() {
     super.initState();
     mC.text = widget.med.mrp.toString(); gC.text = widget.med.gst.toString(); pRC.text = widget.med.purRate.toString();
+    rAC.text = widget.med.rateA.toString(); rBC.text = widget.med.rateB.toString(); _calcRateC();
+  }
+
+  void _calcRateC() {
+    double mrp = double.tryParse(mC.text) ?? 0; double gst = double.tryParse(gC.text) ?? 0; double disc = double.tryParse(rCD.text) ?? 0;
+    double taxable = mrp / (1 + (gst / 100));
+    rCC.text = (taxable - (taxable * disc / 100)).toStringAsFixed(2);
   }
 
   @override Widget build(BuildContext context) {
     return Container(padding: const EdgeInsets.all(15), color: Colors.orange.shade50, child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Row(children: [Expanded(child: Text(widget.med.name, style: const TextStyle(fontWeight: FontWeight.bold))), IconButton(icon: const Icon(Icons.close), onPressed: widget.onCancel)]),
-      if (widget.batchHistory.isNotEmpty) ...[
-        const Text("Old Batches:", style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold)),
-        SizedBox(height: 40, child: ListView(scrollDirection: Axis.horizontal, children: widget.batchHistory.map((b) => Padding(padding: const EdgeInsets.only(right: 5), child: ActionChip(label: Text(b.batch), onPressed: () { setState(() { bC.text = b.batch; eC.text = b.exp; mC.text = b.mrp.toString(); pRC.text = b.rate.toString(); originalExp = b.exp; }); }))).toList())),
-      ],
-      Row(children: [Expanded(child: TextField(controller: bC, decoration: const InputDecoration(labelText: "Batch"))), const SizedBox(width: 5), Expanded(child: TextField(controller: eC, inputFormatters: [ExpiryDateFormatter()], decoration: const InputDecoration(labelText: "Exp"))) ]),
+      Row(children: [Expanded(child: _f(bC, "Batch")), const SizedBox(width: 5), Expanded(child: _f(eC, "Exp", fmt: [ExpiryDateFormatter()])), const SizedBox(width: 5), Expanded(child: _f(gC, "GST%", onCh: (v) => _calcRateC()))]),
       const SizedBox(height: 10),
-      Row(children: [Expanded(child: TextField(controller: pRC, decoration: const InputDecoration(labelText: "Pur Rate"))), const SizedBox(width: 5), Expanded(child: TextField(controller: qC, decoration: const InputDecoration(labelText: "Qty"))) ]),
+      Row(children: [Expanded(child: _f(mC, "MRP", onCh: (v) => _calcRateC())), const SizedBox(width: 5), Expanded(child: _f(pRC, "Pur Rate")), const SizedBox(width: 5), Expanded(child: _f(qC, "Qty"))]),
       const SizedBox(height: 10),
-      ElevatedButton(onPressed: () async {
-        if (originalExp != null && originalExp != eC.text) {
-          bool c = await showDialog(context: context, builder: (c) => AlertDialog(title: const Text("Expiry Update?"), content: const Text("Expiry badal rahi hai, sure?"), actions: [TextButton(onPressed: () => Navigator.pop(c, false), child: const Text("NO")), TextButton(onPressed: () => Navigator.pop(c, true), child: const Text("YES"))])) ?? false;
-          if (!c) return;
-        }
+      const Text("SET SELLING RATES:", style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold)),
+      Row(children: [Expanded(child: _f(rAC, "Rate A")), const SizedBox(width: 5), Expanded(child: _f(rBC, "Rate B")), const SizedBox(width: 5), Expanded(child: _f(rCD, "RC Disc%", onCh: (v) => _calcRateC())), const SizedBox(width: 5), Expanded(child: _f(rCC, "Rate C", en: false))]),
+      const SizedBox(height: 10),
+      ElevatedButton(onPressed: () {
         double pr = double.tryParse(pRC.text) ?? 0; double qt = double.tryParse(qC.text) ?? 0; double gst = double.tryParse(gC.text) ?? 0;
-        widget.onAdd(PurchaseItem(id: DateTime.now().toString(), srNo: widget.srNo, medicineID: widget.med.id, name: widget.med.name, packing: widget.med.packing, batch: bC.text.toUpperCase(), exp: eC.text, hsn: widget.med.hsnCode, mrp: double.tryParse(mC.text) ?? 0, qty: qt, purchaseRate: pr, gstRate: gst, total: (pr * qt) * (1 + gst/100)));
+        widget.onAdd(PurchaseItem(id: DateTime.now().toString(), srNo: widget.srNo, medicineID: widget.med.id, name: widget.med.name, packing: widget.med.packing, batch: bC.text.toUpperCase(), exp: eC.text, hsn: widget.med.hsnCode, mrp: double.tryParse(mC.text) ?? 0, qty: qt, purchaseRate: pr, gstRate: gst, total: (pr * qt) * (1 + gst/100), rateA: double.tryParse(rAC.text) ?? 0, rateB: double.tryParse(rBC.text) ?? 0, rateC: double.tryParse(rCC.text) ?? 0));
       }, child: const Text("ADD ITEM"))
     ]));
   }
+  Widget _f(TextEditingController c, String l, {List<TextInputFormatter>? fmt, bool en = true, Function(String)? onCh}) => TextField(controller: c, enabled: en, inputFormatters: fmt, onChanged: onCh, decoration: InputDecoration(labelText: l, border: const OutlineInputBorder(), contentPadding: const EdgeInsets.all(8)), keyboardType: TextInputType.text);
 }
