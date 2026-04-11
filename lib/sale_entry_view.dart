@@ -26,7 +26,7 @@ class _SaleEntryViewState extends State<SaleEntryView> {
     super.initState();
     final ph = Provider.of<PharoahManager>(context, listen: false);
     
-    // Default Date Check: If today is outside FY, set to FY Start Date
+    // Default Date Adjustment: If today is outside the selected FY range
     if (selectedBillDate.isBefore(ph.fyStartDate) || selectedBillDate.isAfter(ph.fyEndDate)) {
       selectedBillDate = ph.fyStartDate;
     }
@@ -49,9 +49,11 @@ class _SaleEntryViewState extends State<SaleEntryView> {
   void _validateAndProceed(PharoahManager ph) {
     if (selectedParty == null) return;
     
-    // Double Check Date Violation
+    // Strict Verification: Ensure date is within FY boundaries
     if (selectedBillDate.isBefore(ph.fyStartDate) || selectedBillDate.isAfter(ph.fyEndDate)) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Date violates Financial Year boundaries!")));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Selected date must be between ${DateFormat('dd/MM/yy').format(ph.fyStartDate)} and ${DateFormat('dd/MM/yy').format(ph.fyEndDate)}"))
+      );
       return;
     }
 
@@ -86,8 +88,8 @@ class _SaleEntryViewState extends State<SaleEntryView> {
                         DateTime? p = await showDatePicker(
                           context: context, 
                           initialDate: selectedBillDate, 
-                          firstDate: ph.fyStartDate, // Strictly April 1
-                          lastDate: ph.fyEndDate     // Strictly March 31
+                          firstDate: ph.fyStartDate, // 1st April
+                          lastDate: ph.fyEndDate     // 31st March
                         ); 
                         if (p != null) setState(() => selectedBillDate = p); 
                       }, 
