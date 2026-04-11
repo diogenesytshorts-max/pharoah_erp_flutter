@@ -18,7 +18,7 @@ class _EWayBillManagementViewState extends State<EWayBillManagementView> {
   Widget build(BuildContext context) {
     final ph = Provider.of<PharoahManager>(context);
     
-    // --- 1. FILTERING HIGH VALUE BILLS ---
+    // --- FILTERING HIGH VALUE BILLS ---
     // GST rules suggest E-Way bill is mandatory for transactions above ₹50,000
     List<Sale> highValueBills = ph.sales.where((s) => 
       s.totalAmount >= 50000 && s.status == "Active"
@@ -34,7 +34,7 @@ class _EWayBillManagementViewState extends State<EWayBillManagementView> {
       ),
       body: Column(
         children: [
-          // info header
+          // Info header
           Container(
             width: double.infinity,
             padding: const EdgeInsets.all(15),
@@ -70,6 +70,7 @@ class _EWayBillManagementViewState extends State<EWayBillManagementView> {
                     itemCount: highValueBills.length,
                     itemBuilder: (context, index) {
                       final s = highValueBills[index];
+                      // Checking details from the updated model
                       bool hasDetails = s.vehicleNo.isNotEmpty || s.transporterId.isNotEmpty;
 
                       return Card(
@@ -139,11 +140,11 @@ class _EWayBillManagementViewState extends State<EWayBillManagementView> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Text("Please enter transportation details for JSON generation.", style: TextStyle(fontSize: 12, color: Colors.grey)),
+              const Text("Enter details for Government JSON generation.", style: TextStyle(fontSize: 12, color: Colors.grey)),
               const SizedBox(height: 20),
               _dialogField(tNameC, "Transporter Name"),
               _dialogField(tIdC, "Transporter GSTIN / ID"),
-              _dialogField(vNoC, "Vehicle Number (RJ14AB1234)"),
+              _dialogField(vNoC, "Vehicle Number (e.g. RJ14AB1234)"),
             ],
           ),
         ),
@@ -152,7 +153,7 @@ class _EWayBillManagementViewState extends State<EWayBillManagementView> {
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: Colors.indigo),
             onPressed: () {
-              // Update existing sale object
+              // Updating the sale object directly (Model fields are already synced)
               setState(() {
                 sale.transporterName = tNameC.text.toUpperCase();
                 sale.transporterId = tIdC.text.toUpperCase();
@@ -163,7 +164,7 @@ class _EWayBillManagementViewState extends State<EWayBillManagementView> {
               Navigator.pop(c);
               _generatePortalJson(sale);
             },
-            child: const Text("GENERATE & SHARE JSON", style: TextStyle(color: Colors.white)),
+            child: const Text("SAVE & SHARE JSON", style: TextStyle(color: Colors.white)),
           )
         ],
       ),
@@ -172,22 +173,19 @@ class _EWayBillManagementViewState extends State<EWayBillManagementView> {
 
   // --- JSON EXPORT LOGIC FOR PORTAL ---
   void _generatePortalJson(Sale s) {
-    // Standard E-Way Bill JSON Structure (Simplified for Government Offline Utility)
+    // Government Offline Utility Format
     Map<String, dynamic> ewayJson = {
       "version": "1.0.0",
       "billLists": [{
-        "userGstin": "YOUR_COMPANY_GSTIN", // Should ideally fetch from settings
+        "userGstin": "YOUR_COMPANY_GSTIN", 
         "supplyType": "Outward",
-        "subSupplyType": "Supply",
         "docType": "Invoice",
         "docNo": s.billNo,
         "docDate": DateFormat('dd/MM/yyyy').format(s.date),
-        "fromGstin": "YOUR_COMPANY_GSTIN",
-        "toGstin": s.invoiceType == "B2B" ? "PARTY_GSTIN_HERE" : "URP",
-        "totalValue": s.totalAmount,
         "transporterId": s.transporterId,
         "transporterName": s.transporterName,
         "vehicleNo": s.vehicleNo,
+        "totalValue": s.totalAmount,
         "itemList": s.items.map((it) => {
           "itemDesc": it.name,
           "hsnCode": it.hsn,
@@ -199,12 +197,7 @@ class _EWayBillManagementViewState extends State<EWayBillManagementView> {
     };
 
     String jsonString = const JsonEncoder.withIndent('  ').convert(ewayJson);
-    
-    // Share as text so it can be pasted or saved to a file
-    Share.share(
-      jsonString, 
-      subject: 'E-WayBill_JSON_${s.billNo}',
-    );
+    Share.share(jsonString, subject: 'EWayBill_JSON_${s.billNo}');
   }
 
   Widget _dialogField(TextEditingController ctrl, String label) {
