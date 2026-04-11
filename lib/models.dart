@@ -16,7 +16,7 @@ class BatchInfo {
   );
 }
 
-// 2. Audit Log Model
+// 2. Audit Log Model: System actions record karne ke liye
 class LogEntry {
   String id, action, details;
   DateTime time;
@@ -92,7 +92,7 @@ class Party {
   );
 }
 
-// 5. Bill Item Model
+// 5. Bill Item Model: Individual items in Sale Invoice
 class BillItem {
   String id, medicineID, name, packing, batch, exp, hsn;
   int srNo;
