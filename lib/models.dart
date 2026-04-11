@@ -17,7 +17,7 @@ class Medicine {
 class Party {
   String id, name, address, city, state, phone, gst, dl, email;
   Party({required this.id, required this.name, this.address = "", this.city = "", this.state = "Rajasthan", this.phone = "", this.gst = "N/A", this.dl = "N/A", this.email = "N/A"});
-  bool get isB2B => gst != "N/A" && gst.length >= 15;
+  bool get isB2B => gst != "N/A" && gst.trim().length >= 15;
   Map<String, dynamic> toMap() => {'id': id, 'name': name, 'address': address, 'city': city, 'state': state, 'phone': phone, 'gst': gst, 'dl': dl, 'email': email};
   factory Party.fromMap(Map<String, dynamic> map) => Party(id: map['id'] ?? "", name: map['name'] ?? "", address: map['address'] ?? "", city: map['city'] ?? "", state: map['state'] ?? "Rajasthan", phone: map['phone'] ?? "", gst: map['gst'] ?? "N/A", dl: map['dl'] ?? "N/A", email: map['email'] ?? "N/A");
 }
