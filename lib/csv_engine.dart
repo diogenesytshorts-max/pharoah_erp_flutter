@@ -3,99 +3,29 @@ import 'package:intl/intl.dart';
 import 'models.dart';
 
 class CsvEngine {
-  // ==========================================
-  // 1. SALES EXPORT LOGIC
-  // ==========================================
   static String convertSalesToCsv(List<Sale> sales) {
-    List<List<dynamic>> rows = [];
-
-    // Header Row (Standard Columns)
-    rows.add([
-      "DATE", 
-      "INVOICE_NO", 
-      "PARTY_NAME", 
-      "GSTIN", 
-      "STATE", 
-      "ITEM_NAME", 
-      "BATCH", 
-      "EXP", 
-      "HSN", 
-      "QTY", 
-      "RATE", 
-      "GST_RATE", 
-      "NET_AMOUNT"
-    ]);
-
-    for (var sale in sales) {
-      for (var item in sale.items) {
-        rows.add([
-          DateFormat('dd/MM/yyyy').format(sale.date),
-          sale.billNo,
-          sale.partyName,
-          sale.partyGstin,
-          sale.partyState,
-          item.name,
-          item.batch,
-          item.exp,
-          item.hsn,
-          item.qty,
-          item.rate,
-          item.gstRate,
-          item.total,
-        ]);
+    List<List<dynamic>> rows = [
+      ["DATE", "INVOICE_NO", "PARTY_NAME", "GSTIN", "STATE", "ITEM_NAME", "BATCH", "EXP", "HSN", "QTY", "RATE", "GST_RATE", "TOTAL"]
+    ];
+    for (var s in sales) {
+      for (var i in s.items) {
+        rows.add([DateFormat('dd/MM/yyyy').format(s.date), s.billNo, s.partyName, s.partyGstin, s.partyState, i.name, i.batch, i.exp, i.hsn, i.qty, i.rate, i.gstRate, i.total]);
       }
     }
     return const ListToCsvConverter().convert(rows);
   }
 
-  // ==========================================
-  // 2. PURCHASE EXPORT LOGIC
-  // ==========================================
   static String convertPurchasesToCsv(List<Purchase> purchases) {
-    List<List<dynamic>> rows = [];
-
-    // Header Row
-    rows.add([
-      "DATE", 
-      "BILL_NO", 
-      "INTERNAL_NO", 
-      "SUPPLIER_NAME", 
-      "ITEM_NAME", 
-      "BATCH", 
-      "EXP", 
-      "QTY", 
-      "FREE_QTY", 
-      "PUR_RATE", 
-      "GST_RATE", 
-      "NET_AMOUNT"
-    ]);
-
-    for (var pur in purchases) {
-      for (var item in pur.items) {
-        rows.add([
-          DateFormat('dd/MM/yyyy').format(pur.date),
-          pur.billNo,
-          pur.internalNo,
-          pur.distributorName,
-          item.name,
-          item.batch,
-          item.exp,
-          item.qty,
-          item.freeQty,
-          item.purchaseRate,
-          item.gstRate,
-          item.total,
-        ]);
+    List<List<dynamic>> rows = [
+      ["DATE", "BILL_NO", "INTERNAL_NO", "SUPPLIER", "ITEM", "BATCH", "EXP", "QTY", "FREE", "RATE", "GST", "TOTAL"]
+    ];
+    for (var p in purchases) {
+      for (var i in p.items) {
+        rows.add([DateFormat('dd/MM/yyyy').format(p.date), p.billNo, p.internalNo, p.distributorName, i.name, i.batch, i.exp, i.qty, i.freeQty, i.purchaseRate, i.gstRate, i.total]);
       }
     }
     return const ListToCsvConverter().convert(rows);
   }
 
-  // ==========================================
-  // 3. CSV PARSER (Read file content)
-  // ==========================================
-  static List<List<dynamic>> parseCsv(String csvContent) {
-    // Isse humein rows ki list mil jayegi verification screen ke liye
-    return const CsvToListConverter().convert(csvContent);
-  }
+  static List<List<dynamic>> parseCsv(String content) => const CsvToListConverter().convert(content);
 }
