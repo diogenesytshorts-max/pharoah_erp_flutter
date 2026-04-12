@@ -5,7 +5,7 @@ import 'pharoah_manager.dart';
 import 'models.dart';
 import 'sale_bill_number.dart';
 import 'billing_view.dart';
-import 'app_date_logic.dart'; // Humari nayi logic file
+import 'app_date_logic.dart'; // Nayi file ka import
 
 class SaleEntryView extends StatefulWidget {
   final Sale? existingSale; 
@@ -33,12 +33,13 @@ class _SaleEntryViewState extends State<SaleEntryView> {
       final ph = Provider.of<PharoahManager>(context, listen: false);
       
       setState(() {
-        // 1. AUTO DATE PICKUP USING OUR MASTER LOGIC
         if (widget.existingSale != null) { 
+          // EDIT MODE: Purani details uthao
           selectedBillDate = widget.existingSale!.date; 
           paymentMode = widget.existingSale!.paymentMode; 
           billNoController.text = widget.existingSale!.billNo; 
         } else {
+          // NEW MODE: Smart Auto Date aur Naya Bill No
           selectedBillDate = AppDateLogic.getSmartDate(ph.currentFY);
           _loadAutoBillNumber();
         }
@@ -46,29 +47,27 @@ class _SaleEntryViewState extends State<SaleEntryView> {
     });
   }
 
-  // Fetch next bill number from logic class
+  // Next bill number generate karne ke liye
   Future<void> _loadAutoBillNumber() async {
     final ph = Provider.of<PharoahManager>(context, listen: false);
     String nextNo = await SaleBillNumber.getNextNumber(ph.sales); 
     setState(() { billNoController.text = nextNo; }); 
   }
 
-  // Final check before opening the item entry screen
   void _validateAndProceed(PharoahManager ph) {
     if (selectedParty == null) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Please select a party first!")));
       return;
     }
     
-    // STRICT BOUNDARY CHECK
+    // FY Boundary Check
     if (selectedBillDate.isBefore(ph.fyStartDate) || selectedBillDate.isAfter(ph.fyEndDate)) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Selected date must be between ${DateFormat('dd/MM/yy').format(ph.fyStartDate)} and ${DateFormat('dd/MM/yy').format(ph.fyEndDate)}"))
+        SnackBar(content: Text("Selected date must be within ${ph.currentFY}"))
       );
       return;
     }
 
-    // Move to Billing Screen
     Navigator.push(
       context, 
       MaterialPageRoute(
@@ -89,11 +88,10 @@ class _SaleEntryViewState extends State<SaleEntryView> {
   Widget build(BuildContext context) {
     final ph = Provider.of<PharoahManager>(context);
     
-    // Auto-match party if we are viewing/editing an existing sale
     if (widget.existingSale != null && selectedParty == null) { 
       selectedParty = ph.parties.firstWhere(
         (p) => p.name == widget.existingSale!.partyName, 
-        orElse: () => ph.parties.firstWhere((p) => p.name == "CASH")
+        orElse: () => ph.parties[0]
       ); 
     }
 
@@ -107,18 +105,13 @@ class _SaleEntryViewState extends State<SaleEntryView> {
       ),
       body: Column(
         children: [
-          // --- TOP SECTION: BILL HEADER ---
           Container(
             padding: const EdgeInsets.all(20), 
-            decoration: BoxDecoration(
-              color: Colors.white,
-              boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10)]
-            ),
+            decoration: BoxDecoration(color: Colors.white, boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10)]),
             child: Column(
               children: [
                 Row(
                   children: [
-                    // Invoice Number Field
                     Expanded(
                       child: TextField(
                         controller: billNoController, 
@@ -127,7 +120,6 @@ class _SaleEntryViewState extends State<SaleEntryView> {
                       )
                     ),
                     const SizedBox(width: 15),
-                    // Date Picker Trigger
                     Expanded(
                       child: InkWell(
                         onTap: widget.isReadOnly ? null : () async { 
@@ -155,7 +147,6 @@ class _SaleEntryViewState extends State<SaleEntryView> {
                   ],
                 ),
                 const SizedBox(height: 15),
-                // Payment Mode Switcher
                 AbsorbPointer(
                   absorbing: widget.isReadOnly,
                   child: SegmentedButton<String>(
@@ -171,7 +162,6 @@ class _SaleEntryViewState extends State<SaleEntryView> {
             ),
           ),
 
-          // --- MIDDLE SECTION: PARTY SELECTION ---
           const Padding(
             padding: EdgeInsets.fromLTRB(20, 20, 20, 10),
             child: Align(alignment: Alignment.centerLeft, child: Text("SELECT CUSTOMER / PARTY", style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.blueGrey, letterSpacing: 1))),
@@ -228,7 +218,6 @@ class _SaleEntryViewState extends State<SaleEntryView> {
               )
             ),
 
-          // --- BOTTOM ACTION BUTTON ---
           if (selectedParty != null) 
             Padding(
               padding: const EdgeInsets.all(20), 
