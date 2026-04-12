@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'pharoah_manager.dart';
 import 'widgets.dart';
-import 'product_master.dart';
+// import 'product_master.dart'; // REMOVED: PharoahManager import conflict kar raha tha
 import 'party_master.dart';
 import 'sale_entry_view.dart';
 import 'sale_bill_modify_view.dart';
@@ -10,8 +10,8 @@ import 'purchase/purchase_entry_view.dart';
 import 'purchase/purchase_modify_view.dart';
 import 'more_features_view.dart';
 import 'sale_summary_view.dart';
-import 'purchase/purchase_summary_view.dart'; // Corrected path to purchase summary view
-import 'item_ledger_view.dart'; // Import for the new Stock Ledger button in More Features
+import 'purchase/purchase_summary_view.dart';
+import 'item_ledger_view.dart'; // Ensure this is imported for More Features
 
 class DashboardView extends StatelessWidget {
   final VoidCallback onLogout;
@@ -67,6 +67,7 @@ class DashboardView extends StatelessWidget {
                     children: [
                       ActionIconBtn(title: "New Sale", icon: Icons.add_shopping_cart_rounded, color: Colors.green, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => const SaleEntryView()))),
                       ActionIconBtn(title: "Purchase", icon: Icons.file_download_outlined, color: Colors.orange, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => const PurchaseEntryView()))),
+                      // Removed const from MaterialPageRoute below.
                       ActionIconBtn(title: "Inventory", icon: Icons.inventory_2_rounded, color: Colors.purple, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => const ProductMasterView()))),
                       ActionIconBtn(title: "Sale Reg.", icon: Icons.bar_chart_rounded, color: Colors.indigo, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => const SaleSummaryView()))),
                       ActionIconBtn(title: "Pur. Reg.", icon: Icons.pie_chart_rounded, color: Colors.brown, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => const PurchaseSummaryView()))),
