@@ -8,14 +8,13 @@ import 'package:intl/intl.dart';
 class GstReportService {
   
   // ==========================================================
-  // 1. GSTR-1 MASTER PDF REPORT (Detailed)
+  // 1. GSTR-1 MASTER PDF REPORT (Sales)
   // ==========================================================
   static Future<void> generateGstr1Pdf(List<Sale> sales, String period) async {
     final pdf = pw.Document();
     final prefs = await SharedPreferences.getInstance();
     String cName = (prefs.getString('compName') ?? "PHAROAH ERP").toUpperCase();
 
-    // Filtering Data
     List<Sale> b2b = sales.where((s) => s.invoiceType == "B2B" && s.status == "Active").toList();
     List<Sale> b2c = sales.where((s) => s.invoiceType == "B2C" && s.status == "Active").toList();
 
@@ -39,18 +38,73 @@ class GstReportService {
   }
 
   // ==========================================================
-  // 2. GSTR-3B MASTER PDF REPORT (Sales vs Purchase ITC)
+  // 2. GSTR-2 MASTER PDF REPORT (Purchase Register) - NAYA ADDED
+  // ==========================================================
+  static Future<void> generateGstr2Pdf(List<Purchase> purchases, String period) async {
+    final pdf = pw.Document();
+    final prefs = await SharedPreferences.getInstance();
+    String cName = (prefs.getString('compName') ?? "PHAROAH ERP").toUpperCase();
+
+    pdf.addPage(pw.MultiPage(
+      pageFormat: PdfPageFormat.a4.landscape,
+      margin: const pw.EdgeInsets.all(20),
+      header: (pw.Context context) => _buildReportHeader(cName, "GSTR-2 (Purchase Register / ITC Summary)", period),
+      footer: (context) => pw.Align(alignment: pw.Alignment.centerRight, child: pw.Text("Page ${context.pageNumber}", style: const pw.TextStyle(fontSize: 8))),
+      build: (pw.Context context) => [
+        _sectionTitle("INWARD SUPPLIES RECEIVED (PURCHASES)"),
+        pw.TableHelper.fromTextArray(
+          headerStyle: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold, color: PdfColors.white),
+          headerDecoration: const pw.BoxDecoration(color: PdfColors.orange900),
+          cellStyle: const pw.TextStyle(fontSize: 8),
+          headers: ['Date', 'Bill No', 'Internal ID', 'Supplier Name', 'Mode', 'Taxable Val', 'GST (ITC)', 'Total'],
+          data: purchases.map((p) {
+            double pTaxable = p.items.fold(0.0, (sum, it) => sum + (it.purchaseRate * it.qty));
+            return [
+              DateFormat('dd/MM/yy').format(p.date),
+              p.billNo,
+              p.internalNo,
+              p.distributorName,
+              p.paymentMode,
+              pTaxable.toStringAsFixed(2),
+              (p.totalAmount - pTaxable).toStringAsFixed(2),
+              p.totalAmount.toStringAsFixed(2)
+            ];
+          }).toList(),
+        ),
+        pw.SizedBox(height: 20),
+        pw.Row(mainAxisAlignment: pw.MainAxisAlignment.end, children: [
+          pw.Container(
+            padding: const pw.EdgeInsets.all(10),
+            decoration: pw.BoxDecoration(border: pw.Border.all(color: PdfColors.grey400)),
+            child: pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.end, children: [
+              pw.Text("Total Purchase Bills: ${purchases.length}", style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold)),
+              pw.Text("Total ITC Available: Rs. ${purchases.fold(0.0, (sum, p) {
+                double tx = p.items.fold(0.0, (s, it) => s + (it.purchaseRate * it.qty));
+                return sum + (p.totalAmount - tx);
+              }).toStringAsFixed(2)}", style: pw.TextStyle(fontSize: 12, fontWeight: pw.FontWeight.bold, color: PdfColors.orange900)),
+            ])
+          )
+        ])
+      ],
+    ));
+
+    await Printing.layoutPdf(onLayout: (f) async => pdf.save(), name: "GSTR2_$period");
+  }
+
+  // ==========================================================
+  // 3. GSTR-3B MASTER PDF REPORT (Monthly Summary)
   // ==========================================================
   static Future<void> generateGstr3bPdf(List<Sale> sales, List<Purchase> purchases, String period) async {
     final pdf = pw.Document();
     final prefs = await SharedPreferences.getInstance();
     String cName = (prefs.getString('compName') ?? "PHAROAH ERP").toUpperCase();
 
-    // Calculations
     double saleTaxable = 0, saleGst = 0;
     for (var s in sales.where((s) => s.status == "Active")) {
-      saleTaxable += s.totalAmount / 1.12; // Approximation, better to sum item-wise
-      for (var it in s.items) saleGst += (it.cgst + it.sgst + it.igst);
+      for (var it in s.items) {
+        saleTaxable += (it.rate * it.qty);
+        saleGst += (it.cgst + it.sgst + it.igst);
+      }
     }
 
     double purchaseTaxable = 0, purchaseGst = 0;
@@ -70,8 +124,9 @@ class GstReportService {
           pw.SizedBox(height: 30),
           
           pw.TableHelper.fromTextArray(
-            headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold, color: PdfColors.white),
+            headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold, color: PdfColors.white, fontSize: 10),
             headerDecoration: const pw.BoxDecoration(color: PdfColors.indigo900),
+            cellStyle: const pw.TextStyle(fontSize: 10),
             headers: ['DESCRIPTION', 'TAXABLE VALUE', 'INTEGRATED TAX', 'CENTRAL TAX', 'STATE TAX', 'TOTAL TAX'],
             data: [
               ['(A) Outward Supplies (Sales)', saleTaxable.toStringAsFixed(2), '0.00', (saleGst/2).toStringAsFixed(2), (saleGst/2).toStringAsFixed(2), saleGst.toStringAsFixed(2)],
@@ -84,7 +139,7 @@ class GstReportService {
           pw.Container(
             padding: const pw.EdgeInsets.all(10),
             color: PdfColors.grey100,
-            child: pw.Text("Note: This is a system generated summary for GST filing. Please reconcile with your books before payment.", style: const pw.TextStyle(fontSize: 9, color: PdfColors.grey700))
+            child: pw.Text("Note: This is a system generated summary for GST filing. Please reconcile with your books before final payment.", style: const pw.TextStyle(fontSize: 9, color: PdfColors.grey700))
           )
         ]),
       ),
@@ -93,8 +148,7 @@ class GstReportService {
     await Printing.layoutPdf(onLayout: (f) async => pdf.save(), name: "GSTR3B_$period");
   }
 
-  // --- UI HELPERS ---
-
+  // --- HELPERS ---
   static pw.Widget _buildReportHeader(String cName, String title, String period) {
     return pw.Column(children: [
       pw.Text(cName, style: pw.TextStyle(fontSize: 18, fontWeight: pw.FontWeight.bold)),
@@ -112,10 +166,10 @@ class GstReportService {
       headerStyle: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold),
       cellStyle: const pw.TextStyle(fontSize: 8),
       headers: ['Date', 'Invoice No', 'Party Name', 'GSTIN', 'Taxable Val', 'GST Amt', 'Total'],
-      data: list.map((s) => [
-        DateFormat('dd/MM/yy').format(s.date), s.billNo, s.partyName, s.partyGstin, 
-        (s.totalAmount/1.12).toStringAsFixed(2), (s.totalAmount - (s.totalAmount/1.12)).toStringAsFixed(2), s.totalAmount.toStringAsFixed(2)
-      ]).toList(),
+      data: list.map((s) {
+        double tax = s.items.fold(0, (sum, it) => sum + (it.cgst + it.sgst + it.igst));
+        return [DateFormat('dd/MM/yy').format(s.date), s.billNo, s.partyName, s.partyGstin, (s.totalAmount - tax).toStringAsFixed(2), tax.toStringAsFixed(2), s.totalAmount.toStringAsFixed(2)];
+      }).toList(),
     );
   }
 
@@ -124,10 +178,10 @@ class GstReportService {
       headerStyle: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold),
       cellStyle: const pw.TextStyle(fontSize: 8),
       headers: ['Type', 'State (POS)', 'Taxable Value', 'GST Amount', 'Total Amount'],
-      data: list.map((s) => [
-        'B2C Small', s.partyState, (s.totalAmount/1.12).toStringAsFixed(2), 
-        (s.totalAmount - (s.totalAmount/1.12)).toStringAsFixed(2), s.totalAmount.toStringAsFixed(2)
-      ]).toList(),
+      data: list.map((s) {
+        double tax = s.items.fold(0, (sum, it) => sum + (it.cgst + it.sgst + it.igst));
+        return ['B2C Small', s.partyState, (s.totalAmount - tax).toStringAsFixed(2), tax.toStringAsFixed(2), s.totalAmount.toStringAsFixed(2)];
+      }).toList(),
     );
   }
 
