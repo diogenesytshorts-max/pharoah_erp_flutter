@@ -21,11 +21,10 @@ class SaleInvoicePdf {
     double totalGross = sale.items.fold(0, (sum, i) => sum + (i.qty * i.rate));
     double totalSGST = sale.items.fold(0, (sum, i) => sum + i.sgst);
     double totalCGST = sale.items.fold(0, (sum, i) => sum + i.cgst);
-    double totalQty = sale.items.fold(0, (sum, i) => sum + i.qty);
     int roundedGrandTotal = sale.totalAmount.round();
 
-    // Items limit per page
-    const int itemsPerPage = 12; // 12 items safe rehte hain landscape mein
+    // --- UPDATED LIMIT: 22 items per page for Landscape ---
+    const int itemsPerPage = 22; 
     int totalPages = (sale.items.length / itemsPerPage).ceil();
 
     for (int pageNum = 0; pageNum < totalPages; pageNum++) {
@@ -36,7 +35,6 @@ class SaleInvoicePdf {
 
       pdf.addPage(
         pw.Page(
-          // YAHAN LANDSCAPE FIX KIYA GAYA HAI
           pageFormat: PdfPageFormat.a4.landscape, 
           margin: const pw.EdgeInsets.all(15),
           build: (pw.Context context) {
@@ -44,33 +42,33 @@ class SaleInvoicePdf {
               decoration: pw.BoxDecoration(border: pw.Border.all(width: 1)),
               child: pw.Column(
                 children: [
-                  // --- 1. HEADER ---
+                  // --- 1. HEADER (Height reduced to 80 for more space) ---
                   pw.Row(
                     children: [
-                      _headerBox(width: 280, child: pw.Column(
+                      _headerBox(width: 280, height: 80, child: pw.Column(
                         crossAxisAlignment: pw.CrossAxisAlignment.start,
                         children: [
-                          pw.Text(compName, style: pw.TextStyle(fontSize: 15, fontWeight: pw.FontWeight.bold, color: PdfColors.blue900)),
+                          pw.Text(compName, style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold, color: PdfColors.blue900)),
                           pw.Text(compAddr, style: const pw.TextStyle(fontSize: 8)),
                           pw.Text("Phone: $compPh | GSTIN: $compGST", style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold)),
-                          pw.Text("D.L.No.: $compDL", style: const pw.TextStyle(fontSize: 8)),
+                          pw.Text("D.L.No.: $compDL", style: const pw.TextStyle(fontSize: 7.5)),
                         ],
                       )),
-                      _headerBox(width: 170, child: pw.Column(
+                      _headerBox(width: 170, height: 80, child: pw.Column(
                         children: [
-                          pw.Text("GST INVOICE", style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold)),
-                          pw.Text(sale.paymentMode.toUpperCase(), style: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold)),
+                          pw.Text("GST INVOICE", style: pw.TextStyle(fontSize: 13, fontWeight: pw.FontWeight.bold)),
+                          pw.Text(sale.paymentMode.toUpperCase(), style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold)),
                           pw.Divider(thickness: 0.5),
-                          pw.Text("Inv No: ${sale.billNo}", style: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold)),
-                          pw.Text("Date: ${DateFormat('dd/MM/yyyy').format(sale.date)}", style: pw.TextStyle(fontSize: 9)),
+                          pw.Text("Inv No: ${sale.billNo}", style: pw.TextStyle(fontSize: 8.5, fontWeight: pw.FontWeight.bold)),
+                          pw.Text("Date: ${DateFormat('dd/MM/yyyy').format(sale.date)}", style: pw.TextStyle(fontSize: 8.5)),
                           pw.Text("Page ${pageNum + 1} of $totalPages", style: const pw.TextStyle(fontSize: 7, color: PdfColors.blue)),
                         ],
                       )),
-                      _headerBox(width: 330, child: pw.Column(
+                      _headerBox(width: 330, height: 80, child: pw.Column(
                         crossAxisAlignment: pw.CrossAxisAlignment.start,
                         children: [
                           pw.Text("PARTY DETAILS:", style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold, color: PdfColors.grey)),
-                          pw.Text(party.name, style: pw.TextStyle(fontSize: 12, fontWeight: pw.FontWeight.bold, color: PdfColors.blue900)),
+                          pw.Text(party.name, style: pw.TextStyle(fontSize: 11, fontWeight: pw.FontWeight.bold, color: PdfColors.blue900)),
                           pw.Text(party.address, style: const pw.TextStyle(fontSize: 8)),
                           pw.Text("GSTIN: ${party.gst} | DL: ${party.dl}", style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold)),
                         ],
@@ -97,7 +95,7 @@ class SaleInvoicePdf {
                     child: pw.Column(
                       children: pageItems.map((i) {
                         return pw.Container(
-                          decoration: const pw.BoxDecoration(border: pw.Border(bottom: pw.BorderSide(width: 0.1))),
+                          decoration: const pw.BoxDecoration(border: pw.Border(bottom: pw.BorderSide(width: 0.1, color: PdfColors.grey400))),
                           child: pw.Row(
                             children: [
                               _tableCell("${i.srNo}", 25), _tableCell(i.qty.toStringAsFixed(2), 40),
@@ -115,8 +113,8 @@ class SaleInvoicePdf {
                   ),
 
                   // --- 4. FOOTER ---
-                  if (isLastPage) _buildFullFooter(compName, sale, totalGross, totalSGST, totalCGST, totalQty, roundedGrandTotal)
-                  else pw.Padding(padding: const pw.EdgeInsets.all(5), child: pw.Text("Continued...", style: pw.TextStyle(fontStyle: pw.FontStyle.italic, fontSize: 10))),
+                  if (isLastPage) _buildFullFooter(compName, sale, totalGross, totalSGST, totalCGST, roundedGrandTotal)
+                  else pw.Padding(padding: const pw.EdgeInsets.all(5), child: pw.Text("Continued to next page...", style: pw.TextStyle(fontStyle: pw.FontStyle.italic, fontSize: 10))),
                 ],
               ),
             );
@@ -125,70 +123,65 @@ class SaleInvoicePdf {
       );
     }
 
-    // YAHAN PRINTING KO LANDSCAPE FORCE KIYA HAI
     await Printing.layoutPdf(
       onLayout: (format) async => pdf.save(), 
       name: 'Bill_${sale.billNo}',
-      format: PdfPageFormat.a4.landscape, // Force Landscape in Printer
-      dynamicLayout: false, // Prevent re-calculating for portrait
+      format: PdfPageFormat.a4.landscape,
+      dynamicLayout: false,
     );
   }
 
   // --- HELPERS ---
-  static pw.Widget _headerBox({required double width, required pw.Widget child}) {
-    return pw.Container(width: width, height: 90, padding: const pw.EdgeInsets.all(5), decoration: pw.BoxDecoration(border: pw.Border.all(width: 0.5)), child: child);
+  static pw.Widget _headerBox({required double width, required double height, required pw.Widget child}) {
+    return pw.Container(width: width, height: height, padding: const pw.EdgeInsets.all(4), decoration: pw.BoxDecoration(border: pw.Border.all(width: 0.5)), child: child);
   }
 
   static pw.Widget _tableCol(String text, double width, {pw.Alignment align = pw.Alignment.center}) {
-    return pw.Container(width: width, height: 20, alignment: align, decoration: pw.BoxDecoration(border: pw.Border.all(width: 0.5)), child: pw.Text(text, style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold)));
+    return pw.Container(width: width, height: 18, alignment: align, decoration: pw.BoxDecoration(border: pw.Border.all(width: 0.5)), child: pw.Text(text, style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold)));
   }
 
   static pw.Widget _tableCell(String text, double width, {pw.Alignment align = pw.Alignment.center}) {
-    return pw.Container(width: width, padding: const pw.EdgeInsets.symmetric(vertical: 3), alignment: align, child: pw.Text(text, style: const pw.TextStyle(fontSize: 7.5)));
+    return pw.Container(width: width, padding: const pw.EdgeInsets.symmetric(vertical: 2), alignment: align, child: pw.Text(text, style: const pw.TextStyle(fontSize: 7.5)));
   }
 
-  static pw.Widget _buildFullFooter(String compName, Sale sale, double gross, double sgst, double cgst, double qty, int total) {
-    return pw.Column(
+  static pw.Widget _buildFullFooter(String compName, Sale sale, double gross, double sgst, double cgst, int total) {
+    return pw.Row(
+      crossAxisAlignment: pw.CrossAxisAlignment.start,
       children: [
-        pw.Row(
+        pw.Container(width: 320, padding: const pw.EdgeInsets.all(5), decoration: pw.BoxDecoration(border: pw.Border.all(width: 0.5)), child: pw.Column(
           crossAxisAlignment: pw.CrossAxisAlignment.start,
           children: [
-            pw.Container(width: 320, padding: const pw.EdgeInsets.all(5), decoration: pw.BoxDecoration(border: pw.Border.all(width: 0.5)), child: pw.Column(
-              crossAxisAlignment: pw.CrossAxisAlignment.start,
-              children: [
-                pw.Text("Amount in Words:", style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold)),
-                pw.Text("RUPEES ${_numberToWords(total)} ONLY", style: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold, color: PdfColors.blue800)),
-                pw.SizedBox(height: 5),
-                pw.Text("Terms & Conditions:", style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold)),
-                pw.Text("1. Goods once sold will not be taken back.\n2. All disputes subject to Jurisdiction only.", style: const pw.TextStyle(fontSize: 6.5)),
-              ],
-            )),
-            pw.Container(width: 250, padding: const pw.EdgeInsets.all(5), decoration: pw.BoxDecoration(border: pw.Border.all(width: 0.5)), child: pw.Column(
-              children: [
-                _finalRow("GROSS TOTAL", gross),
-                _finalRow("TOTAL SGST", sgst),
-                _finalRow("TOTAL CGST", cgst),
-                pw.Divider(thickness: 0.5),
-                pw.Row(mainAxisAlignment: pw.MainAxisAlignment.spaceBetween, children: [
-                  pw.Text("NET AMOUNT", style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold)),
-                  pw.Text("Rs. $total.00", style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold)),
-                ]),
-              ],
-            )),
-            pw.Container(width: 210, height: 62, padding: const pw.EdgeInsets.all(5), decoration: pw.BoxDecoration(border: pw.Border.all(width: 0.5)), child: pw.Column(
-              mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-              children: [
-                pw.Text("For $compName", style: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold)),
-                pw.Text("Authorised Signatory", style: const pw.TextStyle(fontSize: 8)),
-              ],
-            )),
+            pw.Text("Amount in Words:", style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold)),
+            pw.Text("RUPEES ${_numberToWords(total)} ONLY", style: pw.TextStyle(fontSize: 8.5, fontWeight: pw.FontWeight.bold, color: PdfColors.blue800)),
+            pw.SizedBox(height: 5),
+            pw.Text("Terms & Conditions:", style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold)),
+            pw.Text("1. Goods once sold will not be taken back.\n2. All disputes subject to local Jurisdiction only.", style: const pw.TextStyle(fontSize: 6.5)),
           ],
-        ),
+        )),
+        pw.Container(width: 250, padding: const pw.EdgeInsets.all(5), decoration: pw.BoxDecoration(border: pw.Border.all(width: 0.5)), child: pw.Column(
+          children: [
+            _finalRow("GROSS TOTAL", gross),
+            _finalRow("TOTAL SGST", sgst),
+            _finalRow("TOTAL CGST", cgst),
+            pw.Divider(thickness: 0.5),
+            pw.Row(mainAxisAlignment: pw.MainAxisAlignment.spaceBetween, children: [
+              pw.Text("NET AMOUNT", style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold)),
+              pw.Text("Rs. $total.00", style: pw.TextStyle(fontSize: 13, fontWeight: pw.FontWeight.bold)),
+            ]),
+          ],
+        )),
+        pw.Container(width: 210, height: 60, padding: const pw.EdgeInsets.all(5), decoration: pw.BoxDecoration(border: pw.Border.all(width: 0.5)), child: pw.Column(
+          mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+          children: [
+            pw.Text("For $compName", style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold)),
+            pw.Text("Authorised Signatory", style: const pw.TextStyle(fontSize: 7.5)),
+          ],
+        )),
       ],
     );
   }
 
-  static pw.Widget _finalRow(String l, double v) => pw.Row(mainAxisAlignment: pw.MainAxisAlignment.spaceBetween, children: [pw.Text(l, style: const pw.TextStyle(fontSize: 8)), pw.Text(v.toStringAsFixed(2), style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold))]);
+  static pw.Widget _finalRow(String l, double v) => pw.Row(mainAxisAlignment: pw.MainAxisAlignment.spaceBetween, children: [pw.Text(l, style: const pw.TextStyle(fontSize: 7.5)), pw.Text(v.toStringAsFixed(2), style: pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold))]);
 
   static String _numberToWords(int amount) {
     if (amount == 0) return "ZERO";
