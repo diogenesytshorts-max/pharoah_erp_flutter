@@ -20,7 +20,7 @@ class PharoahManager with ChangeNotifier {
 
   PharoahManager() { initManager(); }
 
-  // --- FOLDER ISOLATION: Har Saal ka Alag Folder ---
+  // --- FOLDER ISOLATION ---
   Future<String> getFYDirectory() async {
     final root = await getApplicationDocumentsDirectory();
     final directory = Directory('${root.path}/DATA_FY_$currentFY');
@@ -37,41 +37,32 @@ class PharoahManager with ChangeNotifier {
     await loadAllData();
   }
 
-  // --- SWITCH YEAR: Memory clear karke naya folder load karna ---
   Future<void> switchYear(String newYear) async {
-    // 1. RAM Memory saaf karein taaki purana data na dikhe
     medicines.clear();
     parties.clear();
     sales.clear();
     purchases.clear();
     logs.clear();
     batchHistory.clear();
-    
-    // 2. Naya FY set karein
     currentFY = newYear;
     notifyListeners();
-    
-    // 3. Naye folder se data load karein
     await loadAllData();
   }
 
-  // --- DATA LOADING & SAVING (Folder Based) ---
+  // --- CORE DATA OPERATIONS ---
   Future<void> save() async {
     final dir = await getFYDirectory();
-    
     await File('$dir/meds.json').writeAsString(jsonEncode(medicines.map((e)=>e.toMap()).toList()));
     await File('$dir/parts.json').writeAsString(jsonEncode(parties.map((e)=>e.toMap()).toList()));
     await File('$dir/sales.json').writeAsString(jsonEncode(sales.map((e)=>e.toMap()).toList()));
     await File('$dir/purc.json').writeAsString(jsonEncode(purchases.map((e)=>e.toMap()).toList()));
     await File('$dir/logs.json').writeAsString(jsonEncode(logs.map((e)=>e.toMap()).toList()));
     await File('$dir/bats.json').writeAsString(jsonEncode(batchHistory.map((k, v) => MapEntry(k, v.map((b) => b.toMap()).toList()))));
-    
     notifyListeners();
   }
 
   Future<void> loadAllData() async {
     final dir = await getFYDirectory();
-    
     dynamic loadJson(String name) {
       final f = File('$dir/$name');
       if (f.existsSync()) return jsonDecode(f.readAsStringSync());
@@ -80,29 +71,63 @@ class PharoahManager with ChangeNotifier {
 
     var mD = loadJson('meds.json');
     medicines = mD != null ? (mD as List).map((e)=>Medicine.fromMap(e)).toList() : DemoData.getMedicines();
-    
     var pD = loadJson('parts.json');
     parties = pD != null ? (pD as List).map((e)=>Party.fromMap(e)).toList() : [DemoData.getDemoParty(), Party(id: 'cash', name: "CASH")];
-    
     var sD = loadJson('sales.json');
     sales = sD != null ? (sD as List).map((e)=>Sale.fromMap(e)).toList() : [];
-    
     var purD = loadJson('purc.json');
     purchases = purD != null ? (purD as List).map((e)=>Purchase.fromMap(e)).toList() : [];
-
     var lD = loadJson('logs.json');
     logs = lD != null ? (lD as List).map((e)=>LogEntry.fromMap(e)).toList() : [];
-
     var bD = loadJson('bats.json');
     if (bD != null) { 
       batchHistory.clear();
       (bD as Map).forEach((k, v) => batchHistory[k] = (v as List).map((b) => BatchInfo.fromMap(b)).toList()); 
     }
-    
     notifyListeners();
   }
 
-  // --- BUSINESS LOGIC (SALE / PURCHASE / DELETE) ---
+  // =========================================================
+  // FIX: RESTORING MISSING METHODS FOR LOGIN & MAINTENANCE
+  // =========================================================
+
+  Future<void> runAutoBackup() async {
+    try {
+      final dirPath = await getFYDirectory();
+      final backupDir = Directory('$dirPath/backups');
+      if (!await backupDir.exists()) await backupDir.create(recursive: true);
+
+      String ts = DateTime.now().millisecondsSinceEpoch.toString();
+      final backupFile = File('${backupDir.path}/auto_backup_$ts.json');
+      
+      await backupFile.writeAsString(jsonEncode({
+        'meds': medicines.map((e)=>e.toMap()).toList(),
+        'sales': sales.map((e)=>e.toMap()).toList(),
+        'purchases': purchases.map((e)=>e.toMap()).toList(),
+      }));
+    } catch (e) {
+      debugPrint("Backup Failed: $e");
+    }
+  }
+
+  Future<void> runFullMaintenance() async {
+    // Re-calculating Stock from scratch to fix errors
+    for (var med in medicines) {
+      int st = 0;
+      for (var p in purchases) { 
+        for (var it in p.items) if (it.medicineID == med.id) st += (it.qty + it.freeQty).toInt(); 
+      }
+      for (var s in sales) { 
+        if (s.status == "Active") { 
+          for (var it in s.items) if (it.medicineID == med.id) st -= it.qty.toInt(); 
+        } 
+      }
+      med.stock = st;
+    }
+    await save();
+  }
+
+  // --- BUSINESS LOGIC ---
   void saveBatchCentrally(String medId, BatchInfo b) {
     if (!batchHistory.containsKey(medId)) batchHistory[medId] = [];
     batchHistory[medId] = BatchMasterLogic.updateBatchList(batchHistory[medId]!, b);
@@ -197,15 +222,12 @@ class PharoahManager with ChangeNotifier {
     final dir = await getFYDirectory();
     final directory = Directory(dir);
     if (directory.existsSync()) directory.deleteSync(recursive: true);
-    
     final p = await SharedPreferences.getInstance();
     await p.setInt('lastBillID', 0); 
     await p.setInt('lastPurID', 0);
-    
     await switchYear(currentFY);
   }
 
-  // Helper properties
   DateTime get fyStartDate {
     int y = int.parse(currentFY.split('-')[0]);
     if (y < 2000) y += 2000;
