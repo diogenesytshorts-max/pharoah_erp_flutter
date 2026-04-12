@@ -31,6 +31,20 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^3.0.0
+  dependencies:
+  flutter:
+    sdk: flutter
+  intl: ^0.19.0
+  shared_preferences: ^2.2.2
+  path_provider: ^2.1.2
+  provider: ^6.1.1
+  pdf: ^3.10.7
+  printing: ^5.11.0
+  share_plus: ^7.2.2
+  
+  # --- YE DO LINES ADD KAREIN ---
+  csv: ^6.0.0
+  file_picker: ^8.1.2
   
   # App Icon Generator
   flutter_launcher_icons: ^0.13.1
