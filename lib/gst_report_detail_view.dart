@@ -16,8 +16,17 @@ class _GSTReportDetailViewState extends State<GSTReportDetailView> {
 
   @override Widget build(BuildContext context) {
     final ph = Provider.of<PharoahManager>(context);
-    List<Sale> all = ph.sales.where((s) => s.date.month == selectedDate.month && s.date.year == selectedDate.year).toList();
-    List<Sale> active = all.where((s) => s.status == "Active").toList();
+    
+    // Monthly Sales filtering
+    List<Sale> allSales = ph.sales.where((s) => 
+      s.date.month == selectedDate.month && s.date.year == selectedDate.year
+    ).toList();
+    List<Sale> activeSales = allSales.where((s) => s.status == "Active").toList();
+
+    // Monthly Purchases filtering
+    List<Purchase> monthlyPurchases = ph.purchases.where((p) => 
+      p.date.month == selectedDate.month && p.date.year == selectedDate.year
+    ).toList();
 
     return Scaffold(
       backgroundColor: Colors.white,
@@ -30,10 +39,16 @@ class _GSTReportDetailViewState extends State<GSTReportDetailView> {
             icon: const Icon(Icons.picture_as_pdf), 
             onPressed: () {
               String period = DateFormat('MMM-yyyy').format(selectedDate);
+              
               if (widget.reportType.contains("GSTR-1")) {
-                GstReportService.generateGstr1Pdf(all, period);
-              } else if (widget.reportType.contains("GSTR-3B")) {
-                GstReportService.generateGstr3bPdf(all, ph.purchases, period);
+                GstReportService.generateGstr1Pdf(allSales, period);
+              } 
+              else if (widget.reportType.contains("GSTR-3B")) {
+                GstReportService.generateGstr3bPdf(activeSales, monthlyPurchases, period);
+              }
+              // --- GSTR-2 PDF TRIGGER ---
+              else if (widget.reportType.contains("GSTR-2")) {
+                GstReportService.generateGstr2Pdf(monthlyPurchases, period);
               }
             }
           ),
@@ -41,8 +56,9 @@ class _GSTReportDetailViewState extends State<GSTReportDetailView> {
       ),
       body: Column(children: [
         _buildMonthHeader(),
-        if (widget.reportType.contains("GSTR-1")) _buildGstr1Tabs(active, all)
-        else _build3bPreview(active, ph.purchases)
+        if (widget.reportType.contains("GSTR-1")) _buildGstr1Tabs(activeSales, allSales)
+        else if (widget.reportType.contains("GSTR-2")) _buildGstr2Preview(monthlyPurchases)
+        else _build3bPreview(activeSales, monthlyPurchases)
       ]),
     );
   }
@@ -75,20 +91,38 @@ class _GSTReportDetailViewState extends State<GSTReportDetailView> {
     );
   }
 
+  // --- GSTR-2 UI PREVIEW ---
+  Widget _buildGstr2Preview(List<Purchase> purchases) {
+    return Expanded(
+      child: ListView(padding: const EdgeInsets.all(15), children: [
+        _summaryCard("Total Purchase Records", purchases.length.toDouble(), Colors.orange, isInt: true),
+        _summaryCard("Total Purchase Amount", purchases.fold(0.0, (sum, p) => sum + p.totalAmount), Colors.deepOrange),
+        const Divider(height: 40),
+        const Center(child: Text("Purchase bills for Input Tax Credit (ITC)", style: TextStyle(fontStyle: FontStyle.italic, color: Colors.grey))),
+        const SizedBox(height: 10),
+        ...purchases.map((p) => ListTile(
+          title: Text(p.distributorName, style: const TextStyle(fontWeight: FontWeight.bold)),
+          subtitle: Text("Bill: ${p.billNo} | Date: ${DateFormat('dd/MM/yy').format(p.date)}"),
+          trailing: Text("₹${p.totalAmount.toStringAsFixed(2)}"),
+        )).toList(),
+      ]),
+    );
+  }
+
   Widget _build3bPreview(List<Sale> sales, List<Purchase> purchases) {
     return Expanded(
       child: ListView(padding: const EdgeInsets.all(15), children: [
-        _summaryCard("Total Outward Supplies (Sales)", sales.fold(0, (sum, s) => sum + s.totalAmount), Colors.green),
+        _summaryCard("Total Outward Supplies (Sales)", sales.fold(0.0, (sum, s) => sum + s.totalAmount), Colors.green),
         const SizedBox(height: 10),
-        _summaryCard("Total Inward Supplies (Purchase ITC)", purchases.fold(0, (sum, p) => sum + p.totalAmount), Colors.orange),
+        _summaryCard("Total Inward Supplies (Purchase ITC)", purchases.fold(0.0, (sum, p) => sum + p.totalAmount), Colors.orange),
         const Divider(height: 40),
         const Center(child: Text("Tap PDF icon to generate full 3B Report", style: TextStyle(fontStyle: FontStyle.italic, color: Colors.grey))),
       ]),
     );
   }
 
-  Widget _summaryCard(String t, double v, Color c) {
-    return Card(color: c.withOpacity(0.1), child: ListTile(title: Text(t, style: const TextStyle(fontWeight: FontWeight.bold)), trailing: Text("₹${v.toStringAsFixed(2)}", style: TextStyle(fontWeight: FontWeight.w900, color: c, fontSize: 16))));
+  Widget _summaryCard(String t, double v, Color c, {bool isInt = false}) {
+    return Card(color: c.withOpacity(0.1), child: ListTile(title: Text(t, style: const TextStyle(fontWeight: FontWeight.bold)), trailing: Text(isInt ? v.toInt().toString() : "₹${v.toStringAsFixed(2)}", style: TextStyle(fontWeight: FontWeight.w900, color: c, fontSize: 16))));
   }
 
   Widget _table(List<Sale> list, bool b2b) {
