@@ -3,8 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import 'pharoah_manager.dart';
 import 'models.dart';
-import 'pdf_service.dart';
-import 'gst_report_service.dart'; // Nayi file import kari
+import 'gst_report_service.dart';
 
 class GSTReportDetailView extends StatefulWidget {
   final String reportType;
@@ -38,8 +37,6 @@ class _GSTReportDetailViewState extends State<GSTReportDetailView> {
               }
             }
           ),
-          if (widget.reportType.contains("GSTR-1")) 
-            IconButton(icon: const Icon(Icons.code), onPressed: () => PdfService.generateGstJson(all, DateFormat('MMYYYY').format(selectedDate))),
         ],
       ),
       body: Column(children: [
@@ -95,7 +92,22 @@ class _GSTReportDetailViewState extends State<GSTReportDetailView> {
   }
 
   Widget _table(List<Sale> list, bool b2b) {
-    return SingleChildScrollView(scrollDirection: Axis.horizontal, child: DataTable(columns: [const DataColumn(label: Text('DATE')), const DataColumn(label: Text('BILL')), const DataColumn(label: Text('PARTY')), if(b2b) const DataColumn(label: Text('GSTIN')), const DataColumn(label: Text('TOTAL'))], rows: list.map((s) => DataRow(cells: [DataCell(Text(DateFormat('dd/MM').format(s.date))), DataCell(Text(s.billNo)), DataCell(Text(s.partyName)), if(b2b) DataCell(Text(s.partyGstin)), DataCell(Text(s.totalAmount.toStringAsFixed(2)))])).toList()));
+    return SingleChildScrollView(scrollDirection: Axis.horizontal, child: DataTable(
+      columns: [
+        const DataColumn(label: Text('DATE')), 
+        const DataColumn(label: Text('BILL')), 
+        const DataColumn(label: Text('PARTY')), 
+        if(b2b) const DataColumn(label: Text('GSTIN')), 
+        const DataColumn(label: Text('TOTAL'))
+      ], 
+      rows: list.map((s) => DataRow(cells: [
+        DataCell(Text(DateFormat('dd/MM').format(s.date))), 
+        DataCell(Text(s.billNo)), 
+        DataCell(Text(s.partyName)), 
+        if(b2b) DataCell(Text(s.partyGstin)), 
+        DataCell(Text(s.totalAmount.toStringAsFixed(2)))
+      ])).toList()
+    ));
   }
 
   Widget _hsnTable(List<Sale> sales) {
@@ -104,6 +116,9 @@ class _GSTReportDetailViewState extends State<GSTReportDetailView> {
   }
 
   Widget _docTable(List<Sale> all) {
-    return Column(children: [ListTile(title: const Text("Total Invoices issued"), trailing: Text("${all.length}")), ListTile(title: const Text("Cancelled"), trailing: Text("${all.where((s)=>s.status=="Cancelled").length}"))]);
+    return Column(children: [
+      ListTile(title: const Text("Total Invoices issued"), trailing: Text("${all.length}")), 
+      ListTile(title: const Text("Cancelled Invoices"), trailing: Text("${all.where((s)=>s.status=="Cancelled").length}"))
+    ]);
   }
 }
