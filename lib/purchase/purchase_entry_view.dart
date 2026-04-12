@@ -1,79 +1,89 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../pharoah_manager.dart';
 import '../models.dart';
+import 'purchase_billing_view.dart';
+import '../app_date_logic.dart';
 
-class ExpiryDateFormatter extends TextInputFormatter {
-  @override TextEditingValue formatEditUpdate(TextEditingValue oldValue, TextEditingValue newValue) {
-    var text = newValue.text;
-    if (newValue.selection.baseOffset < oldValue.selection.baseOffset) return newValue;
-    if (text.length == 2 && !text.contains('/')) return TextEditingValue(text: '$text/', selection: TextSelection.collapsed(offset: 3));
-    return newValue;
+class PurchaseEntryView extends StatefulWidget {
+  final Purchase? existingPurchase; // Naya field for modification
+  const PurchaseEntryView({super.key, this.existingPurchase});
+
+  @override State<PurchaseEntryView> createState() => _PurchaseEntryViewState();
+}
+
+class _PurchaseEntryViewState extends State<PurchaseEntryView> {
+  final supplierBillNoC = TextEditingController(); 
+  final internalEntryNoC = TextEditingController();
+  DateTime selectedBillDate = DateTime.now(); 
+  String paymentMode = "CREDIT"; 
+  Party? selectedDistributor; 
+  String distSearchQuery = "";
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final ph = Provider.of<PharoahManager>(context, listen: false);
+      setState(() {
+        if (widget.existingPurchase != null) {
+          // MODIFICATION MODE
+          supplierBillNoC.text = widget.existingPurchase!.billNo;
+          internalEntryNoC.text = widget.existingPurchase!.internalNo;
+          selectedBillDate = widget.existingPurchase!.date;
+          paymentMode = widget.existingPurchase!.paymentMode;
+          selectedDistributor = ph.parties.firstWhere((p) => p.name == widget.existingPurchase!.distributorName, orElse: () => ph.parties[0]);
+        } else {
+          // FRESH ENTRY MODE
+          selectedBillDate = AppDateLogic.getSmartDate(ph.currentFY);
+          _loadInternalNo();
+        }
+      });
+    });
   }
-}
 
-class PurchaseBillingView extends StatefulWidget {
-  final Party distributor; final String internalNo, distBillNo; final DateTime billDate; final String mode;
-  const PurchaseBillingView({super.key, required this.distributor, required this.internalNo, required this.distBillNo, required this.billDate, required this.mode});
-  @override State<PurchaseBillingView> createState() => _PurchaseBillingViewState();
-}
-
-class _PurchaseBillingViewState extends State<PurchaseBillingView> {
-  List<PurchaseItem> items = []; String searchQuery = ""; Medicine? selectedMed;
-  double get totalAmt => items.fold(0, (sum, it) => sum + it.total);
+  Future<void> _loadInternalNo() async {
+    final prefs = await SharedPreferences.getInstance();
+    int lastId = prefs.getInt('lastPurID') ?? 0;
+    setState(() { internalEntryNoC.text = "PUR-${lastId + 1}"; });
+  }
 
   @override Widget build(BuildContext context) {
     final ph = Provider.of<PharoahManager>(context);
     return Scaffold(
-      backgroundColor: Colors.white,
-      appBar: AppBar(backgroundColor: Colors.orange.shade800, foregroundColor: Colors.white, title: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(widget.distributor.name, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold)), Text("${widget.internalNo} | Bill: ${widget.distBillNo}", style: const TextStyle(fontSize: 10))]), actions: [TextButton(onPressed: items.isEmpty ? null : () => _handleSave(ph), child: const Text("SAVE PURCHASE", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)))]),
-      body: Stack(children: [
-        Column(children: [
-          if (selectedMed == null) Container(padding: const EdgeInsets.all(12), color: Colors.orange.shade50, child: TextField(autofocus: true, decoration: InputDecoration(hintText: "Search Product for Stock-In...", prefixIcon: const Icon(Icons.search, color: Colors.orange), filled: true, fillColor: Colors.white, border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none)), onChanged: (v) => setState(() => searchQuery = v))),
-          if (selectedMed != null) PurchaseItemEntryForm(med: selectedMed!, srNo: items.length + 1, batchHistory: ph.batchHistory[selectedMed!.id] ?? [], onAdd: (newItem) {
-            ph.saveBatchCentrally(selectedMed!.id, BatchInfo(batch: newItem.batch, exp: newItem.exp, packing: newItem.packing, mrp: newItem.mrp, rate: newItem.purchaseRate));
-            setState(() { items.add(newItem); selectedMed = null; searchQuery = ""; });
-          }, onCancel: () => setState(() => selectedMed = null)),
-          Expanded(child: ListView.separated(itemCount: items.length, separatorBuilder: (c, i) => const Divider(), itemBuilder: (c, i) => ListTile(title: Text(items[i].name, style: const TextStyle(fontWeight: FontWeight.bold)), subtitle: Text("Qty: ${items[i].qty.toInt()} + ${items[i].freeQty.toInt()} | Batch: ${items[i].batch} | Rate: ₹${items[i].purchaseRate}"), trailing: Text("₹${items[i].total.toStringAsFixed(2)}", style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.deepOrange, fontSize: 15))))),
-          Container(padding: const EdgeInsets.all(15), decoration: BoxDecoration(color: Colors.orange.shade50, border: const Border(top: BorderSide(color: Colors.orange, width: 1))), child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [Text("Total Items: ${items.length}", style: const TextStyle(fontWeight: FontWeight.bold)), Text("TOTAL: ₹${totalAmt.toStringAsFixed(2)}", style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: Colors.deepOrange))]))
-        ]),
-        if (searchQuery.isNotEmpty && selectedMed == null) Positioned(top: 70, left: 15, right: 15, child: Material(elevation: 10, borderRadius: BorderRadius.circular(10), child: Container(constraints: const BoxConstraints(maxHeight: 250), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(10)), child: ListView(shrinkWrap: true, children: ph.medicines.where((m) => m.name.toLowerCase().contains(searchQuery.toLowerCase())).map((m) => ListTile(leading: const Icon(Icons.medication, color: Colors.orange), title: Text(m.name, style: const TextStyle(fontWeight: FontWeight.bold)), subtitle: Text("Pack: ${m.packing} | Stock: ${m.stock}"), onTap: () => setState(() { selectedMed = m; searchQuery = ""; }))).toList()))))
+      backgroundColor: const Color(0xFFF5F6F9),
+      appBar: AppBar(title: Text(widget.existingPurchase != null ? "Modify Purchase Bill" : "Purchase Entry (Stock-In)"), backgroundColor: Colors.orange.shade800, foregroundColor: Colors.white, elevation: 0),
+      body: Column(children: [
+        Container(padding: const EdgeInsets.all(20), decoration: BoxDecoration(color: Colors.white, boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10)]), child: Column(children: [
+          Row(children: [
+            Expanded(child: TextField(controller: internalEntryNoC, enabled: false, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.blueGrey), decoration: const InputDecoration(labelText: "INTERNAL NO", border: OutlineInputBorder(), filled: true, fillColor: Color(0xFFF0F0F0)))),
+            const SizedBox(width: 15),
+            Expanded(child: TextField(controller: supplierBillNoC, textCapitalization: TextCapitalization.characters, decoration: const InputDecoration(labelText: "SUPPLIER BILL NO", hintText: "Enter No.", border: OutlineInputBorder()))),
+          ]),
+          const SizedBox(height: 15),
+          Row(children: [
+            Expanded(child: InkWell(onTap: () async { DateTime? p = await showDatePicker(context: context, initialDate: selectedBillDate, firstDate: ph.fyStartDate, lastDate: ph.fyEndDate); if (p != null) setState(() => selectedBillDate = p); }, child: Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(border: Border.all(color: Colors.grey.shade400), borderRadius: BorderRadius.circular(5)), child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [Text(AppDateLogic.format(selectedBillDate), style: const TextStyle(fontWeight: FontWeight.bold)), const Icon(Icons.calendar_month, color: Colors.orange, size: 18)])))),
+            const SizedBox(width: 15),
+            Expanded(child: SegmentedButton<String>(segments: const [ButtonSegment(value: 'CASH', label: Text('CASH')), ButtonSegment(value: 'CREDIT', label: Text('CREDIT'))], selected: {paymentMode}, onSelectionChanged: (v) => setState(() => paymentMode = v.first))),
+          ]),
+        ])),
+        const Padding(padding: EdgeInsets.fromLTRB(20, 20, 20, 10), child: Align(alignment: Alignment.centerLeft, child: Text("SELECT DISTRIBUTOR / SUPPLIER", style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.blueGrey, letterSpacing: 1)))),
+        if (selectedDistributor != null)
+          Padding(padding: const EdgeInsets.symmetric(horizontal: 15), child: Card(elevation: 4, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15), side: BorderSide(color: Colors.orange.shade200, width: 1.5)), child: ListTile(leading: const CircleAvatar(backgroundColor: Colors.orange, child: Icon(Icons.business, color: Colors.white)), title: Text(selectedDistributor!.name, style: const TextStyle(fontWeight: FontWeight.bold)), subtitle: Text("${selectedDistributor!.city}"), trailing: widget.existingPurchase != null ? const Icon(Icons.lock) : IconButton(icon: const Icon(Icons.change_circle, color: Colors.red, size: 28), onPressed: () => setState(() => selectedDistributor = null)))))
+        else
+          Expanded(child: Column(children: [Padding(padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10), child: TextField(decoration: InputDecoration(hintText: "Search Supplier...", prefixIcon: const Icon(Icons.search, color: Colors.orange), border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)), filled: true, fillColor: Colors.white), onChanged: (v) => setState(() => distSearchQuery = v))), Expanded(child: ListView(padding: const EdgeInsets.symmetric(horizontal: 10), children: ph.parties.where((p) => p.name.toLowerCase().contains(distSearchQuery.toLowerCase())).map((p) => ListTile(leading: const Icon(Icons.storefront_outlined), title: Text(p.name, style: const TextStyle(fontWeight: FontWeight.bold)), subtitle: Text(p.city), onTap: () => setState(() => selectedDistributor = p))).toList()))])) ,
+        if (selectedDistributor != null) 
+          Padding(padding: const EdgeInsets.all(20), child: ElevatedButton(style: ElevatedButton.styleFrom(minimumSize: const Size(double.infinity, 60), backgroundColor: Colors.orange.shade800, elevation: 5, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))), onPressed: () {
+            if (supplierBillNoC.text.trim().isEmpty) { ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Supplier Bill Number is mandatory!"))); return; }
+            Navigator.push(context, MaterialPageRoute(builder: (c) => PurchaseBillingView(
+              distributor: selectedDistributor!, internalNo: internalEntryNoC.text, distBillNo: supplierBillNoC.text.trim(), billDate: selectedBillDate, mode: paymentMode,
+              existingItems: widget.existingPurchase?.items, 
+              modifyPurchaseId: widget.existingPurchase?.id,
+            )));
+          }, child: const Text("PROCEED TO ITEMS", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18)))),
       ]),
     );
   }
-  void _handleSave(PharoahManager ph) async { ph.finalizePurchase(internalNo: widget.internalNo, billNo: widget.distBillNo, date: widget.billDate, party: widget.distributor, items: items, total: totalAmt, mode: widget.mode); final prefs = await SharedPreferences.getInstance(); int lastId = prefs.getInt('lastPurID') ?? 0; await prefs.setInt('lastPurID', lastId + 1); if (mounted) { ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("✅ Purchase Saved!"), backgroundColor: Colors.orange)); Navigator.of(context).popUntil((route) => route.isFirst); } }
-}
-
-class PurchaseItemEntryForm extends StatefulWidget {
-  final Medicine med; final int srNo; final List<BatchInfo> batchHistory; final Function(PurchaseItem) onAdd; final VoidCallback onCancel;
-  const PurchaseItemEntryForm({super.key, required this.med, required this.srNo, required this.batchHistory, required this.onAdd, required this.onCancel});
-  @override State<PurchaseItemEntryForm> createState() => _PurchaseItemEntryFormState();
-}
-
-class _PurchaseItemEntryFormState extends State<PurchaseItemEntryForm> {
-  final bC = TextEditingController(); final eC = TextEditingController(); final gC = TextEditingController(); final mC = TextEditingController(); final pRC = TextEditingController(); final qC = TextEditingController(text: "1"); final fC = TextEditingController(text: "0"); final rAC = TextEditingController(); final rBC = TextEditingController(); final rCC = TextEditingController(); final rCD = TextEditingController(text: "0");
-  @override void initState() { super.initState(); mC.text = widget.med.mrp.toString(); gC.text = widget.med.gst.toString(); pRC.text = widget.med.purRate.toString(); rAC.text = widget.med.rateA.toString(); rBC.text = widget.med.rateB.toString(); _calcRateC(); }
-  void _calcRateC() { double mrp = double.tryParse(mC.text) ?? 0; double gst = double.tryParse(gC.text) ?? 0; double disc = double.tryParse(rCD.text) ?? 0; double taxable = mrp / (1 + (gst / 100)); rCC.text = (taxable - (taxable * disc / 100)).toStringAsFixed(2); }
-  @override Widget build(BuildContext context) {
-    return Container(padding: const EdgeInsets.all(15), color: Colors.orange.shade50, child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Row(children: [Expanded(child: Text("${widget.srNo}. ${widget.med.name}", style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.deepOrange))), IconButton(icon: const Icon(Icons.close, color: Colors.red), onPressed: widget.onCancel)]),
-      if (widget.batchHistory.isNotEmpty) ...[
-        const Text("Old Batches:", style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold)),
-        SizedBox(height: 40, child: ListView(scrollDirection: Axis.horizontal, children: widget.batchHistory.map((b) => Padding(padding: const EdgeInsets.only(right: 5), child: ActionChip(label: Text(b.batch), onPressed: () { setState(() { bC.text = b.batch; eC.text = b.exp; mC.text = b.mrp.toString(); pRC.text = b.rate.toString(); }); }))).toList())),
-      ],
-      Row(children: [Expanded(child: _field(bC, "Batch")), const SizedBox(width: 5), Expanded(child: _field(eC, "Exp", fmt: [ExpiryDateFormatter()])), const SizedBox(width: 5), Expanded(child: _field(gC, "GST%", onCh: (v) => _calcRateC()))]),
-      const SizedBox(height: 10),
-      Row(children: [Expanded(child: _field(mC, "MRP", onCh: (v) => _calcRateC())), const SizedBox(width: 5), Expanded(child: _field(pRC, "Pur Rate")), const SizedBox(width: 5), Expanded(child: _field(qC, "Qty")), const SizedBox(width: 5), Expanded(child: _field(fC, "Free"))]),
-      const SizedBox(height: 10),
-      Row(children: [Expanded(child: _field(rAC, "Rate A")), const SizedBox(width: 5), Expanded(child: _field(rBC, "Rate B")), const SizedBox(width: 5), Expanded(child: _field(rCD, "RC Disc%", onCh: (v) => _calcRateC())), const SizedBox(width: 5), Expanded(child: _field(rCC, "Rate C", en: false))]),
-      const SizedBox(height: 15),
-      ElevatedButton(style: ElevatedButton.styleFrom(minimumSize: const Size(double.infinity, 50), backgroundColor: Colors.orange.shade800), onPressed: () {
-        double pr = double.tryParse(pRC.text) ?? 0, qt = double.tryParse(qC.text) ?? 0, gst = double.tryParse(gC.text) ?? 0;
-        widget.onAdd(PurchaseItem(id: DateTime.now().toString(), srNo: widget.srNo, medicineID: widget.med.id, name: widget.med.name, packing: widget.med.packing, batch: bC.text.toUpperCase(), exp: eC.text, hsn: widget.med.hsnCode, mrp: double.tryParse(mC.text) ?? 0, qty: qt, freeQty: double.tryParse(fC.text) ?? 0, purchaseRate: pr, gstRate: gst, total: (pr * qt) * (1 + gst/100), rateA: double.tryParse(rAC.text) ?? 0, rateB: double.tryParse(rBC.text) ?? 0, rateC: double.tryParse(rCC.text) ?? 0));
-      }, child: const Text("ADD TO LIST", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)))
-    ]));
-  }
-  Widget _field(TextEditingController c, String l, {List<TextInputFormatter>? fmt, bool en = true, Function(String)? onCh}) { return TextField(controller: c, enabled: en, inputFormatters: fmt, onChanged: onCh, decoration: InputDecoration(labelText: l, border: const OutlineInputBorder(), contentPadding: const EdgeInsets.all(8)), keyboardType: TextInputType.text); }
 }
