@@ -75,6 +75,16 @@ class DashboardView extends StatelessWidget {
                       ActionIconBtn(title: "Sales Edit", icon: Icons.edit_note_rounded, color: Colors.blue, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => const SaleBillModifyView()))),
                       ActionIconBtn(title: "Pur. Edit", icon: Icons.history_edu_rounded, color: Colors.deepOrange, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => const PurchaseModifyView()))),
                       ActionIconBtn(title: "More...", icon: Icons.widgets_rounded, color: Colors.blueGrey, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => MoreFeaturesView(onLogout: onLogout)))),
+                      // More... button se pehle ya baad mein
+ActionIconBtn(
+  title: "Data Hub", 
+  icon: Icons.swap_horizontal_circle, 
+  color: Colors.indigo, 
+  onTap: () => Navigator.push(
+    context, 
+    MaterialPageRoute(builder: (c) => const DataExchangeView())
+  )
+),
                     ],
                   ),
                 ],
