@@ -1,11 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:intl/intl.dart';
 import 'pharoah_manager.dart';
 import 'models.dart';
 import 'sale_bill_number.dart';
 import 'billing_view.dart';
-import 'app_date_logic.dart'; // Nayi file ka import
+import 'app_date_logic.dart';
 
 class SaleEntryView extends StatefulWidget {
   final Sale? existingSale; 
@@ -17,7 +16,6 @@ class SaleEntryView extends StatefulWidget {
 }
 
 class _SaleEntryViewState extends State<SaleEntryView> {
-  // --- STATE VARIABLES ---
   DateTime selectedBillDate = DateTime.now();
   String paymentMode = "CASH"; 
   Party? selectedParty; 
@@ -27,19 +25,17 @@ class _SaleEntryViewState extends State<SaleEntryView> {
   @override
   void initState() {
     super.initState();
-    
-    // Logic inside addPostFrameCallback to ensure Provider is ready
+    // Widgets ki loading ke baad date aur bill no set karein
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final ph = Provider.of<PharoahManager>(context, listen: false);
       
       setState(() {
         if (widget.existingSale != null) { 
-          // EDIT MODE: Purani details uthao
           selectedBillDate = widget.existingSale!.date; 
           paymentMode = widget.existingSale!.paymentMode; 
           billNoController.text = widget.existingSale!.billNo; 
         } else {
-          // NEW MODE: Smart Auto Date aur Naya Bill No
+          // AUTOMATIC DATE SETTING HERE
           selectedBillDate = AppDateLogic.getSmartDate(ph.currentFY);
           _loadAutoBillNumber();
         }
@@ -47,7 +43,6 @@ class _SaleEntryViewState extends State<SaleEntryView> {
     });
   }
 
-  // Next bill number generate karne ke liye
   Future<void> _loadAutoBillNumber() async {
     final ph = Provider.of<PharoahManager>(context, listen: false);
     String nextNo = await SaleBillNumber.getNextNumber(ph.sales); 
@@ -59,15 +54,6 @@ class _SaleEntryViewState extends State<SaleEntryView> {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Please select a party first!")));
       return;
     }
-    
-    // FY Boundary Check
-    if (selectedBillDate.isBefore(ph.fyStartDate) || selectedBillDate.isAfter(ph.fyEndDate)) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Selected date must be within ${ph.currentFY}"))
-      );
-      return;
-    }
-
     Navigator.push(
       context, 
       MaterialPageRoute(
@@ -87,151 +73,55 @@ class _SaleEntryViewState extends State<SaleEntryView> {
   @override 
   Widget build(BuildContext context) {
     final ph = Provider.of<PharoahManager>(context);
-    
     if (widget.existingSale != null && selectedParty == null) { 
-      selectedParty = ph.parties.firstWhere(
-        (p) => p.name == widget.existingSale!.partyName, 
-        orElse: () => ph.parties[0]
-      ); 
+      selectedParty = ph.parties.firstWhere((p) => p.name == widget.existingSale!.partyName, orElse: () => ph.parties[0]); 
     }
 
     return Scaffold(
       backgroundColor: const Color(0xFFF5F6F9),
-      appBar: AppBar(
-        title: Text(widget.isReadOnly ? "View Invoice Details" : "New Sale Entry"), 
-        backgroundColor: Colors.blue.shade800, 
-        foregroundColor: Colors.white,
-        elevation: 0,
-      ),
+      appBar: AppBar(title: Text(widget.isReadOnly ? "View Invoice" : "New Sale Entry"), backgroundColor: Colors.blue.shade800, foregroundColor: Colors.white),
       body: Column(
         children: [
           Container(
             padding: const EdgeInsets.all(20), 
-            decoration: BoxDecoration(color: Colors.white, boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10)]),
+            color: Colors.white,
             child: Column(
               children: [
                 Row(
                   children: [
-                    Expanded(
-                      child: TextField(
-                        controller: billNoController, 
-                        enabled: !widget.isReadOnly, 
-                        decoration: const InputDecoration(labelText: "INVOICE NO", border: OutlineInputBorder(), filled: true, fillColor: Color(0xFFF9F9F9))
-                      )
-                    ),
+                    Expanded(child: TextField(controller: billNoController, enabled: !widget.isReadOnly, decoration: const InputDecoration(labelText: "INVOICE NO", border: OutlineInputBorder()))),
                     const SizedBox(width: 15),
                     Expanded(
                       child: InkWell(
                         onTap: widget.isReadOnly ? null : () async { 
-                          DateTime? p = await showDatePicker(
-                            context: context, 
-                            initialDate: selectedBillDate, 
-                            firstDate: ph.fyStartDate,
-                            lastDate: ph.fyEndDate
-                          ); 
+                          DateTime? p = await showDatePicker(context: context, initialDate: selectedBillDate, firstDate: ph.fyStartDate, lastDate: ph.fyEndDate); 
                           if (p != null) setState(() => selectedBillDate = p); 
                         }, 
                         child: Container(
                           padding: const EdgeInsets.all(12), 
                           decoration: BoxDecoration(border: Border.all(color: Colors.grey.shade400), borderRadius: BorderRadius.circular(5)), 
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Text(AppDateLogic.format(selectedBillDate), style: const TextStyle(fontWeight: FontWeight.bold)),
-                              const Icon(Icons.calendar_month, size: 18, color: Colors.blue),
-                            ],
-                          )
+                          child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [Text(AppDateLogic.format(selectedBillDate), style: const TextStyle(fontWeight: FontWeight.bold)), const Icon(Icons.calendar_month, size: 18, color: Colors.blue)])
                         )
                       )
                     ),
                   ],
                 ),
                 const SizedBox(height: 15),
-                AbsorbPointer(
-                  absorbing: widget.isReadOnly,
-                  child: SegmentedButton<String>(
-                    segments: const [
-                      ButtonSegment(value: 'CASH', label: Text('CASH'), icon: Icon(Icons.money)), 
-                      ButtonSegment(value: 'CREDIT', label: Text('CREDIT'), icon: Icon(Icons.credit_score))
-                    ], 
-                    selected: {paymentMode}, 
-                    onSelectionChanged: (v) => setState(() => paymentMode = v.first),
-                  ),
+                SegmentedButton<String>(
+                  segments: const [ButtonSegment(value: 'CASH', label: Text('CASH')), ButtonSegment(value: 'CREDIT', label: Text('CREDIT'))], 
+                  selected: {paymentMode}, 
+                  onSelectionChanged: (v) => setState(() => paymentMode = v.first),
                 )
               ],
             ),
           ),
-
-          const Padding(
-            padding: EdgeInsets.fromLTRB(20, 20, 20, 10),
-            child: Align(alignment: Alignment.centerLeft, child: Text("SELECT CUSTOMER / PARTY", style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.blueGrey, letterSpacing: 1))),
-          ),
-
+          const Padding(padding: EdgeInsets.all(20), child: Align(alignment: Alignment.centerLeft, child: Text("SELECT CUSTOMER", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.blueGrey)))),
           if (selectedParty != null) 
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 15),
-              child: Card(
-                elevation: 4,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15), side: const BorderSide(color: Colors.blue, width: 1)), 
-                child: ListTile(
-                  leading: const CircleAvatar(backgroundColor: Colors.blue, child: Icon(Icons.person, color: Colors.white)),
-                  title: Text(selectedParty!.name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)), 
-                  subtitle: Text("${selectedParty!.city} | GST: ${selectedParty!.gst}"), 
-                  trailing: (widget.isReadOnly || widget.existingSale != null) 
-                    ? const Icon(Icons.lock_outline, color: Colors.grey) 
-                    : IconButton(icon: const Icon(Icons.change_circle, color: Colors.red), onPressed: () => setState(() => selectedParty = null))
-                ),
-              ),
-            )
+            ListTile(tileColor: Colors.white, leading: const Icon(Icons.person, color: Colors.blue), title: Text(selectedParty!.name), subtitle: Text(selectedParty!.city), trailing: IconButton(icon: const Icon(Icons.cancel), onPressed: () => setState(() => selectedParty = null)))
           else 
-            Expanded(
-              child: Column(
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10), 
-                    child: TextField(
-                      decoration: InputDecoration(
-                        hintText: "Search Party by Name...", 
-                        prefixIcon: const Icon(Icons.search, color: Colors.blue), 
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                        filled: true,
-                        fillColor: Colors.white
-                      ), 
-                      onChanged: (v) => setState(() => partySearchQuery = v)
-                    )
-                  ),
-                  Expanded(
-                    child: ListView(
-                      padding: const EdgeInsets.symmetric(horizontal: 10),
-                      children: ph.parties
-                          .where((p) => p.name.toLowerCase().contains(partySearchQuery.toLowerCase()))
-                          .map((p) => ListTile(
-                            leading: const Icon(Icons.person_outline),
-                            title: Text(p.name, style: const TextStyle(fontWeight: FontWeight.bold)), 
-                            subtitle: Text(p.city), 
-                            onTap: () => setState(() => selectedParty = p)
-                          ))
-                          .toList()
-                    ),
-                  )
-                ],
-              )
-            ),
-
+            Expanded(child: ListView(children: ph.parties.where((p) => p.name.toLowerCase().contains(partySearchQuery.toLowerCase())).map((p) => ListTile(title: Text(p.name), subtitle: Text(p.city), onTap: () => setState(() => selectedParty = p))).toList())),
           if (selectedParty != null) 
-            Padding(
-              padding: const EdgeInsets.all(20), 
-              child: ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  minimumSize: const Size(double.infinity, 60), 
-                  backgroundColor: Colors.green.shade700,
-                  elevation: 5,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))
-                ), 
-                onPressed: () => _validateAndProceed(ph), 
-                child: const Text("PROCEED TO ITEM ENTRY", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18))
-              )
-            ),
+            Padding(padding: const EdgeInsets.all(20), child: ElevatedButton(style: ElevatedButton.styleFrom(minimumSize: const Size(double.infinity, 60), backgroundColor: Colors.green.shade700), onPressed: () => _validateAndProceed(ph), child: const Text("PROCEED", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold))))
         ],
       ),
     );
