@@ -5,6 +5,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'models.dart';
 import 'demo_data.dart';
+import 'batch_master_logic.dart'; // Naya Import
 
 class PharoahManager with ChangeNotifier {
   List<Medicine> medicines = [];
@@ -115,6 +116,15 @@ class PharoahManager with ChangeNotifier {
   }
 
   // ===================================================
+  // BATCH MASTER LOGIC (Naya Add Kiya)
+  // ===================================================
+  void saveBatchCentrally(String medId, BatchInfo b) {
+    if (!batchHistory.containsKey(medId)) batchHistory[medId] = [];
+    batchHistory[medId] = BatchMasterLogic.updateBatchList(batchHistory[medId]!, b);
+    save(); 
+  }
+
+  // ===================================================
   // 💼 BUSINESS LOGIC (SALE / PURCHASE / DELETE)
   // ===================================================
   void finalizeSale({required String billNo, required DateTime date, required Party party, required List<BillItem> items, required double total, required String mode}) {
@@ -128,7 +138,8 @@ class PharoahManager with ChangeNotifier {
       int idx = medicines.indexWhere((m) => m.id == it.medicineID);
       if (idx != -1) {
         medicines[idx].stock -= it.qty.toInt();
-        _updateBatch(it.medicineID, BatchInfo(batch: it.batch, exp: it.exp, packing: it.packing, mrp: it.mrp, rate: it.rate));
+        // Sale ke waqt bhi batch yaad rakhega
+        saveBatchCentrally(it.medicineID, BatchInfo(batch: it.batch, exp: it.exp, packing: it.packing, mrp: it.mrp, rate: it.rate));
       }
     }
     save();
@@ -143,7 +154,8 @@ class PharoahManager with ChangeNotifier {
         medicines[idx].purRate = it.purchaseRate;
         medicines[idx].mrp = it.mrp; medicines[idx].gst = it.gstRate;
         medicines[idx].rateA = it.rateA; medicines[idx].rateB = it.rateB; medicines[idx].rateC = it.rateC;
-        _updateBatch(it.medicineID, BatchInfo(batch: it.batch, exp: it.exp, packing: it.packing, mrp: it.mrp, rate: it.purchaseRate));
+        // Purchase ke waqt naya batch save karega
+        saveBatchCentrally(it.medicineID, BatchInfo(batch: it.batch, exp: it.exp, packing: it.packing, mrp: it.mrp, rate: it.purchaseRate));
       }
     }
     save();
@@ -196,20 +208,11 @@ class PharoahManager with ChangeNotifier {
     }
   }
 
-  void _updateBatch(String mId, BatchInfo b) {
-    if (!batchHistory.containsKey(mId)) batchHistory[mId] = [];
-    int idx = batchHistory[mId]!.indexWhere((x) => x.batch == b.batch);
-    if (idx != -1) batchHistory[mId]![idx] = b; else batchHistory[mId]!.add(b);
-  }
-
   void addLog(String action, String details) {
     logs.add(LogEntry(id: DateTime.now().toString(), action: action, details: details, time: DateTime.now()));
     save();
   }
 
-  // ===================================================
-  // 🛠️ SYSTEM UTILITIES (BACKUP / MAINTENANCE / RESET)
-  // ===================================================
   Future<void> runAutoBackup() async {
     try {
       final path = await _localPath;
