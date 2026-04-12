@@ -4,7 +4,7 @@ import 'package:provider/provider.dart';
 import 'pharoah_manager.dart';
 import 'models.dart';
 import 'sale_bill_number.dart';
-import 'pdf_service.dart'; // Ensure PdfService is imported
+import 'pdf/sale_invoice_pdf.dart';
 import 'package:intl/intl.dart';
 import 'batch_master_logic.dart'; // BatchMasterLogic is needed if you are modifying batch data directly here, though saveBatchCentrally handles it.
 
