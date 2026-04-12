@@ -3,7 +3,7 @@ import 'package:provider/provider.dart';
 import 'pharoah_manager.dart';
 import 'models.dart';
 import 'sale_entry_view.dart';
-import 'pdf_service.dart';
+import 'pdf/sale_invoice_pdf.dart'; // Naya system
 import 'package:intl/intl.dart';
 
 class SaleBillModifyView extends StatefulWidget {
@@ -16,12 +16,9 @@ class _SaleBillModifyViewState extends State<SaleBillModifyView> {
   String pF = "All"; 
   Party? sP;
 
-  // --- CORE FILTER LOGIC ---
   List<Sale> getFilteredSales(List<Sale> all) {
     DateTime n = DateTime.now();
-    
     return all.where((s) {
-      // 1. Filter by Date Duration
       bool dateMatch = false;
       if (dur == "Today") {
         dateMatch = s.date.day == n.day && s.date.month == n.month && s.date.year == n.year;
@@ -31,10 +28,9 @@ class _SaleBillModifyViewState extends State<SaleBillModifyView> {
       } else if (dur == "Month") {
         dateMatch = s.date.month == n.month && s.date.year == n.year;
       } else {
-        dateMatch = true; // All time
+        dateMatch = true;
       }
       
-      // 2. Filter by Party
       bool partyMatch = true;
       if (pF == "Single") {
         if (sP == null) {
@@ -43,12 +39,10 @@ class _SaleBillModifyViewState extends State<SaleBillModifyView> {
           partyMatch = s.partyName.trim().toUpperCase() == sP!.name.trim().toUpperCase();
         }
       }
-
       return dateMatch && partyMatch;
-    }).toList().reversed.toList(); // Most recent first
+    }).toList().reversed.toList();
   }
 
-  // --- SEARCHABLE PARTY DIALOG ---
   void _showPartySearchDialog(List<Party> allParties) {
     showDialog(
       context: context,
@@ -123,7 +117,6 @@ class _SaleBillModifyViewState extends State<SaleBillModifyView> {
       ),
       body: Column(
         children: [
-          // --- FILTER HEADER ---
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
@@ -132,56 +125,34 @@ class _SaleBillModifyViewState extends State<SaleBillModifyView> {
             ),
             child: Row(
               children: [
-                Expanded(
-                  child: _buildFilterDropdown("DURATION", dur, ["Today", "Yesterday", "Month", "All"], (v) => setState(() => dur = v!)),
-                ),
+                Expanded(child: _buildFilterDropdown("DURATION", dur, ["Today", "Yesterday", "Month", "All"], (v) => setState(() => dur = v!))),
                 const SizedBox(width: 15),
-                Expanded(
-                  child: _buildFilterDropdown("FILTER BY", pF, ["All", "Single"], (v) {
-                    setState(() { pF = v!; if (pF == "All") sP = null; });
-                  }),
-                ),
+                Expanded(child: _buildFilterDropdown("FILTER BY", pF, ["All", "Single"], (v) {
+                  setState(() { pF = v!; if (pF == "All") sP = null; });
+                })),
               ],
             ),
           ),
 
-          // --- PARTY SELECTION BUTTON ---
           if (pF == "Single")
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 8),
               child: ListTile(
                 tileColor: Colors.white,
-                // FIX: side parameter used for border compatibility
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(10), 
                   side: BorderSide(color: Colors.orange.shade100, width: 1.5)
                 ),
                 leading: const Icon(Icons.person_search, color: Colors.orange),
-                title: Text(
-                  sP?.name ?? "TAP TO SELECT PARTY",
-                  style: TextStyle(fontWeight: FontWeight.bold, color: sP == null ? Colors.red : Colors.black87),
-                ),
+                title: Text(sP?.name ?? "TAP TO SELECT PARTY", style: TextStyle(fontWeight: FontWeight.bold, color: sP == null ? Colors.red : Colors.black87)),
                 trailing: const Icon(Icons.arrow_drop_down),
                 onTap: () => _showPartySearchDialog(ph.parties),
               ),
             ),
 
-          const SizedBox(height: 5),
-          Text("Total ${list.length} bills found", style: const TextStyle(fontSize: 11, color: Colors.grey, fontWeight: FontWeight.bold)),
-
-          // --- BILLS LIST ---
           Expanded(
             child: list.isEmpty
-                ? Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const Icon(Icons.receipt_long, size: 60, color: Colors.grey),
-                        const SizedBox(height: 10),
-                        Text(pF == "Single" && sP == null ? "Please select a party first" : "No bills found."),
-                      ],
-                    ),
-                  )
+                ? const Center(child: Text("No bills found."))
                 : ListView.builder(
                     padding: const EdgeInsets.all(10),
                     itemCount: list.length,
@@ -208,11 +179,6 @@ class _SaleBillModifyViewState extends State<SaleBillModifyView> {
                             children: [
                               Text(s.partyName, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.black87)),
                               Text("Date: ${DateFormat('dd/MM/yyyy').format(s.date)} | Mode: ${s.paymentMode}"),
-                              Text(
-                                s.items.map((it) => "${it.name}(${it.qty.toInt()})").join(", "),
-                                style: const TextStyle(fontSize: 10, color: Colors.blueGrey),
-                                maxLines: 1, overflow: TextOverflow.ellipsis,
-                              ),
                             ],
                           ),
                           trailing: PopupMenuButton<String>(
@@ -221,7 +187,7 @@ class _SaleBillModifyViewState extends State<SaleBillModifyView> {
                               final p = ph.parties.firstWhere((x) => x.name == s.partyName, orElse: () => ph.parties[0]);
                               if (v == 'v') Navigator.push(context, MaterialPageRoute(builder: (c) => SaleEntryView(existingSale: s, isReadOnly: true)));
                               if (v == 'm') Navigator.push(context, MaterialPageRoute(builder: (c) => SaleEntryView(existingSale: s)));
-                              if (v == 'p') PdfService.generateInvoice(s, p);
+                              if (v == 'p') SaleInvoicePdf.generate(s, p); // FIXED LINE
                               if (v == 'c') _confirmAction(context, "Cancel", () => ph.cancelBill(s.id));
                               if (v == 'd') _confirmAction(context, "Delete", () => ph.deleteBill(s.id));
                             },
@@ -264,7 +230,7 @@ class _SaleBillModifyViewState extends State<SaleBillModifyView> {
       context: context,
       builder: (c) => AlertDialog(
         title: Text("$action Bill?"),
-        content: Text("Are you sure you want to $action this bill? This will reverse the stock levels for all items."),
+        content: Text("Are you sure you want to $action this bill? This will reverse the stock levels."),
         actions: [
           TextButton(onPressed: () => Navigator.pop(c), child: const Text("NO")),
           ElevatedButton(
