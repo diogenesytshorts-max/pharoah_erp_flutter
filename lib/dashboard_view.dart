@@ -10,7 +10,7 @@ import 'purchase/purchase_entry_view.dart';
 import 'purchase/purchase_modify_view.dart';
 import 'more_features_view.dart';
 import 'sale_summary_view.dart';
-import 'purchase_summary_view.dart';
+import 'purchase/purchase_summary_view.dart'; // SAHI PATH YAHAN HAI
 
 class DashboardView extends StatelessWidget {
   final VoidCallback onLogout;
