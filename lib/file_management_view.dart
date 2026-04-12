@@ -41,14 +41,9 @@ class _FileManagementViewState extends State<FileManagementView> {
             ),
             onPressed: () async {
               if (year == currentFy) { Navigator.pop(c); return; }
-              
-              // 1. Save to Preferences
               final prefs = await SharedPreferences.getInstance();
               await prefs.setString('fy', year);
-              
-              // 2. Clear RAM and Switch Folder in Manager
               await ph.switchYear(year);
-              
               if (mounted) {
                 Navigator.pop(c);
                 _showRestartAlert(year);
@@ -106,7 +101,8 @@ class _FileManagementViewState extends State<FileManagementView> {
             decoration: BoxDecoration(color: Colors.orange.shade50, borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.orange.shade200)),
             child: const Text(
               "Dhyan Dein: Har saal ka data alag folder mein save hota hai. Ek saal ka bill dusre saal mein nahi dikhega.",
-              style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.orangeDeep),
+              // FIXED COLOR NAME HERE
+              style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.deepOrange),
             ),
           )
         ],
