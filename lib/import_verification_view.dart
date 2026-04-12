@@ -135,7 +135,7 @@ class _ImportVerificationViewState extends State<ImportVerificationView> {
         const SizedBox(height: 15),
         ListTile(
           tileColor: Colors.grey.shade50,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.grey.shade300)),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10), side: BorderSide(color: Colors.grey.shade300)),
           title: const Text("Transaction Date", style: TextStyle(fontSize: 12)),
           subtitle: Text(DateFormat('dd MMMM yyyy').format(selectedDate), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
           trailing: const Icon(Icons.edit_calendar, color: Colors.indigo),
