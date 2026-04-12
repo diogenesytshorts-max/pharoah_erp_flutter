@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
-import 'pharoah_manager.dart';
-import 'models.dart';
-import 'pdf_service.dart';
+import '../pharoah_manager.dart';
+import '../models.dart';
+import '../pdf_service.dart';
 
 class PurchaseSummaryView extends StatefulWidget {
   const PurchaseSummaryView({super.key});
@@ -43,7 +43,9 @@ class _PurchaseSummaryViewState extends State<PurchaseSummaryView> {
       appBar: AppBar(
         title: const Text("Purchase Register / Summary"), backgroundColor: Colors.deepOrange.shade900, foregroundColor: Colors.white,
         actions: [
-          IconButton(icon: const Icon(Icons.print), onPressed: filteredPur.isEmpty ? null : () => PdfService.generatePurchaseSummaryPdf(filteredPur, fromDate, toDate, selectedSupplier))
+          IconButton(icon: const Icon(Icons.print), onPressed: filteredPur.isEmpty ? null : () {
+            // Placeholder - We will connect the PDF service here later
+          })
         ],
       ),
       body: Column(children: [
