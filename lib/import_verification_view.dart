@@ -53,6 +53,90 @@ class _ImportVerificationViewState extends State<ImportVerificationView> {
     });
   }
 
+  // --- CONSOLIDATED IMPORT LOGIC (Grouping items by Bill No) ---
+  void _finalizeImport(PharoahManager ph) {
+    // 1. Grouping Rows by Bill Number
+    Map<String, List<Map<String, dynamic>>> groupedBills = {};
+    for (var row in processedRows) {
+      String billNo = row['data'][1].toString(); // Index 1 is Bill No
+      if (!groupedBills.containsKey(billNo)) groupedBills[billNo] = [];
+      groupedBills[billNo]!.add(row);
+    }
+
+    // 2. Process each Grouped Bill
+    groupedBills.forEach((billNo, rows) {
+      var firstRow = rows[0]['data'];
+      DateTime dt = DateFormat('dd/MM/yyyy').parse(firstRow[0].toString());
+      String pName = firstRow[2].toString().toUpperCase();
+      Party billParty = ph.parties.firstWhere((p) => p.name.toUpperCase() == pName);
+
+      if (widget.importType == "SALE") {
+        List<BillItem> billItems = [];
+        double grandTotal = 0;
+
+        for (var r in rows) {
+          var d = r['data'];
+          double rate = double.tryParse(d[10].toString()) ?? 0;
+          double qty = double.tryParse(d[9].toString()) ?? 0;
+          double total = double.tryParse(d[12].toString()) ?? 0;
+
+          billItems.add(BillItem(
+            id: "${DateTime.now().millisecondsSinceEpoch}_${d[5]}",
+            srNo: billItems.length + 1,
+            medicineID: ph.medicines.firstWhere((m) => m.name.toUpperCase() == d[5].toString().toUpperCase()).id,
+            name: d[5].toString(),
+            packing: "N/A",
+            batch: d[6].toString(),
+            exp: d[7].toString(),
+            hsn: d[8].toString(),
+            mrp: rate * 1.2,
+            qty: qty,
+            rate: rate,
+            gstRate: double.tryParse(d[11].toString()) ?? 12,
+            total: total,
+          ));
+          grandTotal += total;
+        }
+
+        ph.finalizeSale(billNo: billNo, date: dt, party: billParty, items: billItems, total: grandTotal, mode: "CREDIT");
+      } 
+      else {
+        // --- PURCHASE IMPORT CONSOLIDATION ---
+        List<PurchaseItem> purItems = [];
+        double grandTotal = 0;
+
+        for (var r in rows) {
+          var d = r['data'];
+          double rate = double.tryParse(d[9].toString()) ?? 0; // Purchase Rate Index
+          double qty = double.tryParse(d[7].toString()) ?? 0;
+          double total = double.tryParse(d[11].toString()) ?? 0;
+
+          purItems.add(PurchaseItem(
+            id: "${DateTime.now().millisecondsSinceEpoch}_${d[4]}",
+            srNo: purItems.length + 1,
+            medicineID: ph.medicines.firstWhere((m) => m.name.toUpperCase() == d[4].toString().toUpperCase()).id,
+            name: d[4].toString(),
+            packing: "N/A",
+            batch: d[5].toString(),
+            exp: d[6].toString(),
+            hsn: "N/A",
+            mrp: rate * 1.2,
+            qty: qty,
+            freeQty: double.tryParse(d[8].toString()) ?? 0,
+            purchaseRate: rate,
+            gstRate: double.tryParse(d[10].toString()) ?? 12,
+            total: total,
+          ));
+          grandTotal += total;
+        }
+        ph.finalizePurchase(internalNo: "IMP-$billNo", billNo: billNo, date: dt, party: billParty, items: purItems, total: grandTotal, mode: "CREDIT");
+      }
+    });
+
+    Navigator.pop(context);
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Import Successful! Bills Consolidated."), backgroundColor: Colors.green));
+  }
+
   @override
   Widget build(BuildContext context) {
     final ph = Provider.of<PharoahManager>(context);
@@ -60,12 +144,12 @@ class _ImportVerificationViewState extends State<ImportVerificationView> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text("Verify ${widget.importType}"),
+        title: Text("Verify ${widget.importType}s"),
         backgroundColor: Colors.teal,
         foregroundColor: Colors.white,
         actions: [
           if (readyCount == processedRows.length && processedRows.isNotEmpty)
-            IconButton(icon: const Icon(Icons.save_alt), onPressed: () => _finalizeImport(ph))
+            IconButton(icon: const Icon(Icons.cloud_done), onPressed: () => _finalizeImport(ph))
         ],
       ),
       body: Column(
@@ -76,7 +160,7 @@ class _ImportVerificationViewState extends State<ImportVerificationView> {
             child: Row(children: [
               const Icon(Icons.info_outline, color: Colors.orange),
               const SizedBox(width: 10),
-              Text("Verified: $readyCount / ${processedRows.length}", style: const TextStyle(fontWeight: FontWeight.bold))
+              Text("Verified: $readyCount / ${processedRows.length} rows", style: const TextStyle(fontWeight: FontWeight.bold))
             ]),
           ),
           Expanded(
@@ -92,7 +176,7 @@ class _ImportVerificationViewState extends State<ImportVerificationView> {
                   color: ok ? Colors.white : Colors.red.shade50,
                   child: ListTile(
                     title: Text("${d[2]} | Bill: ${d[1]}", style: const TextStyle(fontWeight: FontWeight.bold)),
-                    subtitle: Text("Item: ${d[5]} | Qty: ${d[9]} | Total: ₹${d[12]}"),
+                    subtitle: Text("Item: ${widget.importType == 'SALE' ? d[5] : d[4]} | Qty: ${widget.importType == 'SALE' ? d[9] : d[7]}"),
                     trailing: ok 
                       ? const Icon(Icons.check_circle, color: Colors.green)
                       : ElevatedButton(onPressed: () => _fixError(i, ph), child: const Text("FIX")),
@@ -108,33 +192,13 @@ class _ImportVerificationViewState extends State<ImportVerificationView> {
 
   void _fixError(int index, PharoahManager ph) async {
     var rowData = processedRows[index]['data'];
-
     if (!processedRows[index]['partyOk']) {
-      Party? p = await ImportResolver.showPartyFixer(context, rowData[2].toString(), rowData[3].toString());
+      Party? p = await ImportResolver.showPartyFixer(context, rowData[2].toString(), "");
       if (p != null) { ph.parties.add(p); ph.save(); _initializeImport(); }
     } else if (!processedRows[index]['itemOk']) {
-      Medicine? m = await ImportResolver.showItemFixer(context, rowData[5].toString(), double.tryParse(rowData[10].toString()) ?? 0, 12);
+      String itemName = widget.importType == "SALE" ? rowData[5].toString() : rowData[4].toString();
+      Medicine? m = await ImportResolver.showItemFixer(context, itemName, 0, 12);
       if (m != null) { ph.medicines.add(m); ph.save(); _initializeImport(); }
     }
-  }
-
-  void _finalizeImport(PharoahManager ph) {
-    for (var r in processedRows) {
-      var d = r['data'];
-      DateTime dt = DateFormat('dd/MM/yyyy').parse(d[0].toString());
-      
-      if (widget.importType == "SALE") {
-        ph.finalizeSale(
-          billNo: d[1].toString(),
-          date: dt,
-          party: ph.parties.firstWhere((p) => p.name.toUpperCase() == d[2].toString().toUpperCase()),
-          items: [BillItem(id: DateTime.now().toString(), srNo: 1, medicineID: ph.medicines.firstWhere((m) => m.name.toUpperCase() == d[5].toString().toUpperCase()).id, name: d[5].toString(), packing: "N/A", batch: d[6].toString(), exp: d[7].toString(), hsn: d[8].toString(), mrp: double.tryParse(d[10].toString()) ?? 0, qty: double.tryParse(d[9].toString()) ?? 0, rate: double.tryParse(d[10].toString()) ?? 0, gstRate: double.tryParse(d[11].toString()) ?? 0, total: double.tryParse(d[12].toString()) ?? 0)],
-          total: double.tryParse(d[12].toString()) ?? 0,
-          mode: "CREDIT"
-        );
-      }
-    }
-    Navigator.pop(context);
-    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Import Successful!"), backgroundColor: Colors.green));
   }
 }
