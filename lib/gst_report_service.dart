@@ -10,7 +10,7 @@ class GstReportService {
   // ==========================================================
   // 1. GSTR-1 MASTER PDF REPORT (Sales)
   // ==========================================================
-  static Future<void> generateGstr1Pdf(List<Sale> sales, String period) async {
+  static Future<void> generateGstr1Pdf(List<Sale> sales, String periodLabel) async {
     final pdf = pw.Document();
     final prefs = await SharedPreferences.getInstance();
     String cName = (prefs.getString('compName') ?? "PHAROAH ERP").toUpperCase();
@@ -21,26 +21,28 @@ class GstReportService {
     pdf.addPage(pw.MultiPage(
       pageFormat: PdfPageFormat.a4.landscape,
       margin: const pw.EdgeInsets.all(20),
-      header: (pw.Context context) => _buildReportHeader(cName, "GSTR-1 (Sales Register)", period),
+      header: (pw.Context context) => _buildReportHeader(cName, "GSTR-1 (Sales Register Report)", periodLabel),
       build: (pw.Context context) => [
         _sectionTitle("SECTION 1: B2B SALES (REGISTERED PARTIES)"),
         _buildB2bTable(b2b),
         pw.SizedBox(height: 20),
-        _sectionTitle("SECTION 2: B2C SALES (CONSUMERS)"),
+        _sectionTitle("SECTION 2: B2C SALES (CONSUMERS / UNREGISTERED)"),
         _buildB2cTable(b2c),
         pw.SizedBox(height: 20),
         _sectionTitle("SECTION 3: HSN WISE SUMMARY"),
         _buildHsnSummaryTable(sales),
+        pw.SizedBox(height: 20),
+        _buildFooterNote(),
       ],
     ));
 
-    await Printing.layoutPdf(onLayout: (f) async => pdf.save(), name: "GSTR1_$period");
+    await Printing.layoutPdf(onLayout: (f) async => pdf.save(), name: "GSTR1_Report");
   }
 
   // ==========================================================
-  // 2. GSTR-2 MASTER PDF REPORT (Purchase Register) - NAYA ADDED
+  // 2. GSTR-2 MASTER PDF REPORT (Purchase Register / ITC)
   // ==========================================================
-  static Future<void> generateGstr2Pdf(List<Purchase> purchases, String period) async {
+  static Future<void> generateGstr2Pdf(List<Purchase> purchases, String periodLabel) async {
     final pdf = pw.Document();
     final prefs = await SharedPreferences.getInstance();
     String cName = (prefs.getString('compName') ?? "PHAROAH ERP").toUpperCase();
@@ -48,7 +50,7 @@ class GstReportService {
     pdf.addPage(pw.MultiPage(
       pageFormat: PdfPageFormat.a4.landscape,
       margin: const pw.EdgeInsets.all(20),
-      header: (pw.Context context) => _buildReportHeader(cName, "GSTR-2 (Purchase Register / ITC Summary)", period),
+      header: (pw.Context context) => _buildReportHeader(cName, "GSTR-2 (Purchase Register / ITC Summary)", periodLabel),
       footer: (context) => pw.Align(alignment: pw.Alignment.centerRight, child: pw.Text("Page ${context.pageNumber}", style: const pw.TextStyle(fontSize: 8))),
       build: (pw.Context context) => [
         _sectionTitle("INWARD SUPPLIES RECEIVED (PURCHASES)"),
@@ -84,17 +86,19 @@ class GstReportService {
               }).toStringAsFixed(2)}", style: pw.TextStyle(fontSize: 12, fontWeight: pw.FontWeight.bold, color: PdfColors.orange900)),
             ])
           )
-        ])
+        ]),
+        pw.SizedBox(height: 15),
+        _buildFooterNote(),
       ],
     ));
 
-    await Printing.layoutPdf(onLayout: (f) async => pdf.save(), name: "GSTR2_$period");
+    await Printing.layoutPdf(onLayout: (f) async => pdf.save(), name: "GSTR2_Report");
   }
 
   // ==========================================================
-  // 3. GSTR-3B MASTER PDF REPORT (Monthly Summary)
+  // 3. GSTR-3B MASTER PDF REPORT (Monthly / Custom Summary)
   // ==========================================================
-  static Future<void> generateGstr3bPdf(List<Sale> sales, List<Purchase> purchases, String period) async {
+  static Future<void> generateGstr3bPdf(List<Sale> sales, List<Purchase> purchases, String periodLabel) async {
     final pdf = pw.Document();
     final prefs = await SharedPreferences.getInstance();
     String cName = (prefs.getString('compName') ?? "PHAROAH ERP").toUpperCase();
@@ -120,7 +124,7 @@ class GstReportService {
       build: (pw.Context context) => pw.Container(
         padding: const pw.EdgeInsets.all(20),
         child: pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
-          _buildReportHeader(cName, "GSTR-3B (MONTHLY SUMMARY)", period),
+          _buildReportHeader(cName, "GSTR-3B (TAX COMPUTATION SUMMARY)", periodLabel),
           pw.SizedBox(height: 30),
           
           pw.TableHelper.fromTextArray(
@@ -136,30 +140,29 @@ class GstReportService {
           ),
           
           pw.Spacer(),
-          pw.Container(
-            padding: const pw.EdgeInsets.all(10),
-            color: PdfColors.grey100,
-            child: pw.Text("Note: This is a system generated summary for GST filing. Please reconcile with your books before final payment.", style: const pw.TextStyle(fontSize: 9, color: PdfColors.grey700))
-          )
+          _buildFooterNote(),
         ]),
       ),
     ));
 
-    await Printing.layoutPdf(onLayout: (f) async => pdf.save(), name: "GSTR3B_$period");
+    await Printing.layoutPdf(onLayout: (f) async => pdf.save(), name: "GSTR3B_Summary");
   }
 
-  // --- HELPERS ---
-  static pw.Widget _buildReportHeader(String cName, String title, String period) {
+  // ==========================================================
+  // UI HELPERS
+  // ==========================================================
+  
+  static pw.Widget _buildReportHeader(String cName, String title, String range) {
     return pw.Column(children: [
       pw.Text(cName, style: pw.TextStyle(fontSize: 18, fontWeight: pw.FontWeight.bold)),
       pw.Text(title, style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold, color: PdfColors.indigo700)),
-      pw.Text("Period: $period", style: const pw.TextStyle(fontSize: 11)),
+      pw.Text("Report Period: $range", style: const pw.TextStyle(fontSize: 11)),
       pw.Divider(thickness: 2),
       pw.SizedBox(height: 10),
     ]);
   }
 
-  static pw.Widget _sectionTitle(String t) => pw.Padding(padding: const pw.EdgeInsets.symmetric(vertical: 5), child: pw.Text(t, style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 10)));
+  static pw.Widget _sectionTitle(String t) => pw.Padding(padding: const pw.EdgeInsets.symmetric(vertical: 8), child: pw.Text(t, style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 10, color: PdfColors.indigo900)));
 
   static pw.Widget _buildB2bTable(List<Sale> list) {
     return pw.TableHelper.fromTextArray(
@@ -203,6 +206,17 @@ class GstReportService {
         e.key, e.value['qty'].toString(), e.value['val'].toStringAsFixed(2), 
         e.value['tax'].toStringAsFixed(2), (e.value['val'] + e.value['tax']).toStringAsFixed(2)
       ]).toList(),
+    );
+  }
+
+  static pw.Widget _buildFooterNote() {
+    return pw.Container(
+      padding: const pw.EdgeInsets.all(8),
+      color: PdfColors.grey100,
+      child: pw.Text(
+        "Disclaimer: This is a computer-generated summary for GST filing assistance. Please reconcile with your actual books of accounts before filing on the GST portal.",
+        style: const pw.TextStyle(fontSize: 8, color: PdfColors.grey700),
+      ),
     );
   }
 }
