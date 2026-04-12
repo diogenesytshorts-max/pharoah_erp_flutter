@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'gst_menu_view.dart';
 import 'system_menu_view.dart';
+import 'item_ledger_view.dart'; // Naya Feature Import Kiya
 
 class MoreFeaturesView extends StatelessWidget {
   final VoidCallback onLogout;
@@ -22,34 +23,38 @@ class MoreFeaturesView extends StatelessWidget {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              // --- 1. GST & TAXATION SECTION ---
+              // --- 1. NEW: STOCK LEDGER & BATCH TRACKER ---
+              _buildLargeMenuCard(
+                context,
+                title: "STOCK LEDGER & BATCH TRACKER",
+                subtitle: "Track Item History (In/Out), Expiry, and Batch Traceability",
+                icon: Icons.manage_search_rounded,
+                color: Colors.teal.shade600,
+                onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => const ItemLedgerSearchView())),
+              ),
+              
+              const SizedBox(height: 20),
+
+              // --- 2. GST & TAXATION SECTION ---
               _buildLargeMenuCard(
                 context,
                 title: "GST & TAXATION",
                 subtitle: "GSTR-1, GSTR-3B, HSN Summary & JSON Export for Portal",
                 icon: Icons.account_balance_rounded,
                 color: Colors.green.shade600,
-                onTap: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (c) => const GSTMenuView()),
-                ),
+                onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => const GSTMenuView())),
               ),
               
-              const SizedBox(height: 25),
+              const SizedBox(height: 20),
 
-              // --- 2. SYSTEM & ADMINISTRATION SECTION ---
+              // --- 3. SYSTEM & ADMINISTRATION SECTION ---
               _buildLargeMenuCard(
                 context,
                 title: "SYSTEM & ADMIN",
                 subtitle: "Company Setup, Database Backup, Audit Logs & System Reset",
                 icon: Icons.settings_suggest_rounded,
                 color: Colors.blue.shade700,
-                onTap: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (c) => SystemMenuView(onLogout: onLogout),
-                  ),
-                ),
+                onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => SystemMenuView(onLogout: onLogout))),
               ),
 
               const SizedBox(height: 50),
@@ -57,14 +62,8 @@ class MoreFeaturesView extends StatelessWidget {
               // Bottom Branding
               const Icon(Icons.verified_user_rounded, color: Colors.blueGrey, size: 30),
               const SizedBox(height: 10),
-              Text(
-                "Pharoah ERP Premium Technical Suite",
-                style: TextStyle(color: Colors.grey.shade400, fontSize: 12, fontWeight: FontWeight.bold),
-              ),
-              Text(
-                "Secure Administrator Access Only",
-                style: TextStyle(color: Colors.grey.shade400, fontSize: 10),
-              ),
+              Text("Pharoah ERP Premium Technical Suite", style: TextStyle(color: Colors.grey.shade400, fontSize: 12, fontWeight: FontWeight.bold)),
+              Text("Secure Administrator Access Only", style: TextStyle(color: Colors.grey.shade400, fontSize: 10)),
             ],
           ),
         ),
@@ -73,76 +72,24 @@ class MoreFeaturesView extends StatelessWidget {
   }
 
   // --- HELPER WIDGET FOR LARGE MENU CARDS ---
-  Widget _buildLargeMenuCard(
-    BuildContext context, {
-    required String title,
-    required String subtitle,
-    required IconData icon,
-    required Color color,
-    required VoidCallback onTap,
-  }) {
+  Widget _buildLargeMenuCard(BuildContext context, {required String title, required String subtitle, required IconData icon, required Color color, required VoidCallback onTap}) {
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(25),
+      borderRadius: BorderRadius.circular(20),
       child: Container(
         width: double.infinity,
-        padding: const EdgeInsets.all(25),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(25),
-          boxShadow: [
-            BoxShadow(
-              color: color.withOpacity(0.1),
-              blurRadius: 20,
-              offset: const Offset(0, 10),
-            ),
-          ],
-          border: Border.all(color: color.withOpacity(0.1), width: 2),
-        ),
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20), boxShadow: [BoxShadow(color: color.withOpacity(0.1), blurRadius: 15, offset: const Offset(0, 8))], border: Border.all(color: color.withOpacity(0.1), width: 1.5)),
         child: Row(
           children: [
-            // Icon Background
-            Container(
-              padding: const EdgeInsets.all(18),
-              decoration: BoxDecoration(
-                color: color.withOpacity(0.1),
-                shape: BoxShape.circle,
-              ),
-              child: Icon(icon, size: 40, color: color),
-            ),
-            const SizedBox(width: 20),
-            // Text Content
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    style: TextStyle(
-                      fontSize: 18, 
-                      fontWeight: FontWeight.w900, 
-                      color: color.withOpacity(0.9),
-                      letterSpacing: 0.5,
-                    ),
-                  ),
-                  const SizedBox(height: 5),
-                  Text(
-                    subtitle,
-                    style: TextStyle(
-                      fontSize: 12, 
-                      color: Colors.grey.shade600,
-                      height: 1.4,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            // Forward Arrow
-            Icon(
-              Icons.arrow_forward_ios_rounded, 
-              color: color.withOpacity(0.3), 
-              size: 18,
-            ),
+            Container(padding: const EdgeInsets.all(15), decoration: BoxDecoration(color: color.withOpacity(0.1), shape: BoxShape.circle), child: Icon(icon, size: 35, color: color)),
+            const SizedBox(width: 15),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(title, style: TextStyle(fontSize: 15, fontWeight: FontWeight.w900, color: color.withOpacity(0.9), letterSpacing: 0.5)),
+              const SizedBox(height: 5),
+              Text(subtitle, style: TextStyle(fontSize: 11, color: Colors.grey.shade600, height: 1.4)),
+            ])),
+            Icon(Icons.arrow_forward_ios_rounded, color: color.withOpacity(0.3), size: 16),
           ],
         ),
       ),
