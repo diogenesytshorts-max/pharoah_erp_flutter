@@ -5,10 +5,10 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../pharoah_manager.dart';
 import '../models.dart';
 import 'purchase_billing_view.dart';
-import '../app_date_logic.dart';
+import '../app_date_logic.dart'; // Naya import
 
 class PurchaseEntryView extends StatefulWidget {
-  final Purchase? existingPurchase; // Naya field for modification
+  final Purchase? existingPurchase;
   const PurchaseEntryView({super.key, this.existingPurchase});
 
   @override State<PurchaseEntryView> createState() => _PurchaseEntryViewState();
@@ -54,13 +54,13 @@ class _PurchaseEntryViewState extends State<PurchaseEntryView> {
     final ph = Provider.of<PharoahManager>(context);
     return Scaffold(
       backgroundColor: const Color(0xFFF5F6F9),
-      appBar: AppBar(title: Text(widget.existingPurchase != null ? "Modify Purchase Bill" : "Purchase Entry (Stock-In)"), backgroundColor: Colors.orange.shade800, foregroundColor: Colors.white, elevation: 0),
+      appBar: AppBar(title: Text(widget.existingPurchase != null ? "Modify Purchase" : "Purchase Entry"), backgroundColor: Colors.orange.shade800, foregroundColor: Colors.white, elevation: 0),
       body: Column(children: [
         Container(padding: const EdgeInsets.all(20), decoration: BoxDecoration(color: Colors.white, boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10)]), child: Column(children: [
           Row(children: [
             Expanded(child: TextField(controller: internalEntryNoC, enabled: false, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.blueGrey), decoration: const InputDecoration(labelText: "INTERNAL NO", border: OutlineInputBorder(), filled: true, fillColor: Color(0xFFF0F0F0)))),
             const SizedBox(width: 15),
-            Expanded(child: TextField(controller: supplierBillNoC, textCapitalization: TextCapitalization.characters, decoration: const InputDecoration(labelText: "SUPPLIER BILL NO", hintText: "Enter No.", border: OutlineInputBorder()))),
+            Expanded(child: TextField(controller: supplierBillNoC, textCapitalization: TextCapitalization.characters, decoration: const InputDecoration(labelText: "SUPPLIER BILL NO", border: OutlineInputBorder()))),
           ]),
           const SizedBox(height: 15),
           Row(children: [
@@ -69,9 +69,9 @@ class _PurchaseEntryViewState extends State<PurchaseEntryView> {
             Expanded(child: SegmentedButton<String>(segments: const [ButtonSegment(value: 'CASH', label: Text('CASH')), ButtonSegment(value: 'CREDIT', label: Text('CREDIT'))], selected: {paymentMode}, onSelectionChanged: (v) => setState(() => paymentMode = v.first))),
           ]),
         ])),
-        const Padding(padding: EdgeInsets.fromLTRB(20, 20, 20, 10), child: Align(alignment: Alignment.centerLeft, child: Text("SELECT DISTRIBUTOR / SUPPLIER", style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.blueGrey, letterSpacing: 1)))),
+        const Padding(padding: EdgeInsets.fromLTRB(20, 20, 20, 10), child: Align(alignment: Alignment.centerLeft, child: Text("SELECT SUPPLIER", style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.blueGrey, letterSpacing: 1)))),
         if (selectedDistributor != null)
-          Padding(padding: const EdgeInsets.symmetric(horizontal: 15), child: Card(elevation: 4, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15), side: BorderSide(color: Colors.orange.shade200, width: 1.5)), child: ListTile(leading: const CircleAvatar(backgroundColor: Colors.orange, child: Icon(Icons.business, color: Colors.white)), title: Text(selectedDistributor!.name, style: const TextStyle(fontWeight: FontWeight.bold)), subtitle: Text("${selectedDistributor!.city}"), trailing: widget.existingPurchase != null ? const Icon(Icons.lock) : IconButton(icon: const Icon(Icons.change_circle, color: Colors.red, size: 28), onPressed: () => setState(() => selectedDistributor = null)))))
+          Padding(padding: const EdgeInsets.symmetric(horizontal: 15), child: Card(elevation: 4, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15), side: BorderSide(color: Colors.orange.shade200, width: 1.5)), child: ListTile(leading: const CircleAvatar(backgroundColor: Colors.orange, child: Icon(Icons.business, color: Colors.white)), title: Text(selectedDistributor!.name, style: const TextStyle(fontWeight: FontWeight.bold)), subtitle: Text("${selectedDistributor!.city}"), trailing: widget.existingPurchase != null ? const Icon(Icons.lock_outline, color: Colors.grey) : IconButton(icon: const Icon(Icons.change_circle, color: Colors.red, size: 28), onPressed: () => setState(() => selectedDistributor = null)))))
         else
           Expanded(child: Column(children: [Padding(padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10), child: TextField(decoration: InputDecoration(hintText: "Search Supplier...", prefixIcon: const Icon(Icons.search, color: Colors.orange), border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)), filled: true, fillColor: Colors.white), onChanged: (v) => setState(() => distSearchQuery = v))), Expanded(child: ListView(padding: const EdgeInsets.symmetric(horizontal: 10), children: ph.parties.where((p) => p.name.toLowerCase().contains(distSearchQuery.toLowerCase())).map((p) => ListTile(leading: const Icon(Icons.storefront_outlined), title: Text(p.name, style: const TextStyle(fontWeight: FontWeight.bold)), subtitle: Text(p.city), onTap: () => setState(() => selectedDistributor = p))).toList()))])) ,
         if (selectedDistributor != null) 
