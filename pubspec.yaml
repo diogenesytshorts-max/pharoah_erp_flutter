@@ -4,67 +4,37 @@ version: 1.0.5+1
 publish_to: 'none'
 
 environment:
-  sdk: '>=3.2.0 <4.0.0'
+  # Is line ko update kiya gaya hai (Dart 3 compatibility ke liye)
+  sdk: '>=3.0.0 <4.0.0'
 
 dependencies:
   flutter:
     sdk: flutter
   
-  # Date & Currency Formatting
   intl: ^0.19.0
-  
-  # Local Storage & Settings
   shared_preferences: ^2.2.2
   path_provider: ^2.1.2
-  
-  # State Management
   provider: ^6.1.1
-  
-  # PDF Generation & Printing
   pdf: ^3.10.7
   printing: ^5.11.0
-  
-  # Data Sharing (Backup & JSON Export)
   share_plus: ^7.2.2
+
+  # --- CSV AUR IMPORT KE LIYE YE DO LINES ---
+  csv: ^6.0.0
+  file_picker: ^8.1.2
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^3.0.0
-  dependencies:
-  flutter:
-    sdk: flutter
-  intl: ^0.19.0
-  shared_preferences: ^2.2.2
-  path_provider: ^2.1.2
-  provider: ^6.1.1
-  pdf: ^3.10.7
-  printing: ^5.11.0
-  share_plus: ^7.2.2
-  
-  # --- YE DO LINES ADD KAREIN ---
-  csv: ^6.0.0
-  file_picker: ^8.1.2
-  
-  # App Icon Generator
   flutter_launcher_icons: ^0.13.1
 
-# LOGO / ICON SETTINGS
 flutter_launcher_icons:
   android: "launcher_icon"
   ios: true
   image_path: "assets/logo.png"
-  min_sdk_android: 21 # GST Compliance apps usually need 21+
 
 flutter:
   uses-material-design: true
-
-  # Assets configuration for App Logo
   assets:
     - assets/logo.png
-
-  # Define specific fonts here if needed in future
-  # fonts:
-  #   - family: Trajan Pro
-  #     fonts:
-  #       - asset: fonts/TrajanPro.ttf
