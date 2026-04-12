@@ -26,16 +26,13 @@ class _PurchaseBillingViewState extends State<PurchaseBillingView> {
   List<PurchaseItem> items = []; String searchQuery = ""; Medicine? selectedMed;
   double get totalAmt => items.fold(0, (sum, it) => sum + it.total);
 
-  @override void initState() { 
-    super.initState(); 
-    if (widget.existingItems != null) items = List.from(widget.existingItems!); 
-  }
+  @override void initState() { super.initState(); if (widget.existingItems != null) items = List.from(widget.existingItems!); }
 
   @override Widget build(BuildContext context) {
     final ph = Provider.of<PharoahManager>(context);
     return Scaffold(
       backgroundColor: Colors.white,
-      appBar: AppBar(backgroundColor: Colors.orange.shade800, foregroundColor: Colors.white, title: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(widget.distributor.name, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold)), Text("${widget.internalNo} | Bill: ${widget.distBillNo}", style: const TextStyle(fontSize: 10))]), actions: [TextButton(onPressed: items.isEmpty ? null : () => _handleSave(ph), child: const Text("UPDATE & SAVE", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)))]),
+      appBar: AppBar(backgroundColor: Colors.orange.shade800, foregroundColor: Colors.white, title: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(widget.distributor.name, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold)), Text("${widget.internalNo} | Bill: ${widget.distBillNo}", style: const TextStyle(fontSize: 10))]), actions: [TextButton(onPressed: items.isEmpty ? null : () => _handleSave(ph), child: const Text("SAVE & UPDATE", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)))]),
       body: Stack(children: [
         Column(children: [
           if (selectedMed == null) Container(padding: const EdgeInsets.all(12), color: Colors.orange.shade50, child: TextField(autofocus: true, decoration: InputDecoration(hintText: "Search Product for Stock-In...", prefixIcon: const Icon(Icons.search, color: Colors.orange), filled: true, fillColor: Colors.white, border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none)), onChanged: (v) => setState(() => searchQuery = v))),
@@ -50,6 +47,7 @@ class _PurchaseBillingViewState extends State<PurchaseBillingView> {
       ]),
     );
   }
+
   void _handleSave(PharoahManager ph) async { 
     if (widget.modifyPurchaseId != null) ph.deletePurchase(widget.modifyPurchaseId!);
     ph.finalizePurchase(internalNo: widget.internalNo, billNo: widget.distBillNo, date: widget.billDate, party: widget.distributor, items: items, total: totalAmt, mode: widget.mode); 
@@ -58,7 +56,7 @@ class _PurchaseBillingViewState extends State<PurchaseBillingView> {
       int lastId = prefs.getInt('lastPurID') ?? 0;
       await prefs.setInt('lastPurID', lastId + 1);
     }
-    if (mounted) { ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("✅ Purchase Updated & Stock Sync Complete!"), backgroundColor: Colors.orange)); Navigator.of(context).popUntil((route) => route.isFirst); } 
+    if (mounted) { ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("✅ Purchase Saved/Updated!"), backgroundColor: Colors.orange)); Navigator.of(context).popUntil((route) => route.isFirst); } 
   }
 }
 
