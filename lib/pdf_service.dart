@@ -23,7 +23,6 @@ class PdfService {
 
     bool isInterstate = sale.partyState.trim().toLowerCase() != cState.trim().toLowerCase();
 
-    // Summary Totals
     double grossTotal = 0;
     double totalDiscount = 0;
     double totalTax = 0;
@@ -63,7 +62,7 @@ class PdfService {
   }
 
   // ==========================================================
-  // 2. PURCHASE INVOICE GENERATOR (Orange/Grey Theme)
+  // 2. PURCHASE INVOICE GENERATOR (Orange Theme)
   // ==========================================================
   static Future<void> generatePurchaseInvoice(Purchase pur, Party party) async {
     final pdf = pw.Document();
@@ -76,7 +75,6 @@ class PdfService {
 
     bool isInterstate = party.state.trim().toLowerCase() != cState.trim().toLowerCase();
 
-    // Summary Totals for Purchase
     double grossTotal = 0;
     double totalTax = 0;
     for (var it in pur.items) {
@@ -114,33 +112,38 @@ class PdfService {
   }
 
   // ==========================================================
-  // COMMON UI HELPERS (Header, Table, Footer)
+  // UPDATED HEADER (DL No & Mobile Added Here)
   // ==========================================================
-
   static pw.Widget _buildHeader(String cN, String cA, String cG, String cD, String title, String bNo, DateTime date, Party p, PdfColor themeColor) {
     return pw.Container(
       padding: const pw.EdgeInsets.all(5),
       child: pw.Row(children: [
+        // Shop Side
         pw.Expanded(child: pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
           pw.Text(cN, style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold, color: themeColor)),
           pw.Text(cA, style: const pw.TextStyle(fontSize: 8)),
           pw.Text("GSTIN: $cG ${cD != "" ? "| DL: $cD" : ""}", style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold)),
         ])),
+        // Bill Number Center
         pw.Container(padding: const pw.EdgeInsets.all(8), decoration: const pw.BoxDecoration(color: PdfColors.grey100), child: pw.Column(children: [
           pw.Text(title, style: pw.TextStyle(fontSize: 12, fontWeight: pw.FontWeight.bold)),
           pw.Text("No: $bNo", style: const pw.TextStyle(fontSize: 9)),
           pw.Text("Date: ${DateFormat('dd/MM/yyyy').format(date)}", style: const pw.TextStyle(fontSize: 9)),
         ])),
+        // Party Side (Updated with Phone & DL)
         pw.Expanded(child: pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.end, children: [
-          pw.Text("PARTY DETAILS:", style: const pw.TextStyle(fontSize: 7, color: PdfColors.grey700)),
+          pw.Text("BILL TO:", style: const pw.TextStyle(fontSize: 7, color: PdfColors.grey700)),
           pw.Text(p.name, style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold)),
           pw.Text("${p.city}, ${p.state}", textAlign: pw.TextAlign.right, style: const pw.TextStyle(fontSize: 8)),
           pw.Text("GSTIN: ${p.gst}", style: const pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold)),
+          // DL aur Mobile Line
+          pw.Text("DL No: ${p.dl} | Mob: ${p.phone}", style: const pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold)),
         ])),
       ])
     );
   }
 
+  // --- REUSABLE TABLE BUILDING LOGIC ---
   static pw.Widget _buildTable(List<dynamic> items, bool isInterstate, bool isSale) {
     return pw.TableHelper.fromTextArray(
       headerStyle: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold),
@@ -169,7 +172,7 @@ class PdfService {
       data: items.map((it) {
         double rate = isSale ? it.rate : it.purchaseRate;
         double discAmt = isSale ? it.discountRupees : 0;
-        double discP = (discAmt / (rate * it.qty)) * 100;
+        double discP = (rate * it.qty) > 0 ? (discAmt / (rate * it.qty)) * 100 : 0;
         
         return [
           it.srNo, it.qty.toInt(), it.packing, it.name, it.batch, it.exp, it.hsn, 
@@ -185,6 +188,7 @@ class PdfService {
     );
   }
 
+  // --- FOOTER AND UTILS ---
   static pw.Widget _buildFooter(double gross, double disc, double tax, double grand) {
     return pw.Container(
       padding: const pw.EdgeInsets.all(10),
@@ -193,7 +197,7 @@ class PdfService {
         pw.Expanded(child: pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
           pw.Text("Amount in Words: Rupees ${grand.toInt()} Only", style: const pw.TextStyle(fontSize: 8, fontStyle: pw.FontStyle.italic)),
           pw.SizedBox(height: 10),
-          pw.Text("Terms: Final invoice generated via Pharoah ERP System.", style: const pw.TextStyle(fontSize: 7)),
+          pw.Text("Terms: Goods once sold cannot be returned. E. & O. E.", style: const pw.TextStyle(fontSize: 7)),
         ])),
         pw.Container(
           width: 200, padding: const pw.EdgeInsets.all(5),
@@ -225,10 +229,6 @@ class PdfService {
   }
 
   static Future<void> _printPdf(pw.Document pdf, String fileName) async {
-    await Printing.layoutPdf(
-      onLayout: (f) async => pdf.save(), 
-      name: fileName,
-      format: PdfPageFormat.a4.landscape
-    );
+    await Printing.layoutPdf(onLayout: (f) async => pdf.save(), name: fileName, format: PdfPageFormat.a4.landscape);
   }
 }
