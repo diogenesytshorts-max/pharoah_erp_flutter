@@ -9,8 +9,8 @@ import 'sale_bill_modify_view.dart';
 import 'purchase/purchase_entry_view.dart';
 import 'purchase/purchase_modify_view.dart';
 import 'more_features_view.dart';
-import 'sale_summary_view.dart';      // Nayi file import ki
-import 'purchase_summary_view.dart';  // Nayi file import ki
+import 'sale_summary_view.dart';
+import 'purchase_summary_view.dart';
 
 class DashboardView extends StatelessWidget {
   final VoidCallback onLogout;
@@ -32,17 +32,14 @@ class DashboardView extends StatelessWidget {
           Container(
             padding: const EdgeInsets.only(top: 60, left: 25, right: 25, bottom: 30),
             decoration: const BoxDecoration(color: Colors.white, borderRadius: BorderRadius.only(bottomLeft: Radius.circular(40), bottomRight: Radius.circular(40)), boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 10, offset: Offset(0, 5))]),
-            child: Row(
-              children: [
-                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  const Text("PHAROAH ERP", style: TextStyle(fontSize: 26, fontWeight: FontWeight.w900, color: Color(0xFF0D47A1))),
-                  const SizedBox(height: 5),
-                  Text("FY: ${ph.currentFY} | Live Business Monitor", style: const TextStyle(fontSize: 11, color: Colors.grey, fontWeight: FontWeight.bold)),
-                ]),
-                const Spacer(),
-                IconButton(icon: const Icon(Icons.logout, color: Colors.redAccent), onPressed: onLogout)
-              ],
-            ),
+            child: Row(children: [
+              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                const Text("PHAROAH ERP", style: TextStyle(fontSize: 26, fontWeight: FontWeight.w900, color: Color(0xFF0D47A1))),
+                Text("FY: ${ph.currentFY} | Business Monitor", style: const TextStyle(fontSize: 11, color: Colors.grey, fontWeight: FontWeight.bold)),
+              ]),
+              const Spacer(),
+              IconButton(icon: const Icon(Icons.logout, color: Colors.redAccent), onPressed: onLogout)
+            ]),
           ),
           Expanded(
             child: SingleChildScrollView(
@@ -58,7 +55,7 @@ class DashboardView extends StatelessWidget {
                       StatWidget(title: "NET SALES", value: "₹${todaySales.toStringAsFixed(0)}", period: "Today", icon: "trending_up", color: Colors.green),
                       StatWidget(title: "PURCHASE", value: "₹${todayPurchase.toStringAsFixed(0)}", period: "Today", icon: "shopping_cart", color: Colors.orange),
                       StatWidget(title: "STOCK VALUE", value: "₹${totalStockValue.toStringAsFixed(0)}", period: "Total", icon: "inventory_2", color: Colors.purple),
-                      StatWidget(title: "BILLS", value: "${ph.sales.length}", period: "Active", icon: "payments", color: Colors.blue),
+                      StatWidget(title: "BILLS", value: "${ph.sales.where((s)=>s.status=='Active').length}", period: "Active", icon: "payments", color: Colors.blue),
                     ],
                   ),
                   const SizedBox(height: 35),
@@ -70,16 +67,14 @@ class DashboardView extends StatelessWidget {
                       ActionIconBtn(title: "New Sale", icon: Icons.add_shopping_cart_rounded, color: Colors.green, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => const SaleEntryView()))),
                       ActionIconBtn(title: "Purchase", icon: Icons.file_download_outlined, color: Colors.orange, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => const PurchaseEntryView()))),
                       ActionIconBtn(title: "Inventory", icon: Icons.inventory_2_rounded, color: Colors.purple, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => const ProductMasterView()))),
+                      ActionIconBtn(title: "Sale Reg.", icon: Icons.bar_chart_rounded, color: Colors.indigo, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => const SaleSummaryView()))),
+                      ActionIconBtn(title: "Pur. Reg.", icon: Icons.pie_chart_rounded, color: Colors.brown, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => const PurchaseSummaryView()))),
+                      ActionIconBtn(title: "Parties", icon: Icons.people_alt_rounded, color: Colors.teal, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => const PartyMasterView()))),
                       ActionIconBtn(title: "Sales Edit", icon: Icons.edit_note_rounded, color: Colors.blue, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => const SaleBillModifyView()))),
                       ActionIconBtn(title: "Pur. Edit", icon: Icons.history_edu_rounded, color: Colors.deepOrange, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => const PurchaseModifyView()))),
-                      ActionIconBtn(title: "Parties", icon: Icons.people_alt_rounded, color: Colors.teal, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => const PartyMasterView()))),
-                      // NAYE BUTTONS YAHAN HAIN
-                      ActionIconBtn(title: "Sale Rep.", icon: Icons.bar_chart_rounded, color: Colors.indigo, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => const SaleSummaryView()))),
-                      ActionIconBtn(title: "Pur. Rep.", icon: Icons.pie_chart_rounded, color: Colors.brown, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => const PurchaseSummaryView()))),
-                      ActionIconBtn(title: "More", icon: Icons.widgets_rounded, color: Colors.blueGrey, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => MoreFeaturesView(onLogout: onLogout)))),
+                      ActionIconBtn(title: "More...", icon: Icons.widgets_rounded, color: Colors.blueGrey, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => MoreFeaturesView(onLogout: onLogout)))),
                     ],
                   ),
-                  const SizedBox(height: 40),
                 ],
               ),
             ),
