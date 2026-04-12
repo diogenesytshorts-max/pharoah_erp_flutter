@@ -6,6 +6,7 @@ import 'models.dart';
 import 'sale_bill_number.dart';
 import 'pdf_service.dart'; // Ensure PdfService is imported
 import 'package:intl/intl.dart';
+import 'batch_master_logic.dart'; // BatchMasterLogic is needed if you are modifying batch data directly here, though saveBatchCentrally handles it.
 
 // --- CUSTOM FORMATTER FOR AUTO SLASH MM/YY ---
 class ExpiryDateFormatter extends TextInputFormatter {
