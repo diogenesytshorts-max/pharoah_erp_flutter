@@ -39,7 +39,7 @@ class _DataExchangeViewState extends State<DataExchangeView> {
             _buildMainActionCard(
               title: "PHAROAH CSV",
               subtitle: "Import/Export in native Pharoah format for perfect sync.",
-              icon: Icons.AccountTreeRounded,
+              icon: Icons.account_tree_rounded,
               color: Colors.blue.shade800,
               onTap: () => _showOptions(context, ph, "PHAROAH"),
             ),
