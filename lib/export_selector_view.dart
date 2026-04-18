@@ -180,7 +180,9 @@ class _ExportSelectorViewState extends State<ExportSelectorView> {
 
     // 2. Save and Share
     final directory = await getTemporaryDirectory();
-    final file = File('${directory.path}/${widget.exportType}_Selected_Export_${DateTime.now().millisecondsSinceEpoch}.csv');
+    String dateStr = DateFormat('dd-MMM-yyyy').format(DateTime.now());
+String fileName = "${widget.exportType}_REPORTS_$dateStr.csv"; 
+final file = File('${directory.path}/$fileName');
     await file.writeAsString(csvData);
     
     await Share.shareXFiles([XFile(file.path, mimeType: 'text/csv')], 
