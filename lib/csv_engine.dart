@@ -3,70 +3,72 @@ import 'package:intl/intl.dart';
 import 'models.dart';
 
 class CsvEngine {
-  // --- 1. ENHANCED SALES EXPORT (With full Party & Item Master) ---
+  // --- 1. ENHANCED SALES EXPORT ---
   static String convertSalesToCsv(List<Sale> sales) {
     List<List<dynamic>> rows = [
       [
-        "DATE", "INVOICE_NO", "PAYMENT_MODE", 
-        "PARTY_NAME", "PARTY_ADDRESS", "PARTY_CITY", "PARTY_STATE", "PARTY_GSTIN", "PARTY_DL", "PARTY_PHONE", "PARTY_EMAIL",
-        "ITEM_NAME", "ITEM_PACKING", "ITEM_BATCH", "ITEM_EXP", "ITEM_HSN", "QTY", "RATE", "GST_RATE", "TOTAL"
+        "DATE", "INVOICE_NO", "TYPE", "PAYMENT_MODE", 
+        "PARTY_NAME", "PARTY_GSTIN", "PARTY_STATE", "PARTY_ADDRESS",
+        "ITEM_NAME", "PACKING", "BATCH", "EXPIRY", "HSN", 
+        "QTY", "RATE", "TAXABLE_AMT", "GST_RATE", "GST_AMT", "NET_TOTAL"
       ]
     ];
 
     for (var s in sales) {
       for (var i in s.items) {
+        double taxable = i.rate * i.qty;
+        double gstAmt = i.total - taxable;
+
         rows.add([
           DateFormat('dd/MM/yyyy').format(s.date),
           s.billNo,
+          s.invoiceType,
           s.paymentMode,
-          // Party Details (Packed in every row for seamless import)
           s.partyName,
-          s.partyAddress,
-          "N/A", // City logic can be extended if stored in Sale
-          s.partyState,
           s.partyGstin,
-          s.partyDl,
-          "N/A", // Phone logic
-          s.partyEmail,
-          // Item Details
+          s.partyState,
+          s.partyAddress,
           i.name,
           i.packing,
           i.batch,
           i.exp,
           i.hsn,
           i.qty,
-          i.rate,
-          i.gstRate,
-          i.total
+          i.rate.toStringAsFixed(2),
+          taxable.toStringAsFixed(2),
+          "${i.gstRate}%",
+          gstAmt.toStringAsFixed(2),
+          i.total.toStringAsFixed(2)
         ]);
       }
     }
     return const ListToCsvConverter().convert(rows);
   }
 
-  // --- 2. ENHANCED PURCHASE EXPORT (With full Supplier & Item Master) ---
+  // --- 2. ENHANCED PURCHASE EXPORT ---
   static String convertPurchasesToCsv(List<Purchase> purchases) {
     List<List<dynamic>> rows = [
       [
-        "DATE", "BILL_NO", "INTERNAL_NO", "PAYMENT_MODE",
-        "SUPPLIER_NAME", "SUPPLIER_GSTIN", "SUPPLIER_CITY", "SUPPLIER_ADDR",
-        "ITEM_NAME", "ITEM_PACKING", "ITEM_BATCH", "ITEM_EXP", "ITEM_HSN", "QTY", "FREE", "RATE", "GST_RATE", "TOTAL"
+        "DATE", "BILL_NO", "INTERNAL_ID", "PAYMENT_MODE", "STATUS",
+        "SUPPLIER_NAME", "SUPPLIER_GSTIN",
+        "ITEM_NAME", "PACKING", "BATCH", "EXPIRY", "HSN", 
+        "QTY", "FREE", "PUR_RATE", "TAXABLE_AMT", "GST_RATE", "GST_AMT", "NET_TOTAL"
       ]
     ];
 
     for (var p in purchases) {
       for (var i in p.items) {
+        double taxable = i.purchaseRate * i.qty;
+        double gstAmt = i.total - taxable;
+
         rows.add([
           DateFormat('dd/MM/yyyy').format(p.date),
           p.billNo,
           p.internalNo,
           p.paymentMode,
-          // Supplier Details
+          p.gstStatus,
           p.distributorName,
-          p.gstStatus, // Temporary using gstStatus, can be mapped to master
-          "N/A", 
-          "N/A",
-          // Item Details
+          "N/A", // Supplier GST details are in Party Master
           i.name,
           i.packing,
           i.batch,
@@ -74,16 +76,18 @@ class CsvEngine {
           i.hsn,
           i.qty,
           i.freeQty,
-          i.purchaseRate,
-          i.gstRate,
-          i.total
+          i.purchaseRate.toStringAsFixed(2),
+          taxable.toStringAsFixed(2),
+          "${i.gstRate}%",
+          gstAmt.toStringAsFixed(2),
+          i.total.toStringAsFixed(2)
         ]);
       }
     }
     return const ListToCsvConverter().convert(rows);
   }
 
-  // --- 3. CSV PARSER ---
+  // --- 3. CSV PARSER (Import ke liye) ---
   static List<List<dynamic>> parseCsv(String content) {
     return const CsvToListConverter().convert(content);
   }
