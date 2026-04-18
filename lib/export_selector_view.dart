@@ -1,191 +1,112 @@
 import 'dart:io';
+import 'dart:convert';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:file_saver/file_saver.dart';
 import 'pharoah_manager.dart';
 import 'models.dart';
 import 'csv_engine.dart';
 
 class ExportSelectorView extends StatefulWidget {
-  final String exportType; // "SALE" or "PURCHASE"
+  final String exportType; 
   const ExportSelectorView({super.key, required this.exportType});
 
-  @override
-  State<ExportSelectorView> createState() => _ExportSelectorViewState();
+  @override State<ExportSelectorView> createState() => _ExportSelectorViewState();
 }
 
 class _ExportSelectorViewState extends State<ExportSelectorView> {
-  String partySearchQuery = "";
-  List<String> selectedBillIds = [];
+  String partySearch = "";
+  List<String> selectedIds = [];
   Party? targetParty;
 
   @override
   Widget build(BuildContext context) {
     final ph = Provider.of<PharoahManager>(context);
+    List<dynamic> source = widget.exportType == "SALE" ? ph.sales : ph.purchases;
+    source = source.reversed.toList();
 
-    // 1. Filter Bills based on Type (Sale/Purchase) and Selected Party
-    List<dynamic> allBills = widget.exportType == "SALE" ? ph.sales : ph.purchases;
-    
-    // Sort: Newest first
-    allBills = allBills.reversed.toList();
-
-    // Filter by Party if selected
-    List<dynamic> filteredBills = allBills.where((bill) {
-      String bParty = widget.exportType == "SALE" ? (bill as Sale).partyName : (bill as Purchase).distributorName;
-      if (targetParty == null) return true;
-      return bParty == targetParty!.name;
+    List<dynamic> filtered = source.where((b) {
+      String pName = widget.exportType == "SALE" ? (b as Sale).partyName : (b as Purchase).distributorName;
+      return targetParty == null || pName == targetParty!.name;
     }).toList();
 
     return Scaffold(
       backgroundColor: const Color(0xFFF5F6F9),
       appBar: AppBar(
         title: Text("Select ${widget.exportType} Bills"),
-        backgroundColor: Colors.indigo.shade800,
-        foregroundColor: Colors.white,
-        actions: [
-          if (selectedBillIds.isNotEmpty)
-            TextButton.icon(
-              onPressed: () => _processExport(allBills),
-              icon: const Icon(Icons.share, color: Colors.white),
-              label: Text("EXPORT (${selectedBillIds.length})", 
-                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-            )
-        ],
+        backgroundColor: Colors.indigo.shade800, foregroundColor: Colors.white,
       ),
-      body: Column(
-        children: [
-          // --- SECTION: PARTY SELECTION ---
-          Container(
-            padding: const EdgeInsets.all(15),
-            color: Colors.white,
-            child: Column(
-              children: [
-                if (targetParty == null)
-                  TextField(
-                    decoration: InputDecoration(
-                      hintText: "Search Party to filter bills...",
-                      prefixIcon: const Icon(Icons.person_search),
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-                    ),
-                    onChanged: (v) => setState(() => partySearchQuery = v),
-                  )
-                else
-                  ListTile(
-                    tileColor: Colors.indigo.shade50,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                    leading: const Icon(Icons.person, color: Colors.indigo),
-                    title: Text(targetParty!.name, style: const TextStyle(fontWeight: FontWeight.bold)),
-                    trailing: IconButton(
-                      icon: const Icon(Icons.close, color: Colors.red),
-                      onPressed: () => setState(() { targetParty = null; selectedBillIds.clear(); }),
-                    ),
-                  ),
-                
-                if (targetParty == null && partySearchQuery.isNotEmpty)
-                  Container(
-                    constraints: const BoxConstraints(maxHeight: 200),
-                    child: ListView(
-                      shrinkWrap: true,
-                      children: ph.parties
-                          .where((p) => p.name.toLowerCase().contains(partySearchQuery.toLowerCase()))
-                          .map((p) => ListTile(
-                                title: Text(p.name),
-                                onTap: () => setState(() { targetParty = p; partySearchQuery = ""; }),
-                              ))
-                          .toList(),
-                    ),
-                  ),
-              ],
-            ),
-          ),
-
-          // --- SECTION: SELECT ALL TOGGLE ---
-          if (filteredBills.isNotEmpty)
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text("  Found ${filteredBills.length} Bills", style: const TextStyle(fontSize: 12, color: Colors.grey, fontWeight: FontWeight.bold)),
-                  TextButton(
-                    onPressed: () {
-                      setState(() {
-                        if (selectedBillIds.length == filteredBills.length) {
-                          selectedBillIds.clear();
-                        } else {
-                          selectedBillIds = filteredBills.map((b) => b.id as String).toList();
-                        }
-                      });
-                    },
-                    child: Text(selectedBillIds.length == filteredBills.length ? "UNSELECT ALL" : "SELECT ALL"),
-                  )
-                ],
+      body: Column(children: [
+        // --- PARTY FILTER ---
+        Container(
+          padding: const EdgeInsets.all(15), color: Colors.white,
+          child: targetParty == null 
+            ? TextField(
+                decoration: const InputDecoration(hintText: "Search Party/Supplier...", prefixIcon: Icon(Icons.person_search), border: OutlineInputBorder()),
+                onChanged: (v) => setState(() => partySearch = v),
+              )
+            : ListTile(
+                tileColor: Colors.indigo.shade50, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                leading: const Icon(Icons.person, color: Colors.indigo),
+                title: Text(targetParty!.name, style: const TextStyle(fontWeight: FontWeight.bold)),
+                trailing: IconButton(icon: const Icon(Icons.close, color: Colors.red), onPressed: () => setState(() { targetParty = null; selectedIds.clear(); })),
               ),
-            ),
+        ),
+        if (targetParty == null && partySearch.isNotEmpty)
+          Container(constraints: const BoxConstraints(maxHeight: 150), color: Colors.white, child: ListView(shrinkWrap: true, children: ph.parties.where((p) => p.name.toLowerCase().contains(partySearch.toLowerCase())).map((p) => ListTile(title: Text(p.name), onTap: () => setState(() { targetParty = p; partySearch = ""; }))).toList())),
 
-          // --- SECTION: BILLS LIST WITH CHECKBOX ---
-          Expanded(
-            child: filteredBills.isEmpty
-                ? const Center(child: Text("No bills found for this selection."))
-                : ListView.builder(
-                    itemCount: filteredBills.length,
-                    itemBuilder: (context, index) {
-                      final bill = filteredBills[index];
-                      final bool isSelected = selectedBillIds.contains(bill.id);
-                      
-                      String title = widget.exportType == "SALE" ? (bill as Sale).partyName : (bill as Purchase).distributorName;
-                      String subtitle = "Bill No: ${bill.billNo} | Date: ${DateFormat('dd/MM/yy').format(bill.date)}";
-                      String amt = "₹${bill.totalAmount.toStringAsFixed(2)}";
+        // --- SELECT ALL BAR ---
+        if (filtered.isNotEmpty) Padding(padding: const EdgeInsets.symmetric(horizontal: 15), child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+          Text("${filtered.length} Bills Found", style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey)),
+          TextButton(onPressed: () => setState(() => selectedIds.length == filtered.length ? selectedIds.clear() : selectedIds = filtered.map((e) => e.id as String).toList()), child: Text(selectedIds.length == filtered.length ? "UNSELECT ALL" : "SELECT ALL")),
+        ])),
 
-                      return Card(
-                        margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
-                        child: CheckboxListTile(
-                          activeColor: Colors.indigo,
-                          title: Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
-                          subtitle: Text(subtitle),
-                          secondary: Text(amt, style: const TextStyle(color: Colors.indigo, fontWeight: FontWeight.bold)),
-                          value: isSelected,
-                          onChanged: (val) {
-                            setState(() {
-                              if (val == true) {
-                                selectedBillIds.add(bill.id);
-                              } else {
-                                selectedBillIds.remove(bill.id);
-                              }
-                            });
-                          },
-                        ),
-                      );
-                    },
-                  ),
-          ),
-        ],
+        // --- BILLS LIST ---
+        Expanded(child: ListView.builder(itemCount: filtered.length, itemBuilder: (c, i) {
+          final b = filtered[i];
+          final isSel = selectedIds.contains(b.id);
+          return Card(margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4), child: CheckboxListTile(
+            activeColor: Colors.indigo, value: isSel,
+            title: Text(widget.exportType == "SALE" ? (b as Sale).partyName : (b as Purchase).distributorName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+            subtitle: Text("Bill: ${b.billNo} | Date: ${DateFormat('dd/MM/yy').format(b.date)}"),
+            secondary: Text("₹${b.totalAmount.toStringAsFixed(0)}", style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.indigo)),
+            onChanged: (v) => setState(() => v! ? selectedIds.add(b.id) : selectedIds.remove(b.id)),
+          ));
+        })),
+      ]),
+      // --- ACTION BUTTONS ---
+      bottomNavigationBar: selectedIds.isEmpty ? null : Container(
+        padding: const EdgeInsets.all(20), decoration: const BoxDecoration(color: Colors.white, boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 10)]),
+        child: Row(children: [
+          Expanded(child: ElevatedButton.icon(style: ElevatedButton.styleFrom(backgroundColor: Colors.green, foregroundColor: Colors.white), onPressed: () => _handleExport(filtered, "SHARE"), icon: const Icon(Icons.share), label: const Text("SHARE"))),
+          const SizedBox(width: 15),
+          Expanded(child: ElevatedButton.icon(style: ElevatedButton.styleFrom(backgroundColor: Colors.blue.shade900, foregroundColor: Colors.white), onPressed: () => _handleExport(filtered, "SAVE"), icon: const Icon(Icons.download_rounded), label: const Text("SAVE FILE"))),
+        ]),
       ),
     );
   }
 
-  // --- EXPORT LOGIC ---
-  void _processExport(List<dynamic> allSourceBills) async {
-    // 1. Filter only selected items
-    List<dynamic> selectedData = allSourceBills.where((b) => selectedBillIds.contains(b.id)).toList();
-
-    String csvData = "";
-    if (widget.exportType == "SALE") {
-      csvData = CsvEngine.convertSalesToCsv(selectedData.cast<Sale>());
-    } else {
-      csvData = CsvEngine.convertPurchasesToCsv(selectedData.cast<Purchase>());
-    }
-
-    // 2. Save and Share
-    final directory = await getTemporaryDirectory();
-    String dateStr = DateFormat('dd-MMM-yyyy').format(DateTime.now());
-String fileName = "${widget.exportType}_REPORTS_$dateStr.csv"; 
-final file = File('${directory.path}/$fileName');
-    await file.writeAsString(csvData);
+  void _handleExport(List<dynamic> allBills, String mode) async {
+    List<dynamic> selectedData = allBills.where((b) => selectedIds.contains(b.id)).toList();
+    String csv = widget.exportType == "SALE" ? CsvEngine.convertSalesToCsv(selectedData.cast<Sale>()) : CsvEngine.convertPurchasesToCsv(selectedData.cast<Purchase>());
     
-    await Share.shareXFiles([XFile(file.path, mimeType: 'text/csv')], 
-      subject: '${widget.exportType} Selected Export');
+    String date = DateFormat('ddMMM_yyyy').format(DateTime.now());
+    String pName = targetParty != null ? targetParty!.name.replaceAll(" ", "_") : "BULK";
+    String fileName = "${widget.exportType}_${pName}_$date";
+
+    if (mode == "SHARE") {
+      final dir = await getTemporaryDirectory();
+      final file = File('${dir.path}/$fileName.csv');
+      await file.writeAsString(csv);
+      await Share.shareXFiles([XFile(file.path)], subject: fileName);
+    } else {
+      Uint8List bytes = Uint8List.fromList(utf8.encode(csv));
+      await FileSaver.instance.saveAs(name: fileName, bytes: bytes, ext: "csv", mimeType: MimeType.csv);
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("File saved! Please select 'Pharoah/Exports' folder in the next step."), backgroundColor: Colors.blue));
+    }
   }
 }
