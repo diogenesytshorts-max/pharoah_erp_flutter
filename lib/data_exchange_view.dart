@@ -1,14 +1,11 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:intl/intl.dart';
-import 'package:share_plus/share_plus.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:file_picker/file_picker.dart';
 import 'pharoah_manager.dart';
-import 'models.dart';
 import 'csv_engine.dart';
 import 'import_verification_view.dart';
+import 'export_selector_view.dart'; // Naya import jo humne abhi banaya
 
 class DataExchangeView extends StatefulWidget {
   const DataExchangeView({super.key});
@@ -35,7 +32,7 @@ class _DataExchangeViewState extends State<DataExchangeView> {
             const Text("SELECT DATA SOURCE", style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.blueGrey, letterSpacing: 1)),
             const SizedBox(height: 15),
             
-            // 1. PHAROAH CSV BUTTON
+            // 1. PHAROAH CSV
             _buildMainActionCard(
               title: "PHAROAH CSV",
               subtitle: "Import/Export in native Pharoah format for perfect sync.",
@@ -46,7 +43,7 @@ class _DataExchangeViewState extends State<DataExchangeView> {
             
             const SizedBox(height: 20),
             
-            // 2. OTHER CSV BUTTON
+            // 2. OTHER CSV
             _buildMainActionCard(
               title: "OTHER CSV",
               subtitle: "Import from Distributors or generic Excel sheets.",
@@ -71,16 +68,33 @@ class _DataExchangeViewState extends State<DataExchangeView> {
           children: [
             Text("$mode DATA OPTIONS", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: Colors.indigo)),
             const Divider(height: 30),
-            _subOptionTile(Icons.download_rounded, "Import Sale Bills", Colors.green, () { Navigator.pop(c); _pickFile(ph, "SALE", mode); }),
-            _subOptionTile(Icons.shopping_cart_outlined, "Import Purchase Bills", Colors.orange, () { Navigator.pop(c); _pickFile(ph, "PURCHASE", mode); }),
-            _subOptionTile(Icons.upload_rounded, "Export Sale Bills", Colors.blue, () { Navigator.pop(c); _handleExport(ph, "SALE"); }),
-            _subOptionTile(Icons.inventory_2_outlined, "Export Purchase Bills", Colors.brown, () { Navigator.pop(c); _handleExport(ph, "PURCHASE"); }),
+            
+            // IMPORT OPTIONS (Wahi purana logic)
+            _subOptionTile(Icons.download_rounded, "Import Sale Bills", Colors.green, () { 
+              Navigator.pop(c); _pickFile(ph, "SALE", mode); 
+            }),
+            _subOptionTile(Icons.shopping_cart_outlined, "Import Purchase Bills", Colors.orange, () { 
+              Navigator.pop(c); _pickFile(ph, "PURCHASE", mode); 
+            }),
+            
+            const Divider(),
+
+            // EXPORT OPTIONS (Ab ye naye Selection Screen par bhejenge)
+            _subOptionTile(Icons.upload_rounded, "Export Sale Bills", Colors.blue, () { 
+              Navigator.pop(c); 
+              Navigator.push(context, MaterialPageRoute(builder: (context) => const ExportSelectorView(exportType: "SALE")));
+            }),
+            _subOptionTile(Icons.inventory_2_outlined, "Export Purchase Bills", Colors.brown, () { 
+              Navigator.pop(c); 
+              Navigator.push(context, MaterialPageRoute(builder: (context) => const ExportSelectorView(exportType: "PURCHASE")));
+            }),
           ],
         ),
       ),
     );
   }
 
+  // --- CSV PICKER LOGIC (NO CHANGE) ---
   void _pickFile(PharoahManager ph, String type, String mode) async {
     FilePickerResult? result = await FilePicker.platform.pickFiles(type: FileType.custom, allowedExtensions: ['csv']);
     if (result != null && result.files.single.path != null) {
@@ -95,17 +109,6 @@ class _DataExchangeViewState extends State<DataExchangeView> {
         Navigator.push(context, MaterialPageRoute(builder: (c) => ImportVerificationView(csvData: rows, importType: type, isOtherFormat: mode == "OTHER")));
       }
     }
-  }
-
-  void _handleExport(PharoahManager ph, String type) async {
-    String csvData = (type == "SALE") 
-        ? CsvEngine.convertSalesToCsv(ph.sales) 
-        : CsvEngine.convertPurchasesToCsv(ph.purchases);
-    
-    final directory = await getTemporaryDirectory();
-    final file = File('${directory.path}/${type}_Export_${DateTime.now().millisecondsSinceEpoch}.csv');
-    await file.writeAsString(csvData);
-    await Share.shareXFiles([XFile(file.path, mimeType: 'text/csv')], subject: '$type Export');
   }
 
   Widget _buildMainActionCard({required String title, required String subtitle, required IconData icon, required Color color, required VoidCallback onTap}) {
