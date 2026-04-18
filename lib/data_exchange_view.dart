@@ -16,7 +16,6 @@ class _DataExchangeViewState extends State<DataExchangeView> {
   @override
   Widget build(BuildContext context) {
     final ph = Provider.of<PharoahManager>(context);
-
     return Scaffold(
       backgroundColor: const Color(0xFFF5F6F9),
       appBar: AppBar(title: const Text("DATA HUB / CSV EXCHANGE"), backgroundColor: Colors.indigo.shade900, foregroundColor: Colors.white),
