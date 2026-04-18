@@ -3,14 +3,14 @@ import 'package:intl/intl.dart';
 import 'models.dart';
 
 class CsvEngine {
-  // --- 1. ENHANCED SALES EXPORT ---
+  // --- 1. PROFESSIONAL SALES CSV ---
   static String convertSalesToCsv(List<Sale> sales) {
     List<List<dynamic>> rows = [
       [
         "DATE", "INVOICE_NO", "TYPE", "PAYMENT_MODE", 
         "PARTY_NAME", "PARTY_GSTIN", "PARTY_STATE", "PARTY_ADDRESS",
         "ITEM_NAME", "PACKING", "BATCH", "EXPIRY", "HSN", 
-        "QTY", "RATE", "TAXABLE_AMT", "GST_RATE", "GST_AMT", "NET_TOTAL"
+        "QTY", "RATE", "TAXABLE_VAL", "GST_RATE", "GST_AMT", "NET_TOTAL"
       ]
     ];
 
@@ -45,14 +45,14 @@ class CsvEngine {
     return const ListToCsvConverter().convert(rows);
   }
 
-  // --- 2. ENHANCED PURCHASE EXPORT ---
+  // --- 2. PROFESSIONAL PURCHASE CSV ---
   static String convertPurchasesToCsv(List<Purchase> purchases) {
     List<List<dynamic>> rows = [
       [
         "DATE", "BILL_NO", "INTERNAL_ID", "PAYMENT_MODE", "STATUS",
         "SUPPLIER_NAME", "SUPPLIER_GSTIN",
         "ITEM_NAME", "PACKING", "BATCH", "EXPIRY", "HSN", 
-        "QTY", "FREE", "PUR_RATE", "TAXABLE_AMT", "GST_RATE", "GST_AMT", "NET_TOTAL"
+        "QTY", "FREE", "PUR_RATE", "TAXABLE_VAL", "GST_RATE", "GST_AMT", "NET_TOTAL"
       ]
     ];
 
@@ -68,7 +68,7 @@ class CsvEngine {
           p.paymentMode,
           p.gstStatus,
           p.distributorName,
-          "N/A", // Supplier GST details are in Party Master
+          "N/A", 
           i.name,
           i.packing,
           i.batch,
@@ -87,7 +87,6 @@ class CsvEngine {
     return const ListToCsvConverter().convert(rows);
   }
 
-  // --- 3. CSV PARSER (Import ke liye) ---
   static List<List<dynamic>> parseCsv(String content) {
     return const CsvToListConverter().convert(content);
   }
