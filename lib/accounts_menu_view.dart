@@ -12,7 +12,7 @@ class AccountsMenuView extends StatelessWidget {
     return Scaffold(
       backgroundColor: const Color(0xFFF5F6F9),
       appBar: AppBar(
-        title: const Text("Accounts & Cash Management"),
+        title: const Text("Accounts & Cash"),
         backgroundColor: Colors.indigo.shade900,
         foregroundColor: Colors.white,
       ),
