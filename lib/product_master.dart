@@ -85,7 +85,7 @@ class _ProductMasterViewState extends State<ProductMasterView> {
                 children: [
                   _section("PRIMARY DETAILS"),
                   _input(nameC, "Product Name *", Icons.medication),
-                  _input(packC, "Packing (e.g. 10 TAB / 100ML) *", Icons.Inventory),
+                  _input(packC, "Packing (e.g. 10 TAB / 100ML) *", Icons.inventory),
                   
                   // Company Dropdown with Quick Add
                   Row(children: [
