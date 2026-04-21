@@ -4,10 +4,9 @@ import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'models.dart';
-import 'master_data_library.dart'; // Naya Library Import
+import 'master_data_library.dart';
 
 class PharoahManager with ChangeNotifier {
-  // --- MASTER DATA LISTS ---
   List<Medicine> medicines = [];
   List<Party> parties = [];
   List<Sale> sales = [];
@@ -23,57 +22,44 @@ class PharoahManager with ChangeNotifier {
   String currentFY = "2025-26";
   String companyState = "Rajasthan";
 
-  PharoahManager() {
-    initManager();
-  }
+  PharoahManager() { initManager(); }
 
-  // --- INITIALIZATION ---
   Future<void> initManager() async {
-    final prefs = await SharedPreferences.getInstance();
-    currentFY = prefs.getString('fy') ?? "2025-26";
-    companyState = prefs.getString('compState') ?? "Rajasthan";
+    final p = await SharedPreferences.getInstance();
+    currentFY = p.getString('fy') ?? "2025-26";
+    companyState = p.getString('compState') ?? "Rajasthan";
     await loadAllData();
   }
 
-  // --- DIRECTORY LOGIC ---
-  Future<String> getFYDirectory() async {
-    final root = await getApplicationDocumentsDirectory();
-    final directory = Directory('${root.path}/DATA_FY_$currentFY');
-    if (!await directory.exists()) {
-      await directory.create(recursive: true);
-    }
-    return directory.path;
-  }
-
-  // --- SAVE LOGIC ---
-  Future<void> save() async {
-    final dir = await getFYDirectory();
-    
-    // Sabhi lists ko JSON mein save karna
-    Map<String, List> dataMap = {
-      'meds.json': medicines.map((e) => e.toMap()).toList(),
-      'parts.json': parties.map((e) => e.toMap()).toList(),
-      'sales.json': sales.map((e) => e.toMap()).toList(),
-      'purc.json': purchases.map((e) => e.toMap()).toList(),
-      'routs.json': routes.map((e) => e.toMap()).toList(),
-      'comps.json': companies.map((e) => e.toMap()).toList(),
-      'salts.json': salts.map((e) => e.toMap()).toList(),
-      'dtypes.json': drugTypes.map((e) => e.toMap()).toList(),
-      'logs.json': logs.map((e) => e.toMap()).toList(),
-      'vouc.json': vouchers.map((e) => e.toMap()).toList(),
-    };
-
-    for (var entry in dataMap.entries) {
-      await File('$dir/${entry.key}').writeAsString(jsonEncode(entry.value));
-    }
-
-    // Batch history alag se
-    await File('$dir/bats.json').writeAsString(jsonEncode(batchHistory.map((k, v) => MapEntry(k, v.map((b) => b.toMap()).toList()))));
-    
+  Future<void> switchYear(String newYear) async {
+    currentFY = newYear;
+    await loadAllData();
     notifyListeners();
   }
 
-  // --- LOAD LOGIC (With Default Library Loading) ---
+  Future<String> getFYDirectory() async {
+    final root = await getApplicationDocumentsDirectory();
+    final directory = Directory('${root.path}/DATA_FY_$currentFY');
+    if (!await directory.exists()) await directory.create(recursive: true);
+    return directory.path;
+  }
+
+  Future<void> save() async {
+    final dir = await getFYDirectory();
+    await File('$dir/meds.json').writeAsString(jsonEncode(medicines.map((e)=>e.toMap()).toList()));
+    await File('$dir/parts.json').writeAsString(jsonEncode(parties.map((e)=>e.toMap()).toList()));
+    await File('$dir/sales.json').writeAsString(jsonEncode(sales.map((e)=>e.toMap()).toList()));
+    await File('$dir/purc.json').writeAsString(jsonEncode(purchases.map((e)=>e.toMap()).toList()));
+    await File('$dir/routs.json').writeAsString(jsonEncode(routes.map((e)=>e.toMap()).toList()));
+    await File('$dir/comps.json').writeAsString(jsonEncode(companies.map((e)=>e.toMap()).toList()));
+    await File('$dir/salts.json').writeAsString(jsonEncode(salts.map((e)=>e.toMap()).toList()));
+    await File('$dir/dtypes.json').writeAsString(jsonEncode(drugTypes.map((e)=>e.toMap()).toList()));
+    await File('$dir/logs.json').writeAsString(jsonEncode(logs.map((e)=>e.toMap()).toList()));
+    await File('$dir/vouc.json').writeAsString(jsonEncode(vouchers.map((e)=>e.toMap()).toList()));
+    await File('$dir/bats.json').writeAsString(jsonEncode(batchHistory.map((k, v) => MapEntry(k, v.map((b) => b.toMap()).toList()))));
+    notifyListeners();
+  }
+
   Future<void> loadAllData() async {
     final dir = await getFYDirectory();
     dynamic loadJson(String name) {
@@ -81,135 +67,73 @@ class PharoahManager with ChangeNotifier {
       return f.existsSync() ? jsonDecode(f.readAsStringSync()) : null;
     }
 
-    // 1. Load Standard Lists
-    medicines = (loadJson('meds.json') as List?)?.map((e) => Medicine.fromMap(e)).toList() ?? [];
-    parties = (loadJson('parts.json') as List?)?.map((e) => Party.fromMap(e)).toList() ?? [Party(id: 'cash', name: "CASH", group: "Cash in Hand")];
-    sales = (loadJson('sales.json') as List?)?.map((e) => Sale.fromMap(e)).toList() ?? [];
-    purchases = (loadJson('purc.json') as List?)?.map((e) => Purchase.fromMap(e)).toList() ?? [];
-    vouchers = (loadJson('vouc.json') as List?)?.map((e) => Voucher.fromMap(e)).toList() ?? [];
-    logs = (loadJson('logs.json') as List?)?.map((e) => LogEntry.fromMap(e)).toList() ?? [];
+    medicines = (loadJson('meds.json') as List?)?.map((e)=>Medicine.fromMap(e)).toList() ?? [];
+    parties = (loadJson('parts.json') as List?)?.map((e)=>Party.fromMap(e)).toList() ?? [Party(id: 'cash', name: "CASH")];
+    sales = (loadJson('sales.json') as List?)?.map((e)=>Sale.fromMap(e)).toList() ?? [];
+    purchases = (loadJson('purc.json') as List?)?.map((e)=>Purchase.fromMap(e)).toList() ?? [];
+    vouchers = (loadJson('vouc.json') as List?)?.map((e)=>Voucher.fromMap(e)).toList() ?? [];
+    logs = (loadJson('logs.json') as List?)?.map((e)=>LogEntry.fromMap(e)).toList() ?? [];
 
-    // 2. Load or Initialize Masters (Companies, Salts, DrugTypes, Routes)
-    
-    // Companies Initialization
     var cD = loadJson('comps.json');
-    if (cD != null) {
-      companies = (cD as List).map((e) => Company.fromMap(e)).toList();
-    } else {
-      companies = MasterDataLibrary.topCompanies.map((name) => Company(id: DateTime.now().millisecondsSinceEpoch.toString() + name, name: name)).toList();
-    }
+    companies = cD != null ? (cD as List).map((e)=>Company.fromMap(e)).toList() : MasterDataLibrary.topCompanies.map((n)=>Company(id: n, name: n)).toList();
 
-    // Salts Initialization
     var sD = loadJson('salts.json');
-    if (sD != null) {
-      salts = (sD as List).map((e) => Salt.fromMap(e)).toList();
-    } else {
-      salts = MasterDataLibrary.topSalts.map((s) => Salt(id: DateTime.now().millisecondsSinceEpoch.toString() + s['name']!, name: s['name']!, type: s['type']!)).toList();
-    }
+    salts = sD != null ? (sD as List).map((e)=>Salt.fromMap(e)).toList() : MasterDataLibrary.topSalts.map((s)=>Salt(id: s['name']!, name: s['name']!, type: s['type']!)).toList();
 
-    // DrugTypes Initialization
-    var dT = loadJson('dtypes.json');
-    if (dT != null) {
-      drugTypes = (dT as List).map((e) => DrugType.fromMap(e)).toList();
-    } else {
-      drugTypes = MasterDataLibrary.drugTypes.map((name) => DrugType(id: DateTime.now().millisecondsSinceEpoch.toString() + name, name: name)).toList();
-    }
+    var dD = loadJson('dtypes.json');
+    drugTypes = dD != null ? (dD as List).map((e)=>DrugType.fromMap(e)).toList() : MasterDataLibrary.drugTypes.map((n)=>DrugType(id: n, name: n)).toList();
 
-    // Routes Initialization
-    var rD = loadJson('routs.json');
-    routes = (rD as List?)?.map((e) => RouteArea.fromMap(e)).toList() ?? [RouteArea(id: '1', name: "Local City")];
+    routes = (loadJson('routs.json') as List?)?.map((e)=>RouteArea.fromMap(e)).toList() ?? [RouteArea(id: '1', name: "Local")];
 
-    // 3. Load Batch History
     var bD = loadJson('bats.json');
-    if (bD != null) {
-      batchHistory.clear();
-      (bD as Map).forEach((k, v) => batchHistory[k] = (v as List).map((b) => BatchInfo.fromMap(b)).toList());
-    }
-    
+    if (bD != null) (bD as Map).forEach((k, v) => batchHistory[k] = (v as List).map((b) => BatchInfo.fromMap(b)).toList());
     notifyListeners();
   }
 
-  // --- MASTER CRUD OPERATIONS ---
-
+  // --- REQUIRED METHODS FOR UI ---
+  void addVoucher(Voucher v) { vouchers.add(v); save(); }
   void addCompany(Company c) { companies.add(c); save(); }
-  void deleteCompany(String id) { companies.removeWhere((e) => e.id == id); save(); }
-
   void addSalt(Salt s) { salts.add(s); save(); }
-  void deleteSalt(String id) { salts.removeWhere((e) => e.id == id); save(); }
-
   void addDrugType(DrugType d) { drugTypes.add(d); save(); }
-  void deleteDrugType(String id) { drugTypes.removeWhere((e) => e.id == id); save(); }
-
   void addRoute(RouteArea r) { routes.add(r); save(); }
-  void deleteRoute(String id) { routes.removeWhere((r) => r.id == id); save(); }
-
-  void deleteParty(String id) {
-    if (parties.firstWhere((p) => p.id == id).name != "CASH") {
-      parties.removeWhere((p) => p.id == id);
-      save();
-    }
-  }
-
-  // --- CORE BUSINESS LOGIC (Stock & Rates) ---
-
-  void saveBatchCentrally(String medId, BatchInfo newBatch) {
-    if (!batchHistory.containsKey(medId)) batchHistory[medId] = [];
-    int idx = batchHistory[medId]!.indexWhere((b) => b.batch.toUpperCase() == newBatch.batch.toUpperCase());
-    if (idx != -1) {
-      batchHistory[medId]![idx] = newBatch;
-    } else {
-      batchHistory[medId]!.add(newBatch);
-    }
-    save();
-  }
+  
+  void deleteBill(String id) { sales.removeWhere((s)=>s.id==id); save(); }
+  void deletePurchase(String id) { purchases.removeWhere((p)=>p.id==id); save(); }
+  void deleteParty(String id) { parties.removeWhere((p)=>p.id==id); save(); }
+  void deleteRoute(String id) { routes.removeWhere((r)=>r.id==id); save(); }
 
   void finalizeSale({required String billNo, required DateTime date, required Party party, required List<BillItem> items, required double total, required String mode}) {
-    sales.add(Sale(
-      id: DateTime.now().toString(), billNo: billNo, date: date, partyName: party.name, 
-      partyGstin: party.gst, partyState: party.state, items: items, totalAmount: total, 
-      paymentMode: mode, invoiceType: party.isB2B ? "B2B" : "B2C"
-    ));
+    sales.add(Sale(id: DateTime.now().toString(), billNo: billNo, date: date, partyName: party.name, partyGstin: party.gst, partyState: party.state, items: items, totalAmount: total, paymentMode: mode));
     for (var it in items) {
-      int idx = medicines.indexWhere((m) => m.id == it.medicineID);
-      if (idx != -1) {
-        medicines[idx].stock -= (it.qty + it.freeQty);
-        saveBatchCentrally(it.medicineID, BatchInfo(batch: it.batch, exp: it.exp, packing: it.packing, mrp: it.mrp, rate: it.rate));
+      int i = medicines.indexWhere((m)=>m.id==it.medicineID);
+      if(i!=-1) medicines[i].stock -= (it.qty + it.freeQty);
+    }
+    save();
+  }
+
+  void finalizePurchase({required String internalNo, required String billNo, required DateTime date, DateTime? entryDate, required Party party, required List<PurchaseItem> items, required double total, required String mode}) {
+    purchases.add(Purchase(id: DateTime.now().toString(), internalNo: internalNo, billNo: billNo, date: date, entryDate: entryDate ?? DateTime.now(), distributorName: party.name, items: items, totalAmount: total, paymentMode: mode));
+    for (var it in items) {
+      int i = medicines.indexWhere((m)=>m.id==it.medicineID);
+      if(i!=-1) {
+        medicines[i].stock += (it.qty + it.freeQty);
+        medicines[i].purRate = it.purchaseRate;
+        medicines[i].mrp = it.mrp;
       }
     }
     save();
   }
 
-  void finalizePurchase({required String internalNo, required String billNo, required DateTime date, required Party party, required List<PurchaseItem> items, required double total, required String mode}) {
-    purchases.add(Purchase(
-      id: DateTime.now().toString(), internalNo: internalNo, billNo: billNo, 
-      date: date, distributorName: party.name, items: items, totalAmount: total, paymentMode: mode
-    ));
-    for (var it in items) {
-      int idx = medicines.indexWhere((m) => m.id == it.medicineID);
-      if (idx != -1) {
-        medicines[idx].stock += (it.qty + it.freeQty);
-        // Rates update from purchase
-        medicines[idx].purRate = it.purchaseRate;
-        medicines[idx].mrp = it.mrp;
-        medicines[idx].gst = it.gstRate;
-        if(it.rateA > 0) medicines[idx].rateA = it.rateA;
-        if(it.rateB > 0) medicines[idx].rateB = it.rateB;
-        if(it.rateC > 0) medicines[idx].rateC = it.rateC;
-        saveBatchCentrally(it.medicineID, BatchInfo(batch: it.batch, exp: it.exp, packing: it.packing, mrp: it.mrp, rate: it.purchaseRate));
-      }
-    }
+  Future<void> runAutoBackup() async { /* Logic for backup */ }
+  Future<void> runFullMaintenance() async { /* Logic for maintenance */ }
+
+  void saveBatchCentrally(String medId, BatchInfo b) {
+    if(!batchHistory.containsKey(medId)) batchHistory[medId] = [];
+    batchHistory[medId]!.add(b);
     save();
   }
 
-  // --- SYSTEM TOOLS ---
-  Future<void> masterReset() async {
-    final dir = await getFYDirectory();
-    final directory = Directory(dir);
-    if (directory.existsSync()) directory.deleteSync(recursive: true);
-    await loadAllData();
-  }
-
-  void addLog(String action, String details) {
-    logs.add(LogEntry(id: DateTime.now().toString(), action: action, details: details, time: DateTime.now()));
-  }
+  // --- GETTERS ---
+  DateTime get fyStartDate => DateTime(int.parse(currentFY.split('-')[0]), 4, 1);
+  DateTime get fyEndDate => DateTime(int.parse(currentFY.split('-')[0]) + 1, 3, 31);
 }
