@@ -30,8 +30,8 @@ class _ProductMasterViewState extends State<ProductMasterView> {
     final rBC = TextEditingController(text: med?.rateB.toString() ?? "");
     final rCC = TextEditingController(text: med?.rateC.toString() ?? "");
     
-    // Inventory
-    final stC = TextEditingController(text: med?.stock.toString() ?? "0");
+    // Inventory - Default to 0.0 for double
+    final stC = TextEditingController(text: med?.stock.toString() ?? "0.0");
 
     showDialog(
       context: context,
@@ -119,7 +119,8 @@ class _ProductMasterViewState extends State<ProductMasterView> {
                 rateA: double.tryParse(rAC.text) ?? 0.0,
                 rateB: double.tryParse(rBC.text) ?? 0.0,
                 rateC: double.tryParse(rCC.text) ?? 0.0,
-                stock: int.tryParse(stC.text) ?? 0,
+                // FIX: Changed to double.tryParse for type safety
+                stock: double.tryParse(stC.text) ?? 0.0,
               );
 
               if (med == null) {
