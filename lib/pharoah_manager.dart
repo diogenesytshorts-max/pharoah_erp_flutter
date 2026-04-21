@@ -106,7 +106,6 @@ class PharoahManager with ChangeNotifier {
     }
   }
 
-  // Stock repair logic updated for Decimal and Free Qty
   Future<void> runFullMaintenance() async {
     for (var med in medicines) {
       double st = 0.0;
@@ -140,7 +139,6 @@ class PharoahManager with ChangeNotifier {
     for (var it in items) {
       int idx = medicines.indexWhere((m) => m.id == it.medicineID);
       if (idx != -1) {
-        // Stock deduction includes FREE quantity
         medicines[idx].stock -= (it.qty + it.freeQty);
         saveBatchCentrally(it.medicineID, BatchInfo(batch: it.batch, exp: it.exp, packing: it.packing, mrp: it.mrp, rate: it.rate));
       }
@@ -148,8 +146,19 @@ class PharoahManager with ChangeNotifier {
     save();
   }
 
-  void finalizePurchase({required String internalNo, required String billNo, required DateTime date, required Party party, required List<PurchaseItem> items, required double total, required String mode}) {
-    purchases.add(Purchase(id: DateTime.now().toString(), internalNo: internalNo, billNo: billNo, date: date, distributorName: party.name, items: items, totalAmount: total, paymentMode: mode));
+  // UPDATED: finalizePurchase now accepts entryDate
+  void finalizePurchase({required String internalNo, required String billNo, required DateTime date, required DateTime entryDate, required Party party, required List<PurchaseItem> items, required double total, required String mode}) {
+    purchases.add(Purchase(
+      id: DateTime.now().toString(), 
+      internalNo: internalNo, 
+      billNo: billNo, 
+      date: date, 
+      entryDate: entryDate, 
+      distributorName: party.name, 
+      items: items, 
+      totalAmount: total, 
+      paymentMode: mode
+    ));
     for (var it in items) {
       int idx = medicines.indexWhere((m) => m.id == it.medicineID);
       if (idx != -1) {
