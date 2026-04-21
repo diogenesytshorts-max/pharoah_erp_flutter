@@ -13,6 +13,7 @@ class PharoahManager with ChangeNotifier {
   List<Sale> sales = [];
   List<Purchase> purchases = [];
   List<LogEntry> logs = [];
+  List<Voucher> vouchers = []; // Naya: All Receipts and Payments
   Map<String, List<BatchInfo>> batchHistory = {};
   
   String currentFY = "2025-26";
@@ -43,6 +44,7 @@ class PharoahManager with ChangeNotifier {
     sales.clear();
     purchases.clear();
     logs.clear();
+    vouchers.clear();
     batchHistory.clear();
     currentFY = newYear;
     notifyListeners();
@@ -57,6 +59,7 @@ class PharoahManager with ChangeNotifier {
     await File('$dir/sales.json').writeAsString(jsonEncode(sales.map((e)=>e.toMap()).toList()));
     await File('$dir/purc.json').writeAsString(jsonEncode(purchases.map((e)=>e.toMap()).toList()));
     await File('$dir/logs.json').writeAsString(jsonEncode(logs.map((e)=>e.toMap()).toList()));
+    await File('$dir/vouc.json').writeAsString(jsonEncode(vouchers.map((e)=>e.toMap()).toList()));
     await File('$dir/bats.json').writeAsString(jsonEncode(batchHistory.map((k, v) => MapEntry(k, v.map((b) => b.toMap()).toList()))));
     notifyListeners();
   }
@@ -71,14 +74,22 @@ class PharoahManager with ChangeNotifier {
 
     var mD = loadJson('meds.json');
     medicines = mD != null ? (mD as List).map((e)=>Medicine.fromMap(e)).toList() : DemoData.getMedicines();
+    
     var pD = loadJson('parts.json');
-    parties = pD != null ? (pD as List).map((e)=>Party.fromMap(e)).toList() : [DemoData.getDemoParty(), Party(id: 'cash', name: "CASH")];
+    parties = pD != null ? (pD as List).map((e)=>Party.fromMap(e)).toList() : [DemoData.getDemoParty(), Party(id: 'cash', name: "CASH", accountGroup: "Cash in Hand")];
+    
     var sD = loadJson('sales.json');
     sales = sD != null ? (sD as List).map((e)=>Sale.fromMap(e)).toList() : [];
+    
     var purD = loadJson('purc.json');
     purchases = purD != null ? (purD as List).map((e)=>Purchase.fromMap(e)).toList() : [];
+    
     var lD = loadJson('logs.json');
     logs = lD != null ? (lD as List).map((e)=>LogEntry.fromMap(e)).toList() : [];
+
+    var vD = loadJson('vouc.json');
+    vouchers = vD != null ? (vD as List).map((e)=>Voucher.fromMap(e)).toList() : [];
+    
     var bD = loadJson('bats.json');
     if (bD != null) { 
       batchHistory.clear();
@@ -100,6 +111,7 @@ class PharoahManager with ChangeNotifier {
         'meds': medicines.map((e)=>e.toMap()).toList(),
         'sales': sales.map((e)=>e.toMap()).toList(),
         'purchases': purchases.map((e)=>e.toMap()).toList(),
+        'vouchers': vouchers.map((e)=>e.toMap()).toList(),
       }));
     } catch (e) {
       debugPrint("Backup Failed: $e");
@@ -122,19 +134,23 @@ class PharoahManager with ChangeNotifier {
     await save();
   }
 
-  // --- BUSINESS LOGIC ---
+  // --- BATCH MANAGEMENT ---
   void saveBatchCentrally(String medId, BatchInfo b) {
     if (!batchHistory.containsKey(medId)) batchHistory[medId] = [];
     batchHistory[medId] = BatchMasterLogic.updateBatchList(batchHistory[medId]!, b);
     save(); 
   }
 
+  // --- SALES & PURCHASE LOGIC ---
   void finalizeSale({required String billNo, required DateTime date, required Party party, required List<BillItem> items, required double total, required String mode}) {
+    // If Mode is CASH, mark amountPaid as full total
+    double initialPaid = (mode == "CASH") ? total : 0.0;
+
     sales.add(Sale(
       id: DateTime.now().toString(), billNo: billNo, date: date, partyName: party.name, 
       partyGstin: party.gst, partyState: party.state, partyAddress: party.address, 
       partyDl: party.dl, partyEmail: party.email, items: items, totalAmount: total, 
-      paymentMode: mode, invoiceType: party.isB2B ? "B2B" : "B2C"
+      amountPaid: initialPaid, paymentMode: mode, invoiceType: party.isB2B ? "B2B" : "B2C"
     ));
     for (var it in items) {
       int idx = medicines.indexWhere((m) => m.id == it.medicineID);
@@ -146,18 +162,14 @@ class PharoahManager with ChangeNotifier {
     save();
   }
 
-  // UPDATED: finalizePurchase now accepts entryDate
   void finalizePurchase({required String internalNo, required String billNo, required DateTime date, required DateTime entryDate, required Party party, required List<PurchaseItem> items, required double total, required String mode}) {
+    // If Mode is CASH, mark amountPaid as full total
+    double initialPaid = (mode == "CASH") ? total : 0.0;
+
     purchases.add(Purchase(
-      id: DateTime.now().toString(), 
-      internalNo: internalNo, 
-      billNo: billNo, 
-      date: date, 
-      entryDate: entryDate, 
-      distributorName: party.name, 
-      items: items, 
-      totalAmount: total, 
-      paymentMode: mode
+      id: DateTime.now().toString(), internalNo: internalNo, billNo: billNo, 
+      date: date, entryDate: entryDate, distributorName: party.name, 
+      items: items, totalAmount: total, amountPaid: initialPaid, paymentMode: mode
     ));
     for (var it in items) {
       int idx = medicines.indexWhere((m) => m.id == it.medicineID);
@@ -172,6 +184,46 @@ class PharoahManager with ChangeNotifier {
     save();
   }
 
+  // --- VOUCHER & ACCOUNTING LOGIC ---
+  void addVoucher(Voucher v) {
+    vouchers.add(v);
+
+    // If Voucher is against a specific Bill, update that Bill's amountPaid
+    if (v.isAgainstBill && v.refBillId.isNotEmpty) {
+      if (v.type == "Receipt") {
+        int sIdx = sales.indexWhere((s) => s.id == v.refBillId);
+        if (sIdx != -1) sales[sIdx].amountPaid += v.amount;
+      } else if (v.type == "Payment") {
+        int pIdx = purchases.indexWhere((p) => p.id == v.refBillId);
+        if (pIdx != -1) purchases[pIdx].amountPaid += v.amount;
+      }
+    }
+    
+    addLog("ACCOUNTING", "${v.type} added for ${v.partyName}: ₹${v.amount}");
+    save();
+  }
+
+  void deleteVoucher(String id) {
+    int vIdx = vouchers.indexWhere((v) => v.id == id);
+    if (vIdx != -1) {
+      Voucher v = vouchers[vIdx];
+      // Reverse Bill Payment if it was against a bill
+      if (v.isAgainstBill && v.refBillId.isNotEmpty) {
+        if (v.type == "Receipt") {
+          int sIdx = sales.indexWhere((s) => s.id == v.refBillId);
+          if (sIdx != -1) sales[sIdx].amountPaid -= v.amount;
+        } else if (v.type == "Payment") {
+          int pIdx = purchases.indexWhere((p) => p.id == v.refBillId);
+          if (pIdx != -1) purchases[pIdx].amountPaid -= v.amount;
+        }
+      }
+      vouchers.removeAt(vIdx);
+      addLog("ACCOUNTING", "Voucher Deleted: ${v.partyName} ₹${v.amount}");
+      save();
+    }
+  }
+
+  // --- MASTER DELETIONS ---
   void deletePurchase(String id) {
     int i = purchases.indexWhere((p) => p.id == id);
     if (i != -1) {
