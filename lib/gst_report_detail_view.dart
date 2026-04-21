@@ -3,7 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import 'pharoah_manager.dart';
 import 'models.dart';
-import 'gst_report_service.dart'; // Import check
+import 'gst_report_service.dart'; // Is line ko compiler ko har haal me dekhna chahiye
 
 class GSTReportDetailView extends StatefulWidget {
   final String reportType;
@@ -54,6 +54,7 @@ class _GSTReportDetailViewState extends State<GSTReportDetailView> {
             onPressed: () {
               String rangeLabel = "${DateFormat('dd/MM/yy').format(fromDate)} to ${DateFormat('dd/MM/yy').format(toDate)}";
               
+              // CALLING STATIC METHODS OF GstReportService
               if (widget.reportType.contains("GSTR-1")) {
                 GstReportService.generateGstr1Pdf(allSales, rangeLabel);
               } 
@@ -61,7 +62,7 @@ class _GSTReportDetailViewState extends State<GSTReportDetailView> {
                 GstReportService.generateGstr3bPdf(activeSales, monthlyPurchases, rangeLabel);
               }
               else if (widget.reportType.contains("GSTR-2")) {
-                // UPDATED: Now passing vouchers and parties for Expense GST logic
+                // Now passing monthlyPurchases, vouchers, parties, and label
                 GstReportService.generateGstr2Pdf(monthlyPurchases, ph.vouchers, ph.parties, rangeLabel);
               }
             },
