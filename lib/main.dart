@@ -18,9 +18,7 @@ void main() async {
 
 class MyApp extends StatefulWidget {
   const MyApp({super.key});
-
-  @override
-  State<MyApp> createState() => _MyAppState();
+  @override State<MyApp> createState() => _MyAppState();
 }
 
 class _MyAppState extends State<MyApp> {
@@ -44,12 +42,7 @@ class _MyAppState extends State<MyApp> {
 
   @override
   Widget build(BuildContext context) {
-    if (isLoading) {
-      return const MaterialApp(
-        debugShowCheckedModeBanner: false,
-        home: Scaffold(body: Center(child: CircularProgressIndicator())),
-      );
-    }
+    if (isLoading) return const MaterialApp(home: Scaffold(body: Center(child: CircularProgressIndicator())));
 
     return MaterialApp(
       key: UniqueKey(),
@@ -58,10 +51,10 @@ class _MyAppState extends State<MyApp> {
       theme: ThemeData(
         useMaterial3: true,
         colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF0D47A1)),
-        // FIXED: CardThemeData use kiya gaya hai naye version ke liye
-        cardTheme: CardThemeData(
+        cardTheme: const CardTheme(
           elevation: 3,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+          surfaceTintColor: Colors.white,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(15))),
         ),
         appBarTheme: const AppBarTheme(centerTitle: false, elevation: 0),
       ),
