@@ -15,7 +15,7 @@ class MasterHubView extends StatelessWidget {
     return Scaffold(
       backgroundColor: const Color(0xFFF5F6F9),
       appBar: AppBar(
-        title: const Text("Master Hub"),
+        title: const Text("Master Data Hub"),
         backgroundColor: Colors.indigo.shade800,
         foregroundColor: Colors.white,
         elevation: 0,
@@ -26,12 +26,12 @@ class MasterHubView extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text(
-              "PRIMARY MASTERS",
+              "PRIMARY BUSINESS MASTERS",
               style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.blueGrey, letterSpacing: 1.2),
             ),
             const SizedBox(height: 15),
 
-            // --- SECTION 1: CORE BUSINESS MASTERS ---
+            // --- SECTION 1: CORE MASTERS ---
             GridView.count(
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
@@ -63,7 +63,7 @@ class MasterHubView extends StatelessWidget {
             ),
             const SizedBox(height: 15),
 
-            // --- SECTION 2: SPECIFIC MASTERS ---
+            // --- SECTION 2: OTHER MASTERS ---
             GridView.count(
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
@@ -99,9 +99,9 @@ class MasterHubView extends StatelessWidget {
               ],
             ),
             
-            const SizedBox(height: 40),
+            const SizedBox(height: 30),
 
-            // --- FOOTER INFO ---
+            // --- USER GUIDANCE ---
             Container(
               padding: const EdgeInsets.all(15),
               decoration: BoxDecoration(
@@ -111,11 +111,11 @@ class MasterHubView extends StatelessWidget {
               ),
               child: const Row(
                 children: [
-                  Icon(Icons.info_outline, color: Colors.indigo, size: 20),
-                  SizedBox(width: 12),
+                  Icon(Icons.tips_and_updates_outlined, color: Colors.orange, size: 20),
+                  SizedBox(width: 10),
                   Expanded(
                     child: Text(
-                      "All Master data created here will be automatically available during Billing and Purchase entry.",
+                      "Tip: Pre-filled libraries are active. Modify them here to customize your medicine search results.",
                       style: TextStyle(fontSize: 11, color: Colors.blueGrey, height: 1.4),
                     ),
                   ),
