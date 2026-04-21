@@ -24,13 +24,63 @@ class Medicine {
   factory Medicine.fromMap(Map<String, dynamic> map) => Medicine(id: map['id'] ?? "", name: map['name'] ?? "", packing: map['packing'] ?? "", manufacturer: map['manufacturer'] ?? "N/A", hsnCode: map['hsnCode'] ?? "N/A", gst: (map['gst'] ?? 12).toDouble(), mrp: (map['mrp'] ?? 0).toDouble(), purRate: (map['purRate'] ?? 0).toDouble(), rateA: (map['rateA'] ?? 0).toDouble(), rateB: (map['rateB'] ?? 0).toDouble(), rateC: (map['rateC'] ?? 0).toDouble(), stock: (map['stock'] ?? 0).toDouble());
 }
 
-// 4. Party Master
+// 4. Party / Ledger Master (Advanced Accounting Version)
 class Party {
-  String id, name, address, city, state, phone, gst, dl, email;
-  Party({required this.id, required this.name, this.address = "", this.city = "", this.state = "Rajasthan", this.phone = "", this.gst = "N/A", this.dl = "N/A", this.email = "N/A"});
+  String id, name, address, city, state, phone, gst, dl, email, hsnCode;
+  String accountGroup; // Sundry Debtors, Creditors, Cash, Bank, Expense
+  double openingBalance;
+  String balanceType; // 'Debit' or 'Credit'
+  String dlExpiry; // Optional DL Expiry Date
+  double creditLimit;
+  String creditControlMode; // 'Soft' (Warn) or 'Hard' (Block)
+
+  Party({
+    required this.id, 
+    required this.name, 
+    this.address = "", 
+    this.city = "", 
+    this.state = "Rajasthan", 
+    this.phone = "", 
+    this.gst = "N/A", 
+    this.dl = "N/A", 
+    this.email = "N/A",
+    this.hsnCode = "N/A", // For Expense Ledgers
+    this.accountGroup = "Sundry Debtors",
+    this.openingBalance = 0.0,
+    this.balanceType = "Debit",
+    this.dlExpiry = "",
+    this.creditLimit = 0.0,
+    this.creditControlMode = "Soft"
+  });
+
   bool get isB2B => gst != "N/A" && gst.trim().length >= 15;
-  Map<String, dynamic> toMap() => {'id': id, 'name': name, 'address': address, 'city': city, 'state': state, 'phone': phone, 'gst': gst, 'dl': dl, 'email': email};
-  factory Party.fromMap(Map<String, dynamic> map) => Party(id: map['id'] ?? "", name: map['name'] ?? "", address: map['address'] ?? "", city: map['city'] ?? "", state: map['state'] ?? "Rajasthan", phone: map['phone'] ?? "", gst: map['gst'] ?? "N/A", dl: map['dl'] ?? "N/A", email: map['email'] ?? "N/A");
+
+  Map<String, dynamic> toMap() => {
+    'id': id, 'name': name, 'address': address, 'city': city, 'state': state, 
+    'phone': phone, 'gst': gst, 'dl': dl, 'email': email, 'hsnCode': hsnCode,
+    'accountGroup': accountGroup, 'openingBalance': openingBalance, 
+    'balanceType': balanceType, 'dlExpiry': dlExpiry, 
+    'creditLimit': creditLimit, 'creditControlMode': creditControlMode
+  };
+
+  factory Party.fromMap(Map<String, dynamic> map) => Party(
+    id: map['id'] ?? "", 
+    name: map['name'] ?? "", 
+    address: map['address'] ?? "", 
+    city: map['city'] ?? "", 
+    state: map['state'] ?? "Rajasthan", 
+    phone: map['phone'] ?? "", 
+    gst: map['gst'] ?? "N/A", 
+    dl: map['dl'] ?? "N/A", 
+    email: map['email'] ?? "N/A",
+    hsnCode: map['hsnCode'] ?? "N/A",
+    accountGroup: map['accountGroup'] ?? "Sundry Debtors",
+    openingBalance: (map['openingBalance'] ?? 0.0).toDouble(),
+    balanceType: map['balanceType'] ?? "Debit",
+    dlExpiry: map['dlExpiry'] ?? "",
+    creditLimit: (map['creditLimit'] ?? 0.0).toDouble(),
+    creditControlMode: map['creditControlMode'] ?? "Soft"
+  );
 }
 
 // 5. Bill Item (Sale)
@@ -41,7 +91,7 @@ class BillItem {
   factory BillItem.fromMap(Map<String, dynamic> map) => BillItem(id: map['id'] ?? "", srNo: map['srNo'] ?? 0, medicineID: map['medicineID'] ?? "", name: map['name'] ?? "", packing: map['packing'] ?? "", batch: map['batch'] ?? "", exp: map['exp'] ?? "", hsn: map['hsn'] ?? "", mrp: (map['mrp'] ?? 0).toDouble(), qty: (map['qty'] ?? 0).toDouble(), freeQty: (map['freeQty'] ?? 0).toDouble(), rate: (map['rate'] ?? 0).toDouble(), gstRate: (map['gstRate'] ?? 0).toDouble(), cgst: (map['cgst'] ?? 0).toDouble(), sgst: (map['sgst'] ?? 0).toDouble(), igst: (map['igst'] ?? 0).toDouble(), total: (map['total'] ?? 0).toDouble(), discountRupees: (map['discountRupees'] ?? 0).toDouble());
 }
 
-// 6. Sale (Full GSTR & E-Way Compliance)
+// 6. Sale
 class Sale {
   String id, billNo, partyName, partyGstin, partyState, partyAddress, partyDl, partyEmail, status, invoiceType, paymentMode, transporterName, transporterId, vehicleNo;
   DateTime date; List<BillItem> items; double totalAmount;
@@ -58,10 +108,10 @@ class PurchaseItem {
   factory PurchaseItem.fromMap(Map<String, dynamic> map) => PurchaseItem(id: map['id'], srNo: map['srNo'], medicineID: map['medicineID'], name: map['name'], packing: map['packing'], batch: map['batch'], exp: map['exp'], hsn: map['hsn'] ?? "", mrp: (map['mrp'] ?? 0).toDouble(), qty: (map['qty'] ?? 0).toDouble(), freeQty: (map['freeQty'] ?? 0).toDouble(), purchaseRate: (map['purchaseRate'] ?? 0).toDouble(), gstRate: (map['gstRate'] ?? 0).toDouble(), total: (map['total'] ?? 0).toDouble(), rateA: (map['rateA'] ?? 0).toDouble(), rateB: (map['rateB'] ?? 0).toDouble(), rateC: (map['rateC'] ?? 0).toDouble());
 }
 
-// 8. Purchase (Added entryDate)
+// 8. Purchase
 class Purchase {
   String id, internalNo, billNo, distributorName, paymentMode, gstStatus; DateTime date, entryDate; List<PurchaseItem> items; double totalAmount;
   Purchase({required this.id, required this.internalNo, required this.billNo, required this.date, required this.entryDate, required this.distributorName, required this.items, required this.totalAmount, required this.paymentMode, this.gstStatus = "Pending"});
   Map<String, dynamic> toMap() => {'id': id, 'internalNo': internalNo, 'billNo': billNo, 'date': date.toIso8601String(), 'entryDate': entryDate.toIso8601String(), 'distributorName': distributorName, 'paymentMode': paymentMode, 'totalAmount': totalAmount, 'gstStatus': gstStatus, 'items': items.map((i) => i.toMap()).toList()};
-  factory Purchase.fromMap(Map<String, dynamic> map) => Purchase(id: map['id'], internalNo: map['internalNo'] ?? "", billNo: map['billNo'], distributorName: map['distributorName'], paymentMode: map['paymentMode'], gstStatus: map['gstStatus'] ?? "Pending", date: DateTime.parse(map['date']), entryDate: map['entryDate'] != null ? DateTime.parse(map['entryDate']) : DateTime.parse(map['date']), totalAmount: (map['totalAmount'] ?? 0).toDouble(), items: (map['items'] as List).map((i) => PurchaseItem.fromMap(i)).toList());
+  factory Purchase.fromMap(Map<String, dynamic> map) => Purchase(id: map['id'], internalNo: map['internalNo'] ?? "", billNo: map['billNo'], distributorName: map['distributorName'], paymentMode: map['paymentMode'], gstStatus: map['gstStatus'] ?? "Pending", date: DateTime.parse(map['date']), entryDate: DateTime.parse(map['entryDate'] ?? map['date']), totalAmount: (map['totalAmount'] ?? 0).toDouble(), items: (map['items'] as List).map((i) => PurchaseItem.fromMap(i)).toList());
 }
