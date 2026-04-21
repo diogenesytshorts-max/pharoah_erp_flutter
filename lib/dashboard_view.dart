@@ -9,7 +9,7 @@ import 'sale_summary_view.dart';
 import 'purchase/purchase_entry_view.dart';
 import 'purchase/purchase_summary_view.dart';
 import 'data_exchange_view.dart';
-import 'accounts_menu_view.dart'; // Naya Menu
+import 'accounts_menu_view.dart';
 import 'more_features_view.dart';
 
 class DashboardView extends StatelessWidget {
@@ -21,7 +21,6 @@ class DashboardView extends StatelessWidget {
     final ph = Provider.of<PharoahManager>(context);
     final now = DateTime.now();
 
-    // Stats Logic
     double todaySales = ph.sales.where((s) => s.status == "Active" && _isSameDay(s.date, now)).fold(0.0, (sum, s) => sum + s.totalAmount);
     double todayPur = ph.purchases.where((p) => _isSameDay(p.date, now)).fold(0.0, (sum, p) => sum + p.totalAmount);
     double stockVal = ph.medicines.fold(0.0, (sum, m) => sum + (m.stock * m.purRate));
@@ -30,7 +29,7 @@ class DashboardView extends StatelessWidget {
       backgroundColor: const Color(0xFFF8F9FD),
       body: Column(
         children: [
-          // --- HEADER ---
+          // HEADER
           Container(
             padding: const EdgeInsets.only(top: 60, left: 25, right: 25, bottom: 25),
             decoration: const BoxDecoration(
@@ -40,7 +39,7 @@ class DashboardView extends StatelessWidget {
             child: Row(children: [
               Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 const Text("PHAROAH ERP", style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.white)),
-                Text("FY: ${ph.currentFY} | Main Dashboard", style: const TextStyle(fontSize: 11, color: Colors.white70)),
+                Text("FY: ${ph.currentFY} | Dashboard", style: const TextStyle(fontSize: 11, color: Colors.white70)),
               ]),
               const Spacer(),
               IconButton(icon: const Icon(Icons.power_settings_new, color: Colors.white), onPressed: onLogout)
@@ -53,52 +52,38 @@ class DashboardView extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // --- SECTION 1: BUSINESS SNAPSHOT ---
-                  Row(
-                    children: [
-                      Expanded(child: StatWidget(title: "TODAY SALE", value: "₹${todaySales.toStringAsFixed(0)}", period: "Today", icon: "trending_up", color: Colors.green)),
-                      const SizedBox(width: 12),
-                      Expanded(child: StatWidget(title: "TODAY PUR", value: "₹${todayPur.toStringAsFixed(0)}", period: "Today", icon: "shopping_cart", color: Colors.orange)),
-                    ],
-                  ),
+                  // STATS SECTION
+                  Row(children: [
+                    Expanded(child: StatWidget(title: "TODAY SALE", value: "₹${todaySales.toStringAsFixed(0)}", period: "Today", icon: "trending_up", color: Colors.green)),
+                    const SizedBox(width: 12),
+                    Expanded(child: StatWidget(title: "TODAY PUR", value: "₹${todayPur.toStringAsFixed(0)}", period: "Today", icon: "shopping_cart", color: Colors.orange)),
+                  ]),
                   const SizedBox(height: 12),
-                  StatWidget(title: "TOTAL STOCK VALUE (AT COST)", value: "₹${stockVal.toStringAsFixed(2)}", period: "Real-time", icon: "inventory_2", color: Colors.purple),
+                  StatWidget(title: "TOTAL STOCK VALUE", value: "₹${stockVal.toStringAsFixed(0)}", period: "Current", icon: "inventory_2", color: Colors.purple),
                   
-                  const SizedBox(height: 30),
+                  const SizedBox(height: 25),
 
-                  // --- SECTION 2: BILLING & ENTRIES ---
-                  const Text("DAILY OPERATIONS", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.blueGrey, letterSpacing: 1)),
+                  // PRIMARY ACTIONS (BILLING)
+                  const Text("QUICK ENTRIES", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.blueGrey, letterSpacing: 1)),
                   const SizedBox(height: 15),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _bigActionButton(
-                          context, "NEW SALE", Icons.add_shopping_cart, Colors.blue.shade700, 
-                          const SaleEntryView()
-                        )
-                      ),
-                      const SizedBox(width: 15),
-                      Expanded(
-                        child: _bigActionButton(
-                          context, "PURCHASE ENTRY", Icons.downloading_rounded, Colors.orange.shade800, 
-                          const PurchaseEntryView()
-                        )
-                      ),
-                    ],
-                  ),
+                  Row(children: [
+                    Expanded(child: _entryButton(context, "NEW SALE", Icons.add_shopping_cart, Colors.blue.shade700, const SaleEntryView())),
+                    const SizedBox(width: 15),
+                    Expanded(child: _entryButton(context, "PURCHASE", Icons.downloading_rounded, Colors.orange.shade800, const PurchaseEntryView())),
+                  ]),
 
-                  const SizedBox(height: 30),
+                  const SizedBox(height: 25),
 
-                  // --- SECTION 3: MODULES GRID ---
+                  // MODULES GRID
                   const Text("MANAGEMENT MODULES", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.blueGrey, letterSpacing: 1)),
                   const SizedBox(height: 15),
                   GridView.count(
                     shrinkWrap: true,
                     physics: const NeverScrollableScrollPhysics(),
                     crossAxisCount: 3,
-                    crossAxisSpacing: 12,
-                    mainAxisSpacing: 12,
-                    childAspectRatio: 0.9,
+                    crossAxisSpacing: 10,
+                    mainAxisSpacing: 10,
+                    childAspectRatio: 0.85,
                     children: [
                       ActionIconBtn(title: "Accounts", icon: Icons.account_balance_wallet, color: Colors.indigo, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => const AccountsMenuView()))),
                       ActionIconBtn(title: "Sale Reg", icon: Icons.description_outlined, color: Colors.blue, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => const SaleSummaryView()))),
@@ -117,21 +102,17 @@ class DashboardView extends StatelessWidget {
     );
   }
 
-  // Helper function for big buttons
-  Widget _bigActionButton(BuildContext context, String label, IconData icon, Color color, Widget target) {
+  Widget _entryButton(BuildContext context, String label, IconData icon, Color color, Widget target) {
     return InkWell(
       onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => target)),
       child: Container(
-        height: 100,
-        decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(20), boxShadow: [BoxShadow(color: color.withOpacity(0.3), blurRadius: 10, offset: const Offset(0, 5))]),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(icon, color: Colors.white, size: 30),
-            const SizedBox(height: 8),
-            Text(label, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12)),
-          ],
-        ),
+        height: 80,
+        decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(15), boxShadow: [BoxShadow(color: color.withOpacity(0.3), blurRadius: 8, offset: const Offset(0, 4))]),
+        child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+          Icon(icon, color: Colors.white, size: 28),
+          const SizedBox(height: 5),
+          Text(label, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 11)),
+        ]),
       ),
     );
   }
