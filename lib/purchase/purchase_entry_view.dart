@@ -1,10 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import '../pharoah_manager.dart';
 import '../models.dart';
 import 'purchase_billing_view.dart';
-import '../app_date_logic.dart'; 
+import 'package:intl/intl.dart';
 
 class PurchaseEntryView extends StatefulWidget {
   final Purchase? existingPurchase;
@@ -14,13 +13,11 @@ class PurchaseEntryView extends StatefulWidget {
 }
 
 class _PurchaseEntryViewState extends State<PurchaseEntryView> {
-  // --- CONTROLLERS ---
   final supplierBillNoC = TextEditingController(); 
   final internalEntryNoC = TextEditingController();
   
-  // --- STATE ---
   DateTime selectedBillDate = DateTime.now(); 
-  DateTime selectedEntryDate = DateTime.now(); // Naya: Entry karne wali date
+  DateTime selectedEntryDate = DateTime.now(); 
   String paymentMode = "CREDIT"; 
   Party? selectedDistributor; 
   String distSearchQuery = "";
@@ -34,65 +31,23 @@ class _PurchaseEntryViewState extends State<PurchaseEntryView> {
   void _initializePurchaseSession() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final ph = Provider.of<PharoahManager>(context, listen: false);
-      
-      setState(() {
-        if (widget.existingPurchase != null) {
+      if (widget.existingPurchase != null) {
+        setState(() {
           supplierBillNoC.text = widget.existingPurchase!.billNo;
           internalEntryNoC.text = widget.existingPurchase!.internalNo;
           selectedBillDate = widget.existingPurchase!.date;
-          selectedEntryDate = widget.existingPurchase!.entryDate; // Purani entry date load karein
+          selectedEntryDate = widget.existingPurchase!.entryDate;
           paymentMode = widget.existingPurchase!.paymentMode;
           selectedDistributor = ph.parties.firstWhere(
             (p) => p.name == widget.existingPurchase!.distributorName, 
             orElse: () => ph.parties[0]
           );
-        } else {
-          // Smart logic for both dates
-          selectedBillDate = AppDateLogic.getSmartDate(ph.currentFY);
-          selectedEntryDate = DateTime.now(); // Hamesha today
-          _loadInternalNo();
-        }
-      });
+        });
+      } else {
+        // Naya Bill ID generate karna
+        internalEntryNoC.text = "PUR-${DateTime.now().millisecondsSinceEpoch.toString().substring(8)}";
+      }
     });
-  }
-
-  Future<void> _loadInternalNo() async {
-    final prefs = await SharedPreferences.getInstance();
-    int lastId = prefs.getInt('lastPurID') ?? 0;
-    setState(() { 
-      internalEntryNoC.text = "PUR-${lastId + 1}"; 
-    });
-  }
-
-  void _validateAndProceed(PharoahManager ph) {
-    if (selectedDistributor == null) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Please select a Supplier!"), backgroundColor: Colors.red));
-      return;
-    }
-    if (supplierBillNoC.text.trim().isEmpty) { 
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Supplier Bill Number is mandatory!"), backgroundColor: Colors.red)); 
-      return; 
-    }
-    
-    // Validate both dates
-    if (!AppDateLogic.isValidInFY(selectedBillDate, ph.currentFY) || !AppDateLogic.isValidInFY(selectedEntryDate, ph.currentFY)) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Dates must be within the selected Financial Year!"), backgroundColor: Colors.red));
-      return;
-    }
-
-    Navigator.push(
-      context, 
-      MaterialPageRoute(builder: (c) => PurchaseBillingView(
-        distributor: selectedDistributor!, 
-        internalNo: internalEntryNoC.text, 
-        distBillNo: supplierBillNoC.text.trim(), 
-        billDate: selectedBillDate, 
-        entryDate: selectedEntryDate, // Dono dates pass kar rahe hain
-        mode: paymentMode, 
-        existingItems: widget.existingPurchase?.items, 
-        modifyPurchaseId: widget.existingPurchase?.id
-      ))
-    );
   }
 
   @override Widget build(BuildContext context) {
@@ -101,13 +56,14 @@ class _PurchaseEntryViewState extends State<PurchaseEntryView> {
     return Scaffold(
       backgroundColor: const Color(0xFFF5F6F9),
       appBar: AppBar(
-        title: Text(widget.existingPurchase != null ? "Modify Purchase Record" : "New Purchase Entry"), 
+        title: Text(widget.existingPurchase != null ? "Modify Purchase" : "New Purchase Entry"), 
         backgroundColor: Colors.orange.shade800, 
         foregroundColor: Colors.white,
         elevation: 0,
       ),
       body: Column(
         children: [
+          // --- SECTION 1: BILL HEADER ---
           Container(
             padding: const EdgeInsets.all(20), 
             decoration: const BoxDecoration(
@@ -119,7 +75,7 @@ class _PurchaseEntryViewState extends State<PurchaseEntryView> {
               children: [
                 Row(
                   children: [
-                    Expanded(child: TextField(controller: internalEntryNoC, enabled: false, decoration: const InputDecoration(labelText: "INTERNAL NO", border: OutlineInputBorder(), filled: true, fillColor: Color(0xFFF0F0F0)))),
+                    Expanded(child: TextField(controller: internalEntryNoC, enabled: false, decoration: const InputDecoration(labelText: "INTERNAL ID", border: OutlineInputBorder(), filled: true, fillColor: Color(0xFFF0F0F0)))),
                     const SizedBox(width: 15),
                     Expanded(child: TextField(controller: supplierBillNoC, textCapitalization: TextCapitalization.characters, decoration: const InputDecoration(labelText: "SUPPLIER BILL NO", border: OutlineInputBorder(), prefixIcon: Icon(Icons.receipt)))),
                   ],
@@ -127,71 +83,25 @@ class _PurchaseEntryViewState extends State<PurchaseEntryView> {
                 const SizedBox(height: 15),
                 Row(
                   children: [
-                    // 1. Bill Date Picker (Supplier Date)
+                    // Bill Date (Supplier Date)
                     Expanded(
                       child: InkWell(
                         onTap: () async { 
-                          DateTime? p = await showDatePicker(
-                            context: context, 
-                            initialDate: selectedBillDate, 
-                            firstDate: ph.fyStartDate, 
-                            lastDate: ph.fyEndDate,
-                            helpText: "BILL DATE (ON INVOICE)",
-                          ); 
+                          DateTime? p = await showDatePicker(context: context, initialDate: selectedBillDate, firstDate: DateTime(2020), lastDate: DateTime(2100)); 
                           if (p != null) setState(() => selectedBillDate = p); 
                         }, 
-                        child: Container(
-                          padding: const EdgeInsets.all(12), 
-                          decoration: BoxDecoration(border: Border.all(color: Colors.grey.shade400), borderRadius: BorderRadius.circular(5)), 
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const Text("BILL DATE", style: TextStyle(fontSize: 9, color: Colors.grey, fontWeight: FontWeight.bold)),
-                              const SizedBox(height: 2),
-                              Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                children: [
-                                  Text(AppDateLogic.format(selectedBillDate), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)), 
-                                  const Icon(Icons.calendar_today, color: Colors.orange, size: 14)
-                                ],
-                              ),
-                            ],
-                          )
-                        )
+                        child: _dateDisplay("BILL DATE", selectedBillDate, Colors.orange)
                       )
                     ),
                     const SizedBox(width: 10),
-                    // 2. Entry Date Picker (System Date)
+                    // Entry Date (System Date)
                     Expanded(
                       child: InkWell(
                         onTap: () async { 
-                          DateTime? p = await showDatePicker(
-                            context: context, 
-                            initialDate: selectedEntryDate, 
-                            firstDate: ph.fyStartDate, 
-                            lastDate: ph.fyEndDate,
-                            helpText: "ENTRY DATE (COMPUTER DATE)",
-                          ); 
+                          DateTime? p = await showDatePicker(context: context, initialDate: selectedEntryDate, firstDate: DateTime(2020), lastDate: DateTime(2100)); 
                           if (p != null) setState(() => selectedEntryDate = p); 
                         }, 
-                        child: Container(
-                          padding: const EdgeInsets.all(12), 
-                          decoration: BoxDecoration(border: Border.all(color: Colors.blue.shade200), borderRadius: BorderRadius.circular(5), color: Colors.blue.shade50), 
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const Text("ENTRY DATE", style: TextStyle(fontSize: 9, color: Colors.blue, fontWeight: FontWeight.bold)),
-                              const SizedBox(height: 2),
-                              Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                children: [
-                                  Text(AppDateLogic.format(selectedEntryDate), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.blue)), 
-                                  const Icon(Icons.computer, color: Colors.blue, size: 14)
-                                ],
-                              ),
-                            ],
-                          )
-                        )
+                        child: _dateDisplay("ENTRY DATE", selectedEntryDate, Colors.blue)
                       )
                     ),
                   ],
@@ -199,8 +109,8 @@ class _PurchaseEntryViewState extends State<PurchaseEntryView> {
                 const SizedBox(height: 15),
                 SegmentedButton<String>(
                   segments: const [
-                    ButtonSegment(value: 'CASH', label: Text('CASH')), 
-                    ButtonSegment(value: 'CREDIT', label: Text('CREDIT'))
+                    ButtonSegment(value: 'CASH', label: Text('CASH'), icon: Icon(Icons.money)), 
+                    ButtonSegment(value: 'CREDIT', label: Text('CREDIT'), icon: Icon(Icons.credit_card))
                   ], 
                   selected: {paymentMode}, 
                   onSelectionChanged: (v) => setState(() => paymentMode = v.first),
@@ -214,6 +124,7 @@ class _PurchaseEntryViewState extends State<PurchaseEntryView> {
             child: Align(alignment: Alignment.centerLeft, child: Text("SELECT SUPPLIER / DISTRIBUTOR", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.blueGrey, letterSpacing: 1)))
           ),
 
+          // --- SECTION 2: SUPPLIER SELECTION ---
           if (selectedDistributor != null)
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 15),
@@ -248,7 +159,7 @@ class _PurchaseEntryViewState extends State<PurchaseEntryView> {
                   Expanded(
                     child: ListView(
                       children: ph.parties
-                          .where((p) => p.name.toLowerCase().contains(distSearchQuery.toLowerCase()))
+                          .where((p) => p.group == "Sundry Creditors" && p.name.toLowerCase().contains(distSearchQuery.toLowerCase()))
                           .map((p) => ListTile(
                                 leading: const Icon(Icons.store_outlined),
                                 title: Text(p.name, style: const TextStyle(fontWeight: FontWeight.bold)), 
@@ -272,12 +183,42 @@ class _PurchaseEntryViewState extends State<PurchaseEntryView> {
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   elevation: 5
                 ), 
-                onPressed: () => _validateAndProceed(ph), 
+                onPressed: () {
+                  if (supplierBillNoC.text.trim().isEmpty) {
+                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Please enter Supplier Bill Number!")));
+                    return;
+                  }
+                  Navigator.push(context, MaterialPageRoute(builder: (c) => PurchaseBillingView(
+                    distributor: selectedDistributor!, 
+                    internalNo: internalEntryNoC.text, 
+                    distBillNo: supplierBillNoC.text.trim(), 
+                    billDate: selectedBillDate, 
+                    entryDate: selectedEntryDate,
+                    mode: paymentMode, 
+                    existingItems: widget.existingPurchase?.items, 
+                    modifyPurchaseId: widget.existingPurchase?.id
+                  )));
+                }, 
                 child: const Text("PROCEED TO ITEM ENTRY", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16))
               )
             ),
         ],
       ),
+    );
+  }
+
+  Widget _dateDisplay(String label, DateTime date, Color color) {
+    return Container(
+      padding: const EdgeInsets.all(12), 
+      decoration: BoxDecoration(border: Border.all(color: Colors.grey.shade300), borderRadius: BorderRadius.circular(5)), 
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(label, style: TextStyle(fontSize: 9, color: color, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 2),
+          Text(DateFormat('dd/MM/yyyy').format(date), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+        ],
+      )
     );
   }
 }
