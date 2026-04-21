@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:intl/intl.dart';
 import 'pharoah_manager.dart';
 import 'models.dart';
 
@@ -12,196 +11,157 @@ class PartyMasterView extends StatefulWidget {
 }
 
 class _PartyMasterViewState extends State<PartyMasterView> {
-  String search = "";
+  String searchQuery = "";
 
-  final List<String> states = [
-    "Andhra Pradesh", "Arunachal Pradesh", "Assam", "Bihar", "Chhattisgarh", 
-    "Goa", "Gujarat", "Haryana", "Himachal Pradesh", "Jharkhand", "Karnataka", 
-    "Kerala", "Madhya Pradesh", "Maharashtra", "Manipur", "Meghalaya", "Mizoram", 
-    "Nagaland", "Odisha", "Punjab", "Rajasthan", "Sikkim", "Tamil Nadu", 
-    "Telangana", "Tripura", "Uttar Pradesh", "Uttarakhand", "West Bengal"
-  ];
-
-  final List<String> accountGroups = [
-    "Sundry Debtors",
-    "Sundry Creditors",
-    "Cash in Hand",
-    "Bank Accounts",
-    "Expenses"
-  ];
-
-  // --- LEDGER FORM (ADD / EDIT) ---
-  void _showForm({Party? party}) {
+  // --- HIDE/SHOW ADD & EDIT FORM ---
+  void _showPartyForm({Party? party}) {
     final ph = Provider.of<PharoahManager>(context, listen: false);
 
-    final nameC = TextEditingController(text: party?.name ?? "");
-    final phoneC = TextEditingController(text: party?.phone ?? "");
-    final addrC = TextEditingController(text: party?.address ?? "");
-    final cityC = TextEditingController(text: party?.city ?? "");
-    final gstC = TextEditingController(text: party?.gst ?? "");
-    final dlC = TextEditingController(text: party?.dl ?? "");
-    final emailC = TextEditingController(text: party?.email ?? "");
-    final hsnC = TextEditingController(text: party?.hsnCode ?? "");
-    final opBalC = TextEditingController(text: party?.openingBalance.toString() ?? "0.0");
-    final limitC = TextEditingController(text: party?.creditLimit.toString() ?? "0.0");
+    // Initializing Controllers
+    final nameC = TextEditingController(text: party?.name);
+    final phoneC = TextEditingController(text: party?.phone);
+    final emailC = TextEditingController(text: party?.email);
+    final addressC = TextEditingController(text: party?.address);
+    final cityC = TextEditingController(text: party?.city);
+    final gstC = TextEditingController(text: party?.gst);
+    final panC = TextEditingController(text: party?.pan);
+    final dlC = TextEditingController(text: party?.dl);
+    final dlExpC = TextEditingController(text: party?.dlExp);
+    final transportC = TextEditingController(text: party?.transport);
+    final opBalC = TextEditingController(text: party?.opBal.toString() ?? "0.0");
+    final creditLimitC = TextEditingController(text: party?.creditLimit.toString() ?? "0.0");
+    final creditDaysC = TextEditingController(text: party?.creditDays.toString() ?? "0");
 
-    String selectedState = party?.state ?? ph.companyState;
-    String selectedGroup = party?.accountGroup ?? "Sundry Debtors";
-    String balType = party?.balanceType ?? "Debit";
-    String ctrlMode = party?.creditControlMode ?? "Soft";
-    DateTime? dlExpiryDate = (party?.dlExpiry != null && party!.dlExpiry.isNotEmpty) 
-        ? DateFormat('dd/MM/yyyy').parse(party.dlExpiry) : null;
+    String selectedGroup = party?.group ?? "Sundry Debtors";
+    String selectedPriceLevel = party?.priceLevel ?? "A";
+    String selectedRoute = party?.route ?? "";
+
+    // --- LOGIC: AUTO-EXTRACT PAN FROM GSTIN ---
+    gstC.addListener(() {
+      if (gstC.text.length >= 12) {
+        // GST index 2 to 12 is PAN Number
+        String extractedPan = gstC.text.substring(2, 12).toUpperCase();
+        if (panC.text != extractedPan) {
+          panC.text = extractedPan;
+        }
+      }
+    });
 
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (c) => StatefulBuilder(builder: (context, setDialogState) {
-        return AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
-          title: Text(party == null ? "Create New Ledger" : "Update Ledger Details"),
-          content: SizedBox(
-            width: MediaQuery.of(context).size.width * 0.95,
-            child: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  // --- ACCOUNT GROUP & NAME ---
-                  _sectionHeader("BASIC ACCOUNT INFO"),
-                  DropdownButtonFormField<String>(
-                    value: selectedGroup,
-                    decoration: const InputDecoration(labelText: "Account Group", border: OutlineInputBorder()),
-                    items: accountGroups.map((g) => DropdownMenuItem(value: g, child: Text(g))).toList(),
-                    onChanged: (v) => setDialogState(() => selectedGroup = v!),
-                  ),
-                  const SizedBox(height: 12),
-                  _inputField(nameC, "Ledger / Firm Name", Icons.business),
-
-                  // --- FINANCIALS ---
-                  _sectionHeader("FINANCIAL SETTINGS"),
-                  Row(
-                    children: [
-                      Expanded(child: _inputField(opBalC, "Opening Balance", Icons.account_balance_wallet, isNum: true)),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: SegmentedButton<String>(
-                          segments: const [
-                            ButtonSegment(value: 'Debit', label: Text('Dr')),
-                            ButtonSegment(value: 'Credit', label: Text('Cr')),
-                          ],
-                          selected: {balType},
-                          onSelectionChanged: (v) => setDialogState(() => balType = v.first),
-                        ),
+      builder: (c) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Text(party == null ? "Create New Party/Ledger" : "Update Party Details"),
+        content: SizedBox(
+          width: 500,
+          child: SingleChildScrollView(
+            child: Column(
+              children: [
+                // SECTION 1: BASIC INFO
+                _sectionTitle("BASIC INFORMATION"),
+                _inputField(nameC, "Party/Firm Name *", Icons.business),
+                _inputField(phoneC, "Mobile Number", Icons.phone, isNum: true),
+                _inputField(emailC, "Email Address (For Invoicing)", Icons.email),
+                _inputField(addressC, "Full Address", Icons.location_on),
+                Row(
+                  children: [
+                    Expanded(child: _inputField(cityC, "City", Icons.location_city)),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: DropdownButtonFormField<String>(
+                        value: selectedGroup,
+                        decoration: const InputDecoration(labelText: "Account Group", border: OutlineInputBorder()),
+                        items: ["Sundry Debtors", "Sundry Creditors"].map((e) => DropdownMenuItem(value: e, child: Text(e, style: const TextStyle(fontSize: 12)))).toList(),
+                        onChanged: (v) => selectedGroup = v!,
                       ),
-                    ],
-                  ),
-
-                  if (selectedGroup == "Sundry Debtors") ...[
-                    Row(
-                      children: [
-                        Expanded(child: _inputField(limitC, "Credit Limit", Icons.speed, isNum: true)),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: DropdownButtonFormField<String>(
-                            value: ctrlMode,
-                            decoration: const InputDecoration(labelText: "Control", border: OutlineInputBorder()),
-                            items: const [
-                              DropdownMenuItem(value: 'Soft', child: Text("Soft (Warn)")),
-                              DropdownMenuItem(value: 'Hard', child: Text("Hard (Block)")),
-                            ],
-                            onChanged: (v) => setDialogState(() => ctrlMode = v!),
-                          ),
-                        ),
-                      ],
                     ),
                   ],
+                ),
 
-                  // --- COMPLIANCE ---
-                  _sectionHeader("REGULATORY & CONTACT"),
-                  _inputField(gstC, "GSTIN Number", Icons.receipt_long),
-                  if (selectedGroup == "Expenses") _inputField(hsnC, "HSN / SAC Code", Icons.grid_on),
-                  
-                  Row(
-                    children: [
-                      Expanded(child: _inputField(dlC, "Drug License", Icons.medical_services)),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: InkWell(
-                          onTap: () async {
-                            DateTime? picked = await showDatePicker(
-                              context: context, initialDate: dlExpiryDate ?? DateTime.now(),
-                              firstDate: DateTime(2020), lastDate: DateTime(2040),
-                              helpText: "DL EXPIRY DATE"
-                            );
-                            if (picked != null) setDialogState(() => dlExpiryDate = picked);
-                          },
-                          child: Container(
-                            padding: const EdgeInsets.all(12),
-                            decoration: BoxDecoration(border: Border.all(color: Colors.grey), borderRadius: BorderRadius.circular(5)),
-                            child: Text(dlExpiryDate == null ? "DL Expiry" : DateFormat('dd/MM/yy').format(dlExpiryDate!), style: const TextStyle(fontSize: 12)),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
+                const SizedBox(height: 20),
+                // SECTION 2: STATUTORY & TAX
+                _sectionTitle("TAX & LICENSES"),
+                _inputField(gstC, "GSTIN Number (15-Digit)", Icons.receipt_long),
+                _inputField(panC, "PAN Card (Auto-Extracted)", Icons.badge_outlined),
+                Row(
+                  children: [
+                    Expanded(child: _inputField(dlC, "Drug License (DL)", Icons.medical_services)),
+                    const SizedBox(width: 10),
+                    Expanded(child: _inputField(dlExpC, "DL Expiry (Optional)", Icons.event_busy)),
+                  ],
+                ),
 
-                  DropdownButtonFormField<String>(
-                    value: selectedState,
-                    decoration: const InputDecoration(labelText: "State", border: OutlineInputBorder()),
-                    items: states.map((s) => DropdownMenuItem(value: s, child: Text(s, style: const TextStyle(fontSize: 12)))).toList(),
-                    onChanged: (v) => setDialogState(() => selectedState = v!),
-                  ),
-                  const SizedBox(height: 10),
-                  _inputField(addrC, "Full Address", Icons.location_on),
-                  Row(
-                    children: [
-                      Expanded(child: _inputField(phoneC, "Mobile", Icons.phone, isNum: true)),
-                      const SizedBox(width: 10),
-                      Expanded(child: _inputField(emailC, "Email", Icons.email)),
-                    ],
-                  ),
-                ],
-              ),
+                const SizedBox(height: 20),
+                // SECTION 3: BILLING CONTROL
+                _sectionTitle("BILLING & CREDIT CONTROL"),
+                Row(
+                  children: [
+                    Expanded(child: _inputField(creditLimitC, "Credit Limit ₹", Icons.speed, isNum: true)),
+                    const SizedBox(width: 10),
+                    Expanded(child: _inputField(creditDaysC, "Credit Days", Icons.timer, isNum: true)),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                DropdownButtonFormField<String>(
+                  value: selectedPriceLevel,
+                  decoration: const InputDecoration(labelText: "Default Pricing Level", border: OutlineInputBorder()),
+                  items: ["A", "B", "C"].map((e) => DropdownMenuItem(value: e, child: Text("Apply Rate $e"))).toList(),
+                  onChanged: (v) => selectedPriceLevel = v!,
+                ),
+                const SizedBox(height: 10),
+                DropdownButtonFormField<String>(
+                  value: selectedRoute.isEmpty ? null : selectedRoute,
+                  decoration: const InputDecoration(labelText: "Assigned Route / Area", border: OutlineInputBorder()),
+                  items: ph.routes.map((r) => DropdownMenuItem(value: r.name, child: Text(r.name))).toList(),
+                  onChanged: (v) => selectedRoute = v!,
+                ),
+                _inputField(transportC, "Preferred Transport", Icons.local_shipping_outlined),
+              ],
             ),
           ),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(c), child: const Text("CANCEL")),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.teal, foregroundColor: Colors.white),
-              onPressed: () {
-                if (nameC.text.trim().isEmpty) return;
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(c), child: const Text("CANCEL", style: TextStyle(color: Colors.grey))),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.indigo, foregroundColor: Colors.white),
+            onPressed: () {
+              if (nameC.text.trim().isEmpty) return;
 
-                final p = Party(
-                  id: party?.id ?? DateTime.now().toString(),
-                  name: nameC.text.trim().toUpperCase(),
-                  accountGroup: selectedGroup,
-                  openingBalance: double.tryParse(opBalC.text) ?? 0.0,
-                  balanceType: balType,
-                  creditLimit: double.tryParse(limitC.text) ?? 0.0,
-                  creditControlMode: ctrlMode,
-                  gst: gstC.text.trim().isEmpty ? "N/A" : gstC.text.trim().toUpperCase(),
-                  dl: dlC.text.trim().isEmpty ? "N/A" : dlC.text.trim().toUpperCase(),
-                  dlExpiry: dlExpiryDate != null ? DateFormat('dd/MM/yyyy').format(dlExpiryDate!) : "",
-                  hsnCode: hsnC.text.trim().isEmpty ? "N/A" : hsnC.text.trim().toUpperCase(),
-                  state: selectedState,
-                  city: cityC.text.trim().toUpperCase(),
-                  address: addrC.text.trim(),
-                  phone: phoneC.text.trim(),
-                  email: emailC.text.trim().toLowerCase(),
-                );
+              final newParty = Party(
+                id: party?.id ?? DateTime.now().toString(),
+                name: nameC.text.trim().toUpperCase(),
+                group: selectedGroup,
+                phone: phoneC.text.trim(),
+                email: emailC.text.trim().toLowerCase(),
+                address: addressC.text.trim(),
+                city: cityC.text.trim().toUpperCase(),
+                gst: gstC.text.trim().toUpperCase(),
+                pan: panC.text.trim().toUpperCase(),
+                dl: dlC.text.trim().toUpperCase(),
+                dlExp: dlExpC.text.trim(),
+                creditLimit: double.tryParse(creditLimitC.text) ?? 0.0,
+                creditDays: int.tryParse(creditDaysC.text) ?? 0,
+                priceLevel: selectedPriceLevel,
+                route: selectedRoute,
+                transport: transportC.text.trim(),
+                opBal: double.tryParse(opBalC.text) ?? 0.0,
+              );
 
-                if (party == null) ph.parties.add(p);
-                else {
-                  int idx = ph.parties.indexWhere((x) => x.id == party.id);
-                  if (idx != -1) ph.parties[idx] = p;
-                }
-                ph.save();
-                Navigator.pop(c);
-              },
-              child: const Text("SAVE LEDGER"),
-            ),
-          ],
-        );
-      }),
+              if (party == null) {
+                ph.parties.add(newParty);
+              } else {
+                int idx = ph.parties.indexWhere((p) => p.id == party.id);
+                if (idx != -1) ph.parties[idx] = newParty;
+              }
+
+              ph.save();
+              Navigator.pop(c);
+            },
+            child: const Text("SAVE PARTY / LEDGER"),
+          ),
+        ],
+      ),
     );
   }
 
@@ -209,96 +169,122 @@ class _PartyMasterViewState extends State<PartyMasterView> {
   Widget build(BuildContext context) {
     final ph = Provider.of<PharoahManager>(context);
     
-    // FILTER: Show everything EXCEPT Bank Accounts
-    final filteredList = ph.parties
-        .where((p) => p.accountGroup != "Bank Accounts")
-        .where((p) => p.name.toLowerCase().contains(search.toLowerCase()) || p.accountGroup.toLowerCase().contains(search.toLowerCase()))
-        .toList();
+    // Filter logic for search bar
+    final filteredList = ph.parties.where((p) => 
+      p.name.toLowerCase().contains(searchQuery.toLowerCase()) || 
+      p.city.toLowerCase().contains(searchQuery.toLowerCase())
+    ).toList();
 
     return Scaffold(
       backgroundColor: const Color(0xFFF5F6F9),
       appBar: AppBar(
-        title: const Text("Ledger / Account Master"),
-        backgroundColor: Colors.teal.shade700,
+        title: const Text("Party Master / Ledgers"),
+        backgroundColor: Colors.indigo,
         foregroundColor: Colors.white,
-        actions: [IconButton(icon: const Icon(Icons.person_add_alt_1), onPressed: () => _showForm())],
       ),
       body: Column(
         children: [
+          // --- SEARCH BAR SECTION ---
           Container(
             padding: const EdgeInsets.all(15),
-            color: Colors.teal.shade50,
+            color: Colors.indigo.shade50,
             child: TextField(
               decoration: InputDecoration(
-                hintText: "Search Debtors, Creditors, Expenses...",
-                prefixIcon: const Icon(Icons.search, color: Colors.teal),
-                filled: true, fillColor: Colors.white,
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
-                contentPadding: EdgeInsets.zero
+                hintText: "Search by Name or City...",
+                prefixIcon: const Icon(Icons.search, color: Colors.indigo),
+                filled: true,
+                fillColor: Colors.white,
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                contentPadding: const EdgeInsets.symmetric(vertical: 0),
               ),
-              onChanged: (v) => setState(() => search = v),
+              onChanged: (v) => setState(() => searchQuery = v),
             ),
           ),
-          Expanded(
-            child: ListView.builder(
-              padding: const EdgeInsets.all(10),
-              itemCount: filteredList.length,
-              itemBuilder: (context, index) {
-                final item = filteredList[index];
-                Color groupColor = _getGroupColor(item.accountGroup);
 
-                return Card(
-                  margin: const EdgeInsets.only(bottom: 10),
-                  child: ListTile(
-                    leading: CircleAvatar(backgroundColor: groupColor.withOpacity(0.1), child: Icon(_getGroupIcon(item.accountGroup), color: groupColor)),
-                    title: Text(item.name, style: const TextStyle(fontWeight: FontWeight.bold)),
-                    subtitle: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text("${item.accountGroup} | Op: ${item.openingBalance} ${item.balanceType}"),
-                        if (item.dlExpiry.isNotEmpty) Text("DL Exp: ${item.dlExpiry}", style: const TextStyle(fontSize: 10, color: Colors.red)),
-                      ],
-                    ),
-                    trailing: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        IconButton(icon: const Icon(Icons.edit, color: Colors.blue, size: 20), onPressed: () => _showForm(party: item)),
-                        IconButton(icon: const Icon(Icons.delete_outline, color: Colors.red, size: 20), onPressed: () => _confirmDelete(context, ph, item)),
-                      ],
-                    ),
+          // --- PARTY LIST ---
+          Expanded(
+            child: filteredList.isEmpty
+                ? const Center(child: Text("No parties found."))
+                : ListView.builder(
+                    itemCount: filteredList.length,
+                    padding: const EdgeInsets.all(10),
+                    itemBuilder: (context, index) {
+                      final p = filteredList[index];
+                      return Card(
+                        elevation: 2,
+                        margin: const EdgeInsets.only(bottom: 8),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        child: ListTile(
+                          leading: CircleAvatar(
+                            backgroundColor: p.group == "Sundry Debtors" ? Colors.green.shade100 : Colors.orange.shade100,
+                            child: Icon(Icons.person, color: p.group == "Sundry Debtors" ? Colors.green : Colors.orange),
+                          ),
+                          title: Text(p.name, style: const TextStyle(fontWeight: FontWeight.bold)),
+                          subtitle: Text("${p.group} | ${p.city} | ${p.route}"),
+                          trailing: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              IconButton(icon: const Icon(Icons.edit, color: Colors.blue), onPressed: () => _showPartyForm(party: p)),
+                              IconButton(icon: const Icon(Icons.delete_outline, color: Colors.red), onPressed: () => _confirmDelete(ph, p)),
+                            ],
+                          ),
+                        ),
+                      );
+                    },
                   ),
-                );
-              },
-            ),
           ),
         ],
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () => _showPartyForm(),
+        backgroundColor: Colors.indigo,
+        icon: const Icon(Icons.add, color: Colors.white),
+        label: const Text("ADD NEW PARTY", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
       ),
     );
   }
 
   // --- UI HELPERS ---
-  Widget _sectionHeader(String title) => Padding(padding: const EdgeInsets.symmetric(vertical: 10), child: Align(alignment: Alignment.centerLeft, child: Text(title, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.blueGrey, letterSpacing: 1))));
+
+  Widget _sectionTitle(String title) {
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 10),
+        child: Text(title, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.blueGrey, letterSpacing: 1)),
+      ),
+    );
+  }
 
   Widget _inputField(TextEditingController ctrl, String label, IconData icon, {bool isNum = false}) {
-    return Padding(padding: const EdgeInsets.only(bottom: 12), child: TextField(controller: ctrl, keyboardType: isNum ? const TextInputType.numberWithOptions(decimal: true) : TextInputType.text, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold), decoration: InputDecoration(labelText: label, prefixIcon: Icon(icon, size: 16), border: const OutlineInputBorder(), contentPadding: const EdgeInsets.all(10))));
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: TextField(
+        controller: ctrl,
+        keyboardType: isNum ? const TextInputType.numberWithOptions(decimal: true) : TextInputType.text,
+        style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+        decoration: InputDecoration(
+          labelText: label,
+          prefixIcon: Icon(icon, size: 20),
+          border: const OutlineInputBorder(),
+          contentPadding: const EdgeInsets.all(12),
+        ),
+      ),
+    );
   }
 
-  Color _getGroupColor(String group) {
-    if (group == "Sundry Debtors") return Colors.green;
-    if (group == "Sundry Creditors") return Colors.orange;
-    if (group == "Expenses") return Colors.red;
-    return Colors.blue;
-  }
-
-  IconData _getGroupIcon(String group) {
-    if (group == "Sundry Debtors") return Icons.person;
-    if (group == "Sundry Creditors") return Icons.local_shipping;
-    if (group == "Expenses") return Icons.money_off;
-    return Icons.account_balance_wallet;
-  }
-
-  void _confirmDelete(BuildContext context, PharoahManager ph, Party p) {
+  void _confirmDelete(PharoahManager ph, Party p) {
     if (p.name == "CASH") return;
-    showDialog(context: context, builder: (c) => AlertDialog(title: const Text("Delete Ledger?"), content: Text("Are you sure you want to delete '${p.name}'?"), actions: [TextButton(onPressed: () => Navigator.pop(c), child: const Text("NO")), ElevatedButton(style: ElevatedButton.styleFrom(backgroundColor: Colors.red), onPressed: () { ph.deleteParty(p.id); Navigator.pop(c); }, child: const Text("YES, DELETE"))]));
+    showDialog(
+      context: context,
+      builder: (c) => AlertDialog(
+        title: const Text("Delete Party?"),
+        content: Text("Are you sure you want to delete '${p.name}'? All history for this ledger will be affected."),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(c), child: const Text("NO")),
+          ElevatedButton(onPressed: () { ph.deleteParty(p.id); Navigator.pop(c); }, child: const Text("YES, DELETE")),
+        ],
+      ),
+    );
   }
 }
