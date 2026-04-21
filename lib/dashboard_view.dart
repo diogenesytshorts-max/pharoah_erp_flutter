@@ -13,6 +13,14 @@ import 'accounts_menu_view.dart';
 import 'data_exchange_view.dart';
 import 'more_features_view.dart';
 
+// Note: Ye views hum agle steps mein create karenge, abhi navigation ready rakhte hain
+class PlaceholderView extends StatelessWidget {
+  final String title;
+  const PlaceholderView(this.title, {super.key});
+  @override
+  Widget build(BuildContext context) => Scaffold(appBar: AppBar(title: Text(title)));
+}
+
 class DashboardView extends StatelessWidget {
   final VoidCallback onLogout;
   const DashboardView({super.key, required this.onLogout});
@@ -30,7 +38,7 @@ class DashboardView extends StatelessWidget {
       backgroundColor: const Color(0xFFF8F9FD),
       body: Column(
         children: [
-          // 1. TOP HEADER (Blue Section)
+          // --- 1. PROFESSIONAL HEADER ---
           _buildHeader(ph, onLogout),
 
           Expanded(
@@ -39,7 +47,7 @@ class DashboardView extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // 2. BUSINESS SNAPSHOT (Today's Stats)
+                  // --- 2. TODAY'S BUSINESS SNAPSHOT ---
                   Row(
                     children: [
                       Expanded(child: StatWidget(title: "TODAY SALE", value: "₹${todaySales.toStringAsFixed(0)}", period: "Today", icon: "trending_up", color: Colors.green)),
@@ -48,10 +56,10 @@ class DashboardView extends StatelessWidget {
                     ],
                   ),
                   
-                  const SizedBox(height: 30),
+                  const SizedBox(height: 25),
 
-                  // 3. DAILY TRANSACTIONS (BIG BUTTONS)
-                  const Text("DAILY TRANSACTIONS", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.blueGrey, letterSpacing: 1)),
+                  // --- 3. PRIMARY ENTRIES (BIG BUTTONS) ---
+                  const Text("QUICK TRANSACTIONS", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.blueGrey, letterSpacing: 1)),
                   const SizedBox(height: 12),
                   Row(
                     children: [
@@ -63,31 +71,44 @@ class DashboardView extends StatelessWidget {
 
                   const SizedBox(height: 30),
 
-                  // 4. MASTER HUB (New Professional Section)
+                  // --- 4. MASTER HUB (THE 6 CORE MASTERS) ---
                   const Text("MASTER HUB", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.blueGrey, letterSpacing: 1)),
                   const SizedBox(height: 12),
                   Container(
-                    padding: const EdgeInsets.all(20),
+                    padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 10),
                     decoration: BoxDecoration(
                       color: Colors.white,
                       borderRadius: BorderRadius.circular(20),
                       boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 10, offset: const Offset(0, 5))],
                       border: Border.all(color: Colors.grey.shade100)
                     ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceAround,
+                    child: Column(
                       children: [
-                        _masterIconBtn(context, "Parties", Icons.people_alt_rounded, Colors.indigo, const PartyMasterView()),
-                        _masterIconBtn(context, "Item Master", Icons.inventory_2_rounded, Colors.purple, const ProductMasterView()),
-                        _masterIconBtn(context, "Route Master", Icons.map_rounded, Colors.teal, const RouteMasterView()),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceAround,
+                          children: [
+                            _masterIconBtn(context, "Parties", Icons.people_alt_rounded, Colors.indigo, const PartyMasterView()),
+                            _masterIconBtn(context, "Item Master", Icons.inventory_2_rounded, Colors.purple, const ProductMasterView()),
+                            _masterIconBtn(context, "Routes", Icons.map_rounded, Colors.teal, const RouteMasterView()),
+                          ],
+                        ),
+                        const SizedBox(height: 25),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceAround,
+                          children: [
+                            _masterIconBtn(context, "Companies", Icons.business_rounded, Colors.brown, const PlaceholderView("Company Master")),
+                            _masterIconBtn(context, "Salts", Icons.science_rounded, Colors.deepOrange, const PlaceholderView("Salt Master")),
+                            _masterIconBtn(context, "Drug Types", Icons.verified_user_rounded, Colors.cyan, const PlaceholderView("Drug Type Master")),
+                          ],
+                        ),
                       ],
                     ),
                   ),
 
                   const SizedBox(height: 30),
 
-                  // 5. SECONDARY GRID (Management & Reports)
-                  const Text("MANAGEMENT & REPORTS", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.blueGrey, letterSpacing: 1)),
+                  // --- 5. MANAGEMENT & REGISTERS ---
+                  const Text("REPORTS & UTILITIES", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.blueGrey, letterSpacing: 1)),
                   const SizedBox(height: 12),
                   GridView.count(
                     shrinkWrap: true,
@@ -104,7 +125,7 @@ class DashboardView extends StatelessWidget {
                       ActionIconBtn(title: "Settings", icon: Icons.settings_rounded, color: Colors.grey, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => MoreFeaturesView(onLogout: onLogout)))),
                     ],
                   ),
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 30),
                 ],
               ),
             ),
@@ -146,7 +167,7 @@ class DashboardView extends StatelessWidget {
     return InkWell(
       onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => target)),
       child: Container(
-        height: 90,
+        height: 85,
         decoration: BoxDecoration(
           color: color,
           borderRadius: BorderRadius.circular(18),
@@ -155,9 +176,9 @@ class DashboardView extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(icon, color: Colors.white, size: 30),
+            Icon(icon, color: Colors.white, size: 28),
             const SizedBox(height: 8),
-            Text(label, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12)),
+            Text(label, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 11)),
           ],
         ),
       ),
@@ -167,16 +188,23 @@ class DashboardView extends StatelessWidget {
   Widget _masterIconBtn(BuildContext context, String label, IconData icon, Color color, Widget target) {
     return InkWell(
       onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => target)),
-      child: Column(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(color: color.withOpacity(0.1), shape: BoxShape.circle),
-            child: Icon(icon, color: color, size: 26),
-          ),
-          const SizedBox(height: 8),
-          Text(label, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.black87)),
-        ],
+      child: SizedBox(
+        width: 80,
+        child: Column(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(color: color.withOpacity(0.1), shape: BoxShape.circle),
+              child: Icon(icon, color: color, size: 24),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              label, 
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.black87)
+            ),
+          ],
+        ),
       ),
     );
   }
