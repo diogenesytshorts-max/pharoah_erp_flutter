@@ -2,17 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'pharoah_manager.dart';
 import 'widgets.dart';
-import 'party_master.dart';
-import 'product_master.dart';
-import 'route_master_view.dart';
-import 'company_master_view.dart'; // Naya
-import 'salt_master_view.dart'; // Naya
-import 'drug_type_master_view.dart'; // Naya
 import 'sale_entry_view.dart';
-import 'sale_summary_view.dart';
 import 'purchase/purchase_entry_view.dart';
-import 'purchase/purchase_summary_view.dart';
 import 'accounts_menu_view.dart';
+import 'master_hub_view.dart'; // Naya centralized master hub
+import 'sale_summary_view.dart';
+import 'purchase/purchase_summary_view.dart';
 import 'data_exchange_view.dart';
 import 'more_features_view.dart';
 
@@ -25,7 +20,7 @@ class DashboardView extends StatelessWidget {
     final ph = Provider.of<PharoahManager>(context);
     final now = DateTime.now();
 
-    // Today's Stats Calculation
+    // Stats Logic: Sirf Aaj ka data
     double todaySales = ph.sales
         .where((s) => s.status == "Active" && _isSameDay(s.date, now))
         .fold(0.0, (sum, s) => sum + s.totalAmount);
@@ -37,7 +32,7 @@ class DashboardView extends StatelessWidget {
       backgroundColor: const Color(0xFFF8F9FD),
       body: Column(
         children: [
-          // 1. TOP HEADER (BLUE SECTION)
+          // 1. TOP HEADER SECTION
           _buildHeader(ph, onLogout),
 
           Expanded(
@@ -46,7 +41,7 @@ class DashboardView extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // 2. BUSINESS SNAPSHOT
+                  // 2. TODAY'S SNAPSHOT (STATS)
                   Row(
                     children: [
                       Expanded(child: StatWidget(title: "TODAY SALE", value: "₹${todaySales.toStringAsFixed(0)}", period: "Today", icon: "trending_up", color: Colors.green)),
@@ -55,9 +50,9 @@ class DashboardView extends StatelessWidget {
                     ],
                   ),
                   
-                  const SizedBox(height: 25),
+                  const SizedBox(height: 30),
 
-                  // 3. DAILY TRANSACTIONS (BIG BUTTONS)
+                  // 3. DAILY TRANSACTIONS (BIG PRIMARY BUTTONS)
                   const Text("DAILY TRANSACTIONS", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.blueGrey, letterSpacing: 1)),
                   const SizedBox(height: 12),
                   Row(
@@ -70,43 +65,13 @@ class DashboardView extends StatelessWidget {
 
                   const SizedBox(height: 30),
 
-                  // 4. MASTER HUB (6 CORE MASTERS)
-                  const Text("MASTER HUB", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.blueGrey, letterSpacing: 1)),
-                  const SizedBox(height: 12),
-                  Container(
-                    padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 10),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(20),
-                      boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 10, offset: const Offset(0, 5))],
-                      border: Border.all(color: Colors.grey.shade100)
-                    ),
-                    child: Column(
-                      children: [
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceAround,
-                          children: [
-                            _masterIconBtn(context, "Parties", Icons.people_alt_rounded, Colors.indigo, const PartyMasterView()),
-                            _masterIconBtn(context, "Item Master", Icons.inventory_2_rounded, Colors.purple, const ProductMasterView()),
-                            _masterIconBtn(context, "Route Master", Icons.map_rounded, Colors.teal, const RouteMasterView()),
-                          ],
-                        ),
-                        const SizedBox(height: 25),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceAround,
-                          children: [
-                            _masterIconBtn(context, "Companies", Icons.business_rounded, Colors.brown, const CompanyMasterView()),
-                            _masterIconBtn(context, "Salts", Icons.science_rounded, Colors.deepOrange, const SaltMasterView()),
-                            _masterIconBtn(context, "Drug Types", Icons.verified_user_rounded, Colors.cyan.shade700, const DrugTypeMasterView()),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
+                  // 4. MASTER HUB (GATEWAY TO ALL MASTERS)
+                  // Ab yahan koi bheed nahi hai, sirf ek professional gateway card hai
+                  _buildMasterHubGateway(context),
 
                   const SizedBox(height: 30),
 
-                  // 5. MANAGEMENT & REGISTERS
+                  // 5. REGISTERS & UTILITIES (GRID)
                   const Text("REPORTS & UTILITIES", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.blueGrey, letterSpacing: 1)),
                   const SizedBox(height: 12),
                   GridView.count(
@@ -134,8 +99,7 @@ class DashboardView extends StatelessWidget {
     );
   }
 
-  // --- UI COMPONENTS ---
-
+  // --- UI COMPONENT: HEADER ---
   Widget _buildHeader(PharoahManager ph, VoidCallback onLogout) {
     return Container(
       padding: const EdgeInsets.only(top: 60, left: 25, right: 25, bottom: 25),
@@ -162,6 +126,7 @@ class DashboardView extends StatelessWidget {
     );
   }
 
+  // --- UI COMPONENT: BIG ENTRY BUTTONS ---
   Widget _bigEntryButton(BuildContext context, String label, IconData icon, Color color, Widget target) {
     return InkWell(
       onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => target)),
@@ -184,24 +149,38 @@ class DashboardView extends StatelessWidget {
     );
   }
 
-  Widget _masterIconBtn(BuildContext context, String label, IconData icon, Color color, Widget target) {
+  // --- UI COMPONENT: MASTER HUB GATEWAY ---
+  Widget _buildMasterHubGateway(BuildContext context) {
     return InkWell(
-      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => target)),
-      child: SizedBox(
-        width: 80,
-        child: Column(
+      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => const MasterHubView())),
+      child: Container(
+        padding: const EdgeInsets.all(22),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [Colors.indigo.shade800, Colors.indigo.shade500],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [
+            BoxShadow(color: Colors.indigo.withOpacity(0.3), blurRadius: 15, offset: const Offset(0, 8))
+          ],
+        ),
+        child: const Row(
           children: [
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(color: color.withOpacity(0.1), shape: BoxShape.circle),
-              child: Icon(icon, color: color, size: 24),
+            Icon(Icons.stars_rounded, color: Colors.white, size: 42),
+            SizedBox(width: 18),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text("MASTER HUB", style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold, letterSpacing: 0.5)),
+                  SizedBox(height: 4),
+                  Text("Manage Parties, Items, Companies, Salts & more", style: TextStyle(color: Colors.white70, fontSize: 11)),
+                ],
+              ),
             ),
-            const SizedBox(height: 8),
-            Text(
-              label, 
-              textAlign: TextAlign.center,
-              style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.black87)
-            ),
+            Icon(Icons.arrow_forward_ios_rounded, color: Colors.white54, size: 18),
           ],
         ),
       ),
