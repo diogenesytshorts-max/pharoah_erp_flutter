@@ -1,98 +1,97 @@
-import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
+import 'package:pdf/pdf.dart';
+import 'package:pdf/widgets.dart' as pw;
+import 'package:printing/printing.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:intl/intl.dart';
-import 'pharoah_manager.dart';
 import 'models.dart';
 
-class ItemLedgerSearchView extends StatefulWidget {
-  const ItemLedgerSearchView({super.key});
-  @override State<ItemLedgerSearchView> createState() => _ItemLedgerSearchViewState();
-}
+class GstReportService {
+  // 1. GSTR-1 (Sales)
+  static Future<void> generateGstr1Pdf(List<Sale> sales, String periodLabel) async {
+    final pdf = pw.Document();
+    final prefs = await SharedPreferences.getInstance();
+    String cName = (prefs.getString('compName') ?? "PHAROAH ERP").toUpperCase();
+    
+    List<Sale> b2b = sales.where((s) => s.invoiceType == "B2B" && s.status == "Active").toList();
+    List<Sale> b2c = sales.where((s) => s.invoiceType == "B2C" && s.status == "Active").toList();
 
-class _ItemLedgerSearchViewState extends State<ItemLedgerSearchView> {
-  String search = "";
-
-  @override Widget build(BuildContext context) {
-    final ph = Provider.of<PharoahManager>(context);
-    final filteredMeds = ph.medicines.where((m) => m.name.toLowerCase().contains(search.toLowerCase())).toList();
-
-    return Scaffold(
-      backgroundColor: const Color(0xFFF5F6F9),
-      appBar: AppBar(title: const Text("Stock Ledger & Tracker"), backgroundColor: Colors.teal.shade800, foregroundColor: Colors.white, elevation: 0),
-      body: Column(children: [
-        Container(padding: const EdgeInsets.all(15), color: Colors.teal.shade50, child: TextField(decoration: InputDecoration(hintText: "Search Product...", prefixIcon: const Icon(Icons.search, color: Colors.teal), filled: true, fillColor: Colors.white, border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none)), onChanged: (v) => setState(() => search = v))),
-        Expanded(child: ListView.builder(padding: const EdgeInsets.all(10), itemCount: filteredMeds.length, itemBuilder: (c, i) {
-          final med = filteredMeds[i];
-          return Card(elevation: 2, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)), child: ListTile(
-            leading: const CircleAvatar(backgroundColor: Colors.teal, child: Icon(Icons.medication, color: Colors.white)),
-            title: Text(med.name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-            subtitle: Text("Pack: ${med.packing} | Current Stock: ${med.stock.toStringAsFixed(1)}"),
-            trailing: const Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey),
-            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => ItemLedgerDetailView(medicine: med))),
-          ));
-        }))
-      ]),
-    );
+    pdf.addPage(pw.MultiPage(
+      pageFormat: PdfPageFormat.a4.landscape,
+      margin: const pw.EdgeInsets.all(20),
+      header: (pw.Context context) => _header(cName, "GSTR-1 (Sales)", periodLabel),
+      build: (pw.Context context) => [
+        _title("B2B SALES"), _tableB2B(b2b), pw.SizedBox(height: 20),
+        _title("B2C SALES"), _tableB2C(b2c), pw.SizedBox(height: 20),
+        _title("HSN SUMMARY"), _tableHSN(sales),
+      ],
+    ));
+    await Printing.layoutPdf(onLayout: (f) async => pdf.save(), name: "GSTR1");
   }
-}
 
-class LedgerEntry {
-  final DateTime date; final String type, refNo, party, batch; final double qty, free, rate;
-  LedgerEntry({required this.date, required this.type, required this.refNo, required this.party, required this.batch, required this.qty, required this.free, required this.rate});
-}
+  // 2. GSTR-2 (Purchases & Expense ITC)
+  static Future<void> generateGstr2Pdf(List<Purchase> purchases, List<Voucher> vouchers, List<Party> parties, String periodLabel) async {
+    final pdf = pw.Document();
+    final prefs = await SharedPreferences.getInstance();
+    String cName = (prefs.getString('compName') ?? "PHAROAH ERP").toUpperCase();
 
-class ItemLedgerDetailView extends StatefulWidget {
-  final Medicine medicine;
-  const ItemLedgerDetailView({super.key, required this.medicine});
-  @override State<ItemLedgerDetailView> createState() => _ItemLedgerDetailViewState();
-}
+    List<Voucher> expenseVouchers = vouchers.where((v) {
+      final pList = parties.where((pt) => pt.id == v.partyId);
+      if (pList.isEmpty) return false;
+      return pList.first.accountGroup == "Expenses" && pList.first.gst != "N/A";
+    }).toList();
 
-class _ItemLedgerDetailViewState extends State<ItemLedgerDetailView> {
-  String selectedBatch = "ALL";
+    pdf.addPage(pw.MultiPage(
+      pageFormat: PdfPageFormat.a4.landscape,
+      margin: const pw.EdgeInsets.all(20),
+      header: (pw.Context context) => _header(cName, "GSTR-2 (Purchases & Expenses)", periodLabel),
+      build: (pw.Context context) => [
+        _title("PURCHASE INWARD"), _tablePur(purchases), pw.SizedBox(height: 20),
+        _title("ITC ON EXPENSES"), _tableExp(expenseVouchers, parties),
+      ],
+    ));
+    await Printing.layoutPdf(onLayout: (f) async => pdf.save(), name: "GSTR2");
+  }
 
-  @override Widget build(BuildContext context) {
-    final ph = Provider.of<PharoahManager>(context);
-    List<LedgerEntry> entries = [];
-    double totalIn = 0, totalOut = 0;
-    Set<String> uniqueBatches = {"ALL"};
+  // 3. GSTR-3B (Summary)
+  static Future<void> generateGstr3bPdf(List<Sale> sales, List<Purchase> purchases, String periodLabel) async {
+    final pdf = pw.Document();
+    final prefs = await SharedPreferences.getInstance();
+    String cName = (prefs.getString('compName') ?? "PHAROAH ERP").toUpperCase();
 
-    for (var p in ph.purchases) { 
-      for (var it in p.items) { 
-        if (it.medicineID == widget.medicine.id) { 
-          entries.add(LedgerEntry(date: p.date, type: "IN", refNo: p.billNo, party: p.distributorName, batch: it.batch, qty: it.qty, free: it.freeQty, rate: it.purchaseRate)); 
-          totalIn += (it.qty + it.freeQty); uniqueBatches.add(it.batch); 
-        } 
-      } 
+    double sTaxVal = 0, sTax = 0, pTaxVal = 0, pTax = 0;
+    for (var s in sales.where((s) => s.status == "Active")) {
+      for (var it in s.items) { sTaxVal += (it.rate * it.qty); sTax += (it.cgst + it.sgst + it.igst); }
     }
-    for (var s in ph.sales.where((s) => s.status == "Active")) { 
-      for (var it in s.items) { 
-        if (it.medicineID == widget.medicine.id) { 
-          entries.add(LedgerEntry(date: s.date, type: "OUT", refNo: s.billNo, party: s.partyName, batch: it.batch, qty: it.qty, free: it.freeQty, rate: it.rate)); 
-          totalOut += (it.qty + it.freeQty); uniqueBatches.add(it.batch); 
-        } 
-      } 
+    for (var p in purchases) {
+      for (var it in p.items) { pTaxVal += (it.purchaseRate * it.qty); pTax += (it.total - (it.purchaseRate * it.qty)); }
     }
 
-    entries.sort((a, b) => b.date.compareTo(a.date));
-    List<LedgerEntry> displayEntries = selectedBatch == "ALL" ? entries : entries.where((e) => e.batch == selectedBatch).toList();
-
-    return Scaffold(
-      backgroundColor: const Color(0xFFF5F6F9),
-      appBar: AppBar(title: Text(widget.medicine.name), backgroundColor: Colors.teal.shade800, foregroundColor: Colors.white),
-      body: Column(children: [
-        Container(padding: const EdgeInsets.all(20), decoration: const BoxDecoration(color: Colors.white), child: Row(mainAxisAlignment: MainAxisAlignment.spaceAround, children: [_sumBox("TOTAL IN", totalIn.toStringAsFixed(1), Colors.green), _sumBox("TOTAL OUT", totalOut.toStringAsFixed(1), Colors.red), _sumBox("BALANCE", widget.medicine.stock.toStringAsFixed(1), Colors.blue.shade800)])),
-        if (uniqueBatches.length > 1) Container(height: 50, color: Colors.teal.shade50, child: ListView(scrollDirection: Axis.horizontal, padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8), children: uniqueBatches.map((b) => Padding(padding: const EdgeInsets.only(right: 8), child: ChoiceChip(label: Text(b), selected: selectedBatch == b, onSelected: (v) => setState(() => selectedBatch = b)))).toList())),
-        Expanded(child: ListView.builder(padding: const EdgeInsets.all(10), itemCount: displayEntries.length, itemBuilder: (c, i) {
-          final e = displayEntries[i]; bool isIn = e.type == "IN";
-          return Card(child: ListTile(
-            leading: Icon(isIn ? Icons.arrow_downward : Icons.arrow_upward, color: isIn ? Colors.green : Colors.red),
-            title: Text(e.party, style: const TextStyle(fontWeight: FontWeight.bold)),
-            subtitle: Text("Date: ${DateFormat('dd/MM/yy').format(e.date)} | Batch: ${e.batch}"),
-            trailing: Text("${isIn ? '+' : '-'} ${e.qty}${e.free > 0 ? ' + ${e.free}' : ''}", style: TextStyle(fontWeight: FontWeight.bold, color: isIn ? Colors.green : Colors.red)),
-          ));
-        }))
-      ]),
-    );
+    pdf.addPage(pw.Page(pageFormat: PdfPageFormat.a4.landscape, build: (pw.Context context) => pw.Column(children: [
+      _header(cName, "GSTR-3B SUMMARY", periodLabel),
+      pw.SizedBox(height: 20),
+      pw.TableHelper.fromTextArray(
+        headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold, color: PdfColors.white), 
+        headerDecoration: const pw.BoxDecoration(color: PdfColors.indigo900),
+        headers: ['DESCRIPTION', 'TAXABLE VALUE', 'CENTRAL TAX', 'STATE TAX', 'TOTAL TAX'],
+        data: [
+          ['(A) Outward Supplies', sTaxVal.toStringAsFixed(2), (sTax/2).toStringAsFixed(2), (sTax/2).toStringAsFixed(2), sTax.toStringAsFixed(2)],
+          ['(B) Eligible ITC', pTaxVal.toStringAsFixed(2), (pTax/2).toStringAsFixed(2), (pTax/2).toStringAsFixed(2), pTax.toStringAsFixed(2)],
+          ['NET GST PAYABLE', (sTaxVal - pTaxVal).toStringAsFixed(2), ((sTax - pTax)/2).toStringAsFixed(2), ((sTax - pTax)/2).toStringAsFixed(2), (sTax - pTax).toStringAsFixed(2)],
+        ]),
+    ])));
+    await Printing.layoutPdf(onLayout: (f) async => pdf.save());
   }
-  Widget _sumBox(String t, String v, Color c) => Column(children: [Text(t, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold)), Text(v, style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: c))]);
+
+  // --- INTERNAL UI HELPERS ---
+  static pw.Widget _header(String n, String t, String p) => pw.Column(children: [pw.Text(n, style: pw.TextStyle(fontSize: 18, fontWeight: pw.FontWeight.bold)), pw.Text(t, style: const pw.TextStyle(fontSize: 14)), pw.Text("Period: $p"), pw.Divider()]);
+  static pw.Widget _title(String t) => pw.Padding(padding: const pw.EdgeInsets.symmetric(vertical: 5), child: pw.Text(t, style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 10)));
+  
+  static pw.Widget _tableB2B(List<Sale> l) => pw.TableHelper.fromTextArray(headers: ['Date', 'Inv No', 'Party', 'GSTIN', 'Total'], data: l.map((s) => [DateFormat('dd/MM/yy').format(s.date), s.billNo, s.partyName, s.partyGstin, s.totalAmount.toStringAsFixed(2)]).toList());
+  static pw.Widget _tableB2C(List<Sale> l) => pw.TableHelper.fromTextArray(headers: ['State', 'Taxable Val', 'GST', 'Total'], data: l.map((s) => [s.partyState, (s.totalAmount * 0.88).toStringAsFixed(2), (s.totalAmount * 0.12).toStringAsFixed(2), s.totalAmount.toStringAsFixed(2)]).toList());
+  static pw.Widget _tableHSN(List<Sale> l) => pw.TableHelper.fromTextArray(headers: ['HSN', 'Qty', 'Net Amt'], data: l.expand((s) => s.items).fold<Map<String, List<double>>>({}, (map, it) { map[it.hsn] = [(map[it.hsn]?[0] ?? 0) + it.qty, (map[it.hsn]?[1] ?? 0) + it.total]; return map; }).entries.map((e) => [e.key, e.value[0].toString(), e.value[1].toStringAsFixed(2)]).toList());
+  static pw.Widget _tablePur(List<Purchase> l) => pw.TableHelper.fromTextArray(headers: ['Date', 'Bill No', 'Supplier', 'Total'], data: l.map((p) => [DateFormat('dd/MM/yy').format(p.date), p.billNo, p.distributorName, p.totalAmount.toStringAsFixed(2)]).toList());
+  static pw.Widget _tableExp(List<Voucher> v, List<Party> pList) => pw.TableHelper.fromTextArray(headers: ['Date', 'Expense', 'SAC', 'Amount'], data: v.map((e) {
+    final party = pList.firstWhere((pt) => pt.id == e.partyId);
+    return [DateFormat('dd/MM/yy').format(e.date), e.partyName, party.hsnCode, e.amount.toStringAsFixed(2)];
+  }).toList());
 }
