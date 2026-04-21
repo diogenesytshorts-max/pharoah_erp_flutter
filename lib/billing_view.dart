@@ -118,6 +118,7 @@ class _BillingViewState extends State<BillingView> {
                   med: selectedMed!,
                   partyState: widget.party.state,
                   shopState: ph.companyState,
+                  priceLevel: widget.party.priceLevel, // Party ka default rate pass kiya
                   srNo: editingIndex != null ? (editingIndex! + 1) : items.length + 1,
                   existingItem: editingIndex != null ? items[editingIndex!] : null,
                   batchHistory: ph.batchHistory[selectedMed!.id] ?? [],
@@ -143,7 +144,6 @@ class _BillingViewState extends State<BillingView> {
                     final item = items[index];
                     return ListTile(
                       title: Text(item.name, style: const TextStyle(fontWeight: FontWeight.bold)),
-                      // QTY + FREE Format Preview
                       subtitle: Text("Qty: ${item.qty} + ${item.freeQty} | Batch: ${item.batch} | Exp: ${item.exp}"),
                       trailing: Text("₹${item.total.toStringAsFixed(2)}", style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.blue)),
                       onTap: widget.isReadOnly ? null : () => setState(() {
@@ -203,7 +203,7 @@ class _BillingViewState extends State<BillingView> {
     ph.finalizeSale(billNo: widget.billNo, date: widget.billDate, party: widget.party, items: items, total: grandTotal, mode: widget.mode);
     if (widget.modifySaleId == null) await SaleBillNumber.incrementIfNecessary(widget.billNo);
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("✅ Sale Saved Successfully!"), backgroundColor: Colors.green));
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("✅ Sale Saved!"), backgroundColor: Colors.green));
       Navigator.of(context).popUntil((route) => route.isFirst);
     }
   }
@@ -216,9 +216,6 @@ class _BillingViewState extends State<BillingView> {
       partyName: widget.party.name,
       partyGstin: widget.party.gst,
       partyState: widget.party.state,
-      partyAddress: widget.party.address,
-      partyDl: widget.party.dl,
-      partyEmail: widget.party.email,
       items: items,
       totalAmount: grandTotal,
       paymentMode: widget.mode,
@@ -230,24 +227,23 @@ class _BillingViewState extends State<BillingView> {
 
 // --- ITEM ENTRY FORM COMPONENT ---
 class ItemEntryForm extends StatefulWidget {
-  final Medicine med; final String partyState, shopState; final int srNo;
+  final Medicine med; final String partyState, shopState, priceLevel; final int srNo;
   final BillItem? existingItem; final List<BatchInfo> batchHistory;
   final Function(BillItem) onAdd; final VoidCallback onCancel;
 
-  const ItemEntryForm({super.key, required this.med, required this.partyState, required this.shopState, required this.srNo, this.existingItem, required this.batchHistory, required this.onAdd, required this.onCancel});
+  const ItemEntryForm({super.key, required this.med, required this.partyState, required this.shopState, required this.priceLevel, required this.srNo, this.existingItem, required this.batchHistory, required this.onAdd, required this.onCancel});
 
   @override State<ItemEntryForm> createState() => _ItemEntryFormState();
 }
 
 class _ItemEntryFormState extends State<ItemEntryForm> {
-  final bC = TextEditingController(); 
+  final bC = TextEditingController(); // Batch Controller
   final eC = TextEditingController();
   final gC = TextEditingController(); 
   final mC = TextEditingController();
   final rC = TextEditingController(); 
-  final qC = TextEditingController(); // Main Quantity
-  final fC = TextEditingController(text: "0"); // Free Quantity (Naya Field)
-  final rCD = TextEditingController(text: "0");
+  final qC = TextEditingController(text: "1");
+  final fC = TextEditingController(text: "0");
   String rT = "A";
 
   @override
@@ -255,8 +251,10 @@ class _ItemEntryFormState extends State<ItemEntryForm> {
     super.initState();
     mC.text = widget.med.mrp.toString(); 
     gC.text = widget.med.gst.toString();
-    rC.text = widget.med.rateA.toString(); 
-    qC.text = "1";
+    rT = widget.priceLevel; // Party ka default rate (A, B, or C)
+    
+    _updateRateField(); // Rate set karein based on Price Level
+
     if (widget.existingItem != null) {
       bC.text = widget.existingItem!.batch; 
       eC.text = widget.existingItem!.exp;
@@ -267,12 +265,10 @@ class _ItemEntryFormState extends State<ItemEntryForm> {
     }
   }
 
-  void _calcRateC() {
-    double mrp = double.tryParse(mC.text) ?? 0;
-    double gst = double.tryParse(gC.text) ?? 0;
-    double disc = double.tryParse(rCD.text) ?? 0;
-    double taxable = mrp / (1 + (gst / 100)); 
-    rC.text = (taxable - (taxable * disc / 100)).toStringAsFixed(2);
+  void _updateRateField() {
+    if (rT == 'A') rC.text = widget.med.rateA.toString();
+    else if (rT == 'B') rC.text = widget.med.rateB.toString();
+    else rC.text = widget.med.rateC.toString();
   }
 
   @override
@@ -298,25 +294,24 @@ class _ItemEntryFormState extends State<ItemEntryForm> {
               ),
             ),
           const SizedBox(height: 10),
-          SegmentedButton<String>(
-            segments: const [ButtonSegment(value: 'A', label: Text('Rate A')), ButtonSegment(value: 'B', label: Text('Rate B')), ButtonSegment(value: 'C', label: Text('Rate C'))],
-            selected: {rT},
-            onSelectionChanged: (v) => setState(() { rT = v.first; if (rT == 'A') rC.text = widget.med.rateA.toString(); else if (rT == 'B') rC.text = widget.med.rateB.toString(); else _calcRateC(); }),
-          ),
-          const SizedBox(height: 10),
           Row(children: [
-            Expanded(child: _field(bC, "Batch")), const SizedBox(width: 5),
-            Expanded(child: _field(eC, "Exp", fmt: [ExpiryDateFormatter()])), const SizedBox(width: 5),
-            Expanded(child: _field(gC, "GST%", onCh: (v) { if(rT=='C') _calcRateC(); })),
+            // --- FIXED BATCH FIELD: Alphanumeric Support ---
+            Expanded(child: TextField(
+              controller: bC,
+              keyboardType: TextInputType.text, // Har tarah ke characters allow honge
+              textCapitalization: TextCapitalization.none, // "hbvgf67i" ko capital nahi karega
+              decoration: const InputDecoration(labelText: "Batch No", border: OutlineInputBorder(), contentPadding: EdgeInsets.all(8)),
+            )),
+            const SizedBox(width: 5),
+            Expanded(child: _field(eC, "Exp (MM/YY)", fmt: [ExpiryDateFormatter()])), 
+            const SizedBox(width: 5),
+            Expanded(child: _field(gC, "GST%")),
           ]),
           const SizedBox(height: 10),
           Row(children: [
-            Expanded(child: _field(mC, "MRP", onCh: (v) { if(rT=='C') _calcRateC(); })), const SizedBox(width: 5),
-            if (rT == 'C') ...[Expanded(child: _field(rCD, "Disc%", onCh: (v) => _calcRateC())), const SizedBox(width: 5)],
-            Expanded(child: _field(rC, "Rate", en: rT != 'C')), const SizedBox(width: 5),
-            // Qty Field
+            Expanded(child: _field(mC, "MRP")), const SizedBox(width: 5),
+            Expanded(child: _field(rC, "Rate")), const SizedBox(width: 5),
             Expanded(child: _field(qC, "Qty", isNum: true)), const SizedBox(width: 5),
-            // Free Qty Field
             Expanded(child: _field(fC, "Free", isNum: true)),
           ]),
           const SizedBox(height: 15),
@@ -324,34 +319,19 @@ class _ItemEntryFormState extends State<ItemEntryForm> {
             style: ElevatedButton.styleFrom(minimumSize: const Size(double.infinity, 50), backgroundColor: Colors.blue.shade700),
             onPressed: () {
               double r = double.tryParse(rC.text) ?? 0;
-              double q = double.tryParse(qC.text) ?? 0; // Main Qty
-              double f = double.tryParse(fC.text) ?? 0; // Free Qty
+              double q = double.tryParse(qC.text) ?? 0;
               double g = double.tryParse(gC.text) ?? 0;
-              
-              // Total calculation based only on Main Qty
               double taxableVal = r * q;
               double gstAmt = taxableVal * (g / 100);
               double cgst = 0, sgst = 0, igst = 0; 
               if (widget.partyState == widget.shopState) { cgst = gstAmt/2; sgst = gstAmt/2; } else { igst = gstAmt; }
               
               widget.onAdd(BillItem(
-                id: DateTime.now().toString(), 
-                srNo: widget.srNo, 
-                medicineID: widget.med.id, 
-                name: widget.med.name, 
-                packing: widget.med.packing, 
-                batch: bC.text.toUpperCase(), 
-                exp: eC.text, 
-                hsn: widget.med.hsnCode, 
-                mrp: double.tryParse(mC.text) ?? 0, 
-                qty: q, 
-                freeQty: f, 
-                rate: r, 
-                gstRate: g, 
-                cgst: cgst, 
-                sgst: sgst, 
-                igst: igst, 
-                total: taxableVal + gstAmt
+                id: DateTime.now().toString(), srNo: widget.srNo, medicineID: widget.med.id, 
+                name: widget.med.name, packing: widget.med.packing, batch: bC.text, // Bina capitalization ke
+                exp: eC.text, hsn: widget.med.hsnCode, mrp: double.tryParse(mC.text) ?? 0, 
+                qty: q, freeQty: double.tryParse(fC.text) ?? 0, rate: r, gstRate: g, 
+                cgst: cgst, sgst: sgst, igst: igst, total: taxableVal + gstAmt
               ));
             },
             child: const Text("ADD TO BILL", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
@@ -361,12 +341,11 @@ class _ItemEntryFormState extends State<ItemEntryForm> {
     );
   }
 
-  Widget _field(TextEditingController c, String l, {List<TextInputFormatter>? fmt, bool en = true, Function(String)? onCh, bool isNum = false}) {
+  Widget _field(TextEditingController c, String l, {List<TextInputFormatter>? fmt, bool en = true, bool isNum = false}) {
     return TextField(
       controller: c, 
       enabled: en, 
       inputFormatters: fmt, 
-      onChanged: onCh, 
       keyboardType: const TextInputType.numberWithOptions(decimal: true),
       decoration: InputDecoration(labelText: l, border: const OutlineInputBorder(), contentPadding: const EdgeInsets.all(8)), 
     );
