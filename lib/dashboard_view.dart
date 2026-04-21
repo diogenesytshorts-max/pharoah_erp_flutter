@@ -12,7 +12,8 @@ import 'more_features_view.dart';
 import 'sale_summary_view.dart';
 import 'purchase/purchase_summary_view.dart';
 import 'data_exchange_view.dart';
-import 'accounting_views.dart'; // Naya Import
+import 'accounting_views.dart';
+import 'ledger_reports_view.dart'; // Naya Import
 
 class DashboardView extends StatelessWidget {
   final VoidCallback onLogout;
@@ -62,14 +63,16 @@ class DashboardView extends StatelessWidget {
                   ),
                   const SizedBox(height: 35),
                   
-                  // --- NAYA SECTION: CASH & PAYMENTS ---
-                  const Text("CASH & PAYMENTS", style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.blueGrey, letterSpacing: 1)),
+                  // --- ACCOUNTING SECTION ---
+                  const Text("CASH & KHAATA", style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.blueGrey, letterSpacing: 1)),
                   const SizedBox(height: 15),
                   Row(
                     children: [
-                      Expanded(child: ActionIconBtn(title: "Receipt (Cash In)", icon: Icons.add_chart_rounded, color: Colors.green, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => const VoucherEntryView(type: "Receipt"))))),
-                      const SizedBox(width: 12),
-                      Expanded(child: ActionIconBtn(title: "Payment (Cash Out)", icon: Icons.analytics_rounded, color: Colors.red, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => const VoucherEntryView(type: "Payment"))))),
+                      Expanded(child: ActionIconBtn(title: "Receipt", icon: Icons.add_chart_rounded, color: Colors.green, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => const VoucherEntryView(type: "Receipt"))))),
+                      const SizedBox(width: 10),
+                      Expanded(child: ActionIconBtn(title: "Payment", icon: Icons.analytics_rounded, color: Colors.red, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => const VoucherEntryView(type: "Payment"))))),
+                      const SizedBox(width: 10),
+                      Expanded(child: ActionIconBtn(title: "Khaata", icon: Icons.menu_book_rounded, color: Colors.indigo, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => const LedgerReportsView())))),
                     ],
                   ),
                   
