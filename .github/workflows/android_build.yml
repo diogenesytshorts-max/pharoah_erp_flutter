@@ -17,7 +17,7 @@ jobs:
       - name: Install Java
         uses: actions/setup-java@v4
         with:
-          distribution: 'zulu'
+          distribution: 'temurin' # Zulu ki jagah Temurin use karein
           java-version: '17'
           
       - name: Install Flutter
@@ -31,10 +31,11 @@ jobs:
           flutter pub get
         
       - name: Build APK
+        # Isme --no-tree-shake-icons tabhi use karein agar icon build me issue ho
         run: flutter build apk --release --no-tree-shake-icons
         
       - name: Upload APK
-        uses: actions/upload-artifact@v4
+        uses: actions/artifact@v4 # 'actions/upload-artifact@v4' ka short form
         with:
           name: release-apk
           path: build/app/outputs/flutter-apk/app-release.apk
