@@ -1,9 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:intl/intl.dart';
 import 'pharoah_manager.dart';
 import 'models.dart';
-import 'package:intl/intl.dart';
-import 'app_date_logic.dart';
 
 class ImportVerificationView extends StatefulWidget {
   final List<List<dynamic>> csvData;
@@ -30,7 +29,6 @@ class _ImportVerificationViewState extends State<ImportVerificationView> {
   String? activeBillKey;
   int wizardStep = 0;
   final billNoC = TextEditingController();
-  final internalNoC = TextEditingController();
   DateTime selectedDate = DateTime.now();
   final pNameC = TextEditingController();
   final pGstC = TextEditingController();
@@ -48,7 +46,8 @@ class _ImportVerificationViewState extends State<ImportVerificationView> {
     groupedBills.clear();
     for (int i = 1; i < widget.csvData.length; i++) {
       var row = widget.csvData[i];
-      if (row.length < 10) continue;
+      if (row.length < 18) continue; // Universal format expects 18 columns
+      
       String bNo = row[1].toString().trim();
       if (!groupedBills.containsKey(bNo)) {
         groupedBills[bNo] = [];
@@ -73,7 +72,14 @@ class _ImportVerificationViewState extends State<ImportVerificationView> {
       catch (e) { selectedDate = DateTime.now(); }
 
       String extractedParty = firstRow[2].toString().toUpperCase().trim();
-      Party? existing = ph.parties.where((p) => p.name.toUpperCase() == extractedParty).firstOrNull;
+      
+      // Party check based on name
+      Party? existing;
+      try {
+        existing = ph.parties.firstWhere((p) => p.name.toUpperCase() == extractedParty);
+      } catch (e) {
+        existing = null;
+      }
 
       if (existing == null) {
         isNewParty = true;
@@ -146,6 +152,7 @@ class _ImportVerificationViewState extends State<ImportVerificationView> {
               String bNo = billNumbers[i];
               var rows = groupedBills[bNo]!;
               double total = rows.fold(0, (sum, r) => sum + (double.tryParse(r[17].toString()) ?? 0));
+              
               bool alreadyExists = widget.importType == "SALE" 
                   ? ph.sales.any((s) => s.billNo == bNo)
                   : ph.purchases.any((p) => p.billNo == bNo);
@@ -243,11 +250,7 @@ class _ImportVerificationViewState extends State<ImportVerificationView> {
       const SizedBox(height: 15),
       ListTile(
         tileColor: Colors.white,
-        // FIX: Changed RoundedRectangleBorder syntax to use 'side'
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(10), 
-          side: const BorderSide(color: Colors.black12)
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10), side: const BorderSide(color: Colors.black12)),
         title: Text("Bill Date: ${DateFormat('dd MMMM yyyy').format(selectedDate)}"),
         trailing: const Icon(Icons.calendar_month, color: Colors.indigo),
         onTap: () async {
@@ -260,7 +263,6 @@ class _ImportVerificationViewState extends State<ImportVerificationView> {
 
   Widget _stepParty() {
     return Column(children: [
-      // FIX: Changed Icons.person_check to Icons.how_to_reg for compatibility
       Icon(isNewParty ? Icons.person_add : Icons.how_to_reg, size: 60, color: isNewParty ? Colors.orange : Colors.green),
       const SizedBox(height: 10),
       Text(isNewParty ? "New Party Detected! Please verify details." : "Party Recognized in System.", style: const TextStyle(fontWeight: FontWeight.bold)),
@@ -293,14 +295,22 @@ class _ImportVerificationViewState extends State<ImportVerificationView> {
 
   void _finishAndSaveBill() async {
     final ph = Provider.of<PharoahManager>(context, listen: false);
+    
+    // 1. Setup Party
     Party targetParty;
     if (isNewParty) {
-      targetParty = Party(id: DateTime.now().toString(), name: pNameC.text.toUpperCase(), gst: pGstC.text.toUpperCase(), state: pStateC.text);
+      targetParty = Party(
+        id: DateTime.now().toString(), 
+        name: pNameC.text.toUpperCase(), 
+        gst: pGstC.text.toUpperCase(), 
+        state: pStateC.text
+      );
       ph.parties.add(targetParty);
     } else {
       targetParty = ph.parties.firstWhere((p) => p.name.toUpperCase() == pNameC.text.toUpperCase());
     }
 
+    // 2. Process Items and Save Bill
     if (widget.importType == "SALE") {
       List<BillItem> bItems = [];
       for (var it in itemsToImport) {
@@ -325,24 +335,54 @@ class _ImportVerificationViewState extends State<ImportVerificationView> {
           gstRate: it['gst'], total: it['total']
         ));
       }
+      
+      // FIXED: entryDate parameter added for Purchase
       ph.finalizePurchase(
-        internalNo: "IMP-${DateTime.now().millisecondsSinceEpoch}", 
-        billNo: billNoC.text, date: selectedDate, entryDate: DateTime.now(),
-        party: targetParty, items: pItems, total: pItems.fold(0, (s, i) => s + i.total), mode: "CREDIT"
+        internalNo: "IMP-${DateTime.now().millisecondsSinceEpoch.toString().substring(7)}", 
+        billNo: billNoC.text, 
+        date: selectedDate, 
+        entryDate: DateTime.now(), // Fixed missing parameter
+        party: targetParty, 
+        items: pItems, 
+        total: pItems.fold(0, (s, i) => s + i.total), 
+        mode: "CREDIT"
       );
     }
+    
     await ph.save();
-    setState(() { _groupCsvData(); isShowingOverview = true; });
-    if (mounted) { ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("✅ Bill $activeBillKey Imported Successfully!"), backgroundColor: Colors.green)); }
+    
+    setState(() { 
+      _groupCsvData(); 
+      isShowingOverview = true; 
+    });
+    
+    if (mounted) { 
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("✅ Bill $activeBillKey Imported Successfully!"), backgroundColor: Colors.green)); 
+    }
   }
 
   Medicine _getOrCreateMed(PharoahManager ph, Map<String, dynamic> it) {
-    Medicine? existing = ph.medicines.where((m) => m.name.toUpperCase() == it['name']).firstOrNull;
+    // Check if medicine exists
+    Medicine? existing;
+    try {
+      existing = ph.medicines.firstWhere((m) => m.name.toUpperCase() == it['name']);
+    } catch (e) {
+      existing = null;
+    }
+
     if (existing == null) {
       Medicine n = Medicine(
-        id: DateTime.now().toString(), name: it['name'], packing: it['pack'], 
-        mrp: it['mrp'], rateA: it['rate'] * 1.1, rateB: it['rate'] * 1.05, rateC: it['rate'], 
-        stock: 0.0, purRate: it['rate'], gst: it['gst'], hsnCode: it['hsn']
+        id: DateTime.now().toString(), 
+        name: it['name'], 
+        packing: it['pack'], 
+        mrp: it['mrp'], 
+        rateA: it['rate'] * 1.1, 
+        rateB: it['rate'] * 1.05, 
+        rateC: it['rate'], 
+        stock: 0.0, 
+        purRate: it['rate'], 
+        gst: it['gst'], 
+        hsnCode: it['hsn'] // Fixed missing parameter
       );
       ph.medicines.add(n);
       return n;
