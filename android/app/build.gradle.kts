@@ -29,7 +29,6 @@ android {
     buildTypes {
         release {
             signingConfig = signingConfigs.getByName("debug")
-            // Proguard/R8 settings can be added here if needed
         }
     }
 }
