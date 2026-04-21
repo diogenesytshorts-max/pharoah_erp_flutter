@@ -5,6 +5,9 @@ import 'widgets.dart';
 import 'party_master.dart';
 import 'product_master.dart';
 import 'route_master_view.dart';
+import 'company_master_view.dart'; // Naya
+import 'salt_master_view.dart'; // Naya
+import 'drug_type_master_view.dart'; // Naya
 import 'sale_entry_view.dart';
 import 'sale_summary_view.dart';
 import 'purchase/purchase_entry_view.dart';
@@ -12,14 +15,6 @@ import 'purchase/purchase_summary_view.dart';
 import 'accounts_menu_view.dart';
 import 'data_exchange_view.dart';
 import 'more_features_view.dart';
-
-// Note: Ye views hum agle steps mein create karenge, abhi navigation ready rakhte hain
-class PlaceholderView extends StatelessWidget {
-  final String title;
-  const PlaceholderView(this.title, {super.key});
-  @override
-  Widget build(BuildContext context) => Scaffold(appBar: AppBar(title: Text(title)));
-}
 
 class DashboardView extends StatelessWidget {
   final VoidCallback onLogout;
@@ -30,15 +25,19 @@ class DashboardView extends StatelessWidget {
     final ph = Provider.of<PharoahManager>(context);
     final now = DateTime.now();
 
-    // Stats Calculation
-    double todaySales = ph.sales.where((s) => s.status == "Active" && _isSameDay(s.date, now)).fold(0.0, (sum, s) => sum + s.totalAmount);
-    double todayPur = ph.purchases.where((p) => _isSameDay(p.date, now)).fold(0.0, (sum, p) => sum + p.totalAmount);
+    // Today's Stats Calculation
+    double todaySales = ph.sales
+        .where((s) => s.status == "Active" && _isSameDay(s.date, now))
+        .fold(0.0, (sum, s) => sum + s.totalAmount);
+    double todayPur = ph.purchases
+        .where((p) => _isSameDay(p.date, now))
+        .fold(0.0, (sum, p) => sum + p.totalAmount);
 
     return Scaffold(
       backgroundColor: const Color(0xFFF8F9FD),
       body: Column(
         children: [
-          // --- 1. PROFESSIONAL HEADER ---
+          // 1. TOP HEADER (BLUE SECTION)
           _buildHeader(ph, onLogout),
 
           Expanded(
@@ -47,7 +46,7 @@ class DashboardView extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // --- 2. TODAY'S BUSINESS SNAPSHOT ---
+                  // 2. BUSINESS SNAPSHOT
                   Row(
                     children: [
                       Expanded(child: StatWidget(title: "TODAY SALE", value: "₹${todaySales.toStringAsFixed(0)}", period: "Today", icon: "trending_up", color: Colors.green)),
@@ -58,8 +57,8 @@ class DashboardView extends StatelessWidget {
                   
                   const SizedBox(height: 25),
 
-                  // --- 3. PRIMARY ENTRIES (BIG BUTTONS) ---
-                  const Text("QUICK TRANSACTIONS", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.blueGrey, letterSpacing: 1)),
+                  // 3. DAILY TRANSACTIONS (BIG BUTTONS)
+                  const Text("DAILY TRANSACTIONS", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.blueGrey, letterSpacing: 1)),
                   const SizedBox(height: 12),
                   Row(
                     children: [
@@ -71,7 +70,7 @@ class DashboardView extends StatelessWidget {
 
                   const SizedBox(height: 30),
 
-                  // --- 4. MASTER HUB (THE 6 CORE MASTERS) ---
+                  // 4. MASTER HUB (6 CORE MASTERS)
                   const Text("MASTER HUB", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.blueGrey, letterSpacing: 1)),
                   const SizedBox(height: 12),
                   Container(
@@ -89,16 +88,16 @@ class DashboardView extends StatelessWidget {
                           children: [
                             _masterIconBtn(context, "Parties", Icons.people_alt_rounded, Colors.indigo, const PartyMasterView()),
                             _masterIconBtn(context, "Item Master", Icons.inventory_2_rounded, Colors.purple, const ProductMasterView()),
-                            _masterIconBtn(context, "Routes", Icons.map_rounded, Colors.teal, const RouteMasterView()),
+                            _masterIconBtn(context, "Route Master", Icons.map_rounded, Colors.teal, const RouteMasterView()),
                           ],
                         ),
                         const SizedBox(height: 25),
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceAround,
                           children: [
-                            _masterIconBtn(context, "Companies", Icons.business_rounded, Colors.brown, const PlaceholderView("Company Master")),
-                            _masterIconBtn(context, "Salts", Icons.science_rounded, Colors.deepOrange, const PlaceholderView("Salt Master")),
-                            _masterIconBtn(context, "Drug Types", Icons.verified_user_rounded, Colors.cyan, const PlaceholderView("Drug Type Master")),
+                            _masterIconBtn(context, "Companies", Icons.business_rounded, Colors.brown, const CompanyMasterView()),
+                            _masterIconBtn(context, "Salts", Icons.science_rounded, Colors.deepOrange, const SaltMasterView()),
+                            _masterIconBtn(context, "Drug Types", Icons.verified_user_rounded, Colors.cyan.shade700, const DrugTypeMasterView()),
                           ],
                         ),
                       ],
@@ -107,7 +106,7 @@ class DashboardView extends StatelessWidget {
 
                   const SizedBox(height: 30),
 
-                  // --- 5. MANAGEMENT & REGISTERS ---
+                  // 5. MANAGEMENT & REGISTERS
                   const Text("REPORTS & UTILITIES", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.blueGrey, letterSpacing: 1)),
                   const SizedBox(height: 12),
                   GridView.count(
@@ -209,5 +208,6 @@ class DashboardView extends StatelessWidget {
     );
   }
 
-  bool _isSameDay(DateTime d1, DateTime d2) => d1.day == d2.day && d1.month == d2.month && d1.year == d2.year;
+  bool _isSameDay(DateTime d1, DateTime d2) => 
+      d1.day == d2.day && d1.month == d2.month && d1.year == d2.year;
 }
