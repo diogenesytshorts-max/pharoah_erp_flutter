@@ -4,7 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../pharoah_manager.dart';
 import '../models.dart';
 import 'purchase_billing_view.dart';
-import '../app_date_logic.dart'; // Naya Date Logic Import
+import '../app_date_logic.dart'; 
 
 class PurchaseEntryView extends StatefulWidget {
   final Purchase? existingPurchase;
@@ -20,6 +20,7 @@ class _PurchaseEntryViewState extends State<PurchaseEntryView> {
   
   // --- STATE ---
   DateTime selectedBillDate = DateTime.now(); 
+  DateTime selectedEntryDate = DateTime.now(); // Naya: Entry karne wali date
   String paymentMode = "CREDIT"; 
   Party? selectedDistributor; 
   String distSearchQuery = "";
@@ -27,39 +28,34 @@ class _PurchaseEntryViewState extends State<PurchaseEntryView> {
   @override
   void initState() {
     super.initState();
-    // Screen khulte hi Session data initialize karein
     _initializePurchaseSession();
   }
 
-  /// Session Initialization: Date aur Entry Number set karna
   void _initializePurchaseSession() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final ph = Provider.of<PharoahManager>(context, listen: false);
       
       setState(() {
         if (widget.existingPurchase != null) {
-          // Modify Mode: Purana data load karein
           supplierBillNoC.text = widget.existingPurchase!.billNo;
           internalEntryNoC.text = widget.existingPurchase!.internalNo;
           selectedBillDate = widget.existingPurchase!.date;
+          selectedEntryDate = widget.existingPurchase!.entryDate; // Purani entry date load karein
           paymentMode = widget.existingPurchase!.paymentMode;
           selectedDistributor = ph.parties.firstWhere(
             (p) => p.name == widget.existingPurchase!.distributorName, 
             orElse: () => ph.parties[0]
           );
         } else {
-          // --- SMART DYNAMIC DATE (Purchase Version) ---
-          // Agar aaj ki date FY mein hai toh 'Today', varna 'Late Date' (31st March)
+          // Smart logic for both dates
           selectedBillDate = AppDateLogic.getSmartDate(ph.currentFY);
-          
-          // Next Internal Purchase ID load karein
+          selectedEntryDate = DateTime.now(); // Hamesha today
           _loadInternalNo();
         }
       });
     });
   }
 
-  /// Internal Tracking No (PUR-X) generate karna
   Future<void> _loadInternalNo() async {
     final prefs = await SharedPreferences.getInstance();
     int lastId = prefs.getInt('lastPurID') ?? 0;
@@ -68,7 +64,6 @@ class _PurchaseEntryViewState extends State<PurchaseEntryView> {
     });
   }
 
-  /// Entry validation aur aage badhne ka logic
   void _validateAndProceed(PharoahManager ph) {
     if (selectedDistributor == null) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Please select a Supplier!"), backgroundColor: Colors.red));
@@ -79,9 +74,9 @@ class _PurchaseEntryViewState extends State<PurchaseEntryView> {
       return; 
     }
     
-    // Date Range Validation (Security Check)
-    if (!AppDateLogic.isValidInFY(selectedBillDate, ph.currentFY)) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Bill Date must be within the selected Financial Year!"), backgroundColor: Colors.red));
+    // Validate both dates
+    if (!AppDateLogic.isValidInFY(selectedBillDate, ph.currentFY) || !AppDateLogic.isValidInFY(selectedEntryDate, ph.currentFY)) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Dates must be within the selected Financial Year!"), backgroundColor: Colors.red));
       return;
     }
 
@@ -92,6 +87,7 @@ class _PurchaseEntryViewState extends State<PurchaseEntryView> {
         internalNo: internalEntryNoC.text, 
         distBillNo: supplierBillNoC.text.trim(), 
         billDate: selectedBillDate, 
+        entryDate: selectedEntryDate, // Dono dates pass kar rahe hain
         mode: paymentMode, 
         existingItems: widget.existingPurchase?.items, 
         modifyPurchaseId: widget.existingPurchase?.id
@@ -112,7 +108,6 @@ class _PurchaseEntryViewState extends State<PurchaseEntryView> {
       ),
       body: Column(
         children: [
-          // --- HEADER: ENTRY DETAILS ---
           Container(
             padding: const EdgeInsets.all(20), 
             decoration: const BoxDecoration(
@@ -132,7 +127,7 @@ class _PurchaseEntryViewState extends State<PurchaseEntryView> {
                 const SizedBox(height: 15),
                 Row(
                   children: [
-                    // Dynamic Date Picker
+                    // 1. Bill Date Picker (Supplier Date)
                     Expanded(
                       child: InkWell(
                         onTap: () async { 
@@ -141,36 +136,74 @@ class _PurchaseEntryViewState extends State<PurchaseEntryView> {
                             initialDate: selectedBillDate, 
                             firstDate: ph.fyStartDate, 
                             lastDate: ph.fyEndDate,
-                            helpText: "PURCHASE DATE (${ph.currentFY})",
+                            helpText: "BILL DATE (ON INVOICE)",
                           ); 
                           if (p != null) setState(() => selectedBillDate = p); 
                         }, 
                         child: Container(
                           padding: const EdgeInsets.all(12), 
                           decoration: BoxDecoration(border: Border.all(color: Colors.grey.shade400), borderRadius: BorderRadius.circular(5)), 
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween, 
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(AppDateLogic.format(selectedBillDate), style: const TextStyle(fontWeight: FontWeight.bold)), 
-                              const Icon(Icons.calendar_month, color: Colors.orange, size: 18)
-                            ]
+                              const Text("BILL DATE", style: TextStyle(fontSize: 9, color: Colors.grey, fontWeight: FontWeight.bold)),
+                              const SizedBox(height: 2),
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Text(AppDateLogic.format(selectedBillDate), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)), 
+                                  const Icon(Icons.calendar_today, color: Colors.orange, size: 14)
+                                ],
+                              ),
+                            ],
                           )
                         )
                       )
                     ),
-                    const SizedBox(width: 15),
-                    // Payment Mode Toggle
+                    const SizedBox(width: 10),
+                    // 2. Entry Date Picker (System Date)
                     Expanded(
-                      child: SegmentedButton<String>(
-                        segments: const [
-                          ButtonSegment(value: 'CASH', label: Text('CASH')), 
-                          ButtonSegment(value: 'CREDIT', label: Text('CREDIT'))
-                        ], 
-                        selected: {paymentMode}, 
-                        onSelectionChanged: (v) => setState(() => paymentMode = v.first),
+                      child: InkWell(
+                        onTap: () async { 
+                          DateTime? p = await showDatePicker(
+                            context: context, 
+                            initialDate: selectedEntryDate, 
+                            firstDate: ph.fyStartDate, 
+                            lastDate: ph.fyEndDate,
+                            helpText: "ENTRY DATE (COMPUTER DATE)",
+                          ); 
+                          if (p != null) setState(() => selectedEntryDate = p); 
+                        }, 
+                        child: Container(
+                          padding: const EdgeInsets.all(12), 
+                          decoration: BoxDecoration(border: Border.all(color: Colors.blue.shade200), borderRadius: BorderRadius.circular(5), color: Colors.blue.shade50), 
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text("ENTRY DATE", style: TextStyle(fontSize: 9, color: Colors.blue, fontWeight: FontWeight.bold)),
+                              const SizedBox(height: 2),
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Text(AppDateLogic.format(selectedEntryDate), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.blue)), 
+                                  const Icon(Icons.computer, color: Colors.blue, size: 14)
+                                ],
+                              ),
+                            ],
+                          )
+                        )
                       )
                     ),
                   ],
+                ),
+                const SizedBox(height: 15),
+                SegmentedButton<String>(
+                  segments: const [
+                    ButtonSegment(value: 'CASH', label: Text('CASH')), 
+                    ButtonSegment(value: 'CREDIT', label: Text('CREDIT'))
+                  ], 
+                  selected: {paymentMode}, 
+                  onSelectionChanged: (v) => setState(() => paymentMode = v.first),
                 ),
               ],
             ),
@@ -181,7 +214,6 @@ class _PurchaseEntryViewState extends State<PurchaseEntryView> {
             child: Align(alignment: Alignment.centerLeft, child: Text("SELECT SUPPLIER / DISTRIBUTOR", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.blueGrey, letterSpacing: 1)))
           ),
 
-          // --- SUPPLIER SELECTION ---
           if (selectedDistributor != null)
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 15),
@@ -230,7 +262,6 @@ class _PurchaseEntryViewState extends State<PurchaseEntryView> {
               )
             ),
 
-          // --- FINAL PROCEED BUTTON ---
           if (selectedDistributor != null) 
             Padding(
               padding: const EdgeInsets.all(20), 
