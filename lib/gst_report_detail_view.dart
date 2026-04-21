@@ -3,7 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import 'pharoah_manager.dart';
 import 'models.dart';
-import 'gst_report_service.dart';
+import 'gst_report_service.dart'; // Import check
 
 class GSTReportDetailView extends StatefulWidget {
   final String reportType;
@@ -20,7 +20,6 @@ class _GSTReportDetailViewState extends State<GSTReportDetailView> {
   @override
   void initState() {
     super.initState();
-    // Default: Is mahine ki 1st tarikh se aaj tak ki range
     final now = DateTime.now();
     fromDate = DateTime(now.year, now.month, 1);
     toDate = now;
@@ -30,8 +29,7 @@ class _GSTReportDetailViewState extends State<GSTReportDetailView> {
   Widget build(BuildContext context) {
     final ph = Provider.of<PharoahManager>(context);
 
-    // Filtering logic using Range (isAfter and isBefore)
-    // subtract/add 1 day is used to include the selected dates fully
+    // Filtering logic
     List<Sale> allSales = ph.sales.where((s) =>
       s.date.isAfter(fromDate.subtract(const Duration(days: 1))) && 
       s.date.isBefore(toDate.add(const Duration(days: 1)))
@@ -54,7 +52,6 @@ class _GSTReportDetailViewState extends State<GSTReportDetailView> {
           IconButton(
             icon: const Icon(Icons.picture_as_pdf),
             onPressed: () {
-              // Range string for PDF header
               String rangeLabel = "${DateFormat('dd/MM/yy').format(fromDate)} to ${DateFormat('dd/MM/yy').format(toDate)}";
               
               if (widget.reportType.contains("GSTR-1")) {
@@ -64,7 +61,8 @@ class _GSTReportDetailViewState extends State<GSTReportDetailView> {
                 GstReportService.generateGstr3bPdf(activeSales, monthlyPurchases, rangeLabel);
               }
               else if (widget.reportType.contains("GSTR-2")) {
-                GstReportService.generateGstr2Pdf(monthlyPurchases, rangeLabel);
+                // UPDATED: Now passing vouchers and parties for Expense GST logic
+                GstReportService.generateGstr2Pdf(monthlyPurchases, ph.vouchers, ph.parties, rangeLabel);
               }
             },
           ),
@@ -84,7 +82,6 @@ class _GSTReportDetailViewState extends State<GSTReportDetailView> {
     );
   }
 
-  // --- DUAL DATE PICKER UI ---
   Widget _buildDateRangePicker() {
     return Container(
       padding: const EdgeInsets.all(12),
