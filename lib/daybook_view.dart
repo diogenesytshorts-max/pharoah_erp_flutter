@@ -16,64 +16,62 @@ class _DaybookViewState extends State<DaybookView> {
   Widget build(BuildContext context) {
     final ph = Provider.of<PharoahManager>(context);
     
-    // 1. Collect all types of transactions for the selected date
+    // --- TRANSACTION AGGREGATION LOGIC ---
+    // Hum sabhi alag-alag sources se data ik इकट्ठा karenge
     List<Map<String, dynamic>> allEntries = [];
 
-    // Add Sales
+    // 1. Sales Add karein
     for (var s in ph.sales.where((s) => _isSameDay(s.date, selectedDate) && s.status == "Active")) {
       allEntries.add({
         'time': s.date,
         'type': 'SALE',
         'party': s.partyName,
-        'ref': '#${s.billNo}',
+        'ref': 'Bill #${s.billNo}',
         'amount': s.totalAmount,
-        'mode': s.paymentMode,
-        'isIn': true
+        'isIn': true // Paisa aayega (udhaar ya cash)
       });
     }
 
-    // Add Purchases
+    // 2. Purchases Add karein
     for (var p in ph.purchases.where((p) => _isSameDay(p.date, selectedDate))) {
       allEntries.add({
         'time': p.date,
         'type': 'PURCHASE',
         'party': p.distributorName,
-        'ref': '#${p.billNo}',
+        'ref': 'Bill #${p.billNo}',
         'amount': p.totalAmount,
-        'mode': p.paymentMode,
-        'isIn': false
+        'isIn': false // Paisa jayega
       });
     }
 
-    // Add Vouchers (Receipts & Payments)
+    // 3. Vouchers Add karein (Receipt, Payment, Contra, Expense)
     for (var v in ph.vouchers.where((v) => _isSameDay(v.date, selectedDate))) {
       allEntries.add({
         'time': v.date,
         'type': v.type.toUpperCase(),
         'party': v.partyName,
-        'ref': v.refBillNo.isNotEmpty ? 'Agst ${v.refBillNo}' : 'Direct',
+        'ref': v.paymentMode,
         'amount': v.amount,
-        'mode': v.paymentMode,
-        'isIn': v.type == 'Receipt'
+        'isIn': v.type == 'Receipt' || v.type == 'Contra' // Simplified logic
       });
     }
 
-    // Sort by time (Latest on top)
+    // Latest entries upar dikhane ke liye sort karein
     allEntries.sort((a, b) => b['time'].compareTo(a['time']));
 
-    // Calculate Summary
+    // --- SUMMARY CALCULATIONS ---
     double totalIn = allEntries.where((e) => e['isIn']).fold(0, (sum, e) => sum + e['amount']);
     double totalOut = allEntries.where((e) => !e['isIn']).fold(0, (sum, e) => sum + e['amount']);
 
     return Scaffold(
       backgroundColor: const Color(0xFFF5F6F9),
       appBar: AppBar(
-        title: const Text("Daybook (Daily Register)"),
+        title: const Text("Daybook Register"),
         backgroundColor: Colors.blueGrey.shade900,
         foregroundColor: Colors.white,
         actions: [
           IconButton(
-            icon: const Icon(Icons.calendar_month),
+            icon: const Icon(Icons.calendar_month_rounded),
             onPressed: () async {
               DateTime? p = await showDatePicker(context: context, initialDate: selectedDate, firstDate: DateTime(2020), lastDate: DateTime(2100));
               if (p != null) setState(() => selectedDate = p);
@@ -83,25 +81,25 @@ class _DaybookViewState extends State<DaybookView> {
       ),
       body: Column(
         children: [
-          // --- SUMMARY HEADER ---
+          // --- TOP SUMMARY PANEL ---
           Container(
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
               color: Colors.blueGrey.shade900,
-              borderRadius: const BorderRadius.only(bottomLeft: Radius.circular(20), bottomRight: Radius.circular(20))
+              borderRadius: const BorderRadius.only(bottomLeft: Radius.circular(25), bottomRight: Radius.circular(25))
             ),
             child: Column(
               children: [
-                Text(DateFormat('EEEE, dd MMMM yyyy').format(selectedDate), style: const TextStyle(color: Colors.white70, fontSize: 12)),
-                const SizedBox(height: 15),
+                Text(DateFormat('EEEE, dd MMMM yyyy').format(selectedDate), style: const TextStyle(color: Colors.white70, fontSize: 13, fontWeight: FontWeight.bold)),
+                const SizedBox(height: 20),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceAround,
                   children: [
-                    _summaryCol("TOTAL IN (Inflow)", totalIn, Colors.greenAccent),
+                    _summaryCol("TOTAL INFLOW", totalIn, Colors.greenAccent),
                     Container(width: 1, height: 40, color: Colors.white24),
-                    _summaryCol("TOTAL OUT (Outflow)", totalOut, Colors.orangeAccent),
+                    _summaryCol("TOTAL OUTFLOW", totalOut, Colors.orangeAccent),
                     Container(width: 1, height: 40, color: Colors.white24),
-                    _summaryCol("NET CASH", totalIn - totalOut, Colors.white),
+                    _summaryCol("NET DAY", totalIn - totalOut, Colors.white),
                   ],
                 ),
               ],
@@ -111,7 +109,14 @@ class _DaybookViewState extends State<DaybookView> {
           // --- TRANSACTIONS LIST ---
           Expanded(
             child: allEntries.isEmpty
-                ? const Center(child: Text("No transactions recorded for this day."))
+                ? Center(child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.history_toggle_off_rounded, size: 60, color: Colors.grey.shade400),
+                      const SizedBox(height: 10),
+                      const Text("No transactions for this day.", style: TextStyle(color: Colors.grey)),
+                    ],
+                  ))
                 : ListView.builder(
                     padding: const EdgeInsets.all(12),
                     itemCount: allEntries.length,
@@ -120,37 +125,40 @@ class _DaybookViewState extends State<DaybookView> {
                       bool isIn = e['isIn'];
 
                       return Card(
-                        margin: const EdgeInsets.only(bottom: 8),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        elevation: 1,
+                        margin: const EdgeInsets.only(bottom: 10),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
                         child: ListTile(
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 15, vertical: 5),
                           leading: Container(
-                            padding: const EdgeInsets.all(8),
+                            padding: const EdgeInsets.all(10),
                             decoration: BoxDecoration(
                               color: isIn ? Colors.green.withOpacity(0.1) : Colors.red.withOpacity(0.1),
                               shape: BoxShape.circle
                             ),
                             child: Icon(
-                              isIn ? Icons.arrow_downward : Icons.arrow_upward,
+                              isIn ? Icons.arrow_downward_rounded : Icons.arrow_upward_rounded,
                               color: isIn ? Colors.green : Colors.red,
                               size: 20,
                             ),
                           ),
                           title: Row(
                             children: [
-                              Text(e['type'], style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.grey.shade600)),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                decoration: BoxDecoration(color: Colors.grey.shade100, borderRadius: BorderRadius.circular(5)),
+                                child: Text(e['type'], style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.blueGrey.shade700)),
+                              ),
                               const Spacer(),
-                              Text(e['mode'], style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold)),
+                              Text(e['ref'], style: const TextStyle(fontSize: 10, color: Colors.grey, fontWeight: FontWeight.bold)),
                             ],
                           ),
-                          subtitle: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(e['party'], style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Colors.black87)),
-                              Text("Ref: ${e['ref']}", style: const TextStyle(fontSize: 11)),
-                            ],
+                          subtitle: Padding(
+                            padding: const EdgeInsets.only(top: 5),
+                            child: Text(e['party'], style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Colors.black87)),
                           ),
                           trailing: Text(
-                            "${isIn ? '+' : '-'} ₹${e['amount'].toStringAsFixed(2)}",
+                            "₹${e['amount'].toStringAsFixed(2)}",
                             style: TextStyle(
                               fontWeight: FontWeight.w900,
                               fontSize: 16,
@@ -174,8 +182,8 @@ class _DaybookViewState extends State<DaybookView> {
   Widget _summaryCol(String label, double val, Color color) {
     return Column(
       children: [
-        Text(label, style: const TextStyle(color: Colors.white60, fontSize: 8, fontWeight: FontWeight.bold)),
-        const SizedBox(height: 4),
+        Text(label, style: const TextStyle(color: Colors.white60, fontSize: 8, fontWeight: FontWeight.bold, letterSpacing: 0.5)),
+        const SizedBox(height: 5),
         Text("₹${val.toStringAsFixed(0)}", style: TextStyle(color: color, fontWeight: FontWeight.w900, fontSize: 16)),
       ],
     );
