@@ -4,7 +4,7 @@ import 'package:provider/provider.dart';
 import 'pharoah_manager.dart';
 import 'models.dart';
 import 'sale_bill_number.dart';
-import 'pdf/sale_invoice_pdf.dart'; // Naya rasta (Path)
+import 'pdf/sale_invoice_pdf.dart'; 
 import 'package:intl/intl.dart';
 
 // --- AUTO SLASH FORMATTER (MM/YY) ---
@@ -80,7 +80,6 @@ class _BillingViewState extends State<BillingView> {
           ],
         ),
         actions: [
-          // PRINT BUTTON (Calling New PDF Class)
           IconButton(
             icon: const Icon(Icons.print_rounded), 
             onPressed: items.isEmpty ? null : () => _printBill(),
@@ -144,7 +143,8 @@ class _BillingViewState extends State<BillingView> {
                     final item = items[index];
                     return ListTile(
                       title: Text(item.name, style: const TextStyle(fontWeight: FontWeight.bold)),
-                      subtitle: Text("Qty: ${item.qty.toInt()} | Batch: ${item.batch} | Exp: ${item.exp}"),
+                      // QTY + FREE Format Preview
+                      subtitle: Text("Qty: ${item.qty} + ${item.freeQty} | Batch: ${item.batch} | Exp: ${item.exp}"),
                       trailing: Text("₹${item.total.toStringAsFixed(2)}", style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.blue)),
                       onTap: widget.isReadOnly ? null : () => setState(() {
                         selectedMed = ph.medicines.firstWhere((m) => m.id == item.medicineID);
@@ -198,7 +198,6 @@ class _BillingViewState extends State<BillingView> {
     );
   }
 
-  // --- HANDLERS ---
   void _saveAndClose(PharoahManager ph) async {
     if (widget.modifySaleId != null) ph.deleteBill(widget.modifySaleId!);
     ph.finalizeSale(billNo: widget.billNo, date: widget.billDate, party: widget.party, items: items, total: grandTotal, mode: widget.mode);
@@ -210,7 +209,6 @@ class _BillingViewState extends State<BillingView> {
   }
 
   void _printBill() async {
-    // Create temp Sale object for PDF
     final sale = Sale(
       id: widget.modifySaleId ?? DateTime.now().toString(),
       billNo: widget.billNo,
@@ -226,8 +224,6 @@ class _BillingViewState extends State<BillingView> {
       paymentMode: widget.mode,
       invoiceType: widget.party.isB2B ? "B2B" : "B2C",
     );
-    
-    // CALLING THE NEW PDF CLASS
     await SaleInvoicePdf.generate(sale, widget.party);
   }
 }
@@ -244,9 +240,13 @@ class ItemEntryForm extends StatefulWidget {
 }
 
 class _ItemEntryFormState extends State<ItemEntryForm> {
-  final bC = TextEditingController(); final eC = TextEditingController();
-  final gC = TextEditingController(); final mC = TextEditingController();
-  final rC = TextEditingController(); final qC = TextEditingController();
+  final bC = TextEditingController(); 
+  final eC = TextEditingController();
+  final gC = TextEditingController(); 
+  final mC = TextEditingController();
+  final rC = TextEditingController(); 
+  final qC = TextEditingController(); // Main Quantity
+  final fC = TextEditingController(text: "0"); // Free Quantity (Naya Field)
   final rCD = TextEditingController(text: "0");
   String rT = "A";
 
@@ -262,7 +262,8 @@ class _ItemEntryFormState extends State<ItemEntryForm> {
       eC.text = widget.existingItem!.exp;
       rC.text = widget.existingItem!.rate.toString();
       gC.text = widget.existingItem!.gstRate.toString();
-      qC.text = widget.existingItem!.qty.toInt().toString();
+      qC.text = widget.existingItem!.qty.toString();
+      fC.text = widget.existingItem!.freeQty.toString();
     }
   }
 
@@ -313,17 +314,45 @@ class _ItemEntryFormState extends State<ItemEntryForm> {
             Expanded(child: _field(mC, "MRP", onCh: (v) { if(rT=='C') _calcRateC(); })), const SizedBox(width: 5),
             if (rT == 'C') ...[Expanded(child: _field(rCD, "Disc%", onCh: (v) => _calcRateC())), const SizedBox(width: 5)],
             Expanded(child: _field(rC, "Rate", en: rT != 'C')), const SizedBox(width: 5),
-            Expanded(child: _field(qC, "Qty")),
+            // Qty Field
+            Expanded(child: _field(qC, "Qty", isNum: true)), const SizedBox(width: 5),
+            // Free Qty Field
+            Expanded(child: _field(fC, "Free", isNum: true)),
           ]),
           const SizedBox(height: 15),
           ElevatedButton(
             style: ElevatedButton.styleFrom(minimumSize: const Size(double.infinity, 50), backgroundColor: Colors.blue.shade700),
             onPressed: () {
-              double r = double.tryParse(rC.text) ?? 0, q = double.tryParse(qC.text) ?? 0, g = double.tryParse(gC.text) ?? 0;
-              double tax = r * q, gstAmt = tax * (g / 100);
+              double r = double.tryParse(rC.text) ?? 0;
+              double q = double.tryParse(qC.text) ?? 0; // Main Qty
+              double f = double.tryParse(fC.text) ?? 0; // Free Qty
+              double g = double.tryParse(gC.text) ?? 0;
+              
+              // Total calculation based only on Main Qty
+              double taxableVal = r * q;
+              double gstAmt = taxableVal * (g / 100);
               double cgst = 0, sgst = 0, igst = 0; 
               if (widget.partyState == widget.shopState) { cgst = gstAmt/2; sgst = gstAmt/2; } else { igst = gstAmt; }
-              widget.onAdd(BillItem(id: DateTime.now().toString(), srNo: widget.srNo, medicineID: widget.med.id, name: widget.med.name, packing: widget.med.packing, batch: bC.text.toUpperCase(), exp: eC.text, hsn: widget.med.hsnCode, mrp: double.tryParse(mC.text) ?? 0, qty: q, rate: r, gstRate: g, cgst: cgst, sgst: sgst, igst: igst, total: tax + gstAmt));
+              
+              widget.onAdd(BillItem(
+                id: DateTime.now().toString(), 
+                srNo: widget.srNo, 
+                medicineID: widget.med.id, 
+                name: widget.med.name, 
+                packing: widget.med.packing, 
+                batch: bC.text.toUpperCase(), 
+                exp: eC.text, 
+                hsn: widget.med.hsnCode, 
+                mrp: double.tryParse(mC.text) ?? 0, 
+                qty: q, 
+                freeQty: f, 
+                rate: r, 
+                gstRate: g, 
+                cgst: cgst, 
+                sgst: sgst, 
+                igst: igst, 
+                total: taxableVal + gstAmt
+              ));
             },
             child: const Text("ADD TO BILL", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
           )
@@ -332,7 +361,14 @@ class _ItemEntryFormState extends State<ItemEntryForm> {
     );
   }
 
-  Widget _field(TextEditingController c, String l, {List<TextInputFormatter>? fmt, bool en = true, Function(String)? onCh}) {
-    return TextField(controller: c, enabled: en, inputFormatters: fmt, onChanged: onCh, decoration: InputDecoration(labelText: l, border: const OutlineInputBorder(), contentPadding: const EdgeInsets.all(8)), keyboardType: TextInputType.text);
+  Widget _field(TextEditingController c, String l, {List<TextInputFormatter>? fmt, bool en = true, Function(String)? onCh, bool isNum = false}) {
+    return TextField(
+      controller: c, 
+      enabled: en, 
+      inputFormatters: fmt, 
+      onChanged: onCh, 
+      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+      decoration: InputDecoration(labelText: l, border: const OutlineInputBorder(), contentPadding: const EdgeInsets.all(8)), 
+    );
   }
 }
