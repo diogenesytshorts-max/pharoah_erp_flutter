@@ -13,7 +13,8 @@ import 'sale_summary_view.dart';
 import 'purchase/purchase_summary_view.dart';
 import 'data_exchange_view.dart';
 import 'accounting_views.dart';
-import 'ledger_reports_view.dart'; // Naya Import
+import 'ledger_reports_view.dart';
+import 'daybook_view.dart'; // Naya Import
 
 class DashboardView extends StatelessWidget {
   final VoidCallback onLogout;
@@ -69,9 +70,11 @@ class DashboardView extends StatelessWidget {
                   Row(
                     children: [
                       Expanded(child: ActionIconBtn(title: "Receipt", icon: Icons.add_chart_rounded, color: Colors.green, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => const VoucherEntryView(type: "Receipt"))))),
-                      const SizedBox(width: 10),
+                      const SizedBox(width: 8),
                       Expanded(child: ActionIconBtn(title: "Payment", icon: Icons.analytics_rounded, color: Colors.red, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => const VoucherEntryView(type: "Payment"))))),
-                      const SizedBox(width: 10),
+                      const SizedBox(width: 8),
+                      Expanded(child: ActionIconBtn(title: "Daybook", icon: Icons.auto_stories_rounded, color: Colors.blueGrey, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => const DaybookView())))),
+                      const SizedBox(width: 8),
                       Expanded(child: ActionIconBtn(title: "Khaata", icon: Icons.menu_book_rounded, color: Colors.indigo, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => const LedgerReportsView())))),
                     ],
                   ),
