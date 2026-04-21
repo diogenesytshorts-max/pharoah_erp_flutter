@@ -87,10 +87,6 @@ class PharoahManager with ChangeNotifier {
     notifyListeners();
   }
 
-  // =========================================================
-  // FIX: RESTORING MISSING METHODS FOR LOGIN & MAINTENANCE
-  // =========================================================
-
   Future<void> runAutoBackup() async {
     try {
       final dirPath = await getFYDirectory();
@@ -110,16 +106,16 @@ class PharoahManager with ChangeNotifier {
     }
   }
 
+  // Stock repair logic updated for Decimal and Free Qty
   Future<void> runFullMaintenance() async {
-    // Re-calculating Stock from scratch to fix errors
     for (var med in medicines) {
-      int st = 0;
+      double st = 0.0;
       for (var p in purchases) { 
-        for (var it in p.items) if (it.medicineID == med.id) st += (it.qty + it.freeQty).toInt(); 
+        for (var it in p.items) if (it.medicineID == med.id) st += (it.qty + it.freeQty); 
       }
       for (var s in sales) { 
         if (s.status == "Active") { 
-          for (var it in s.items) if (it.medicineID == med.id) st -= it.qty.toInt(); 
+          for (var it in s.items) if (it.medicineID == med.id) st -= (it.qty + it.freeQty); 
         } 
       }
       med.stock = st;
@@ -144,7 +140,8 @@ class PharoahManager with ChangeNotifier {
     for (var it in items) {
       int idx = medicines.indexWhere((m) => m.id == it.medicineID);
       if (idx != -1) {
-        medicines[idx].stock -= it.qty.toInt();
+        // Stock deduction includes FREE quantity
+        medicines[idx].stock -= (it.qty + it.freeQty);
         saveBatchCentrally(it.medicineID, BatchInfo(batch: it.batch, exp: it.exp, packing: it.packing, mrp: it.mrp, rate: it.rate));
       }
     }
@@ -156,7 +153,7 @@ class PharoahManager with ChangeNotifier {
     for (var it in items) {
       int idx = medicines.indexWhere((m) => m.id == it.medicineID);
       if (idx != -1) {
-        medicines[idx].stock += (it.qty + it.freeQty).toInt();
+        medicines[idx].stock += (it.qty + it.freeQty);
         medicines[idx].purRate = it.purchaseRate;
         medicines[idx].mrp = it.mrp; medicines[idx].gst = it.gstRate;
         medicines[idx].rateA = it.rateA; medicines[idx].rateB = it.rateB; medicines[idx].rateC = it.rateC;
@@ -171,7 +168,7 @@ class PharoahManager with ChangeNotifier {
     if (i != -1) {
       for (var it in purchases[i].items) {
         int mi = medicines.indexWhere((m) => m.id == it.medicineID);
-        if (mi != -1) medicines[mi].stock -= (it.qty + it.freeQty).toInt();
+        if (mi != -1) medicines[mi].stock -= (it.qty + it.freeQty);
       }
       purchases.removeAt(i);
       save();
@@ -184,7 +181,7 @@ class PharoahManager with ChangeNotifier {
       if (sales[i].status == "Active") {
         for (var it in sales[i].items) {
           int mi = medicines.indexWhere((m) => m.id == it.medicineID);
-          if (mi != -1) medicines[mi].stock += it.qty.toInt();
+          if (mi != -1) medicines[mi].stock += (it.qty + it.freeQty);
         }
       }
       sales.removeAt(i);
@@ -197,7 +194,7 @@ class PharoahManager with ChangeNotifier {
     if (i != -1 && sales[i].status != "Cancelled") {
       for (var it in sales[i].items) {
         int mi = medicines.indexWhere((m) => m.id == it.medicineID);
-        if (mi != -1) medicines[mi].stock += it.qty.toInt();
+        if (mi != -1) medicines[mi].stock += (it.qty + it.freeQty);
       }
       sales[i].status = "Cancelled";
       sales[i].totalAmount = 0.0;
