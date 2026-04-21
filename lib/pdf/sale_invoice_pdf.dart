@@ -23,9 +23,17 @@ class SaleInvoicePdf {
     double totalCGST = sale.items.fold(0, (sum, i) => sum + i.cgst);
     int roundedGrandTotal = sale.totalAmount.round();
 
-    // --- UPDATED LIMIT: 22 items per page for Landscape ---
+    // Items per page limit
     const int itemsPerPage = 22; 
     int totalPages = (sale.items.length / itemsPerPage).ceil();
+
+    // Helper to format decimals (5.0 -> 5, 5.5 -> 5.5)
+    String formatQty(double val) {
+      if (val == val.toInt()) {
+        return val.toInt().toString();
+      }
+      return val.toStringAsFixed(1);
+    }
 
     for (int pageNum = 0; pageNum < totalPages; pageNum++) {
       int start = pageNum * itemsPerPage;
@@ -42,7 +50,7 @@ class SaleInvoicePdf {
               decoration: pw.BoxDecoration(border: pw.Border.all(width: 1)),
               child: pw.Column(
                 children: [
-                  // --- 1. HEADER (Height reduced to 80 for more space) ---
+                  // --- 1. HEADER ---
                   pw.Row(
                     children: [
                       _headerBox(width: 280, height: 80, child: pw.Column(
@@ -81,11 +89,19 @@ class SaleInvoicePdf {
                     color: PdfColors.grey100,
                     child: pw.Row(
                       children: [
-                        _tableCol("S.N", 25), _tableCol("Qty", 40), _tableCol("Pack", 45),
-                        _tableCol("Product Name", 190, align: pw.Alignment.centerLeft),
-                        _tableCol("Batch", 75), _tableCol("Exp", 45), _tableCol("HSN", 50),
-                        _tableCol("MRP", 55), _tableCol("Rate", 55), _tableCol("DIS%", 35),
-                        _tableCol("SGST%", 40), _tableCol("CGST%", 40), _tableCol("Net Amt", 85),
+                        _tableCol("S.N", 25), 
+                        _tableCol("Qty + Free", 50), // Increased width for the new format
+                        _tableCol("Pack", 40),
+                        _tableCol("Product Name", 185, align: pw.Alignment.centerLeft),
+                        _tableCol("Batch", 75), 
+                        _tableCol("Exp", 45), 
+                        _tableCol("HSN", 50),
+                        _tableCol("MRP", 55), 
+                        _tableCol("Rate", 55), 
+                        _tableCol("DIS%", 30),
+                        _tableCol("SGST%", 40), 
+                        _tableCol("CGST%", 40), 
+                        _tableCol("Net Amt", 80),
                       ],
                     ),
                   ),
@@ -94,18 +110,28 @@ class SaleInvoicePdf {
                   pw.Expanded(
                     child: pw.Column(
                       children: pageItems.map((i) {
+                        // QTY + FREE Logic for Display
+                        String displayQty = i.freeQty > 0 
+                            ? "${formatQty(i.qty)} + ${formatQty(i.freeQty)}" 
+                            : formatQty(i.qty);
+
                         return pw.Container(
                           decoration: const pw.BoxDecoration(border: pw.Border(bottom: pw.BorderSide(width: 0.1, color: PdfColors.grey400))),
                           child: pw.Row(
                             children: [
-                              _tableCell("${i.srNo}", 25), _tableCell(i.qty.toStringAsFixed(2), 40),
-                              _tableCell(i.packing, 45), _tableCell(i.name, 190, align: pw.Alignment.centerLeft),
-                              _tableCell(i.batch, 75), _tableCell(i.exp, 45), _tableCell(i.hsn, 50),
-                              _tableCell(i.mrp.toStringAsFixed(2), 55), _tableCell(i.rate.toStringAsFixed(2), 55),
-                              _tableCell(i.discountRupees.toStringAsFixed(1), 35),
-                             _tableCell("${(i.gstRate / 2).toStringAsFixed(1)}%", 40), 
-_tableCell("${(i.gstRate / 2).toStringAsFixed(1)}%", 40),
-                              _tableCell(i.total.toStringAsFixed(2), 85),
+                              _tableCell("${i.srNo}", 25), 
+                              _tableCell(displayQty, 50), // Matches header width
+                              _tableCell(i.packing, 40), 
+                              _tableCell(i.name, 185, align: pw.Alignment.centerLeft),
+                              _tableCell(i.batch, 75), 
+                              _tableCell(i.exp, 45), 
+                              _tableCell(i.hsn, 50),
+                              _tableCell(i.mrp.toStringAsFixed(2), 55), 
+                              _tableCell(i.rate.toStringAsFixed(2), 55),
+                              _tableCell(i.discountRupees.toStringAsFixed(1), 30),
+                              _tableCell("${(i.gstRate / 2).toStringAsFixed(1)}%", 40), 
+                              _tableCell("${(i.gstRate / 2).toStringAsFixed(1)}%", 40),
+                              _tableCell(i.total.toStringAsFixed(2), 80),
                             ],
                           ),
                         );
