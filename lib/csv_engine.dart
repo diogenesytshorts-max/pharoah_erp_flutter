@@ -3,60 +3,94 @@ import 'package:intl/intl.dart';
 import 'models.dart';
 
 class CsvEngine {
-  // Column Index Reference for Import:
-  // 0:Date, 1:InvNo, 2:Type, 3:Mode, 4:Party, 5:GSTIN, 6:State, 7:Addr, 8:Item, 9:Pack, 10:Batch, 11:Exp, 12:HSN, 13:Qty, 14:Rate...
+  /* 
+     =========================================================
+     PHAROAH UNIVERSAL CSV STRUCTURE (18 COLUMNS)
+     Used for both Sale Export and Purchase Export/Import
+     =========================================================
+     0: DATE            | 1: BILL_NO       | 2: PARTY_NAME
+     3: PARTY_GSTIN     | 4: PARTY_STATE    | 5: ITEM_NAME
+     6: MANUFACTURER    | 7: PACKING        | 8: BATCH
+     9: EXPIRY          | 10: HSN           | 11: QTY
+     12: FREE_QTY       | 13: MRP           | 14: UNIT_RATE (Taxable)
+     15: DISCOUNT_PER   | 16: GST_PERCENT   | 17: NET_TOTAL
+  */
 
+  static List<String> get _universalHeader => [
+    "DATE", "BILL_NO", "PARTY_NAME", "PARTY_GSTIN", "PARTY_STATE",
+    "ITEM_NAME", "MANUFACTURER", "PACKING", "BATCH", "EXPIRY",
+    "HSN", "QTY", "FREE_QTY", "MRP", "UNIT_RATE",
+    "DISCOUNT_PER", "GST_PERCENT", "NET_TOTAL"
+  ];
+
+  /// User A jab SALE export karega
   static String convertSalesToCsv(List<Sale> sales) {
-    List<List<dynamic>> rows = [
-      [
-        "DATE", "INVOICE_NO", "TYPE", "PAYMENT_MODE", 
-        "PARTY_NAME", "PARTY_GSTIN", "PARTY_STATE", "PARTY_ADDRESS",
-        "ITEM_NAME", "PACKING", "BATCH", "EXPIRY", "HSN", 
-        "QTY", "RATE", "TAXABLE_VAL", "GST_RATE", "GST_AMT", "NET_TOTAL"
-      ]
-    ];
+    List<List<dynamic>> rows = [_universalHeader];
 
     for (var s in sales) {
       for (var i in s.items) {
-        double taxable = i.rate * i.qty;
-        double gstAmt = i.total - taxable;
         rows.add([
-          DateFormat('dd/MM/yyyy').format(s.date), s.billNo, s.invoiceType, s.paymentMode,
-          s.partyName, s.partyGstin, s.partyState, s.partyAddress,
-          i.name, i.packing, i.batch, i.exp, i.hsn,
-          i.qty, i.rate.toStringAsFixed(2), taxable.toStringAsFixed(2),
-          "${i.gstRate}%", gstAmt.toStringAsFixed(2), i.total.toStringAsFixed(2)
+          DateFormat('dd/MM/yyyy').format(s.date), 
+          s.billNo, 
+          s.partyName, 
+          s.partyGstin, 
+          s.partyState,
+          i.name, 
+          "N/A", // Manufacturer (Not in Sale model yet, so N/A)
+          i.packing, 
+          i.batch, 
+          i.exp, 
+          i.hsn,
+          i.qty, 
+          i.freeQty, 
+          i.mrp.toStringAsFixed(2), 
+          i.rate.toStringAsFixed(2),
+          "0.0", // Discount % (Placeholder)
+          "${i.gstRate}%", 
+          i.total.toStringAsFixed(2)
         ]);
       }
     }
     return const ListToCsvConverter().convert(rows);
   }
 
+  /// User B jab PURCHASE export karega
   static String convertPurchasesToCsv(List<Purchase> purchases) {
-    List<List<dynamic>> rows = [
-      [
-        "DATE", "BILL_NO", "INTERNAL_ID", "PAYMENT_MODE", "STATUS",
-        "SUPPLIER_NAME", "SUPPLIER_GSTIN", "ITEM_NAME", "PACKING", "BATCH", 
-        "EXPIRY", "HSN", "QTY", "FREE", "PUR_RATE", "TAXABLE_VAL", "GST_RATE", "GST_AMT", "NET_TOTAL"
-      ]
-    ];
+    List<List<dynamic>> rows = [_universalHeader];
 
     for (var p in purchases) {
       for (var i in p.items) {
-        double taxable = i.purchaseRate * i.qty;
-        double gstAmt = i.total - taxable;
         rows.add([
-          DateFormat('dd/MM/yyyy').format(p.date), p.billNo, p.internalNo, p.paymentMode, p.gstStatus,
-          p.distributorName, "N/A", i.name, i.packing, i.batch,
-          i.exp, i.hsn, i.qty, i.freeQty, i.purchaseRate.toStringAsFixed(2),
-          taxable.toStringAsFixed(2), "${i.gstRate}%", gstAmt.toStringAsFixed(2), i.total.toStringAsFixed(2)
+          DateFormat('dd/MM/yyyy').format(p.date), 
+          p.billNo, 
+          p.distributorName, 
+          "N/A", // Supplier GSTIN (Currently not in Purchase header model)
+          "N/A", // Supplier State
+          i.name, 
+          "N/A", 
+          i.packing, 
+          i.batch, 
+          i.exp, 
+          i.hsn,
+          i.qty, 
+          i.freeQty, 
+          i.mrp.toStringAsFixed(2), 
+          i.purchaseRate.toStringAsFixed(2),
+          "0.0", 
+          "${i.gstRate}%", 
+          i.total.toStringAsFixed(2)
         ]);
       }
     }
     return const ListToCsvConverter().convert(rows);
   }
 
+  /// Generic CSV Parsing
   static List<List<dynamic>> parseCsv(String content) {
-    return const CsvToListConverter().convert(content);
+    // We use a smart converter to handle commas inside quotes
+    return const CsvToListConverter(
+      shouldParseNumbers: true, 
+      allowInvalid: true
+    ).convert(content);
   }
 }
