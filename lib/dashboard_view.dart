@@ -11,7 +11,8 @@ import 'purchase/purchase_modify_view.dart';
 import 'more_features_view.dart';
 import 'sale_summary_view.dart';
 import 'purchase/purchase_summary_view.dart';
-import 'data_exchange_view.dart'; // Naya Import
+import 'data_exchange_view.dart';
+import 'accounting_views.dart'; // Naya Import
 
 class DashboardView extends StatelessWidget {
   final VoidCallback onLogout;
@@ -60,6 +61,19 @@ class DashboardView extends StatelessWidget {
                     ],
                   ),
                   const SizedBox(height: 35),
+                  
+                  // --- NAYA SECTION: CASH & PAYMENTS ---
+                  const Text("CASH & PAYMENTS", style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.blueGrey, letterSpacing: 1)),
+                  const SizedBox(height: 15),
+                  Row(
+                    children: [
+                      Expanded(child: ActionIconBtn(title: "Receipt (Cash In)", icon: Icons.add_chart_rounded, color: Colors.green, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => const VoucherEntryView(type: "Receipt"))))),
+                      const SizedBox(width: 12),
+                      Expanded(child: ActionIconBtn(title: "Payment (Cash Out)", icon: Icons.analytics_rounded, color: Colors.red, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => const VoucherEntryView(type: "Payment"))))),
+                    ],
+                  ),
+                  
+                  const SizedBox(height: 35),
                   const Text("QUICK ACTIONS & DATA", style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.blueGrey, letterSpacing: 1)),
                   const SizedBox(height: 15),
                   GridView.count(
@@ -71,7 +85,7 @@ class DashboardView extends StatelessWidget {
                       ActionIconBtn(title: "Inventory", icon: Icons.inventory_2_rounded, color: Colors.purple, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => const ProductMasterView()))),
                       ActionIconBtn(title: "Sale Reg.", icon: Icons.bar_chart_rounded, color: Colors.indigo, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => const SaleSummaryView()))),
                       ActionIconBtn(title: "Pur. Reg.", icon: Icons.pie_chart_rounded, color: Colors.brown, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => const PurchaseSummaryView()))),
-                      ActionIconBtn(title: "Parties", icon: Icons.people_alt_rounded, color: Colors.teal, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => const PartyMasterView()))),
+                      ActionIconBtn(title: "Ledgers", icon: Icons.people_alt_rounded, color: Colors.teal, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => const PartyMasterView()))),
                       ActionIconBtn(title: "Sales Edit", icon: Icons.edit_note_rounded, color: Colors.blue, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => const SaleBillModifyView()))),
                       ActionIconBtn(title: "More...", icon: Icons.widgets_rounded, color: Colors.blueGrey, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => MoreFeaturesView(onLogout: onLogout)))),
                     ],
