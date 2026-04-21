@@ -2,14 +2,15 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'pharoah_manager.dart';
 import 'widgets.dart';
-import 'product_master.dart';
 import 'party_master.dart';
+import 'product_master.dart';
+import 'route_master_view.dart';
 import 'sale_entry_view.dart';
 import 'sale_summary_view.dart';
 import 'purchase/purchase_entry_view.dart';
 import 'purchase/purchase_summary_view.dart';
-import 'data_exchange_view.dart';
 import 'accounts_menu_view.dart';
+import 'data_exchange_view.dart';
 import 'more_features_view.dart';
 
 class DashboardView extends StatelessWidget {
@@ -21,30 +22,16 @@ class DashboardView extends StatelessWidget {
     final ph = Provider.of<PharoahManager>(context);
     final now = DateTime.now();
 
+    // Stats Calculation
     double todaySales = ph.sales.where((s) => s.status == "Active" && _isSameDay(s.date, now)).fold(0.0, (sum, s) => sum + s.totalAmount);
     double todayPur = ph.purchases.where((p) => _isSameDay(p.date, now)).fold(0.0, (sum, p) => sum + p.totalAmount);
-    double stockVal = ph.medicines.fold(0.0, (sum, m) => sum + (m.stock * m.purRate));
 
     return Scaffold(
       backgroundColor: const Color(0xFFF8F9FD),
       body: Column(
         children: [
-          // HEADER
-          Container(
-            padding: const EdgeInsets.only(top: 60, left: 25, right: 25, bottom: 25),
-            decoration: const BoxDecoration(
-              color: Color(0xFF0D47A1),
-              borderRadius: BorderRadius.only(bottomLeft: Radius.circular(30), bottomRight: Radius.circular(30))
-            ),
-            child: Row(children: [
-              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                const Text("PHAROAH ERP", style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.white)),
-                Text("FY: ${ph.currentFY} | Dashboard", style: const TextStyle(fontSize: 11, color: Colors.white70)),
-              ]),
-              const Spacer(),
-              IconButton(icon: const Icon(Icons.power_settings_new, color: Colors.white), onPressed: onLogout)
-            ]),
-          ),
+          // 1. TOP HEADER (Blue Section)
+          _buildHeader(ph, onLogout),
 
           Expanded(
             child: SingleChildScrollView(
@@ -52,31 +39,56 @@ class DashboardView extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // STATS SECTION
-                  Row(children: [
-                    Expanded(child: StatWidget(title: "TODAY SALE", value: "₹${todaySales.toStringAsFixed(0)}", period: "Today", icon: "trending_up", color: Colors.green)),
-                    const SizedBox(width: 12),
-                    Expanded(child: StatWidget(title: "TODAY PUR", value: "₹${todayPur.toStringAsFixed(0)}", period: "Today", icon: "shopping_cart", color: Colors.orange)),
-                  ]),
-                  const SizedBox(height: 12),
-                  StatWidget(title: "TOTAL STOCK VALUE", value: "₹${stockVal.toStringAsFixed(0)}", period: "Current", icon: "inventory_2", color: Colors.purple),
+                  // 2. BUSINESS SNAPSHOT (Today's Stats)
+                  Row(
+                    children: [
+                      Expanded(child: StatWidget(title: "TODAY SALE", value: "₹${todaySales.toStringAsFixed(0)}", period: "Today", icon: "trending_up", color: Colors.green)),
+                      const SizedBox(width: 12),
+                      Expanded(child: StatWidget(title: "TODAY PUR", value: "₹${todayPur.toStringAsFixed(0)}", period: "Today", icon: "shopping_cart", color: Colors.orange)),
+                    ],
+                  ),
                   
-                  const SizedBox(height: 25),
+                  const SizedBox(height: 30),
 
-                  // PRIMARY ACTIONS (BILLING)
-                  const Text("QUICK ENTRIES", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.blueGrey, letterSpacing: 1)),
-                  const SizedBox(height: 15),
-                  Row(children: [
-                    Expanded(child: _entryButton(context, "NEW SALE", Icons.add_shopping_cart, Colors.blue.shade700, const SaleEntryView())),
-                    const SizedBox(width: 15),
-                    Expanded(child: _entryButton(context, "PURCHASE", Icons.downloading_rounded, Colors.orange.shade800, const PurchaseEntryView())),
-                  ]),
+                  // 3. DAILY TRANSACTIONS (BIG BUTTONS)
+                  const Text("DAILY TRANSACTIONS", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.blueGrey, letterSpacing: 1)),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(child: _bigEntryButton(context, "NEW SALE", Icons.add_shopping_cart, Colors.blue.shade700, const SaleEntryView())),
+                      const SizedBox(width: 15),
+                      Expanded(child: _bigEntryButton(context, "PURCHASE ENTRY", Icons.downloading_rounded, Colors.orange.shade800, const PurchaseEntryView())),
+                    ],
+                  ),
 
-                  const SizedBox(height: 25),
+                  const SizedBox(height: 30),
 
-                  // MODULES GRID
-                  const Text("MANAGEMENT MODULES", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.blueGrey, letterSpacing: 1)),
-                  const SizedBox(height: 15),
+                  // 4. MASTER HUB (New Professional Section)
+                  const Text("MASTER HUB", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.blueGrey, letterSpacing: 1)),
+                  const SizedBox(height: 12),
+                  Container(
+                    padding: const EdgeInsets.all(20),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(20),
+                      boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 10, offset: const Offset(0, 5))],
+                      border: Border.all(color: Colors.grey.shade100)
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceAround,
+                      children: [
+                        _masterIconBtn(context, "Parties", Icons.people_alt_rounded, Colors.indigo, const PartyMasterView()),
+                        _masterIconBtn(context, "Item Master", Icons.inventory_2_rounded, Colors.purple, const ProductMasterView()),
+                        _masterIconBtn(context, "Route Master", Icons.map_rounded, Colors.teal, const RouteMasterView()),
+                      ],
+                    ),
+                  ),
+
+                  const SizedBox(height: 30),
+
+                  // 5. SECONDARY GRID (Management & Reports)
+                  const Text("MANAGEMENT & REPORTS", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.blueGrey, letterSpacing: 1)),
+                  const SizedBox(height: 12),
                   GridView.count(
                     shrinkWrap: true,
                     physics: const NeverScrollableScrollPhysics(),
@@ -85,14 +97,14 @@ class DashboardView extends StatelessWidget {
                     mainAxisSpacing: 10,
                     childAspectRatio: 0.85,
                     children: [
-                      ActionIconBtn(title: "Accounts", icon: Icons.account_balance_wallet, color: Colors.indigo, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => const AccountsMenuView()))),
+                      ActionIconBtn(title: "Accounts", icon: Icons.account_balance_wallet, color: Colors.green.shade700, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => const AccountsMenuView()))),
                       ActionIconBtn(title: "Sale Reg", icon: Icons.description_outlined, color: Colors.blue, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => const SaleSummaryView()))),
                       ActionIconBtn(title: "Pur Reg", icon: Icons.history_rounded, color: Colors.brown, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => const PurchaseSummaryView()))),
-                      ActionIconBtn(title: "Inventory", icon: Icons.inventory_2, color: Colors.purple, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => const ProductMasterView()))),
-                      ActionIconBtn(title: "Data Hub", icon: Icons.cloud_sync, color: Colors.teal, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => const DataExchangeView()))),
-                      ActionIconBtn(title: "Settings", icon: Icons.settings, color: Colors.grey, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => MoreFeaturesView(onLogout: onLogout)))),
+                      ActionIconBtn(title: "Data Hub", icon: Icons.cloud_sync_rounded, color: Colors.teal, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => const DataExchangeView()))),
+                      ActionIconBtn(title: "Settings", icon: Icons.settings_rounded, color: Colors.grey, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => MoreFeaturesView(onLogout: onLogout)))),
                     ],
                   ),
+                  const SizedBox(height: 20),
                 ],
               ),
             ),
@@ -102,17 +114,69 @@ class DashboardView extends StatelessWidget {
     );
   }
 
-  Widget _entryButton(BuildContext context, String label, IconData icon, Color color, Widget target) {
+  // --- UI COMPONENTS ---
+
+  Widget _buildHeader(PharoahManager ph, VoidCallback onLogout) {
+    return Container(
+      padding: const EdgeInsets.only(top: 60, left: 25, right: 25, bottom: 25),
+      decoration: const BoxDecoration(
+        color: Color(0xFF0D47A1),
+        borderRadius: BorderRadius.only(bottomLeft: Radius.circular(30), bottomRight: Radius.circular(30))
+      ),
+      child: Row(
+        children: [
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text("PHAROAH ERP", style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.white)),
+              Text("Financial Year: ${ph.currentFY}", style: const TextStyle(fontSize: 11, color: Colors.white70)),
+            ],
+          ),
+          const Spacer(),
+          IconButton(
+            icon: const Icon(Icons.power_settings_new_rounded, color: Colors.white, size: 28),
+            onPressed: onLogout,
+          )
+        ],
+      ),
+    );
+  }
+
+  Widget _bigEntryButton(BuildContext context, String label, IconData icon, Color color, Widget target) {
     return InkWell(
       onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => target)),
       child: Container(
-        height: 80,
-        decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(15), boxShadow: [BoxShadow(color: color.withOpacity(0.3), blurRadius: 8, offset: const Offset(0, 4))]),
-        child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-          Icon(icon, color: Colors.white, size: 28),
-          const SizedBox(height: 5),
-          Text(label, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 11)),
-        ]),
+        height: 90,
+        decoration: BoxDecoration(
+          color: color,
+          borderRadius: BorderRadius.circular(18),
+          boxShadow: [BoxShadow(color: color.withOpacity(0.3), blurRadius: 10, offset: const Offset(0, 5))]
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon, color: Colors.white, size: 30),
+            const SizedBox(height: 8),
+            Text(label, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _masterIconBtn(BuildContext context, String label, IconData icon, Color color, Widget target) {
+    return InkWell(
+      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => target)),
+      child: Column(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(color: color.withOpacity(0.1), shape: BoxShape.circle),
+            child: Icon(icon, color: color, size: 26),
+          ),
+          const SizedBox(height: 8),
+          Text(label, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.black87)),
+        ],
       ),
     );
   }
