@@ -3,8 +3,8 @@ import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import '../pharoah_manager.dart';
 import '../models.dart';
-import '../pdf/purchase_report_pdf.dart'; // Naya PDF Import
-import 'purchase_entry_view.dart'; // Navigation ke liye
+import '../pdf/purchase_report_pdf.dart'; 
+import 'purchase_entry_view.dart'; 
 
 class PurchaseSummaryView extends StatefulWidget {
   const PurchaseSummaryView({super.key});
@@ -25,7 +25,6 @@ class _PurchaseSummaryViewState extends State<PurchaseSummaryView> {
     });
   }
 
-  // --- SEARCHABLE DISTRIBUTOR DIALOG ---
   void _showSupplierSearch(List<Party> allParties) {
     showDialog(
       context: context,
@@ -64,7 +63,7 @@ class _PurchaseSummaryViewState extends State<PurchaseSummaryView> {
   @override Widget build(BuildContext context) {
     final ph = Provider.of<PharoahManager>(context);
     
-    // Filter Logic
+    // Filter Logic (Based on Supplier Bill Date)
     List<Purchase> filteredPur = ph.purchases.where((p) {
       bool dateMatch = p.date.isAfter(fromDate.subtract(const Duration(days: 1))) && p.date.isBefore(toDate.add(const Duration(days: 1)));
       bool partyMatch = selectedSupplier == null || p.distributorName == selectedSupplier!.name;
@@ -111,18 +110,40 @@ class _PurchaseSummaryViewState extends State<PurchaseSummaryView> {
           ]),
         ),
         
-        // --- LIST ---
+        // --- LIST WITH DUAL DATES ---
         Expanded(
           child: ListView.builder(
             padding: const EdgeInsets.all(10), itemCount: filteredPur.length,
             itemBuilder: (c, i) {
               final p = filteredPur[i];
               return Card(
+                elevation: 2,
+                margin: const EdgeInsets.only(bottom: 8),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                 child: ListTile(
-                  title: Text(p.distributorName, style: const TextStyle(fontWeight: FontWeight.bold)),
-                  subtitle: Text("Bill: ${p.billNo} | ${DateFormat('dd/MM/yy').format(p.date)}\nMode: ${p.paymentMode}"),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 15, vertical: 8),
+                  title: Text(p.distributorName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+                  subtitle: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const SizedBox(height: 4),
+                      Text("Bill No: ${p.billNo}", style: const TextStyle(color: Colors.black87, fontWeight: FontWeight.w600)),
+                      const SizedBox(height: 2),
+                      Row(
+                        children: [
+                          const Icon(Icons.calendar_today, size: 12, color: Colors.orange),
+                          const SizedBox(width: 4),
+                          Text("Bill: ${DateFormat('dd/MM/yy').format(p.date)}", style: const TextStyle(fontWeight: FontWeight.bold)),
+                          const SizedBox(width: 15),
+                          const Icon(Icons.computer, size: 12, color: Colors.blue),
+                          const SizedBox(width: 4),
+                          Text("Entry: ${DateFormat('dd/MM/yy').format(p.entryDate)}", style: const TextStyle(fontSize: 12, color: Colors.blueGrey)),
+                        ],
+                      ),
+                      Text("Mode: ${p.paymentMode}", style: const TextStyle(fontSize: 11)),
+                    ],
+                  ),
                   trailing: Text("₹${p.totalAmount.toStringAsFixed(2)}", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.deepOrange)),
-                  // TAP TO MODIFY
                   onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => PurchaseEntryView(existingPurchase: p))),
                 ),
               );
