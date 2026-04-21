@@ -5,17 +5,12 @@ import 'widgets.dart';
 import 'product_master.dart';
 import 'party_master.dart';
 import 'sale_entry_view.dart';
-import 'sale_bill_modify_view.dart';
+import 'sale_summary_view.dart';
 import 'purchase/purchase_entry_view.dart';
 import 'purchase/purchase_summary_view.dart';
-import 'more_features_view.dart';
-import 'sale_summary_view.dart';
 import 'data_exchange_view.dart';
-import 'accounting_views.dart';
-import 'ledger_reports_view.dart';
-import 'daybook_view.dart';
-import 'profit_loss_view.dart';
-import 'item_ledger_view.dart';
+import 'accounts_menu_view.dart'; // Naya Menu
+import 'more_features_view.dart';
 
 class DashboardView extends StatelessWidget {
   final VoidCallback onLogout;
@@ -26,7 +21,7 @@ class DashboardView extends StatelessWidget {
     final ph = Provider.of<PharoahManager>(context);
     final now = DateTime.now();
 
-    // Stats Calculations
+    // Stats Logic
     double todaySales = ph.sales.where((s) => s.status == "Active" && _isSameDay(s.date, now)).fold(0.0, (sum, s) => sum + s.totalAmount);
     double todayPur = ph.purchases.where((p) => _isSameDay(p.date, now)).fold(0.0, (sum, p) => sum + p.totalAmount);
     double stockVal = ph.medicines.fold(0.0, (sum, m) => sum + (m.stock * m.purRate));
@@ -35,64 +30,81 @@ class DashboardView extends StatelessWidget {
       backgroundColor: const Color(0xFFF8F9FD),
       body: Column(
         children: [
+          // --- HEADER ---
           Container(
             padding: const EdgeInsets.only(top: 60, left: 25, right: 25, bottom: 25),
-            decoration: const BoxDecoration(color: Color(0xFF0D47A1), borderRadius: BorderRadius.only(bottomLeft: Radius.circular(30), bottomRight: Radius.circular(30))),
+            decoration: const BoxDecoration(
+              color: Color(0xFF0D47A1),
+              borderRadius: BorderRadius.only(bottomLeft: Radius.circular(30), bottomRight: Radius.circular(30))
+            ),
             child: Row(children: [
               Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 const Text("PHAROAH ERP", style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.white)),
-                Text("FY: ${ph.currentFY} | Dashboard", style: const TextStyle(fontSize: 11, color: Colors.white70)),
+                Text("FY: ${ph.currentFY} | Main Dashboard", style: const TextStyle(fontSize: 11, color: Colors.white70)),
               ]),
               const Spacer(),
-              IconButton(icon: const Icon(Icons.logout, color: Colors.white), onPressed: onLogout)
+              IconButton(icon: const Icon(Icons.power_settings_new, color: Colors.white), onPressed: onLogout)
             ]),
           ),
+
           Expanded(
             child: SingleChildScrollView(
               padding: const EdgeInsets.all(20),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // --- STATS GRID ---
-                  GridView.count(
-                    shrinkWrap: true, physics: const NeverScrollableScrollPhysics(), crossAxisCount: 2, crossAxisSpacing: 12, mainAxisSpacing: 12, childAspectRatio: 1.5,
+                  // --- SECTION 1: BUSINESS SNAPSHOT ---
+                  Row(
                     children: [
-                      StatWidget(title: "TODAY SALE", value: "₹${todaySales.toStringAsFixed(0)}", period: "Today", icon: "trending_up", color: Colors.green),
-                      StatWidget(title: "TODAY PUR", value: "₹${todayPur.toStringAsFixed(0)}", period: "Today", icon: "shopping_cart", color: Colors.orange),
-                      StatWidget(title: "STOCK VALUE", value: "₹${stockVal.toStringAsFixed(0)}", period: "Total", icon: "inventory_2", color: Colors.purple),
-                      StatWidget(title: "NET PROFIT", value: "VIEW", period: "Analysis", icon: "payments", color: Colors.blue),
+                      Expanded(child: StatWidget(title: "TODAY SALE", value: "₹${todaySales.toStringAsFixed(0)}", period: "Today", icon: "trending_up", color: Colors.green)),
+                      const SizedBox(width: 12),
+                      Expanded(child: StatWidget(title: "TODAY PUR", value: "₹${todayPur.toStringAsFixed(0)}", period: "Today", icon: "shopping_cart", color: Colors.orange)),
                     ],
                   ),
-                  const SizedBox(height: 25),
+                  const SizedBox(height: 12),
+                  StatWidget(title: "TOTAL STOCK VALUE (AT COST)", value: "₹${stockVal.toStringAsFixed(2)}", period: "Real-time", icon: "inventory_2", color: Colors.purple),
+                  
+                  const SizedBox(height: 30),
 
-                  // --- CASH & ACCOUNTING ---
-                  const Text("ACCOUNTING & CASH", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Colors.blueGrey)),
-                  const SizedBox(height: 10),
-                  Row(children: [
-                    Expanded(child: ActionIconBtn(title: "Receipt", icon: Icons.add_chart, color: Colors.green, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => const VoucherEntryView(type: "Receipt"))))),
-                    const SizedBox(width: 8),
-                    Expanded(child: ActionIconBtn(title: "Payment", icon: Icons.analytics, color: Colors.red, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => const VoucherEntryView(type: "Payment"))))),
-                    const SizedBox(width: 8),
-                    Expanded(child: ActionIconBtn(title: "Daybook", icon: Icons.menu_book, color: Colors.blueGrey, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => const DaybookView())))),
-                    const SizedBox(width: 8),
-                    Expanded(child: ActionIconBtn(title: "Khaata", icon: Icons.people, color: Colors.indigo, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => const LedgerReportsView())))),
-                  ]),
-                  const SizedBox(height: 25),
-
-                  // --- MAIN ACTIONS ---
-                  const Text("BUSINESS OPERATIONS", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Colors.blueGrey)),
-                  const SizedBox(height: 10),
-                  GridView.count(
-                    shrinkWrap: true, physics: const NeverScrollableScrollPhysics(), crossAxisCount: 3, crossAxisSpacing: 10, mainAxisSpacing: 10, childAspectRatio: 0.9,
+                  // --- SECTION 2: BILLING & ENTRIES ---
+                  const Text("DAILY OPERATIONS", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.blueGrey, letterSpacing: 1)),
+                  const SizedBox(height: 15),
+                  Row(
                     children: [
-                      ActionIconBtn(title: "New Sale", icon: Icons.add_shopping_cart, color: Colors.blue, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => const SaleEntryView()))),
-                      ActionIconBtn(title: "Stock-In", icon: Icons.downloading, color: Colors.orange, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => const PurchaseEntryView()))),
-                      ActionIconBtn(title: "Inventory", icon: Icons.inventory, color: Colors.purple, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => const ProductMasterView()))),
-                      ActionIconBtn(title: "Sale Reg", icon: Icons.assessment, color: Colors.blue, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => const SaleSummaryView()))),
-                      ActionIconBtn(title: "Pur Reg", icon: Icons.history, color: Colors.brown, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => const PurchaseSummaryView()))),
-                      ActionIconBtn(title: "P & L", icon: Icons.pie_chart, color: Colors.teal, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => const ProfitLossView()))),
-                      ActionIconBtn(title: "Ledgers", icon: Icons.contact_page, color: Colors.indigo, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => const PartyMasterView()))),
-                      ActionIconBtn(title: "Stock Trk", icon: Icons.track_changes, color: Colors.teal, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => const ItemLedgerSearchView()))),
+                      Expanded(
+                        child: _bigActionButton(
+                          context, "NEW SALE", Icons.add_shopping_cart, Colors.blue.shade700, 
+                          const SaleEntryView()
+                        )
+                      ),
+                      const SizedBox(width: 15),
+                      Expanded(
+                        child: _bigActionButton(
+                          context, "PURCHASE ENTRY", Icons.downloading_rounded, Colors.orange.shade800, 
+                          const PurchaseEntryView()
+                        )
+                      ),
+                    ],
+                  ),
+
+                  const SizedBox(height: 30),
+
+                  // --- SECTION 3: MODULES GRID ---
+                  const Text("MANAGEMENT MODULES", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.blueGrey, letterSpacing: 1)),
+                  const SizedBox(height: 15),
+                  GridView.count(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    crossAxisCount: 3,
+                    crossAxisSpacing: 12,
+                    mainAxisSpacing: 12,
+                    childAspectRatio: 0.9,
+                    children: [
+                      ActionIconBtn(title: "Accounts", icon: Icons.account_balance_wallet, color: Colors.indigo, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => const AccountsMenuView()))),
+                      ActionIconBtn(title: "Sale Reg", icon: Icons.description_outlined, color: Colors.blue, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => const SaleSummaryView()))),
+                      ActionIconBtn(title: "Pur Reg", icon: Icons.history_rounded, color: Colors.brown, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => const PurchaseSummaryView()))),
+                      ActionIconBtn(title: "Inventory", icon: Icons.inventory_2, color: Colors.purple, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => const ProductMasterView()))),
+                      ActionIconBtn(title: "Data Hub", icon: Icons.cloud_sync, color: Colors.teal, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => const DataExchangeView()))),
                       ActionIconBtn(title: "Settings", icon: Icons.settings, color: Colors.grey, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => MoreFeaturesView(onLogout: onLogout)))),
                     ],
                   ),
@@ -104,5 +116,25 @@ class DashboardView extends StatelessWidget {
       ),
     );
   }
+
+  // Helper function for big buttons
+  Widget _bigActionButton(BuildContext context, String label, IconData icon, Color color, Widget target) {
+    return InkWell(
+      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => target)),
+      child: Container(
+        height: 100,
+        decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(20), boxShadow: [BoxShadow(color: color.withOpacity(0.3), blurRadius: 10, offset: const Offset(0, 5))]),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon, color: Colors.white, size: 30),
+            const SizedBox(height: 8),
+            Text(label, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12)),
+          ],
+        ),
+      ),
+    );
+  }
+
   bool _isSameDay(DateTime d1, DateTime d2) => d1.day == d2.day && d1.month == d2.month && d1.year == d2.year;
 }
