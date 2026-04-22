@@ -55,6 +55,11 @@ class Party {
   double opBal, creditLimit; int creditDays;
 
   Party({required this.id, required this.name, this.group = "Sundry Debtors", this.phone = "", this.email = "", this.address = "", this.city = "", this.state = "Rajasthan", this.route = "", this.gst = "", this.dl = "", this.dlExp = "", this.pan = "", this.transport = "", this.priceLevel = "A", this.hsnCode = "N/A", this.opBal = 0.0, this.creditLimit = 0.0, this.creditDays = 0});
+
+  // Getter added for backwards compatibility with gst_report_service
+  String get accountGroup => group; 
+  bool get isB2B => gst.length >= 15;
+
   Map<String, dynamic> toMap() => {'id': id, 'name': name, 'group': group, 'phone': phone, 'email': email, 'address': address, 'city': city, 'state': state, 'route': route, 'gst': gst, 'dl': dl, 'dlExp': dlExp, 'pan': pan, 'transport': transport, 'priceLevel': priceLevel, 'hsnCode': hsnCode, 'opBal': opBal, 'creditLimit': creditLimit, 'creditDays': creditDays};
   factory Party.fromMap(Map<String, dynamic> map) => Party(id: map['id'] ?? "", name: map['name'] ?? "", group: map['group'] ?? "Sundry Debtors", phone: map['phone'] ?? "", email: map['email'] ?? "", address: map['address'] ?? "", city: map['city'] ?? "", state: map['state'] ?? "Rajasthan", route: map['route'] ?? "", gst: map['gst'] ?? "", dl: map['dl'] ?? "", dlExp: map['dlExp'] ?? "", pan: map['pan'] ?? "", transport: map['transport'] ?? "", priceLevel: map['priceLevel'] ?? "A", hsnCode: map['hsnCode'] ?? "N/A", opBal: (map['opBal'] ?? 0.0).toDouble(), creditLimit: (map['creditLimit'] ?? 0.0).toDouble(), creditDays: map['creditDays'] ?? 0);
 }
