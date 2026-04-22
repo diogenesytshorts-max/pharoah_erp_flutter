@@ -19,7 +19,7 @@ class PharoahManager with ChangeNotifier {
   List<DrugType> drugTypes = [];
   List<LogEntry> logs = [];
   List<Voucher> vouchers = [];
-  Map<String, List<BatchInfo>> batchHistory = {}; // Key: uniqueCode
+  Map<String, List<BatchInfo>> batchHistory = {};
   
   String currentFY = "2025-26";
 
@@ -81,7 +81,14 @@ class PharoahManager with ChangeNotifier {
     notifyListeners();
   }
 
-  // Batch recall logic based on uniqueCode
+  // --- METHODS THAT WERE MISSING ---
+  void addLog(String action, String details) { logs.add(LogEntry(id: DateTime.now().toString(), action: action, details: details, time: DateTime.now())); save(); }
+  void addCompany(Company c) { companies.add(c); save(); }
+  void addSalt(Salt s) { salts.add(s); save(); }
+  void addDrugType(DrugType d) { drugTypes.add(d); save(); }
+  void addRoute(RouteArea r) { routes.add(r); save(); }
+  void addVoucher(Voucher v) { vouchers.add(v); save(); }
+
   void saveBatchCentrally(String uniqueCode, BatchInfo b) {
     if (uniqueCode.isEmpty) return;
     if(!batchHistory.containsKey(uniqueCode)) batchHistory[uniqueCode] = [];
@@ -92,7 +99,6 @@ class PharoahManager with ChangeNotifier {
   void finalizeSale({required String billNo, required DateTime date, required Party party, required List<BillItem> items, required double total, required String mode}) {
     sales.add(Sale(id: DateTime.now().toString(), billNo: billNo, date: date, partyName: party.name, partyGstin: party.gst, partyState: party.state, items: items, totalAmount: total, paymentMode: mode));
     for (var it in items) {
-      // Find by ID, but use uniqueCode for batch update
       Medicine? m = medicines.firstWhere((med) => med.id == it.medicineID);
       m.stock -= (it.qty + it.freeQty);
       saveBatchCentrally(m.uniqueCode.isNotEmpty ? m.uniqueCode : m.id, BatchInfo(batch: it.batch, exp: it.exp, packing: it.packing, mrp: it.mrp, rate: it.rate));
@@ -114,53 +120,16 @@ class PharoahManager with ChangeNotifier {
     save();
   }
 
-  // --- DELETE & LOGS ---
-  void addLog(String action, String details) { logs.add(LogEntry(id: DateTime.now().toString(), action: action, details: details, time: DateTime.now())); save(); }
-  void deleteParty(String id) { if(parties.firstWhere((p)=>p.id==id).name != "CASH") { parties.removeWhere((p) => p.id == id); save(); } }
+  void deleteParty(String id) { parties.removeWhere((p) => p.id == id); save(); }
   void deleteRoute(String id) { routes.removeWhere((r) => r.id == id); save(); }
-
-  void deleteBill(String id) {
-    int i = sales.indexWhere((s) => s.id == id);
-    if(i != -1) {
-      if(sales[i].status == "Active") {
-        for(var it in sales[i].items) {
-          int mi = medicines.indexWhere((m) => m.id == it.medicineID);
-          if(mi != -1) medicines[mi].stock += (it.qty + it.freeQty);
-        }
-      }
-      sales.removeAt(i); save();
-    }
-  }
-
-  void deletePurchase(String id) {
-    int i = purchases.indexWhere((p) => p.id == id);
-    if(i != -1) {
-      for(var it in purchases[i].items) {
-        int mi = medicines.indexWhere((m) => m.id == it.medicineID);
-        if(mi != -1) medicines[mi].stock -= (it.qty + it.freeQty);
-      }
-      purchases.removeAt(i); save();
-    }
-  }
-
+  void deleteBill(String id) { sales.removeWhere((s) => s.id == id); save(); }
+  void deletePurchase(String id) { purchases.removeWhere((p) => p.id == id); save(); }
   void cancelBill(String id) {
     int i = sales.indexWhere((s) => s.id == id);
-    if(i != -1 && sales[i].status != "Cancelled") {
-      for(var it in sales[i].items) {
-        int mi = medicines.indexWhere((m) => m.id == it.medicineID);
-        if(mi != -1) medicines[mi].stock += (it.qty + it.freeQty);
-      }
-      sales[i].status = "Cancelled";
-      addLog("CANCEL", "Sale Bill #${sales[i].billNo} Cancelled");
-      save();
-    }
+    if(i != -1) { sales[i].status = "Cancelled"; addLog("CANCEL", "Sale Bill #${sales[i].billNo} Cancelled"); save(); }
   }
 
   Future<void> runAutoBackup() async { addLog("SYSTEM", "Backup taken"); await save(); }
-  Future<void> runFullMaintenance() async { await loadAllData(); }
   Future<void> masterReset() async { final dir = await getFYDirectory(); final d = Directory(dir); if(d.existsSync()) d.deleteSync(recursive: true); await loadAllData(); }
   Future<void> switchYear(String year) async { currentFY = year; await loadAllData(); notifyListeners(); }
-  
-  DateTime get fyStartDate => DateTime(int.parse(currentFY.split('-')[0]), 4, 1);
-  DateTime get fyEndDate => DateTime(int.parse(currentFY.split('-')[0]) + 1, 3, 31);
 }
