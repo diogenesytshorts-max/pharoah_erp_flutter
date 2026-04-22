@@ -87,7 +87,7 @@ class PharoahManager with ChangeNotifier {
     notifyListeners();
   }
 
-  // --- MISSING METHODS RE-ADDED ---
+  // --- SARE METHODS WAPAS ADD KIYE ---
   void addVoucher(Voucher v) { vouchers.add(v); save(); }
   void addCompany(Company c) { companies.add(c); save(); }
   void addSalt(Salt s) { salts.add(s); save(); }
@@ -95,7 +95,7 @@ class PharoahManager with ChangeNotifier {
   void addRoute(RouteArea r) { routes.add(r); save(); }
   void deleteRoute(String id) { routes.removeWhere((r) => r.id == id); save(); }
   Future<void> runFullMaintenance() async { await loadAllData(); }
-
+  
   void saveBatchCentrally(Medicine med, BatchInfo b) {
     String key = med.identityKey; 
     if(!batchHistory.containsKey(key)) batchHistory[key] = [];
@@ -110,7 +110,7 @@ class PharoahManager with ChangeNotifier {
     sales.add(Sale(id: DateTime.now().toString(), billNo: billNo, date: date, partyName: party.name, partyGstin: party.gst, partyState: party.state, items: items, totalAmount: total, paymentMode: mode));
     for (var it in items) {
       Medicine m = medicines.firstWhere((med) => med.id == it.medicineID);
-      m.stock -= (it.qty);
+      m.stock -= it.qty;
       saveBatchCentrally(m, BatchInfo(batch: it.batch, exp: it.exp, packing: it.packing, mrp: it.mrp, rate: it.rate));
     }
     addLog("SALE", "New Bill: #$billNo for ${party.name}");
