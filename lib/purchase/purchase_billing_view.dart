@@ -4,6 +4,16 @@ import 'package:provider/provider.dart';
 import '../pharoah_manager.dart';
 import '../models.dart';
 
+// --- BATCH & EXPIRY FORMATTERS ---
+class ExpiryDateFormatter extends TextInputFormatter {
+  @override TextEditingValue formatEditUpdate(TextEditingValue oldValue, TextEditingValue newValue) {
+    var text = newValue.text;
+    if (newValue.selection.baseOffset < oldValue.selection.baseOffset) return newValue;
+    if (text.length == 2 && !text.contains('/')) return TextEditingValue(text: '$text/', selection: TextSelection.collapsed(offset: 3));
+    return newValue;
+  }
+}
+
 class PurchaseBillingView extends StatefulWidget {
   final Party distributor; 
   final String internalNo, distBillNo, mode; 
@@ -17,7 +27,9 @@ class PurchaseBillingView extends StatefulWidget {
 }
 
 class _PurchaseBillingViewState extends State<PurchaseBillingView> {
-  List<PurchaseItem> items = []; String searchQuery = ""; Medicine? selectedMed;
+  List<PurchaseItem> items = []; 
+  String searchQuery = ""; 
+  Medicine? selectedMed;
   double get totalAmt => items.fold(0, (sum, it) => sum + it.total);
 
   @override void initState() { super.initState(); if (widget.existingItems != null) items = List.from(widget.existingItems!); }
@@ -25,17 +37,48 @@ class _PurchaseBillingViewState extends State<PurchaseBillingView> {
   @override Widget build(BuildContext context) {
     final ph = Provider.of<PharoahManager>(context);
     return Scaffold(
-      appBar: AppBar(backgroundColor: Colors.orange.shade800, foregroundColor: Colors.white, title: Text(widget.distributor.name), actions: [TextButton(onPressed: items.isEmpty ? null : () => _handleSave(ph), child: const Text("FINISH", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)))]),
+      appBar: AppBar(
+        backgroundColor: Colors.orange.shade800, foregroundColor: Colors.white, 
+        title: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(widget.distributor.name, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold)), 
+            Text("Bill: ${widget.distBillNo} | ID: ${widget.internalNo}", style: const TextStyle(fontSize: 10))
+        ]), 
+        actions: [
+          TextButton(onPressed: items.isEmpty ? null : () => _handleSave(ph), child: const Text("FINISH", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)))
+        ]
+      ),
       body: Stack(children: [
         Column(children: [
-          if (selectedMed == null) Container(padding: const EdgeInsets.all(12), color: Colors.orange.shade50, child: TextField(autofocus: true, decoration: const InputDecoration(hintText: "Search Product...", prefixIcon: Icon(Icons.search), border: OutlineInputBorder()), onChanged: (v) => setState(() => searchQuery = v))),
-          if (selectedMed != null) PurchaseItemForm(med: selectedMed!, srNo: items.length + 1, batchHistory: ph.batchHistory[selectedMed!.id] ?? [], onAdd: (newItem) {
-            setState(() { items.add(newItem); selectedMed = null; searchQuery = ""; });
-          }, onCancel: () => setState(() => selectedMed = null)),
-          Expanded(child: ListView.separated(itemCount: items.length, separatorBuilder: (c, i) => const Divider(), itemBuilder: (c, i) => ListTile(title: Text(items[i].name, style: const TextStyle(fontWeight: FontWeight.bold)), subtitle: Text("Qty: ${items[i].qty} + ${items[i].freeQty} | Batch: ${items[i].batch}"), trailing: Text("₹${items[i].total.toStringAsFixed(2)}"), onTap: () => setState(() { selectedMed = ph.medicines.firstWhere((m) => m.id == items[i].medicineID); items.removeAt(i); })))),
-          Container(padding: const EdgeInsets.all(15), color: Colors.orange.shade50, child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [Text("TOTAL: ₹${totalAmt.toStringAsFixed(2)}", style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.deepOrange))]))
+          if (selectedMed == null) 
+            Container(padding: const EdgeInsets.all(12), color: Colors.orange.shade50, child: TextField(autofocus: true, decoration: const InputDecoration(hintText: "Search Product...", prefixIcon: Icon(Icons.search, color: Colors.orange), border: OutlineInputBorder()), onChanged: (v) => setState(() => searchQuery = v))),
+          
+          if (selectedMed != null) 
+            PurchaseItemForm(
+              med: selectedMed!, 
+              srNo: items.length + 1, 
+              batchHistory: ph.batchHistory[selectedMed!.id] ?? [],
+              onAdd: (newItem) {
+                setState(() { items.add(newItem); selectedMed = null; searchQuery = ""; });
+              }, 
+              onCancel: () => setState(() => selectedMed = null)
+            ),
+          
+          Expanded(child: ListView.separated(
+            itemCount: items.length, separatorBuilder: (c, i) => const Divider(), itemBuilder: (c, i) => ListTile(
+              title: Text(items[i].name, style: const TextStyle(fontWeight: FontWeight.bold)), 
+              subtitle: Text("Qty: ${items[i].qty} + ${items[i].freeQty} Free | Batch: ${items[i].batch}"), 
+              trailing: Text("₹${items[i].total.toStringAsFixed(2)}"),
+              onLongPress: () => setState(() => items.removeAt(i)),
+            )
+          )),
+
+          if (searchQuery.isNotEmpty && selectedMed == null)
+            Container(constraints: const BoxConstraints(maxHeight: 250), color: Colors.white, child: ListView(children: ph.medicines.where((m) => m.name.toLowerCase().contains(searchQuery.toLowerCase())).map((m) => ListTile(
+              leading: const Icon(Icons.medication), title: Text(m.name), onTap: () => setState(() { selectedMed = m; searchQuery = ""; }),
+            )).toList())),
+
+          Container(padding: const EdgeInsets.all(15), color: Colors.orange.shade50, child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [Text("TOTAL ITEMS: ${items.length}"), Text("NET TOTAL: ₹${totalAmt.toStringAsFixed(2)}", style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.deepOrange))]))
         ]),
-        if (searchQuery.isNotEmpty && selectedMed == null) Positioned(top: 70, left: 15, right: 15, child: Material(elevation: 10, borderRadius: BorderRadius.circular(10), child: Container(constraints: const BoxConstraints(maxHeight: 250), child: ListView(shrinkWrap: true, children: ph.medicines.where((m) => m.name.toLowerCase().contains(searchQuery.toLowerCase())).map((m) => ListTile(leading: const Icon(Icons.medication), title: Text(m.name), onTap: () => setState(() { selectedMed = m; searchQuery = ""; }))).toList()))))
       ]),
     );
   }
@@ -56,26 +99,37 @@ class PurchaseItemForm extends StatefulWidget {
 class _PurchaseItemFormState extends State<PurchaseItemForm> {
   final bC = TextEditingController(); final eC = TextEditingController(); final gC = TextEditingController(); 
   final mC = TextEditingController(); final pRC = TextEditingController(); final qC = TextEditingController(text: "1"); 
-  final fC = TextEditingController(text: "0"); final rAC = TextEditingController(); final rBC = TextEditingController(); 
-  final rCC = TextEditingController(); final rCD = TextEditingController(text: "0");
+  final fC = TextEditingController(text: "0"); final rAC = TextEditingController(); 
+  final rBC = TextEditingController(); final rCC = TextEditingController(); final rCD = TextEditingController(text: "0");
 
-  @override void initState() { super.initState(); mC.text = widget.med.mrp.toString(); gC.text = widget.med.gst.toString(); pRC.text = widget.med.purRate.toString(); rAC.text = widget.med.rateA.toString(); rBC.text = widget.med.rateB.toString(); _calcRateC(); }
-  void _calcRateC() { double mrp = double.tryParse(mC.text) ?? 0; double gst = double.tryParse(gC.text) ?? 0; double disc = double.tryParse(rCD.text) ?? 0; double taxableValue = mrp / (1 + (gst / 100)); rCC.text = (taxableValue - (taxableValue * disc / 100)).toStringAsFixed(2); }
+  @override void initState() { 
+    super.initState(); 
+    mC.text = widget.med.mrp.toString(); gC.text = widget.med.gst.toString(); pRC.text = widget.med.purRate.toString();
+    rAC.text = widget.med.rateA.toString(); rBC.text = widget.med.rateB.toString(); _calcRateC(); 
+  }
+
+  void _calcRateC() {
+    double mrp = double.tryParse(mC.text) ?? 0;
+    double gst = double.tryParse(gC.text) ?? 0;
+    double disc = double.tryParse(rCD.text) ?? 0;
+    double taxableValue = mrp / (1 + (gst / 100));
+    rCC.text = (taxableValue - (taxableValue * disc / 100)).toStringAsFixed(2);
+  }
 
   @override Widget build(BuildContext context) {
     return Container(padding: const EdgeInsets.all(15), color: Colors.orange.shade50, child: Column(children: [
       Row(children: [Expanded(child: Text("${widget.srNo}. ${widget.med.name}", style: const TextStyle(fontWeight: FontWeight.bold))), IconButton(icon: const Icon(Icons.close), onPressed: widget.onCancel)]),
+      if (widget.batchHistory.isNotEmpty) SizedBox(height: 35, child: ListView(scrollDirection: Axis.horizontal, children: widget.batchHistory.map((b) => Padding(padding: const EdgeInsets.only(right: 5), child: ActionChip(label: Text("${b.batch}"), onPressed: () => setState(() { bC.text = b.batch; eC.text = b.exp; mC.text = b.mrp.toString(); pRC.text = b.rate.toString(); _calcRateC(); })))).toList())),
       Row(children: [
-        // BATCH FIELD: Alphanumeric
         Expanded(child: TextField(controller: bC, keyboardType: TextInputType.text, textCapitalization: TextCapitalization.none, decoration: const InputDecoration(labelText: "Batch", border: OutlineInputBorder(), contentPadding: EdgeInsets.all(8)))),
-        const SizedBox(width: 5), Expanded(child: _field(eC, "Exp")), const SizedBox(width: 5), Expanded(child: _field(gC, "GST%", onCh: (v) => _calcRateC())),
+        const SizedBox(width: 5), Expanded(child: _field(eC, "Exp", fmt: [ExpiryDateFormatter()])), 
+        const SizedBox(width: 5), Expanded(child: _field(gC, "GST%", onCh: (v) => _calcRateC())),
       ]),
       const SizedBox(height: 10),
       Row(children: [
-        Expanded(child: _field(mC, "MRP", onCh: (v) => _calcRateC())), const SizedBox(width: 5),
-        Expanded(child: _field(pRC, "Pur. Rate")), const SizedBox(width: 5),
-        Expanded(child: _field(qC, "Qty", isNum: true)), const SizedBox(width: 5),
-        Expanded(child: _field(fC, "Free", isNum: true)),
+        Expanded(child: _field(mC, "MRP", onCh: (v) => _calcRateC())),
+        const SizedBox(width: 5), Expanded(child: _field(pRC, "Pur. Rate")), 
+        const SizedBox(width: 5), Expanded(child: _field(qC, "Qty", isNum: true)),
       ]),
       const SizedBox(height: 10),
       Row(children: [
@@ -88,8 +142,8 @@ class _PurchaseItemFormState extends State<PurchaseItemForm> {
       ElevatedButton(style: ElevatedButton.styleFrom(minimumSize: const Size(double.infinity, 45), backgroundColor: Colors.orange.shade800), onPressed: () {
         double pr = double.tryParse(pRC.text) ?? 0, qt = double.tryParse(qC.text) ?? 0, gst = double.tryParse(gC.text) ?? 0;
         widget.onAdd(PurchaseItem(id: DateTime.now().toString(), srNo: widget.srNo, medicineID: widget.med.id, name: widget.med.name, packing: widget.med.packing, batch: bC.text, exp: eC.text, hsn: widget.med.hsnCode, mrp: double.tryParse(mC.text) ?? 0, qty: qt, freeQty: double.tryParse(fC.text) ?? 0, purchaseRate: pr, gstRate: gst, total: (pr * qt) * (1 + gst/100), rateA: double.tryParse(rAC.text) ?? 0, rateB: double.tryParse(rBC.text) ?? 0, rateC: double.tryParse(rCC.text) ?? 0));
-      }, child: const Text("ADD TO STOCK"))
+      }, child: const Text("ADD TO STOCK", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)))
     ]));
   }
-  Widget _field(ctrl, l, {bool en = true, Function(String)? onCh, bool isNum = false}) => TextField(controller: ctrl, enabled: en, onChanged: onCh, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: InputDecoration(labelText: l, border: const OutlineInputBorder(), contentPadding: const EdgeInsets.all(8)));
+  Widget _field(ctrl, l, {List<TextInputFormatter>? fmt, bool en = true, Function(String)? onCh, bool isNum = false}) => TextField(controller: ctrl, enabled: en, inputFormatters: fmt, onChanged: onCh, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: InputDecoration(labelText: l, border: const OutlineInputBorder(), contentPadding: const EdgeInsets.all(8)));
 }
