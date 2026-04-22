@@ -100,7 +100,7 @@ class _PurchaseEntryViewState extends State<PurchaseEntryView> {
                 mode: paymentMode, 
                 existingItems: widget.existingPurchase?.items, 
                 modifyPurchaseId: widget.existingPurchase?.id,
-                isReadOnly: widget.isReadOnly,
+                isReadOnly: widget.isReadOnly, // FIXED: Now passing correctly
               ))), 
               child: Text(
                 widget.isReadOnly ? "VIEW PURCHASED ITEMS" : "PROCEED TO ITEM ENTRY", 
@@ -120,7 +120,7 @@ class _PurchaseEntryViewState extends State<PurchaseEntryView> {
     elevation: 3,
     shape: RoundedRectangleBorder(
       borderRadius: BorderRadius.circular(15), 
-      side: BorderSide(color: Colors.orange.shade100, width: 1), // FIXED PARAMETER
+      side: BorderSide(color: Colors.orange.shade100, width: 1), 
     ),
     child: ListTile(
       leading: const CircleAvatar(backgroundColor: Colors.orange, child: Icon(Icons.business, color: Colors.white)),
