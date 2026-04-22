@@ -119,7 +119,7 @@ class _SaleEntryViewState extends State<SaleEntryView> {
                 mode: paymentMode, 
                 existingItems: widget.existingSale?.items, 
                 modifySaleId: widget.existingSale?.id,
-                isReadOnly: widget.isReadOnly,
+                isReadOnly: widget.isReadOnly, // FIXED: Now passing correctly
               ))),
               child: Text(
                 widget.isReadOnly ? "VIEW ITEMS LIST" : "PROCEED TO BILLING", 
@@ -137,7 +137,7 @@ class _SaleEntryViewState extends State<SaleEntryView> {
     margin: const EdgeInsets.all(15), 
     shape: RoundedRectangleBorder(
       borderRadius: BorderRadius.circular(15), 
-      side: BorderSide(color: Colors.blue.shade100, width: 1), // FIXED PARAMETER
+      side: BorderSide(color: Colors.blue.shade100, width: 1), 
     ),
     child: ListTile(
       contentPadding: const EdgeInsets.all(15),
