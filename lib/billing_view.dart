@@ -41,18 +41,18 @@ class _BillingViewState extends State<BillingView> {
       body: Column(children: [
         if (selectedMed == null && !widget.isReadOnly) Container(padding: const EdgeInsets.all(12), color: Colors.blue.shade50, child: TextField(autofocus: true, decoration: const InputDecoration(hintText: "Search Product...", prefixIcon: Icon(Icons.search), border: OutlineInputBorder()), onChanged: (v) => setState(() => search = v))),
         if (selectedMed != null) ItemEntryForm(med: selectedMed!, party: widget.party, srNo: editingIndex != null ? (editingIndex! + 1) : items.length + 1, batchHistory: ph.batchHistory[selectedMed!.id] ?? [], onAdd: (newItem) {
-          ph.saveBatchCentrally(newItem.medicineID, BatchInfo(batch: newItem.batch, exp: newItem.exp, packing: newItem.packing, mrp: newItem.mrp, rate: newItem.rate));
-          setState(() { if(editingIndex != null) items[editingIndex!] = newItem; else items.add(newItem); selectedMed = null; editingIndex = null; search = ""; });
-        }, onCancel: () => setState(() => selectedMed = null)),
+            ph.saveBatchCentrally(newItem.medicineID, BatchInfo(batch: newItem.batch, exp: newItem.exp, packing: newItem.packing, mrp: newItem.mrp, rate: newItem.rate));
+            setState(() { if(editingIndex != null) items[editingIndex!] = newItem; else items.add(newItem); selectedMed = null; editingIndex = null; search = ""; });
+          }, onCancel: () => setState(() => selectedMed = null)),
         Expanded(child: ListView.separated(itemCount: items.length, separatorBuilder: (c, i) => const Divider(), itemBuilder: (c, i) => ListTile(
           title: Text(items[i].name, style: const TextStyle(fontWeight: FontWeight.bold)),
-          subtitle: Text("Qty: ${items[i].qty} + ${items[i].freeQty} Free | Batch: ${items[i].batch}"),
+          subtitle: Text("Qty: ${items[i].qty} | Batch: ${items[i].batch}"),
           trailing: Text("₹${items[i].total.toStringAsFixed(2)}"),
           onTap: widget.isReadOnly ? null : () => setState(() { selectedMed = ph.medicines.firstWhere((m) => m.id == items[i].medicineID); editingIndex = i; }),
           onLongPress: () => setState(() => items.removeAt(i)),
         ))),
         if (search.isNotEmpty && selectedMed == null) Container(height: 200, child: ListView(children: ph.medicines.where((m) => m.name.toLowerCase().contains(search.toLowerCase())).map((m) => ListTile(title: Text(m.name), onTap: () => setState(() { selectedMed = m; search = ""; }))).toList())),
-        Container(padding: const EdgeInsets.all(15), color: Colors.blue.shade50, child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [Text("TOTAL ITEMS: ${items.length}"), Text("NET TOTAL: ₹${grandTotal.toStringAsFixed(2)}", style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.blue))]))
+        Container(padding: const EdgeInsets.all(15), color: Colors.blue.shade50, child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [Text("TOTAL: ₹${grandTotal.toStringAsFixed(2)}", style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold))]))
       ]),
     );
   }
@@ -79,8 +79,7 @@ class ItemEntryForm extends StatefulWidget {
 class _ItemEntryFormState extends State<ItemEntryForm> {
   final bC = TextEditingController(); final eC = TextEditingController(); final gC = TextEditingController(); 
   final mC = TextEditingController(); final rC = TextEditingController(); final qC = TextEditingController(text: "1");
-  final fC = TextEditingController(text: "0"); final rCD = TextEditingController(text: "0");
-  String rT = "A";
+  final fC = TextEditingController(text: "0"); final rCD = TextEditingController(text: "0"); String rT = "A";
 
   @override void initState() { super.initState(); mC.text = widget.med.mrp.toString(); gC.text = widget.med.gst.toString(); rT = widget.party.priceLevel; _updateRate(); if (widget.existingItem != null) { bC.text = widget.existingItem!.batch; eC.text = widget.existingItem!.exp; qC.text = widget.existingItem!.qty.toString(); fC.text = widget.existingItem!.freeQty.toString(); rC.text = widget.existingItem!.rate.toString(); } }
   void _updateRate() { if (rT == 'A') rC.text = widget.med.rateA.toString(); else if (rT == 'B') rC.text = widget.med.rateB.toString(); else _calcRateC(); }
@@ -89,7 +88,7 @@ class _ItemEntryFormState extends State<ItemEntryForm> {
   @override Widget build(BuildContext context) {
     return Container(padding: const EdgeInsets.all(15), color: Colors.blue.shade50, child: Column(children: [
       Row(children: [Expanded(child: Text("${widget.srNo}. ${widget.med.name}", style: const TextStyle(fontWeight: FontWeight.bold))), IconButton(icon: const Icon(Icons.close), onPressed: widget.onCancel)]),
-      SegmentedButton<String>(segments: const [ButtonSegment(value: 'A', label: Text('Rate A')), ButtonSegment(value: 'B', label: Text('Rate B')), ButtonSegment(value: 'C', label: Text('Rate C'))], selected: {rT}, onSelectionChanged: (v) => setState(() { rT = v.first; _updateRate(); })),
+      SegmentedButton<String>(segments: const [ButtonSegment(value: 'A', label: Text('A')), ButtonSegment(value: 'B', label: Text('B')), ButtonSegment(value: 'C', label: Text('C'))], selected: {rT}, onSelectionChanged: (v) => setState(() { rT = v.first; _updateRate(); })),
       Row(children: [
         Expanded(child: TextField(controller: bC, keyboardType: TextInputType.text, textCapitalization: TextCapitalization.none, decoration: const InputDecoration(labelText: "Batch", border: OutlineInputBorder(), contentPadding: EdgeInsets.all(8)))),
         const SizedBox(width: 5), Expanded(child: _field(eC, "Exp", fmt: [ExpiryDateFormatter()])), 
@@ -98,16 +97,17 @@ class _ItemEntryFormState extends State<ItemEntryForm> {
       const SizedBox(height: 10),
       Row(children: [
         Expanded(child: _field(mC, "MRP", onCh: (v) => rT == 'C' ? _calcRateC() : null)),
-        const SizedBox(width: 5), if (rT == 'C') Expanded(child: _field(rCD, "RC Disc%", onCh: (v) => _calcRateC())),
-        const SizedBox(width: 5), Expanded(child: _field(rC, "Rate", en: rT != 'C')), 
-        const SizedBox(width: 5), Expanded(child: _field(qC, "Qty", isNum: true)), 
+        const SizedBox(width: 5), if (rT == 'C') Expanded(child: _field(rCD, "Disc%", onCh: (v) => _calcRateC())),
+        const SizedBox(width: 5), Expanded(child: _field(rC, "Rate", en: rT != 'C')),
+        const SizedBox(width: 5), Expanded(child: _field(qC, "Qty", isNum: true)),
         const SizedBox(width: 5), Expanded(child: _field(fC, "Free", isNum: true)),
       ]),
-      ElevatedButton(style: ElevatedButton.styleFrom(minimumSize: const Size(double.infinity, 45), backgroundColor: Colors.blue.shade700), onPressed: () {
+      const SizedBox(height: 15),
+      ElevatedButton(onPressed: () {
         double r = double.tryParse(rC.text) ?? 0; double q = double.tryParse(qC.text) ?? 0; double f = double.tryParse(fC.text) ?? 0; double g = double.tryParse(gC.text) ?? 0;
         widget.onAdd(BillItem(id: DateTime.now().toString(), srNo: widget.srNo, medicineID: widget.med.id, name: widget.med.name, packing: widget.med.packing, batch: bC.text, exp: eC.text, hsn: widget.med.hsnCode, mrp: double.tryParse(mC.text) ?? 0, qty: q, freeQty: f, rate: r, gstRate: g, total: (r * q) * (1 + g/100)));
-      }, child: const Text("ADD TO LIST", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)))
+      }, child: const Text("ADD TO LIST"))
     ]));
   }
-  Widget _field(c, l, {List<TextInputFormatter>? fmt, bool en = true, Function(String)? onCh, bool isNum = false}) => TextField(controller: c, enabled: en, inputFormatters: fmt, onChanged: onCh, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: InputDecoration(labelText: l, border: const OutlineInputBorder(), contentPadding: const EdgeInsets.all(8)));
+  Widget _field(ctrl, l, {List<TextInputFormatter>? fmt, bool en = true, Function(String)? onCh, bool isNum = false}) => TextField(controller: ctrl, enabled: en, inputFormatters: fmt, onChanged: onCh, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: InputDecoration(labelText: l, border: const OutlineInputBorder(), contentPadding: const EdgeInsets.all(8)));
 }
