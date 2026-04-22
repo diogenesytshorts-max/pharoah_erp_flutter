@@ -319,10 +319,10 @@ class _PurchaseItemEntryCardState extends State<PurchaseItemEntryCard> {
     return (pr * qt) * (1 + gst / 100);
   }
 
-  @override
+@override
   Widget build(BuildContext context) {
     final ph = Provider.of<PharoahManager>(context);
-    final matchingBatches = (ph.batchHistory[widget.med.id] ?? [])
+    final matchingBatches = (ph.batchHistory[widget.med.identityKey] ?? []) // <--- SAHI KEY LAGA DI
         .where((b) => b.batch.toLowerCase().contains(batchC.text.toLowerCase()))
         .toList();
 
