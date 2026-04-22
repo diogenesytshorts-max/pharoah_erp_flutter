@@ -8,6 +8,7 @@ import 'master_data_library.dart';
 import 'demo_data.dart';
 import 'batch_master_logic.dart';
 import 'sale_bill_number.dart';
+import 'inventory_engine.dart'; // NAYA IMPORT
 
 class PharoahManager with ChangeNotifier {
   List<Medicine> medicines = [];
@@ -87,14 +88,13 @@ class PharoahManager with ChangeNotifier {
     notifyListeners();
   }
 
-  // --- SARE METHODS WAPAS ADD KIYE ---
+  // --- CORE METHODS ---
   void addVoucher(Voucher v) { vouchers.add(v); save(); }
   void addCompany(Company c) { companies.add(c); save(); }
   void addSalt(Salt s) { salts.add(s); save(); }
   void addDrugType(DrugType d) { drugTypes.add(d); save(); }
   void addRoute(RouteArea r) { routes.add(r); save(); }
   void deleteRoute(String id) { routes.removeWhere((r) => r.id == id); save(); }
-  Future<void> runFullMaintenance() async { await loadAllData(); }
   
   void saveBatchCentrally(Medicine med, BatchInfo b) {
     String key = med.identityKey; 
@@ -110,7 +110,7 @@ class PharoahManager with ChangeNotifier {
     sales.add(Sale(id: DateTime.now().toString(), billNo: billNo, date: date, partyName: party.name, partyGstin: party.gst, partyState: party.state, items: items, totalAmount: total, paymentMode: mode));
     for (var it in items) {
       Medicine m = medicines.firstWhere((med) => med.id == it.medicineID);
-      m.stock -= it.qty;
+      m.stock -= (it.qty + it.freeQty); // Stock kam karo (with free qty)
       saveBatchCentrally(m, BatchInfo(batch: it.batch, exp: it.exp, packing: it.packing, mrp: it.mrp, rate: it.rate));
     }
     addLog("SALE", "New Bill: #$billNo for ${party.name}");
@@ -121,7 +121,7 @@ class PharoahManager with ChangeNotifier {
     purchases.add(Purchase(id: DateTime.now().toString(), internalNo: internalNo, billNo: billNo, date: date, entryDate: entryDate ?? DateTime.now(), distributorName: party.name, items: items, totalAmount: total, paymentMode: mode));
     for (var it in items) {
       Medicine m = medicines.firstWhere((med) => med.id == it.medicineID);
-      m.stock += (it.qty + it.freeQty);
+      m.stock += (it.qty + it.freeQty); // Stock badhao
       m.purRate = it.purchaseRate;
       m.mrp = it.mrp;
       saveBatchCentrally(m, BatchInfo(batch: it.batch, exp: it.exp, packing: it.packing, mrp: it.mrp, rate: it.purchaseRate));
@@ -130,14 +130,44 @@ class PharoahManager with ChangeNotifier {
     save();
   }
 
-  void deleteParty(String id) { parties.removeWhere((p) => p.id == id); save(); }
-  void deleteBill(String id) { sales.removeWhere((s) => s.id == id); save(); }
-  void deletePurchase(String id) { purchases.removeWhere((p) => p.id == id); save(); }
-  void cancelBill(String id) {
-    int i = sales.indexWhere((s) => s.id == id);
-    if(i != -1) { sales[i].status = "Cancelled"; addLog("CANCEL", "Bill #${sales[i].billNo} Cancelled"); save(); }
+  // --- UPDATED DELETE & CANCEL METHODS WITH STOCK REVERSAL ---
+
+  void deleteBill(String id) {
+    try {
+      final sale = sales.firstWhere((s) => s.id == id);
+      // Sirf Active bill ka stock reverse hoga, Cancelled ka pehle hi ho chuka hoga
+      if (sale.status == "Active") {
+        InventoryEngine.reverseSaleStock(sale, medicines);
+      }
+      sales.removeWhere((s) => s.id == id);
+      addLog("DELETE", "Bill #${sale.billNo} deleted. Stock adjusted.");
+      save();
+    } catch (e) {}
   }
 
+  void cancelBill(String id) {
+    try {
+      int i = sales.indexWhere((s) => s.id == id);
+      if(i != -1 && sales[i].status == "Active") {
+        InventoryEngine.reverseSaleStock(sales[i], medicines);
+        sales[i].status = "Cancelled";
+        addLog("CANCEL", "Bill #${sales[i].billNo} Cancelled. Stock restored.");
+        save();
+      }
+    } catch (e) {}
+  }
+
+  void deletePurchase(String id) {
+    try {
+      final pur = purchases.firstWhere((p) => p.id == id);
+      InventoryEngine.reversePurchaseStock(pur, medicines);
+      purchases.removeWhere((p) => p.id == id);
+      addLog("DELETE", "Purchase #${pur.billNo} deleted. Stock reduced.");
+      save();
+    } catch (e) {}
+  }
+
+  void deleteParty(String id) { parties.removeWhere((p) => p.id == id); save(); }
   Future<void> runAutoBackup() async { addLog("SYSTEM", "Backup taken"); await save(); }
   Future<void> masterReset() async { 
     final dir = await getFYDirectory(); 
@@ -145,5 +175,6 @@ class PharoahManager with ChangeNotifier {
     if(d.existsSync()) d.deleteSync(recursive: true); 
     await loadAllData(); 
   }
+  Future<void> runFullMaintenance() async { await loadAllData(); }
   Future<void> switchYear(String year) async { currentFY = year; await loadAllData(); notifyListeners(); }
 }
