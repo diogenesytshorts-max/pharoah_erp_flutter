@@ -7,7 +7,7 @@ import 'purchase_billing_view.dart';
 
 class PurchaseEntryView extends StatefulWidget {
   final Purchase? existingPurchase;
-  final bool isReadOnly; // Naya Parameter: Purchase lock karne ke liye
+  final bool isReadOnly; 
 
   const PurchaseEntryView({super.key, this.existingPurchase, this.isReadOnly = false});
 
@@ -61,7 +61,6 @@ class _PurchaseEntryViewState extends State<PurchaseEntryView> {
       body: IgnorePointer(
         ignoring: widget.isReadOnly,
         child: Column(children: [
-          // Header Fields
           Container(padding: const EdgeInsets.all(20), color: Colors.white, child: Column(children: [
             Row(children: [
               Expanded(child: TextField(controller: internalEntryNoC, enabled: false, decoration: const InputDecoration(labelText: "INTERNAL ID", border: OutlineInputBorder(), filled: true, fillColor: Color(0xFFF5F5F5)))),
@@ -82,10 +81,8 @@ class _PurchaseEntryViewState extends State<PurchaseEntryView> {
             ),
           ])),
 
-          // Supplier Selection
           Expanded(child: selectedDistributor != null ? _buildSupplierCard() : _buildSearchList(ph)),
 
-          // Bottom Action
           if (selectedDistributor != null) Padding(
             padding: const EdgeInsets.all(20), 
             child: ElevatedButton(
@@ -102,7 +99,8 @@ class _PurchaseEntryViewState extends State<PurchaseEntryView> {
                 entryDate: selectedEntryDate, 
                 mode: paymentMode, 
                 existingItems: widget.existingPurchase?.items, 
-                modifyPurchaseId: widget.existingPurchase?.id
+                modifyPurchaseId: widget.existingPurchase?.id,
+                isReadOnly: widget.isReadOnly,
               ))), 
               child: Text(
                 widget.isReadOnly ? "VIEW PURCHASED ITEMS" : "PROCEED TO ITEM ENTRY", 
@@ -120,7 +118,10 @@ class _PurchaseEntryViewState extends State<PurchaseEntryView> {
   Widget _buildSupplierCard() => Card(
     margin: const EdgeInsets.all(15), 
     elevation: 3,
-    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15), border: Border.all(color: Colors.orange.shade100)),
+    shape: RoundedRectangleBorder(
+      borderRadius: BorderRadius.circular(15), 
+      side: BorderSide(color: Colors.orange.shade100, width: 1), // FIXED PARAMETER
+    ),
     child: ListTile(
       leading: const CircleAvatar(backgroundColor: Colors.orange, child: Icon(Icons.business, color: Colors.white)),
       title: Text(selectedDistributor!.name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 17)), 
