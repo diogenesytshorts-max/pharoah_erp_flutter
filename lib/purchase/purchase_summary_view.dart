@@ -12,63 +12,18 @@ class PurchaseSummaryView extends StatefulWidget {
 }
 
 class _PurchaseSummaryViewState extends State<PurchaseSummaryView> {
-  DateTime fromDate = DateTime.now();
+  DateTime fromDate = DateTime.now().subtract(const Duration(days: 30));
   DateTime toDate = DateTime.now();
-  Party? selectedSupplier;
-  String supplierSearchText = "";
-
-  @override void initState() {
-    super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      final ph = Provider.of<PharoahManager>(context, listen: false);
-      setState(() { fromDate = ph.fyStartDate; toDate = DateTime.now(); });
-    });
-  }
-
-  void _showSupplierSearch(List<Party> allParties) {
-    showDialog(
-      context: context,
-      builder: (c) => AlertDialog(
-        title: const Text("Select Supplier"),
-        content: SizedBox(
-          width: double.maxFinite,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                decoration: const InputDecoration(hintText: "Search Supplier...", prefixIcon: Icon(Icons.search)),
-                onChanged: (v) => setState(() => supplierSearchText = v),
-              ),
-              const SizedBox(height: 10),
-              Flexible(
-                child: ListView(
-                  shrinkWrap: true,
-                  children: [
-                    ListTile(title: const Text("ALL SUPPLIERS", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.orange)), onTap: () { setState(() => selectedSupplier = null); Navigator.pop(c); }),
-                    ...allParties.where((p) => p.name.toLowerCase().contains(supplierSearchText.toLowerCase())).map((p) => ListTile(
-                      title: Text(p.name),
-                      subtitle: Text(p.city),
-                      onTap: () { setState(() => selectedSupplier = p); Navigator.pop(c); },
-                    ))
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
+  String searchQuery = "";
 
   @override Widget build(BuildContext context) {
     final ph = Provider.of<PharoahManager>(context);
     
-    // Filter Logic (Based on Supplier Bill Date)
-    List<Purchase> filteredPur = ph.purchases.where((p) {
+    List<Purchase> filteredPur = ph.purchases.reversed.where((p) {
       bool dateMatch = p.date.isAfter(fromDate.subtract(const Duration(days: 1))) && p.date.isBefore(toDate.add(const Duration(days: 1)));
-      bool partyMatch = selectedSupplier == null || p.distributorName == selectedSupplier!.name;
-      return dateMatch && partyMatch;
-    }).toList().reversed.toList();
+      bool searchMatch = p.distributorName.toLowerCase().contains(searchQuery.toLowerCase()) || p.billNo.toLowerCase().contains(searchQuery.toLowerCase());
+      return dateMatch && searchMatch;
+    }).toList();
 
     double totalTaxable = 0; double totalTax = 0; double netTotal = 0;
     for(var p in filteredPur) {
@@ -77,15 +32,10 @@ class _PurchaseSummaryViewState extends State<PurchaseSummaryView> {
     }
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F6F9),
-      appBar: AppBar(
-        title: const Text("Purchase Register"), backgroundColor: Colors.deepOrange.shade900, foregroundColor: Colors.white,
-        actions: [
-          IconButton(icon: const Icon(Icons.picture_as_pdf), onPressed: filteredPur.isEmpty ? null : () => PurchaseReportPdf.generate(filteredPur, fromDate, toDate, selectedSupplier))
-        ],
-      ),
+      appBar: AppBar(title: const Text("Purchase Register"), backgroundColor: Colors.orange.shade800, foregroundColor: Colors.white, actions: [
+        IconButton(icon: const Icon(Icons.picture_as_pdf), onPressed: filteredPur.isEmpty ? null : () => PurchaseReportPdf.generate(filteredPur, fromDate, toDate, null))
+      ]),
       body: Column(children: [
-        // --- FILTERS ---
         Container(
           padding: const EdgeInsets.all(12), color: Colors.white,
           child: Column(children: [
@@ -94,64 +44,32 @@ class _PurchaseSummaryViewState extends State<PurchaseSummaryView> {
               const SizedBox(width: 10),
               Expanded(child: _dateTile("TO", toDate, (d) => setState(()=> toDate = d))),
             ]),
-            const SizedBox(height: 10),
-            InkWell(
-              onTap: () => _showSupplierSearch(ph.parties),
-              child: Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(border: Border.all(color: Colors.orange.shade100), borderRadius: BorderRadius.circular(8), color: Colors.orange.shade50),
-                child: Row(children: [
-                  const Icon(Icons.store, color: Colors.orange), const SizedBox(width: 10),
-                  Text(selectedSupplier?.name ?? "TAP TO SEARCH SUPPLIER / DISTRIBUTOR", style: TextStyle(fontWeight: FontWeight.bold, color: selectedSupplier == null ? Colors.blueGrey : Colors.orange.shade900)),
-                  const Spacer(), const Icon(Icons.arrow_drop_down)
-                ]),
-              ),
-            )
+            Padding(padding: const EdgeInsets.only(top: 10), child: TextField(decoration: const InputDecoration(hintText: "Search Supplier/Bill...", prefixIcon: Icon(Icons.search), border: OutlineInputBorder()), onChanged: (v) => setState(() => searchQuery = v)))
           ]),
         ),
         
-        // --- LIST WITH DUAL DATES ---
         Expanded(
           child: ListView.builder(
             padding: const EdgeInsets.all(10), itemCount: filteredPur.length,
             itemBuilder: (c, i) {
               final p = filteredPur[i];
+              final supplier = ph.parties.firstWhere((pt) => pt.name == p.distributorName, orElse: () => Party(id: "", name: p.distributorName));
               return Card(
-                elevation: 2,
-                margin: const EdgeInsets.only(bottom: 8),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                elevation: 2, margin: const EdgeInsets.only(bottom: 8),
                 child: ListTile(
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 15, vertical: 8),
-                  title: Text(p.distributorName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
-                  subtitle: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const SizedBox(height: 4),
-                      Text("Bill No: ${p.billNo}", style: const TextStyle(color: Colors.black87, fontWeight: FontWeight.w600)),
-                      const SizedBox(height: 2),
-                      Row(
-                        children: [
-                          const Icon(Icons.calendar_today, size: 12, color: Colors.orange),
-                          const SizedBox(width: 4),
-                          Text("Bill: ${DateFormat('dd/MM/yy').format(p.date)}", style: const TextStyle(fontWeight: FontWeight.bold)),
-                          const SizedBox(width: 15),
-                          const Icon(Icons.computer, size: 12, color: Colors.blue),
-                          const SizedBox(width: 4),
-                          Text("Entry: ${DateFormat('dd/MM/yy').format(p.entryDate)}", style: const TextStyle(fontSize: 12, color: Colors.blueGrey)),
-                        ],
-                      ),
-                      Text("Mode: ${p.paymentMode}", style: const TextStyle(fontSize: 11)),
-                    ],
-                  ),
-                  trailing: Text("₹${p.totalAmount.toStringAsFixed(2)}", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.deepOrange)),
-                  onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => PurchaseEntryView(existingPurchase: p))),
+                  title: Text(p.distributorName, style: const TextStyle(fontWeight: FontWeight.bold)),
+                  subtitle: Text("Bill: ${p.billNo} | ${DateFormat('dd/MM/yy').format(p.date)}"),
+                  trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+                    IconButton(icon: const Icon(Icons.print, color: Colors.blueGrey), onPressed: () => PurchasePdf.generate([p], supplier)),
+                    IconButton(icon: const Icon(Icons.edit, color: Colors.blue), onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (c) => PurchaseEntryView(existingPurchase: p)))),
+                    IconButton(icon: const Icon(Icons.delete, color: Colors.red), onPressed: () => ph.deletePurchase(p.id)),
+                  ]),
                 ),
               );
             },
           )
         ),
         
-        // --- SUMMARY FOOTER ---
         Container(
           padding: const EdgeInsets.all(15), color: Colors.deepOrange.shade900,
           child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
