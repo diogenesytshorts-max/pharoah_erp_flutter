@@ -32,21 +32,63 @@ class DrugType {
   factory DrugType.fromMap(Map<String, dynamic> map) => DrugType(id: map['id'] ?? "", name: map['name'] ?? "");
 }
 
-// 5. MEDICINE MODEL
+// 5. MEDICINE MODEL (Updated with uniqueCode)
 class Medicine {
-  String id, name, packing, companyId, saltId, drugTypeId, rackNo, hsnCode;
+  String id, uniqueCode, name, packing, companyId, saltId, drugTypeId, rackNo, hsnCode;
   int conversion; double reorderLevel, gst, mrp, purRate, rateA, rateB, rateC, stock;
 
   Medicine({
-    required this.id, required this.name, required this.packing,
+    required this.id, 
+    this.uniqueCode = "", 
+    required this.name, 
+    required this.packing,
     this.companyId = "", this.saltId = "", this.drugTypeId = "", this.rackNo = "",
     this.hsnCode = "N/A", this.conversion = 1, this.reorderLevel = 0.0, this.gst = 12.0,
     this.mrp = 0.0, this.purRate = 0.0, this.rateA = 0.0, this.rateB = 0.0, this.rateC = 0.0,
     this.stock = 0.0
   });
 
-  Map<String, dynamic> toMap() => {'id': id, 'name': name, 'packing': packing, 'companyId': companyId, 'saltId': saltId, 'drugTypeId': drugTypeId, 'rackNo': rackNo, 'hsnCode': hsnCode, 'conversion': conversion, 'reorderLevel': reorderLevel, 'gst': gst, 'mrp': mrp, 'purRate': purRate, 'rateA': rateA, 'rateB': rateB, 'rateC': rateC, 'stock': stock};
-  factory Medicine.fromMap(Map<String, dynamic> map) => Medicine(id: map['id'] ?? "", name: map['name'] ?? "", packing: map['packing'] ?? "", companyId: map['companyId'] ?? "", saltId: map['saltId'] ?? "", drugTypeId: map['drugTypeId'] ?? "", rackNo: map['rackNo'] ?? "", hsnCode: map['hsnCode'] ?? "N/A", conversion: map['conversion'] ?? 1, reorderLevel: (map['reorderLevel'] ?? 0.0).toDouble(), gst: (map['gst'] ?? 12).toDouble(), mrp: (map['mrp'] ?? 0.0).toDouble(), purRate: (map['purRate'] ?? 0.0).toDouble(), rateA: (map['rateA'] ?? 0.0).toDouble(), rateB: (map['rateB'] ?? 0.0).toDouble(), rateC: (map['rateC'] ?? 0.0).toDouble(), stock: (map['stock'] ?? 0.0).toDouble());
+  Map<String, dynamic> toMap() => {
+    'id': id, 
+    'uniqueCode': uniqueCode,
+    'name': name, 
+    'packing': packing, 
+    'companyId': companyId, 
+    'saltId': saltId, 
+    'drugTypeId': drugTypeId, 
+    'rackNo': rackNo, 
+    'hsnCode': hsnCode, 
+    'conversion': conversion, 
+    'reorderLevel': reorderLevel, 
+    'gst': gst, 
+    'mrp': mrp, 
+    'purRate': purRate, 
+    'rateA': rateA, 
+    'rateB': rateB, 
+    'rateC': rateC, 
+    'stock': stock
+  };
+
+  factory Medicine.fromMap(Map<String, dynamic> map) => Medicine(
+    id: map['id'] ?? "", 
+    uniqueCode: map['uniqueCode'] ?? "",
+    name: map['name'] ?? "", 
+    packing: map['packing'] ?? "", 
+    companyId: map['companyId'] ?? "", 
+    saltId: map['saltId'] ?? "", 
+    drugTypeId: map['drugTypeId'] ?? "", 
+    rackNo: map['rackNo'] ?? "", 
+    hsnCode: map['hsnCode'] ?? "N/A", 
+    conversion: map['conversion'] ?? 1, 
+    reorderLevel: (map['reorderLevel'] ?? 0.0).toDouble(), 
+    gst: (map['gst'] ?? 12).toDouble(), 
+    mrp: (map['mrp'] ?? 0.0).toDouble(), 
+    purRate: (map['purRate'] ?? 0.0).toDouble(), 
+    rateA: (map['rateA'] ?? 0.0).toDouble(), 
+    rateB: (map['rateB'] ?? 0.0).toDouble(), 
+    rateC: (map['rateC'] ?? 0.0).toDouble(), 
+    stock: (map['stock'] ?? 0.0).toDouble()
+  );
 }
 
 // 6. PARTY MODEL
@@ -56,7 +98,6 @@ class Party {
 
   Party({required this.id, required this.name, this.group = "Sundry Debtors", this.phone = "", this.email = "", this.address = "", this.city = "", this.state = "Rajasthan", this.route = "", this.gst = "", this.dl = "", this.dlExp = "", this.pan = "", this.transport = "", this.priceLevel = "A", this.hsnCode = "N/A", this.opBal = 0.0, this.creditLimit = 0.0, this.creditDays = 0});
 
-  // Getter added for backwards compatibility with gst_report_service
   String get accountGroup => group; 
   bool get isB2B => gst.length >= 15;
 
