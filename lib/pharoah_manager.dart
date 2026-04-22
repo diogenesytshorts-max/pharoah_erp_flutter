@@ -7,6 +7,7 @@ import 'models.dart';
 import 'master_data_library.dart';
 import 'demo_data.dart';
 import 'batch_master_logic.dart';
+import 'sale_bill_number.dart';
 
 class PharoahManager with ChangeNotifier {
   List<Medicine> medicines = [];
@@ -79,7 +80,7 @@ class PharoahManager with ChangeNotifier {
       (bD as Map).forEach((k, v) => batchHistory[k] = (v as List).map((b) => BatchInfo.fromMap(b)).toList());
     }
     
-    _repairMedicineData(); // Auto fix for demo data unique codes
+    _repairMedicineData();
     notifyListeners();
   }
 
@@ -107,6 +108,7 @@ class PharoahManager with ChangeNotifier {
   void addVoucher(Voucher v) { vouchers.add(v); save(); }
 
   void finalizeSale({required String billNo, required DateTime date, required Party party, required List<BillItem> items, required double total, required String mode}) {
+    SaleBillNumber.incrementIfNecessary(billNo);
     sales.add(Sale(id: DateTime.now().toString(), billNo: billNo, date: date, partyName: party.name, partyGstin: party.gst, partyState: party.state, items: items, totalAmount: total, paymentMode: mode));
     for (var it in items) {
       Medicine? m = medicines.firstWhere((med) => med.id == it.medicineID);
