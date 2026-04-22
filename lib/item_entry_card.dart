@@ -125,7 +125,7 @@ class _ItemEntryCardState extends State<ItemEntryCard> {
   void _validateAndAdd(PharoahManager ph) {
     if (qtyC.text.isEmpty || qtyC.text == "0") return;
 
-    final history = ph.batchHistory[widget.med.id] ?? [];
+    final history = ph.batchHistory[widget.med.identityKey] ?? []; // <--- SAHI KEY LAGA DI
     try {
       final existingBatch = history.firstWhere((b) => b.batch == batchC.text.toUpperCase());
       if (existingBatch.exp != expC.text) {
@@ -182,11 +182,11 @@ class _ItemEntryCardState extends State<ItemEntryCard> {
     ));
   }
 
-  @override
+@override
   Widget build(BuildContext context) {
     final ph = Provider.of<PharoahManager>(context);
     final totals = _calcTotals();
-    final matchingBatches = (ph.batchHistory[widget.med.id] ?? [])
+    final matchingBatches = (ph.batchHistory[widget.med.identityKey] ?? []) // <--- SAHI KEY LAGA DI
         .where((b) => b.batch.toLowerCase().contains(batchC.text.toLowerCase()))
         .toList();
 
