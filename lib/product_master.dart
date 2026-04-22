@@ -13,11 +13,78 @@ class _ProductMasterViewState extends State<ProductMasterView> {
   String searchQuery = "";
   String? filterCompanyId;
 
-  // Options for Drug Form
   final List<String> drugForms = ["TAB", "CAP", "SYP", "INJ", "IV", "PCS", "EXT", "OINT", "DROP"];
-  // Options for Storage
   final List<String> storageOptions = ["Room Temp", "Refrigerated (2-8°C)", "Cool Place"];
 
+  // --- 1. SEARCHABLE PICKER DIALOG ---
+  // Yeh function Company aur Salt dono ke liye kaam karega
+  void _showSearchablePicker({
+    required String title,
+    required List<dynamic> items,
+    required Function(dynamic) onSelected,
+    required VoidCallback onQuickAdd,
+  }) {
+    showDialog(
+      context: context,
+      builder: (context) {
+        String localSearch = "";
+        return StatefulBuilder(builder: (context, setPickerState) {
+          final filtered = items.where((item) => item.name.toLowerCase().contains(localSearch.toLowerCase())).toList();
+
+          return AlertDialog(
+            title: Text("Select $title"),
+            content: SizedBox(
+              width: double.maxFinite,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextField(
+                    autofocus: true,
+                    decoration: InputDecoration(
+                      hintText: "Search $title...",
+                      prefixIcon: const Icon(Icons.search),
+                      border: const OutlineInputBorder(),
+                    ),
+                    onChanged: (v) => setPickerState(() => localSearch = v),
+                  ),
+                  const SizedBox(height: 10),
+                  Flexible(
+                    child: filtered.isEmpty 
+                      ? Padding(
+                          padding: const EdgeInsets.all(20.0),
+                          child: Text("No $title found."),
+                        )
+                      : ListView.builder(
+                          shrinkWrap: true,
+                          itemCount: filtered.length,
+                          itemBuilder: (c, i) => ListTile(
+                            title: Text(filtered[i].name),
+                            onTap: () {
+                              onSelected(filtered[i]);
+                              Navigator.pop(context);
+                            },
+                          ),
+                        ),
+                  ),
+                  const Divider(),
+                  TextButton.icon(
+                    onPressed: () {
+                      Navigator.pop(context);
+                      onQuickAdd();
+                    },
+                    icon: const Icon(Icons.add),
+                    label: Text("ADD NEW ${title.toUpperCase()}"),
+                  )
+                ],
+              ),
+            ),
+          );
+        });
+      },
+    );
+  }
+
+  // --- 2. QUICK ADD METHODS ---
   void _quickAddCompany(PharoahManager ph) {
     final cC = TextEditingController();
     showDialog(context: context, builder: (c) => AlertDialog(
@@ -52,6 +119,7 @@ class _ProductMasterViewState extends State<ProductMasterView> {
     ));
   }
 
+  // --- 3. MAIN PRODUCT FORM ---
   void _showProductForm({Medicine? med}) {
     final ph = Provider.of<PharoahManager>(context, listen: false);
 
@@ -59,23 +127,24 @@ class _ProductMasterViewState extends State<ProductMasterView> {
     final packC = TextEditingController(text: med?.packing);
     final rackC = TextEditingController(text: med?.rackNo);
     final hsnC = TextEditingController(text: med?.hsnCode);
-    final convC = TextEditingController(text: med?.conversion.toString() ?? "1");
     final reorderC = TextEditingController(text: med?.reorderLevel.toString() ?? "0");
     final gstC = TextEditingController(text: med?.gst.toString() ?? "12");
-    final mrpC = TextEditingController(text: med?.mrp == 0 ? "" : med?.mrp.toString());
-    final purRC = TextEditingController(text: med?.purRate == 0 ? "" : med?.purRate.toString());
-    final rAC = TextEditingController(text: med?.rateA == 0 ? "" : med?.rateA.toString());
-    final rBC = TextEditingController(text: med?.rateB == 0 ? "" : med?.rateB.toString());
-    final rCC = TextEditingController(text: med?.rateC == 0 ? "" : med?.rateC.toString());
-
-    // New Fields State
+    
+    // Advanced fields state
     String selForm = med?.drugForm ?? "TAB";
     bool naco = med?.isNarcotic ?? false;
     bool schH1 = med?.isScheduleH1 ?? false;
     String selStore = med?.storageCondition ?? "Room Temp";
-
-    String? selCompany = med?.companyId.isEmpty ?? true ? null : med?.companyId;
-    String? selSalt = med?.saltId.isEmpty ?? true ? null : med?.saltId;
+    
+    // Selectable Objects
+    String? companyId = med?.companyId;
+    String? saltId = med?.saltId;
+    String companyName = companyId != null && companyId.isNotEmpty 
+        ? ph.companies.firstWhere((c) => c.id == companyId, orElse: () => Company(id: "", name: "")).name 
+        : "Tap to Select Company";
+    String saltName = saltId != null && saltId.isNotEmpty 
+        ? ph.salts.firstWhere((s) => s.id == saltId, orElse: () => Salt(id: "", name: "")).name 
+        : "Tap to Select Salt";
 
     showDialog(
       context: context,
@@ -103,33 +172,37 @@ class _ProductMasterViewState extends State<ProductMasterView> {
                     )),
                   ]),
 
-                  const SizedBox(height: 10),
+                  const SizedBox(height: 15),
 
-                  Row(children: [
-                    Expanded(child: DropdownButtonFormField<String>(
-                      value: selCompany,
-                      decoration: const InputDecoration(labelText: "Company", border: OutlineInputBorder()),
-                      items: ph.companies.map((e) => DropdownMenuItem(value: e.id, child: Text(e.name, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 10)))).toList(),
-                      onChanged: (v) => setDialogState(() => selCompany = v),
-                    )),
-                    IconButton(icon: const Icon(Icons.add_circle, color: Colors.brown), onPressed: () => _quickAddCompany(ph)),
-                  ]),
+                  // Searchable Company Field
+                  _searchableField(
+                    label: "Company",
+                    value: companyName,
+                    icon: Icons.business,
+                    onTap: () => _showSearchablePicker(
+                      title: "Company",
+                      items: ph.companies,
+                      onSelected: (val) => setDialogState(() { companyId = val.id; companyName = val.name; }),
+                      onQuickAdd: () => _quickAddCompany(ph),
+                    ),
+                  ),
 
-                  const SizedBox(height: 10),
+                  const SizedBox(height: 15),
                   
-                  Row(children: [
-                    Expanded(child: DropdownButtonFormField<String>(
-                      value: selSalt,
-                      decoration: const InputDecoration(labelText: "Salt / Composition", border: OutlineInputBorder()),
-                      items: ph.salts.map((e) => DropdownMenuItem(value: e.id, child: Text(e.name, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 10)))).toList(),
-                      onChanged: (v) => setDialogState(() => selSalt = v),
-                    )),
-                    IconButton(icon: const Icon(Icons.add_circle, color: Colors.deepOrange), onPressed: () => _quickAddSalt(ph)),
-                  ]),
+                  // Searchable Salt Field
+                  _searchableField(
+                    label: "Salt / Composition",
+                    value: saltName,
+                    icon: Icons.science,
+                    onTap: () => _showSearchablePicker(
+                      title: "Salt",
+                      items: ph.salts,
+                      onSelected: (val) => setDialogState(() { saltId = val.id; saltName = val.name; }),
+                      onQuickAdd: () => _quickAddSalt(ph),
+                    ),
+                  ),
 
                   _section("LEGAL & STORAGE"),
-                  
-                  // Narcotic & H1 Toggles
                   Row(children: [
                     Expanded(child: SwitchListTile(
                       contentPadding: EdgeInsets.zero,
@@ -146,7 +219,6 @@ class _ProductMasterViewState extends State<ProductMasterView> {
                   ]),
 
                   const SizedBox(height: 10),
-                  
                   DropdownButtonFormField<String>(
                     value: selStore,
                     decoration: const InputDecoration(labelText: "Storage Condition", border: OutlineInputBorder(), prefixIcon: Icon(Icons.thermostat)),
@@ -183,35 +255,24 @@ class _ProductMasterViewState extends State<ProductMasterView> {
                   uniqueCode: newUniqueCode,
                   name: nameC.text.toUpperCase(),
                   packing: packC.text.toUpperCase(),
-                  companyId: selCompany ?? "",
-                  saltId: selSalt ?? "",
-                  drugTypeId: med?.drugTypeId ?? "",
+                  companyId: companyId ?? "",
+                  saltId: saltId ?? "",
                   rackNo: rackC.text.toUpperCase(),
                   hsnCode: hsnC.text.toUpperCase().isEmpty ? "N/A" : hsnC.text.toUpperCase(),
-                  conversion: int.tryParse(convC.text) ?? 1,
                   reorderLevel: double.tryParse(reorderC.text) ?? 0.0,
                   gst: double.tryParse(gstC.text) ?? 12.0,
-                  mrp: double.tryParse(mrpC.text) ?? 0.0,
-                  purRate: double.tryParse(purRC.text) ?? 0.0,
-                  rateA: double.tryParse(rAC.text) ?? 0.0,
-                  rateB: double.tryParse(rBC.text) ?? 0.0,
-                  rateC: double.tryParse(rCC.text) ?? 0.0,
                   stock: med?.stock ?? 0.0,
-                  // Saving Advanced Fields
                   drugForm: selForm,
                   isNarcotic: naco,
                   isScheduleH1: schH1,
                   storageCondition: selStore,
+                  // Purane values retain karein
+                  mrp: med?.mrp ?? 0, purRate: med?.purRate ?? 0, rateA: med?.rateA ?? 0, rateB: med?.rateB ?? 0, rateC: med?.rateC ?? 0,
                 );
 
-                if(med == null) {
-                  ph.medicines.add(newItem);
-                } else {
-                  int i = ph.medicines.indexWhere((x)=>x.id==med.id);
-                  ph.medicines[i] = newItem;
-                }
-                ph.save(); 
-                Navigator.pop(c);
+                if(med == null) ph.medicines.add(newItem);
+                else { int i = ph.medicines.indexWhere((x)=>x.id==med.id); ph.medicines[i] = newItem; }
+                ph.save(); Navigator.pop(c);
               }, 
               child: const Text("SAVE PRODUCT")
             )
@@ -224,39 +285,30 @@ class _ProductMasterViewState extends State<ProductMasterView> {
   @override Widget build(BuildContext context) {
     final ph = Provider.of<PharoahManager>(context);
     final list = ph.medicines.where((m) => 
-      m.name.toLowerCase().contains(searchQuery.toLowerCase()) && 
-      (filterCompanyId == null || m.companyId == filterCompanyId)
+      m.name.toLowerCase().contains(searchQuery.toLowerCase())
     ).toList();
 
     return Scaffold(
       backgroundColor: const Color(0xFFF5F6F9),
       appBar: AppBar(title: const Text("Inventory / Item Master"), backgroundColor: Colors.purple, foregroundColor: Colors.white),
       body: Column(children: [
-        Container(padding: const EdgeInsets.all(15), color: Colors.purple.shade50, child: Column(children: [
-          TextField(
-            decoration: InputDecoration(
-              hintText: "Search Product...", 
-              prefixIcon: const Icon(Icons.search, color: Colors.purple), 
-              filled: true, fillColor: Colors.white, 
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none)
-            ), 
-            onChanged: (v) => setState(() => searchQuery = v)
-          ),
-        ])),
+        Container(padding: const EdgeInsets.all(15), color: Colors.purple.shade50, child: TextField(
+          decoration: InputDecoration(
+            hintText: "Search Product...", prefixIcon: const Icon(Icons.search, color: Colors.purple), 
+            filled: true, fillColor: Colors.white, border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none)
+          ), 
+          onChanged: (v) => setState(() => searchQuery = v)
+        )),
         Expanded(child: ListView.builder(
           itemCount: list.length, 
           itemBuilder: (c, i) {
             final m = list[i];
             return Card(
-              elevation: 2, 
-              margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6), 
+              elevation: 2, margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6), 
               child: ListTile(
                 leading: CircleAvatar(
                   backgroundColor: m.isNarcotic ? Colors.red.shade100 : Colors.purple.shade50,
-                  child: Icon(
-                    m.drugForm == "INJ" ? Icons.colorize : Icons.medication, 
-                    color: m.isNarcotic ? Colors.red : Colors.purple
-                  ),
+                  child: Icon(m.drugForm == "INJ" ? Icons.colorize : Icons.medication, color: m.isNarcotic ? Colors.red : Colors.purple),
                 ),
                 title: Text("${m.name} - ${m.drugForm}", style: const TextStyle(fontWeight: FontWeight.bold)),
                 subtitle: Text("Pack: ${m.packing} | Stock: ${m.stock} | Rack: ${m.rackNo}"),
@@ -271,15 +323,39 @@ class _ProductMasterViewState extends State<ProductMasterView> {
     );
   }
 
+  // --- UI COMPONENTS ---
   Widget _section(String t) => Padding(padding: const EdgeInsets.symmetric(vertical: 12), child: Align(alignment: Alignment.centerLeft, child: Text(t, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.blueGrey, letterSpacing: 1))));
   
   Widget _input(TextEditingController ctrl, String label, IconData icon, {bool isNum = false}) => Padding(
     padding: const EdgeInsets.only(bottom: 12), 
     child: TextField(
-      controller: ctrl, 
-      keyboardType: isNum ? const TextInputType.numberWithOptions(decimal: true) : TextInputType.text, 
+      controller: ctrl, keyboardType: isNum ? const TextInputType.numberWithOptions(decimal: true) : TextInputType.text, 
       textCapitalization: TextCapitalization.characters,
       decoration: InputDecoration(labelText: label, prefixIcon: Icon(icon, size: 18), border: const OutlineInputBorder())
     )
   );
+
+  Widget _searchableField({required String label, required String value, required IconData icon, required VoidCallback onTap}) {
+    return InkWell(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 15),
+        decoration: BoxDecoration(border: Border.all(color: Colors.grey), borderRadius: BorderRadius.circular(5)),
+        child: Row(
+          children: [
+            Icon(icon, color: Colors.grey, size: 20),
+            const SizedBox(width: 10),
+            Expanded(child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(label, style: const TextStyle(fontSize: 10, color: Colors.grey)),
+                Text(value, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
+              ],
+            )),
+            const Icon(Icons.arrow_drop_down, color: Colors.grey),
+          ],
+        ),
+      ),
+    );
+  }
 }
