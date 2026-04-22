@@ -62,7 +62,13 @@ class PharoahManager with ChangeNotifier {
       return f.existsSync() ? jsonDecode(f.readAsStringSync()) : null;
     }
 
-    medicines = (loadJson('meds.json') as List?)?.map((e) => Medicine.fromMap(e)).toList() ?? DemoData.getMedicines();
+    // Checking if file exists to determine if we load DemoData (0 stock) or saved data
+    if (File('$dir/meds.json').existsSync()) {
+      medicines = (loadJson('meds.json') as List).map((e) => Medicine.fromMap(e)).toList();
+    } else {
+      medicines = DemoData.getMedicines(); // Loads DemoData with Stock = 0
+    }
+
     parties = (loadJson('parts.json') as List?)?.map((e) => Party.fromMap(e)).toList() ?? [DemoData.getDemoParty(), Party(id: 'cash', name: "CASH", group: "Cash in Hand")];
     sales = (loadJson('sales.json') as List?)?.map((e) => Sale.fromMap(e)).toList() ?? [];
     purchases = (loadJson('purc.json') as List?)?.map((e) => Purchase.fromMap(e)).toList() ?? [];
@@ -80,17 +86,7 @@ class PharoahManager with ChangeNotifier {
       (bD as Map).forEach((k, v) => batchHistory[k] = (v as List).map((b) => BatchInfo.fromMap(b)).toList());
     }
     
-    _repairMedicineData();
     notifyListeners();
-  }
-
-  void _repairMedicineData() {
-    for (var med in medicines) {
-      if (med.uniqueCode.isEmpty) {
-        med.uniqueCode = med.identityKey;
-      }
-    }
-    save();
   }
 
   void saveBatchCentrally(Medicine med, BatchInfo b) {
@@ -101,18 +97,13 @@ class PharoahManager with ChangeNotifier {
   }
 
   void addLog(String action, String details) { logs.add(LogEntry(id: DateTime.now().toString(), action: action, details: details, time: DateTime.now())); save(); }
-  void addCompany(Company c) { companies.add(c); save(); }
-  void addSalt(Salt s) { salts.add(s); save(); }
-  void addDrugType(DrugType d) { drugTypes.add(d); save(); }
-  void addRoute(RouteArea r) { routes.add(r); save(); }
-  void addVoucher(Voucher v) { vouchers.add(v); save(); }
-
+  
   void finalizeSale({required String billNo, required DateTime date, required Party party, required List<BillItem> items, required double total, required String mode}) {
     SaleBillNumber.incrementIfNecessary(billNo);
     sales.add(Sale(id: DateTime.now().toString(), billNo: billNo, date: date, partyName: party.name, partyGstin: party.gst, partyState: party.state, items: items, totalAmount: total, paymentMode: mode));
     for (var it in items) {
-      Medicine? m = medicines.firstWhere((med) => med.id == it.medicineID);
-      m.stock -= (it.qty + it.freeQty);
+      Medicine m = medicines.firstWhere((med) => med.id == it.medicineID);
+      m.stock -= (it.qty); // Simple Stock Deduct
       saveBatchCentrally(m, BatchInfo(batch: it.batch, exp: it.exp, packing: it.packing, mrp: it.mrp, rate: it.rate));
     }
     addLog("SALE", "New Bill: #$billNo for ${party.name}");
@@ -122,7 +113,7 @@ class PharoahManager with ChangeNotifier {
   void finalizePurchase({required String internalNo, required String billNo, required DateTime date, DateTime? entryDate, required Party party, required List<PurchaseItem> items, required double total, required String mode}) {
     purchases.add(Purchase(id: DateTime.now().toString(), internalNo: internalNo, billNo: billNo, date: date, entryDate: entryDate ?? DateTime.now(), distributorName: party.name, items: items, totalAmount: total, paymentMode: mode));
     for (var it in items) {
-      Medicine? m = medicines.firstWhere((med) => med.id == it.medicineID);
+      Medicine m = medicines.firstWhere((med) => med.id == it.medicineID);
       m.stock += (it.qty + it.freeQty);
       m.purRate = it.purchaseRate;
       m.mrp = it.mrp;
@@ -133,19 +124,19 @@ class PharoahManager with ChangeNotifier {
   }
 
   void deleteParty(String id) { parties.removeWhere((p) => p.id == id); save(); }
-  void deleteRoute(String id) { routes.removeWhere((r) => r.id == id); save(); }
   void deleteBill(String id) { sales.removeWhere((s) => s.id == id); save(); }
   void deletePurchase(String id) { purchases.removeWhere((p) => p.id == id); save(); }
   void cancelBill(String id) {
     int i = sales.indexWhere((s) => s.id == id);
-    if(i != -1) { sales[i].status = "Cancelled"; addLog("CANCEL", "Sale Bill #${sales[i].billNo} Cancelled"); save(); }
+    if(i != -1) { sales[i].status = "Cancelled"; addLog("CANCEL", "Bill #${sales[i].billNo} Cancelled"); save(); }
   }
 
   Future<void> runAutoBackup() async { addLog("SYSTEM", "Backup taken"); await save(); }
-  Future<void> runFullMaintenance() async { await loadAllData(); }
-  Future<void> masterReset() async { final dir = await getFYDirectory(); final d = Directory(dir); if(d.existsSync()) d.deleteSync(recursive: true); await loadAllData(); }
+  Future<void> masterReset() async { 
+    final dir = await getFYDirectory(); 
+    final d = Directory(dir); 
+    if(d.existsSync()) d.deleteSync(recursive: true); 
+    await loadAllData(); 
+  }
   Future<void> switchYear(String year) async { currentFY = year; await loadAllData(); notifyListeners(); }
-  
-  DateTime get fyStartDate => DateTime(int.parse(currentFY.split('-')[0]), 4, 1);
-  DateTime get fyEndDate => DateTime(int.parse(currentFY.split('-')[0]) + 1, 3, 31);
 }
