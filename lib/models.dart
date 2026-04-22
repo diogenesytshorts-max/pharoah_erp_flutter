@@ -32,10 +32,17 @@ class DrugType {
   factory DrugType.fromMap(Map<String, dynamic> map) => DrugType(id: map['id'] ?? "", name: map['name'] ?? "");
 }
 
-// 5. MEDICINE MODEL
+// 5. MEDICINE MODEL (ADVANCED UPDATED)
 class Medicine {
   String id, uniqueCode, name, packing, companyId, saltId, drugTypeId, rackNo, hsnCode;
-  int conversion; double reorderLevel, gst, mrp, purRate, rateA, rateB, rateC, stock;
+  int conversion; 
+  double reorderLevel, gst, mrp, purRate, rateA, rateB, rateC, stock;
+
+  // --- NEW ADVANCED FIELDS ---
+  String drugForm; // TAB, CAP, SYP, etc.
+  bool isNarcotic;
+  bool isScheduleH1;
+  String storageCondition; // Room Temp, Fridge, etc.
 
   // KEY LOGIC: Unique code na hone par Name+Packing se ID generate karega
   String get identityKey => uniqueCode.isEmpty ? "$name|$packing" : uniqueCode;
@@ -45,10 +52,25 @@ class Medicine {
     this.uniqueCode = "", 
     required this.name, 
     required this.packing,
-    this.companyId = "", this.saltId = "", this.drugTypeId = "", this.rackNo = "",
-    this.hsnCode = "N/A", this.conversion = 1, this.reorderLevel = 0.0, this.gst = 12.0,
-    this.mrp = 0.0, this.purRate = 0.0, this.rateA = 0.0, this.rateB = 0.0, this.rateC = 0.0,
-    this.stock = 0.0
+    this.companyId = "", 
+    this.saltId = "", 
+    this.drugTypeId = "", 
+    this.rackNo = "",
+    this.hsnCode = "N/A", 
+    this.conversion = 1, 
+    this.reorderLevel = 0.0, 
+    this.gst = 12.0,
+    this.mrp = 0.0, 
+    this.purRate = 0.0, 
+    this.rateA = 0.0, 
+    this.rateB = 0.0, 
+    this.rateC = 0.0,
+    this.stock = 0.0,
+    // Defaults for new fields
+    this.drugForm = "TAB",
+    this.isNarcotic = false,
+    this.isScheduleH1 = false,
+    this.storageCondition = "Room Temp",
   });
 
   Map<String, dynamic> toMap() => {
@@ -56,7 +78,12 @@ class Medicine {
     'companyId': companyId, 'saltId': saltId, 'drugTypeId': drugTypeId, 
     'rackNo': rackNo, 'hsnCode': hsnCode, 'conversion': conversion, 
     'reorderLevel': reorderLevel, 'gst': gst, 'mrp': mrp, 'purRate': purRate, 
-    'rateA': rateA, 'rateB': rateB, 'rateC': rateC, 'stock': stock
+    'rateA': rateA, 'rateB': rateB, 'rateC': rateC, 'stock': stock,
+    // Saving new fields
+    'drugForm': drugForm,
+    'isNarcotic': isNarcotic,
+    'isScheduleH1': isScheduleH1,
+    'storageCondition': storageCondition,
   };
 
   factory Medicine.fromMap(Map<String, dynamic> map) => Medicine(
@@ -67,7 +94,12 @@ class Medicine {
     gst: (map['gst'] ?? 12).toDouble(), mrp: (map['mrp'] ?? 0.0).toDouble(), 
     purRate: (map['purRate'] ?? 0.0).toDouble(), rateA: (map['rateA'] ?? 0.0).toDouble(), 
     rateB: (map['rateB'] ?? 0.0).toDouble(), rateC: (map['rateC'] ?? 0.0).toDouble(), 
-    stock: (map['stock'] ?? 0.0).toDouble()
+    stock: (map['stock'] ?? 0.0).toDouble(),
+    // Loading new fields with fallback for old data
+    drugForm: map['drugForm'] ?? "TAB",
+    isNarcotic: map['isNarcotic'] ?? false,
+    isScheduleH1: map['isScheduleH1'] ?? false,
+    storageCondition: map['storageCondition'] ?? "Room Temp",
   );
 }
 
@@ -80,7 +112,7 @@ class Party {
   factory Party.fromMap(Map<String, dynamic> map) => Party(id: map['id'] ?? "", name: map['name'] ?? "", group: map['group'] ?? "Sundry Debtors", phone: map['phone'] ?? "", email: map['email'] ?? "", address: map['address'] ?? "", city: map['city'] ?? "", state: map['state'] ?? "Rajasthan", route: map['route'] ?? "", gst: map['gst'] ?? "", dl: map['dl'] ?? "", dlExp: map['dlExp'] ?? "", pan: map['pan'] ?? "", transport: map['transport'] ?? "", priceLevel: map['priceLevel'] ?? "A", hsnCode: map['hsnCode'] ?? "N/A", opBal: (map['opBal'] ?? 0.0).toDouble(), creditLimit: (map['creditLimit'] ?? 0.0).toDouble(), creditDays: map['creditDays'] ?? 0);
 }
 
-// 7. TRANSACTION MODELS & OTHERS... (Baaki sab same rahega)
+// 7. TRANSACTION MODELS
 class BillItem {
   String id, medicineID, name, packing, batch, exp, hsn; int srNo; double mrp, qty, freeQty, rate, gstRate, cgst, sgst, igst, total, discountRupees;
   BillItem({required this.id, required this.srNo, required this.medicineID, required this.name, required this.packing, required this.batch, required this.exp, required this.hsn, required this.mrp, required this.qty, this.freeQty = 0, required this.rate, required this.gstRate, this.cgst = 0, this.sgst = 0, this.igst = 0, required this.total, this.discountRupees = 0});
