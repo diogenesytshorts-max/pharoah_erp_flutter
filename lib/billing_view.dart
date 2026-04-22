@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import '../pharoah_manager.dart';
@@ -59,72 +58,82 @@ class _BillingViewState extends State<BillingView> {
           ),
         ],
       ),
-      body: Stack(children: [
-        Column(children: [
-          if (selectedMed == null)
-            Container(
-              padding: const EdgeInsets.all(12),
-              color: Colors.teal.shade50,
-              child: TextField(
-                autofocus: true,
-                decoration: const InputDecoration(hintText: "Search Product...", prefixIcon: Icon(Icons.search, color: Colors.teal), border: OutlineInputBorder()),
-                onChanged: (v) => setState(() => searchQuery = v),
-              ),
-            ),
-          if (selectedMed != null)
-            SaleItemForm(
-              med: selectedMed!,
-              srNo: items.length + 1,
-              batchHistory: ph.batchHistory[selectedMed!.id] ?? [],
-              onAdd: (newItem) => setState(() { items.add(newItem); selectedMed = null; searchQuery = ""; }),
-              onCancel: () => setState(() => selectedMed = null),
-            ),
-          Expanded(
-            child: ListView.separated(
-              itemCount: items.length,
-              separatorBuilder: (c, i) => const Divider(height: 1),
-              itemBuilder: (c, i) => ListTile(
-                title: Text(items[i].name, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.teal)),
-                subtitle: Text("Batch: ${items[i].batch} | Qty: ${items[i].qty.toInt()}"),
-                trailing: Text("₹${items[i].total.toStringAsFixed(2)}", style: const TextStyle(fontWeight: FontWeight.bold)),
-                onLongPress: () => setState(() => items.removeAt(i)),
-              ),
-            ),
+      body: Column(children: [
+        _buildHeader(),
+        Expanded(
+          child: ListView.builder(
+            padding: const EdgeInsets.all(10),
+            itemCount: items.length,
+            itemBuilder: (c, i) => _buildItemCard(items[i], i),
           ),
-          if (searchQuery.isNotEmpty && selectedMed == null) _buildSearchList(ph),
-          Container(
-            padding: const EdgeInsets.all(15),
-            color: Colors.teal.shade50,
-            child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-              Text("TOTAL ITEMS: ${items.length}"),
-              Text("NET TOTAL: ₹${totalAmt.toStringAsFixed(2)}", 
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.teal.shade900)
-              )
-            ]),
-          )
-        ]),
+        ),
+        _buildFooter(),
       ]),
+      floatingActionButton: FloatingActionButton(
+        backgroundColor: Colors.teal.shade700,
+        onPressed: () => _openAddDialog(ph),
+        child: const Icon(Icons.add, color: Colors.white),
+      ),
     );
   }
 
-  Widget _buildSearchList(PharoahManager ph) => Container(
-    constraints: const BoxConstraints(maxHeight: 250),
-    color: Colors.white,
-    child: ListView.builder(
-      itemCount: ph.medicines.where((m) => m.name.toLowerCase().contains(searchQuery.toLowerCase())).length,
-      itemBuilder: (c, i) {
-        final m = ph.medicines.where((m) => m.name.toLowerCase().contains(searchQuery.toLowerCase())).toList()[i];
-        return Container(
-          decoration: const BoxDecoration(border: Border(left: BorderSide(color: Colors.teal, width: 5))),
-          child: ListTile(
-            title: Text(m.name, style: const TextStyle(fontWeight: FontWeight.bold)),
-            subtitle: Text("Stock: ${m.stock} | Pack: ${m.packing}"),
-            onTap: () => setState(() { selectedMed = m; searchQuery = ""; }),
-          ),
-        );
-      },
+  Widget _buildHeader() => Container(
+    padding: const EdgeInsets.all(15),
+    margin: const EdgeInsets.all(10),
+    decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12)),
+    child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+      Text(widget.party.name, style: TextStyle(fontWeight: FontWeight.bold, color: Colors.teal.shade800)),
+      Text(DateFormat('dd/MM/yyyy').format(widget.billDate), style: const TextStyle(fontWeight: FontWeight.bold)),
+    ]),
+  );
+
+  Widget _buildItemCard(BillItem it, int index) => Card(
+    child: ListTile(
+      title: Text(it.name, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.teal)),
+      subtitle: Text("Batch: ${it.batch} | Qty: ${it.qty.toInt()} | Rate: ₹${it.rate}"),
+      trailing: IconButton(icon: const Icon(Icons.delete, color: Colors.red), onPressed: () => setState(() => items.removeAt(index))),
     ),
   );
+
+  Widget _buildFooter() => Container(
+    padding: const EdgeInsets.all(20),
+    color: Colors.white,
+    child: Column(children: [
+      _row("Gross Amount", "₹${totalAmt.toStringAsFixed(2)}"),
+      const Divider(),
+      _row("NET TOTAL", "₹${totalAmt.toStringAsFixed(2)}", bold: true, size: 20, color: Colors.teal.shade900),
+    ]),
+  );
+
+  Widget _row(String l, String v, {bool bold = false, double size = 15, Color? color}) => Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [Text(l, style: TextStyle(fontWeight: bold ? FontWeight.bold : FontWeight.normal)), Text(v, style: TextStyle(fontWeight: bold ? FontWeight.bold : FontWeight.normal, fontSize: size, color: color))]);
+
+  void _openAddDialog(PharoahManager ph) {
+    showDialog(context: context, builder: (c) => AlertDialog(
+      title: const Text("Select Product"),
+      content: SizedBox(width: 400, height: 300, child: ListView(children: ph.medicines.map((m) => ListTile(
+        title: Text(m.name),
+        onTap: () { Navigator.pop(c); _entryForm(ph, m); }
+      )).toList())),
+    ));
+  }
+
+  void _entryForm(PharoahManager ph, Medicine m) {
+    final bC = TextEditingController(); final qC = TextEditingController(); final rC = TextEditingController(text: m.rateA.toString());
+    showDialog(context: context, builder: (c) => AlertDialog(
+      title: Text("Add ${m.name}"),
+      content: Column(mainAxisSize: MainAxisSize.min, children: [
+        TextField(controller: bC, decoration: const InputDecoration(labelText: "Batch")),
+        TextField(controller: qC, decoration: const InputDecoration(labelText: "Qty"), keyboardType: TextInputType.number),
+        TextField(controller: rC, decoration: const InputDecoration(labelText: "Rate"), keyboardType: TextInputType.number),
+      ]),
+      actions: [ElevatedButton(onPressed: () {
+        double q = double.tryParse(qC.text) ?? 0; double r = double.tryParse(rC.text) ?? 0;
+        double tax = (q * r) * (m.gst / 100);
+        setState(() => items.add(BillItem(id: DateTime.now().toString(), srNo: items.length + 1, medicineID: m.id, name: m.name, packing: m.packing, batch: bC.text, exp: "12/26", hsn: m.hsnCode, mrp: m.mrp, qty: q, rate: r, gstRate: m.gst, total: (q * r) + tax, cgst: tax/2, sgst: tax/2)));
+        Navigator.pop(c);
+      }, child: const Text("Confirm"))],
+    ));
+  }
 
   void _handleSave(PharoahManager ph) {
     if (widget.modifySaleId != null) ph.deleteBill(widget.modifySaleId!);
@@ -136,53 +145,4 @@ class _BillingViewState extends State<BillingView> {
     final sale = Sale(id: widget.modifySaleId ?? DateTime.now().toString(), billNo: widget.billNo, date: widget.billDate, partyName: widget.party.name, partyGstin: widget.party.gst, partyState: widget.party.state, items: items, totalAmount: totalAmt, paymentMode: widget.mode);
     await SaleInvoicePdf.generate(sale, widget.party);
   }
-}
-
-// --- ITEM ENTRY FORM ---
-class SaleItemForm extends StatefulWidget {
-  final Medicine med; final int srNo; final List<BatchInfo> batchHistory; final Function(BillItem) onAdd; final VoidCallback onCancel;
-  const SaleItemForm({super.key, required this.med, required this.srNo, required this.batchHistory, required this.onAdd, required this.onCancel});
-  @override State<SaleItemForm> createState() => _SaleItemFormState();
-}
-
-class _SaleItemFormState extends State<SaleItemForm> {
-  final bC = TextEditingController(); final mC = TextEditingController(); 
-  final rC = TextEditingController(); final qC = TextEditingController(text: "1");
-  final discC = TextEditingController(text: "0");
-  final rCC = TextEditingController();
-  bool showDisc = false;
-
-  @override void initState() {
-    super.initState();
-    mC.text = widget.med.mrp.toString();
-    rC.text = widget.med.rateA.toString();
-    _calcRateC();
-  }
-
-  void _calcRateC() {
-    double mrp = double.tryParse(mC.text) ?? 0;
-    double gst = widget.med.gst;
-    double disc = double.tryParse(discC.text) ?? 0;
-    double taxable = mrp / (1 + (gst / 100));
-    double rateC = taxable * (1 - (disc / 100));
-    rCC.text = rateC.toStringAsFixed(2);
-  }
-
-  @override Widget build(BuildContext context) {
-    return Container(padding: const EdgeInsets.all(15), color: Colors.teal.shade50, child: Column(children: [
-      Row(children: [Expanded(child: Text("${widget.srNo}. ${widget.med.name}", style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.teal))), IconButton(icon: const Icon(Icons.close), onPressed: widget.onCancel)]),
-      if (widget.batchHistory.isNotEmpty) SizedBox(height: 35, child: ListView(scrollDirection: Axis.horizontal, children: widget.batchHistory.map((b) => Padding(padding: const EdgeInsets.only(right: 5), child: ActionChip(label: Text(b.batch), onPressed: () => setState(() { bC.text = b.batch; rC.text = b.rate.toString(); })))).toList())),
-      Row(children: [Expanded(child: _field(bC, "Batch")), const SizedBox(width: 5), Expanded(child: _field(qC, "Qty", isNum: true)), const SizedBox(width: 5), Expanded(child: _field(rC, "Sale Rate"))]),
-      const SizedBox(height: 10),
-      GestureDetector(onTap: () => setState(() => showDisc = !showDisc), child: _field(rCC, "Rate C (Tap for Discount)", en: false)),
-      if(showDisc) Padding(padding: const EdgeInsets.only(top: 10), child: _field(discC, "Discount %", onCh: (v) => _calcRateC())),
-      const SizedBox(height: 15),
-      ElevatedButton(style: ElevatedButton.styleFrom(minimumSize: const Size(double.infinity, 45), backgroundColor: Colors.teal.shade700), onPressed: () {
-        double r = double.tryParse(rC.text) ?? 0; double q = double.tryParse(qC.text) ?? 0;
-        double tax = (q * r) * (widget.med.gst / 100);
-        widget.onAdd(BillItem(id: DateTime.now().toString(), srNo: widget.srNo, medicineID: widget.med.id, name: widget.med.name, packing: widget.med.packing, batch: bC.text.toUpperCase(), exp: "12/26", hsn: widget.med.hsnCode, mrp: widget.med.mrp, qty: q, rate: r, gstRate: widget.med.gst, total: (q * r) + tax, cgst: tax/2, sgst: tax/2));
-      }, child: const Text("ADD TO BILL", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)))
-    ]));
-  }
-  Widget _field(ctrl, l, {bool en = true, Function(String)? onCh, bool isNum = false}) => TextField(controller: ctrl, enabled: en, onChanged: onCh, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: InputDecoration(labelText: l, border: const OutlineInputBorder(), contentPadding: const EdgeInsets.all(8), filled: !en, fillColor: Colors.white));
 }
