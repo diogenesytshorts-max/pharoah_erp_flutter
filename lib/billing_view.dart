@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
-import 'pharoah_manager.dart';
-import 'models.dart';
+import '../pharoah_manager.dart';
+import '../models.dart';
 import 'pdf/sale_invoice_pdf.dart';
 
 class BillingView extends StatefulWidget {
@@ -10,6 +10,8 @@ class BillingView extends StatefulWidget {
   final String billNo;
   final DateTime billDate;
   final String mode;
+  final List<BillItem>? existingItems;
+  final String? modifySaleId;
 
   const BillingView({
     super.key,
@@ -17,6 +19,8 @@ class BillingView extends StatefulWidget {
     required this.billNo,
     required this.billDate,
     required this.mode,
+    this.existingItems,
+    this.modifySaleId,
   });
 
   @override
@@ -25,25 +29,30 @@ class BillingView extends StatefulWidget {
 
 class _BillingViewState extends State<BillingView> {
   List<BillItem> items = [];
+  final discC = TextEditingController(text: "0");
   
-  // Totals Calculation
   double get grossTotal => items.fold(0, (sum, i) => sum + (i.rate * i.qty));
-  double get totalTax => items.fold(0, (sum, i) => sum + (i.cgst + i.sgst + i.igst));
-  double get netTotal => grossTotal + totalTax;
+  double get totalTax => items.fold(0, (sum, i) => sum + i.cgst + i.sgst + i.igst);
+  double get netTotal => (grossTotal - (double.tryParse(discC.text) ?? 0)) + totalTax;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.existingItems != null) items = List.from(widget.existingItems!);
+  }
 
   @override
   Widget build(BuildContext context) {
     final ph = Provider.of<PharoahManager>(context);
-    
     return Scaffold(
-      backgroundColor: const Color(0xFFF1F8E9), // Light Green Background
+      backgroundColor: const Color(0xFFF1F8E9),
       appBar: AppBar(
-        title: const Text("Sale Billing", style: TextStyle(fontWeight: FontWeight.bold)),
+        title: Text("Invoice: ${widget.billNo}", style: const TextStyle(fontWeight: FontWeight.bold)),
         backgroundColor: Colors.green.shade700,
         foregroundColor: Colors.white,
         actions: [
-          IconButton(icon: const Icon(Icons.print), onPressed: items.isEmpty ? null : () => _printBill()),
-          IconButton(icon: const Icon(Icons.check), onPressed: items.isEmpty ? null : () => _saveAndClose(ph)),
+          IconButton(icon: const Icon(Icons.picture_as_pdf), onPressed: items.isEmpty ? null : () => _printBill()),
+          IconButton(icon: const Icon(Icons.check_circle), onPressed: items.isEmpty ? null : () => _saveAndClose(ph)),
         ],
       ),
       body: Column(
@@ -114,25 +123,26 @@ class _BillingViewState extends State<BillingView> {
       title: Text("Add ${m.name}"),
       content: Column(mainAxisSize: MainAxisSize.min, children: [
         TextField(controller: bC, decoration: const InputDecoration(labelText: "Batch")),
-        TextField(controller: qC, decoration: const InputDecoration(labelText: "Qty")),
-        TextField(controller: rC, decoration: const InputDecoration(labelText: "Rate")),
+        TextField(controller: qC, decoration: const InputDecoration(labelText: "Qty"), keyboardType: TextInputType.number),
+        TextField(controller: rC, decoration: const InputDecoration(labelText: "Rate"), keyboardType: TextInputType.number),
       ]),
       actions: [ElevatedButton(onPressed: () {
         double q = double.tryParse(qC.text) ?? 0; double r = double.tryParse(rC.text) ?? 0;
         double tax = (q * r) * (m.gst / 100);
         setState(() => items.add(BillItem(id: DateTime.now().toString(), srNo: items.length + 1, medicineID: m.id, name: m.name, packing: m.packing, batch: bC.text, exp: "12/26", hsn: m.hsnCode, mrp: m.mrp, qty: q, rate: r, gstRate: m.gst, total: (q * r) + tax, cgst: tax/2, sgst: tax/2)));
         Navigator.pop(c);
-      }, child: const Text("Add"))],
+      }, child: const Text("Confirm"))],
     ));
   }
 
   void _saveAndClose(PharoahManager ph) {
+    if (widget.modifySaleId != null) ph.deleteBill(widget.modifySaleId!);
     ph.finalizeSale(billNo: widget.billNo, date: widget.billDate, party: widget.party, items: items, total: netTotal, mode: widget.mode);
     Navigator.of(context).popUntil((route) => route.isFirst);
   }
 
   void _printBill() async {
-    final sale = Sale(id: DateTime.now().toString(), billNo: widget.billNo, date: widget.billDate, partyName: widget.party.name, partyGstin: widget.party.gst, partyState: widget.party.state, items: items, totalAmount: netTotal, paymentMode: widget.mode);
+    final sale = Sale(id: widget.modifySaleId ?? DateTime.now().toString(), billNo: widget.billNo, date: widget.billDate, partyName: widget.party.name, partyGstin: widget.party.gst, partyState: widget.party.state, items: items, totalAmount: netTotal, paymentMode: widget.mode);
     await SaleInvoicePdf.generate(sale, widget.party);
   }
 }
