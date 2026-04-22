@@ -62,11 +62,10 @@ class PharoahManager with ChangeNotifier {
       return f.existsSync() ? jsonDecode(f.readAsStringSync()) : null;
     }
 
-    // Checking if file exists to determine if we load DemoData (0 stock) or saved data
     if (File('$dir/meds.json').existsSync()) {
       medicines = (loadJson('meds.json') as List).map((e) => Medicine.fromMap(e)).toList();
     } else {
-      medicines = DemoData.getMedicines(); // Loads DemoData with Stock = 0
+      medicines = DemoData.getMedicines();
     }
 
     parties = (loadJson('parts.json') as List?)?.map((e) => Party.fromMap(e)).toList() ?? [DemoData.getDemoParty(), Party(id: 'cash', name: "CASH", group: "Cash in Hand")];
@@ -85,9 +84,17 @@ class PharoahManager with ChangeNotifier {
       batchHistory.clear();
       (bD as Map).forEach((k, v) => batchHistory[k] = (v as List).map((b) => BatchInfo.fromMap(b)).toList());
     }
-    
     notifyListeners();
   }
+
+  // --- MISSING METHODS RE-ADDED ---
+  void addVoucher(Voucher v) { vouchers.add(v); save(); }
+  void addCompany(Company c) { companies.add(c); save(); }
+  void addSalt(Salt s) { salts.add(s); save(); }
+  void addDrugType(DrugType d) { drugTypes.add(d); save(); }
+  void addRoute(RouteArea r) { routes.add(r); save(); }
+  void deleteRoute(String id) { routes.removeWhere((r) => r.id == id); save(); }
+  Future<void> runFullMaintenance() async { await loadAllData(); }
 
   void saveBatchCentrally(Medicine med, BatchInfo b) {
     String key = med.identityKey; 
@@ -103,7 +110,7 @@ class PharoahManager with ChangeNotifier {
     sales.add(Sale(id: DateTime.now().toString(), billNo: billNo, date: date, partyName: party.name, partyGstin: party.gst, partyState: party.state, items: items, totalAmount: total, paymentMode: mode));
     for (var it in items) {
       Medicine m = medicines.firstWhere((med) => med.id == it.medicineID);
-      m.stock -= (it.qty); // Simple Stock Deduct
+      m.stock -= (it.qty);
       saveBatchCentrally(m, BatchInfo(batch: it.batch, exp: it.exp, packing: it.packing, mrp: it.mrp, rate: it.rate));
     }
     addLog("SALE", "New Bill: #$billNo for ${party.name}");
