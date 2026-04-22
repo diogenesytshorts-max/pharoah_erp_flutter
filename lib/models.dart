@@ -113,22 +113,3 @@ class Voucher {
   Map<String, dynamic> toMap() => {'id': id, 'type': type, 'date': date.toIso8601String(), 'partyId': partyId, 'partyName': partyName, 'amount': amount, 'paymentMode': paymentMode, 'narration': narration};
   factory Voucher.fromMap(Map<String, dynamic> map) => Voucher(id: map['id'] ?? "", type: map['type'] ?? "", date: DateTime.parse(map['date']), partyId: map['partyId'] ?? "", partyName: map['partyName'] ?? "", amount: (map['amount'] ?? 0.0).toDouble(), paymentMode: map['paymentMode'] ?? "Cash", narration: map['narration'] ?? "");
 }
-import 'models.dart';
-
-class BatchMasterLogic {
-  static List<BatchInfo> updateBatchList(List<BatchInfo> existingBatches, BatchInfo newBatch) {
-    List<BatchInfo> updatedList = List.from(existingBatches);
-    
-    // Case sensitive check hata kar sirf batch string match karein
-    int idx = updatedList.indexWhere((b) => b.batch.trim().toUpperCase() == newBatch.batch.trim().toUpperCase());
-    
-    if (idx != -1) {
-      // Agar batch pehle se hai, toh naye rate/mrp se update kar do
-      updatedList[idx] = newBatch;
-    } else {
-      // Agar naya batch hai, toh add kar do
-      updatedList.add(newBatch);
-    }
-    return updatedList;
-  }
-}
