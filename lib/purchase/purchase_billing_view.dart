@@ -37,7 +37,7 @@ class _PurchaseBillingViewState extends State<PurchaseBillingView> {
     final ph = Provider.of<PharoahManager>(context);
     return Scaffold(
       appBar: AppBar(
-        backgroundColor: Colors.orange.shade800, foregroundColor: Colors.white, 
+        backgroundColor: Colors.teal.shade800, foregroundColor: Colors.white, 
         title: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text(widget.distributor.name, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold)), 
             Text("Bill: ${widget.distBillNo}", style: const TextStyle(fontSize: 10))
@@ -48,15 +48,16 @@ class _PurchaseBillingViewState extends State<PurchaseBillingView> {
       ),
       body: Column(children: [
           if (selectedMed == null) 
-            Container(padding: const EdgeInsets.all(12), color: Colors.orange.shade50, child: TextField(autofocus: true, decoration: const InputDecoration(hintText: "Search Product...", prefixIcon: Icon(Icons.search, color: Colors.orange), border: OutlineInputBorder()), onChanged: (v) => setState(() => searchQuery = v))),
+            Container(padding: const EdgeInsets.all(12), color: Colors.teal.shade50, child: TextField(autofocus: true, decoration: const InputDecoration(hintText: "Search Product...", prefixIcon: Icon(Icons.search, color: Colors.teal), border: OutlineInputBorder()), onChanged: (v) => setState(() => searchQuery = v))),
           
           if (selectedMed != null) 
             PurchaseItemForm(
               med: selectedMed!, 
               srNo: items.length + 1, 
-              batchHistory: ph.batchHistory[selectedMed!.uniqueCode] ?? [],
+              batchHistory: ph.batchHistory[selectedMed!.identityKey] ?? [],
               onAdd: (newItem) {
-                ph.saveBatchCentrally(selectedMed!.uniqueCode, BatchInfo(batch: newItem.batch, exp: newItem.exp, packing: newItem.packing, mrp: newItem.mrp, rate: newItem.purchaseRate));
+                // FIXED: Yahan ab Medicine object pass ho raha hai
+                ph.saveBatchCentrally(selectedMed!, BatchInfo(batch: newItem.batch, exp: newItem.exp, packing: newItem.packing, mrp: newItem.mrp, rate: newItem.purchaseRate));
                 setState(() { items.add(newItem); selectedMed = null; searchQuery = ""; });
               }, 
               onCancel: () => setState(() => selectedMed = null)
@@ -65,7 +66,7 @@ class _PurchaseBillingViewState extends State<PurchaseBillingView> {
           Expanded(child: ListView.separated(
             itemCount: items.length, separatorBuilder: (c, i) => const Divider(), itemBuilder: (c, i) => ListTile(
               title: Text(items[i].name, style: const TextStyle(fontWeight: FontWeight.bold)), 
-              subtitle: Text("Qty: ${items[i].qty} | Batch: ${items[i].batch}"), 
+              subtitle: Text("Qty: ${items[i].qty.toInt()} | Batch: ${items[i].batch}"), 
               trailing: Text("₹${items[i].total.toStringAsFixed(2)}"),
             )
           )),
@@ -75,7 +76,7 @@ class _PurchaseBillingViewState extends State<PurchaseBillingView> {
               leading: const Icon(Icons.medication), title: Text(m.name), onTap: () => setState(() { selectedMed = m; searchQuery = ""; }),
             )).toList())),
 
-          Container(padding: const EdgeInsets.all(15), color: Colors.orange.shade50, child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [Text("TOTAL ITEMS: ${items.length}"), Text("NET TOTAL: ₹${totalAmt.toStringAsFixed(2)}", style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.deepOrange))]))
+          Container(padding: const EdgeInsets.all(15), color: Colors.teal.shade50, child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [Text("TOTAL ITEMS: ${items.length}"), Text("NET TOTAL: ₹${totalAmt.toStringAsFixed(2)}", style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.teal))]))
       ]),
     );
   }
@@ -96,17 +97,15 @@ class PurchaseItemForm extends StatefulWidget {
 class _PurchaseItemFormState extends State<PurchaseItemForm> {
   final bC = TextEditingController(); final eC = TextEditingController(); final gC = TextEditingController(); 
   final mC = TextEditingController(); final pRC = TextEditingController(); final qC = TextEditingController(text: "1"); 
-  final fC = TextEditingController(text: "0"); final rAC = TextEditingController(); 
-  final rBC = TextEditingController(); final rCC = TextEditingController(); final rCD = TextEditingController(text: "0");
+  final fC = TextEditingController(text: "0");
 
   @override void initState() { 
     super.initState(); 
     mC.text = widget.med.mrp.toString(); gC.text = widget.med.gst.toString(); pRC.text = widget.med.purRate.toString();
-    rAC.text = widget.med.rateA.toString(); rBC.text = widget.med.rateB.toString(); 
   }
 
   @override Widget build(BuildContext context) {
-    return Container(padding: const EdgeInsets.all(15), color: Colors.orange.shade50, child: Column(children: [
+    return Container(padding: const EdgeInsets.all(15), color: Colors.teal.shade50, child: Column(children: [
       Row(children: [Expanded(child: Text("${widget.srNo}. ${widget.med.name}", style: const TextStyle(fontWeight: FontWeight.bold))), IconButton(icon: const Icon(Icons.close), onPressed: widget.onCancel)]),
       if (widget.batchHistory.isNotEmpty) SizedBox(height: 35, child: ListView(scrollDirection: Axis.horizontal, children: widget.batchHistory.map((b) => Padding(padding: const EdgeInsets.only(right: 5), child: ActionChip(label: Text(b.batch), onPressed: () => setState(() { bC.text = b.batch; eC.text = b.exp; mC.text = b.mrp.toString(); pRC.text = b.rate.toString(); })))).toList())),
       Row(children: [
@@ -119,11 +118,11 @@ class _PurchaseItemFormState extends State<PurchaseItemForm> {
         const SizedBox(width: 5), Expanded(child: _field(qC, "Qty", isNum: true)),
       ]),
       const SizedBox(height: 15),
-      ElevatedButton(style: ElevatedButton.styleFrom(minimumSize: const Size(double.infinity, 45), backgroundColor: Colors.orange.shade800), onPressed: () {
+      ElevatedButton(style: ElevatedButton.styleFrom(minimumSize: const Size(double.infinity, 45), backgroundColor: Colors.teal.shade800), onPressed: () {
         double pr = double.tryParse(pRC.text) ?? 0, qt = double.tryParse(qC.text) ?? 0, gst = double.tryParse(gC.text) ?? 0;
         widget.onAdd(PurchaseItem(id: DateTime.now().toString(), srNo: widget.srNo, medicineID: widget.med.id, name: widget.med.name, packing: widget.med.packing, batch: bC.text, exp: eC.text, hsn: widget.med.hsnCode, mrp: double.tryParse(mC.text) ?? 0, qty: qt, freeQty: double.tryParse(fC.text) ?? 0, purchaseRate: pr, gstRate: gst, total: (pr * qt) * (1 + gst/100)));
       }, child: const Text("ADD TO STOCK", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)))
     ]));
   }
-  Widget _field(ctrl, l, {List<TextInputFormatter>? fmt, bool en = true, Function(String)? onCh, bool isNum = false}) => TextField(controller: ctrl, enabled: en, inputFormatters: fmt, onChanged: onCh, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: InputDecoration(labelText: l, border: const OutlineInputBorder(), contentPadding: const EdgeInsets.all(8)));
+  Widget _field(ctrl, l, {List<TextInputFormatter>? fmt, bool en = true, bool isNum = false}) => TextField(controller: ctrl, enabled: en, inputFormatters: fmt, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: InputDecoration(labelText: l, border: const OutlineInputBorder(), contentPadding: const EdgeInsets.all(8)));
 }
