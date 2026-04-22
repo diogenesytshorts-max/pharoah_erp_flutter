@@ -32,10 +32,13 @@ class DrugType {
   factory DrugType.fromMap(Map<String, dynamic> map) => DrugType(id: map['id'] ?? "", name: map['name'] ?? "");
 }
 
-// 5. MEDICINE MODEL (Updated with uniqueCode)
+// 5. MEDICINE MODEL
 class Medicine {
   String id, uniqueCode, name, packing, companyId, saltId, drugTypeId, rackNo, hsnCode;
   int conversion; double reorderLevel, gst, mrp, purRate, rateA, rateB, rateC, stock;
+
+  // KEY LOGIC: Unique code na hone par Name+Packing se ID generate karega
+  String get identityKey => uniqueCode.isEmpty ? "$name|$packing" : uniqueCode;
 
   Medicine({
     required this.id, 
@@ -49,44 +52,21 @@ class Medicine {
   });
 
   Map<String, dynamic> toMap() => {
-    'id': id, 
-    'uniqueCode': uniqueCode,
-    'name': name, 
-    'packing': packing, 
-    'companyId': companyId, 
-    'saltId': saltId, 
-    'drugTypeId': drugTypeId, 
-    'rackNo': rackNo, 
-    'hsnCode': hsnCode, 
-    'conversion': conversion, 
-    'reorderLevel': reorderLevel, 
-    'gst': gst, 
-    'mrp': mrp, 
-    'purRate': purRate, 
-    'rateA': rateA, 
-    'rateB': rateB, 
-    'rateC': rateC, 
-    'stock': stock
+    'id': id, 'uniqueCode': uniqueCode, 'name': name, 'packing': packing, 
+    'companyId': companyId, 'saltId': saltId, 'drugTypeId': drugTypeId, 
+    'rackNo': rackNo, 'hsnCode': hsnCode, 'conversion': conversion, 
+    'reorderLevel': reorderLevel, 'gst': gst, 'mrp': mrp, 'purRate': purRate, 
+    'rateA': rateA, 'rateB': rateB, 'rateC': rateC, 'stock': stock
   };
 
   factory Medicine.fromMap(Map<String, dynamic> map) => Medicine(
-    id: map['id'] ?? "", 
-    uniqueCode: map['uniqueCode'] ?? "",
-    name: map['name'] ?? "", 
-    packing: map['packing'] ?? "", 
-    companyId: map['companyId'] ?? "", 
-    saltId: map['saltId'] ?? "", 
-    drugTypeId: map['drugTypeId'] ?? "", 
-    rackNo: map['rackNo'] ?? "", 
-    hsnCode: map['hsnCode'] ?? "N/A", 
-    conversion: map['conversion'] ?? 1, 
-    reorderLevel: (map['reorderLevel'] ?? 0.0).toDouble(), 
-    gst: (map['gst'] ?? 12).toDouble(), 
-    mrp: (map['mrp'] ?? 0.0).toDouble(), 
-    purRate: (map['purRate'] ?? 0.0).toDouble(), 
-    rateA: (map['rateA'] ?? 0.0).toDouble(), 
-    rateB: (map['rateB'] ?? 0.0).toDouble(), 
-    rateC: (map['rateC'] ?? 0.0).toDouble(), 
+    id: map['id'] ?? "", uniqueCode: map['uniqueCode'] ?? "", name: map['name'] ?? "", 
+    packing: map['packing'] ?? "", companyId: map['companyId'] ?? "", saltId: map['saltId'] ?? "", 
+    drugTypeId: map['drugTypeId'] ?? "", rackNo: map['rackNo'] ?? "", hsnCode: map['hsnCode'] ?? "N/A", 
+    conversion: map['conversion'] ?? 1, reorderLevel: (map['reorderLevel'] ?? 0.0).toDouble(), 
+    gst: (map['gst'] ?? 12).toDouble(), mrp: (map['mrp'] ?? 0.0).toDouble(), 
+    purRate: (map['purRate'] ?? 0.0).toDouble(), rateA: (map['rateA'] ?? 0.0).toDouble(), 
+    rateB: (map['rateB'] ?? 0.0).toDouble(), rateC: (map['rateC'] ?? 0.0).toDouble(), 
     stock: (map['stock'] ?? 0.0).toDouble()
   );
 }
@@ -95,17 +75,12 @@ class Medicine {
 class Party {
   String id, name, group, phone, email, address, city, state, route, gst, dl, dlExp, pan, transport, priceLevel, hsnCode;
   double opBal, creditLimit; int creditDays;
-
   Party({required this.id, required this.name, this.group = "Sundry Debtors", this.phone = "", this.email = "", this.address = "", this.city = "", this.state = "Rajasthan", this.route = "", this.gst = "", this.dl = "", this.dlExp = "", this.pan = "", this.transport = "", this.priceLevel = "A", this.hsnCode = "N/A", this.opBal = 0.0, this.creditLimit = 0.0, this.creditDays = 0});
-
-  String get accountGroup => group; 
-  bool get isB2B => gst.length >= 15;
-
   Map<String, dynamic> toMap() => {'id': id, 'name': name, 'group': group, 'phone': phone, 'email': email, 'address': address, 'city': city, 'state': state, 'route': route, 'gst': gst, 'dl': dl, 'dlExp': dlExp, 'pan': pan, 'transport': transport, 'priceLevel': priceLevel, 'hsnCode': hsnCode, 'opBal': opBal, 'creditLimit': creditLimit, 'creditDays': creditDays};
   factory Party.fromMap(Map<String, dynamic> map) => Party(id: map['id'] ?? "", name: map['name'] ?? "", group: map['group'] ?? "Sundry Debtors", phone: map['phone'] ?? "", email: map['email'] ?? "", address: map['address'] ?? "", city: map['city'] ?? "", state: map['state'] ?? "Rajasthan", route: map['route'] ?? "", gst: map['gst'] ?? "", dl: map['dl'] ?? "", dlExp: map['dlExp'] ?? "", pan: map['pan'] ?? "", transport: map['transport'] ?? "", priceLevel: map['priceLevel'] ?? "A", hsnCode: map['hsnCode'] ?? "N/A", opBal: (map['opBal'] ?? 0.0).toDouble(), creditLimit: (map['creditLimit'] ?? 0.0).toDouble(), creditDays: map['creditDays'] ?? 0);
 }
 
-// 7. TRANSACTION MODELS
+// 7. TRANSACTION MODELS & OTHERS... (Baaki sab same rahega)
 class BillItem {
   String id, medicineID, name, packing, batch, exp, hsn; int srNo; double mrp, qty, freeQty, rate, gstRate, cgst, sgst, igst, total, discountRupees;
   BillItem({required this.id, required this.srNo, required this.medicineID, required this.name, required this.packing, required this.batch, required this.exp, required this.hsn, required this.mrp, required this.qty, this.freeQty = 0, required this.rate, required this.gstRate, this.cgst = 0, this.sgst = 0, this.igst = 0, required this.total, this.discountRupees = 0});
