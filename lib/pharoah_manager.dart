@@ -81,7 +81,7 @@ class PharoahManager with ChangeNotifier {
     notifyListeners();
   }
 
-  // --- METHODS THAT WERE MISSING ---
+  // --- METHODS REQUIRED BY UI ---
   void addLog(String action, String details) { logs.add(LogEntry(id: DateTime.now().toString(), action: action, details: details, time: DateTime.now())); save(); }
   void addCompany(Company c) { companies.add(c); save(); }
   void addSalt(Salt s) { salts.add(s); save(); }
@@ -130,6 +130,10 @@ class PharoahManager with ChangeNotifier {
   }
 
   Future<void> runAutoBackup() async { addLog("SYSTEM", "Backup taken"); await save(); }
+  Future<void> runFullMaintenance() async { await loadAllData(); }
   Future<void> masterReset() async { final dir = await getFYDirectory(); final d = Directory(dir); if(d.existsSync()) d.deleteSync(recursive: true); await loadAllData(); }
   Future<void> switchYear(String year) async { currentFY = year; await loadAllData(); notifyListeners(); }
+  
+  DateTime get fyStartDate => DateTime(int.parse(currentFY.split('-')[0]), 4, 1);
+  DateTime get fyEndDate => DateTime(int.parse(currentFY.split('-')[0]) + 1, 3, 31);
 }
