@@ -19,7 +19,7 @@ class PharoahManager with ChangeNotifier {
   List<DrugType> drugTypes = [];
   List<LogEntry> logs = [];
   List<Voucher> vouchers = [];
-  Map<String, List<BatchInfo>> batchHistory = {};
+  Map<String, List<BatchInfo>> batchHistory = {}; // Key: uniqueCode
   
   String currentFY = "2025-26";
 
@@ -38,7 +38,6 @@ class PharoahManager with ChangeNotifier {
     return directory.path;
   }
 
-  // --- SAVE ---
   Future<void> save() async {
     final dir = await getFYDirectory();
     await File('$dir/meds.json').writeAsString(jsonEncode(medicines.map((e) => e.toMap()).toList()));
@@ -55,7 +54,6 @@ class PharoahManager with ChangeNotifier {
     notifyListeners();
   }
 
-  // --- LOAD ---
   Future<void> loadAllData() async {
     final dir = await getFYDirectory();
     dynamic loadJson(String name) {
@@ -83,31 +81,21 @@ class PharoahManager with ChangeNotifier {
     notifyListeners();
   }
 
-  // --- BUSINESS LOGIC ---
-  void addLog(String action, String details) { logs.add(LogEntry(id: DateTime.now().toString(), action: action, details: details, time: DateTime.now())); save(); }
-  void addCompany(Company c) { companies.add(c); save(); }
-  void addSalt(Salt s) { salts.add(s); save(); }
-  void addDrugType(DrugType d) { drugTypes.add(d); save(); }
-  void addRoute(RouteArea r) { routes.add(r); save(); }
-  void addVoucher(Voucher v) { vouchers.add(v); save(); }
-
-  void deleteParty(String id) { if(parties.firstWhere((p)=>p.id==id).name != "CASH") { parties.removeWhere((p) => p.id == id); save(); } }
-  void deleteRoute(String id) { routes.removeWhere((r) => r.id == id); save(); }
-
-  void saveBatchCentrally(String medId, BatchInfo b) {
-    if(!batchHistory.containsKey(medId)) batchHistory[medId] = [];
-    batchHistory[medId] = BatchMasterLogic.updateBatchList(batchHistory[medId]!, b);
+  // Batch recall logic based on uniqueCode
+  void saveBatchCentrally(String uniqueCode, BatchInfo b) {
+    if (uniqueCode.isEmpty) return;
+    if(!batchHistory.containsKey(uniqueCode)) batchHistory[uniqueCode] = [];
+    batchHistory[uniqueCode] = BatchMasterLogic.updateBatchList(batchHistory[uniqueCode]!, b);
     save();
   }
 
   void finalizeSale({required String billNo, required DateTime date, required Party party, required List<BillItem> items, required double total, required String mode}) {
     sales.add(Sale(id: DateTime.now().toString(), billNo: billNo, date: date, partyName: party.name, partyGstin: party.gst, partyState: party.state, items: items, totalAmount: total, paymentMode: mode));
     for (var it in items) {
-      int idx = medicines.indexWhere((m) => m.id == it.medicineID);
-      if(idx != -1) {
-        medicines[idx].stock -= (it.qty + it.freeQty);
-        saveBatchCentrally(it.medicineID, BatchInfo(batch: it.batch, exp: it.exp, packing: it.packing, mrp: it.mrp, rate: it.rate));
-      }
+      // Find by ID, but use uniqueCode for batch update
+      Medicine? m = medicines.firstWhere((med) => med.id == it.medicineID);
+      m.stock -= (it.qty + it.freeQty);
+      saveBatchCentrally(m.uniqueCode.isNotEmpty ? m.uniqueCode : m.id, BatchInfo(batch: it.batch, exp: it.exp, packing: it.packing, mrp: it.mrp, rate: it.rate));
     }
     addLog("SALE", "New Bill: #$billNo for ${party.name}");
     save();
@@ -116,17 +104,20 @@ class PharoahManager with ChangeNotifier {
   void finalizePurchase({required String internalNo, required String billNo, required DateTime date, DateTime? entryDate, required Party party, required List<PurchaseItem> items, required double total, required String mode}) {
     purchases.add(Purchase(id: DateTime.now().toString(), internalNo: internalNo, billNo: billNo, date: date, entryDate: entryDate ?? DateTime.now(), distributorName: party.name, items: items, totalAmount: total, paymentMode: mode));
     for (var it in items) {
-      int idx = medicines.indexWhere((m) => m.id == it.medicineID);
-      if(idx != -1) {
-        medicines[idx].stock += (it.qty + it.freeQty);
-        medicines[idx].purRate = it.purchaseRate;
-        medicines[idx].mrp = it.mrp;
-        saveBatchCentrally(it.medicineID, BatchInfo(batch: it.batch, exp: it.exp, packing: it.packing, mrp: it.mrp, rate: it.purchaseRate));
-      }
+      Medicine? m = medicines.firstWhere((med) => med.id == it.medicineID);
+      m.stock += (it.qty + it.freeQty);
+      m.purRate = it.purchaseRate;
+      m.mrp = it.mrp;
+      saveBatchCentrally(m.uniqueCode.isNotEmpty ? m.uniqueCode : m.id, BatchInfo(batch: it.batch, exp: it.exp, packing: it.packing, mrp: it.mrp, rate: it.purchaseRate));
     }
     addLog("PURCHASE", "New Purchase: #$billNo from ${party.name}");
     save();
   }
+
+  // --- DELETE & LOGS ---
+  void addLog(String action, String details) { logs.add(LogEntry(id: DateTime.now().toString(), action: action, details: details, time: DateTime.now())); save(); }
+  void deleteParty(String id) { if(parties.firstWhere((p)=>p.id==id).name != "CASH") { parties.removeWhere((p) => p.id == id); save(); } }
+  void deleteRoute(String id) { routes.removeWhere((r) => r.id == id); save(); }
 
   void deleteBill(String id) {
     int i = sales.indexWhere((s) => s.id == id);
