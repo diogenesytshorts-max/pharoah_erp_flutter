@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import '../pharoah_manager.dart';
@@ -45,65 +46,63 @@ class _BillingViewState extends State<BillingView> {
     final ph = Provider.of<PharoahManager>(context);
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF1F8E9), // Light Green Theme
+      backgroundColor: const Color(0xFFF1F8E9),
       appBar: AppBar(
+        title: Text("Invoice: ${widget.billNo}", style: const TextStyle(fontWeight: FontWeight.bold)),
         backgroundColor: Colors.teal.shade700,
         foregroundColor: Colors.white,
-        title: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(widget.party.name, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
-          Text("Bill: ${widget.billNo}", style: const TextStyle(fontSize: 10))
-        ]),
         actions: [
+          IconButton(icon: const Icon(Icons.picture_as_pdf), onPressed: items.isEmpty ? null : () => _printBill()),
           TextButton(
             onPressed: items.isEmpty ? null : () => _handleSave(ph),
-            child: const Text("FINISH", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold))
-          )
+            child: const Text("FINISH", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          ),
         ],
       ),
-      body: Column(children: [
-        if (selectedMed == null)
+      body: Stack(children: [
+        Column(children: [
+          if (selectedMed == null)
+            Container(
+              padding: const EdgeInsets.all(12),
+              color: Colors.teal.shade50,
+              child: TextField(
+                autofocus: true,
+                decoration: const InputDecoration(hintText: "Search Product...", prefixIcon: Icon(Icons.search, color: Colors.teal), border: OutlineInputBorder()),
+                onChanged: (v) => setState(() => searchQuery = v),
+              ),
+            ),
+          if (selectedMed != null)
+            SaleItemForm(
+              med: selectedMed!,
+              srNo: items.length + 1,
+              batchHistory: ph.batchHistory[selectedMed!.id] ?? [],
+              onAdd: (newItem) => setState(() { items.add(newItem); selectedMed = null; searchQuery = ""; }),
+              onCancel: () => setState(() => selectedMed = null),
+            ),
+          Expanded(
+            child: ListView.separated(
+              itemCount: items.length,
+              separatorBuilder: (c, i) => const Divider(height: 1),
+              itemBuilder: (c, i) => ListTile(
+                title: Text(items[i].name, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.teal)),
+                subtitle: Text("Batch: ${items[i].batch} | Qty: ${items[i].qty.toInt()}"),
+                trailing: Text("₹${items[i].total.toStringAsFixed(2)}", style: const TextStyle(fontWeight: FontWeight.bold)),
+                onLongPress: () => setState(() => items.removeAt(i)),
+              ),
+            ),
+          ),
+          if (searchQuery.isNotEmpty && selectedMed == null) _buildSearchList(ph),
           Container(
-            padding: const EdgeInsets.all(12),
+            padding: const EdgeInsets.all(15),
             color: Colors.teal.shade50,
-            child: TextField(
-              autofocus: true,
-              decoration: const InputDecoration(hintText: "Search Product...", prefixIcon: Icon(Icons.search, color: Colors.teal), border: OutlineInputBorder()),
-              onChanged: (v) => setState(() => searchQuery = v),
-            ),
-          ),
-
-        if (selectedMed != null)
-          SaleItemForm(
-            med: selectedMed!,
-            srNo: items.length + 1,
-            batchHistory: ph.batchHistory[selectedMed!.id] ?? [],
-            onAdd: (newItem) => setState(() { items.add(newItem); selectedMed = null; searchQuery = ""; }),
-            onCancel: () => setState(() => selectedMed = null),
-          ),
-
-        Expanded(
-          child: ListView.separated(
-            itemCount: items.length,
-            separatorBuilder: (c, i) => const Divider(height: 1),
-            itemBuilder: (c, i) => ListTile(
-              title: Text(items[i].name, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.teal)),
-              subtitle: Text("Batch: ${items[i].batch} | Qty: ${items[i].qty.toInt()}"),
-              trailing: Text("₹${items[i].total.toStringAsFixed(2)}", style: const TextStyle(fontWeight: FontWeight.bold)),
-              onLongPress: () => setState(() => items.removeAt(i)),
-            ),
-          ),
-        ),
-
-        if (searchQuery.isNotEmpty && selectedMed == null) _buildSearchList(ph),
-
-        Container(
-          padding: const EdgeInsets.all(15),
-          color: Colors.teal.shade50,
-          child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-            Text("TOTAL ITEMS: ${items.length}"),
-            Text("NET TOTAL: ₹${totalAmt.toStringAsFixed(2)}", style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.teal.shade900))
-          ]),
-        )
+            child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+              Text("TOTAL ITEMS: ${items.length}"),
+              Text("NET TOTAL: ₹${totalAmt.toStringAsFixed(2)}", 
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.teal.shade900)
+              )
+            ]),
+          )
+        ]),
       ]),
     );
   }
@@ -132,9 +131,14 @@ class _BillingViewState extends State<BillingView> {
     ph.finalizeSale(billNo: widget.billNo, date: widget.billDate, party: widget.party, items: items, total: totalAmt, mode: widget.mode);
     Navigator.of(context).popUntil((route) => route.isFirst);
   }
+
+  void _printBill() async {
+    final sale = Sale(id: widget.modifySaleId ?? DateTime.now().toString(), billNo: widget.billNo, date: widget.billDate, partyName: widget.party.name, partyGstin: widget.party.gst, partyState: widget.party.state, items: items, totalAmount: totalAmt, paymentMode: widget.mode);
+    await SaleInvoicePdf.generate(sale, widget.party);
+  }
 }
 
-// --- SALES ITEM ENTRY FORM ---
+// --- ITEM ENTRY FORM ---
 class SaleItemForm extends StatefulWidget {
   final Medicine med; final int srNo; final List<BatchInfo> batchHistory; final Function(BillItem) onAdd; final VoidCallback onCancel;
   const SaleItemForm({super.key, required this.med, required this.srNo, required this.batchHistory, required this.onAdd, required this.onCancel});
@@ -167,7 +171,7 @@ class _SaleItemFormState extends State<SaleItemForm> {
   @override Widget build(BuildContext context) {
     return Container(padding: const EdgeInsets.all(15), color: Colors.teal.shade50, child: Column(children: [
       Row(children: [Expanded(child: Text("${widget.srNo}. ${widget.med.name}", style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.teal))), IconButton(icon: const Icon(Icons.close), onPressed: widget.onCancel)]),
-      if (widget.batchHistory.isNotEmpty) SizedBox(height: 35, child: ListView(scrollDirection: Axis.horizontal, children: widget.batchHistory.map((b) => Padding(padding: const EdgeInsets.only(right: 5), child: ActionChip(label: Text(b.batch), onPressed: () => setState(() => bC.text = b.batch)))).toList())),
+      if (widget.batchHistory.isNotEmpty) SizedBox(height: 35, child: ListView(scrollDirection: Axis.horizontal, children: widget.batchHistory.map((b) => Padding(padding: const EdgeInsets.only(right: 5), child: ActionChip(label: Text(b.batch), onPressed: () => setState(() { bC.text = b.batch; rC.text = b.rate.toString(); })))).toList())),
       Row(children: [Expanded(child: _field(bC, "Batch")), const SizedBox(width: 5), Expanded(child: _field(qC, "Qty", isNum: true)), const SizedBox(width: 5), Expanded(child: _field(rC, "Sale Rate"))]),
       const SizedBox(height: 10),
       GestureDetector(onTap: () => setState(() => showDisc = !showDisc), child: _field(rCC, "Rate C (Tap for Discount)", en: false)),
@@ -176,7 +180,7 @@ class _SaleItemFormState extends State<SaleItemForm> {
       ElevatedButton(style: ElevatedButton.styleFrom(minimumSize: const Size(double.infinity, 45), backgroundColor: Colors.teal.shade700), onPressed: () {
         double r = double.tryParse(rC.text) ?? 0; double q = double.tryParse(qC.text) ?? 0;
         double tax = (q * r) * (widget.med.gst / 100);
-        widget.onAdd(BillItem(id: DateTime.now().toString(), srNo: widget.srNo, medicineID: widget.med.id, name: widget.med.name, packing: widget.med.packing, batch: bC.text, exp: "12/26", hsn: widget.med.hsnCode, mrp: widget.med.mrp, qty: q, rate: r, gstRate: widget.med.gst, total: (q * r) + tax, cgst: tax/2, sgst: tax/2));
+        widget.onAdd(BillItem(id: DateTime.now().toString(), srNo: widget.srNo, medicineID: widget.med.id, name: widget.med.name, packing: widget.med.packing, batch: bC.text.toUpperCase(), exp: "12/26", hsn: widget.med.hsnCode, mrp: widget.med.mrp, qty: q, rate: r, gstRate: widget.med.gst, total: (q * r) + tax, cgst: tax/2, sgst: tax/2));
       }, child: const Text("ADD TO BILL", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)))
     ]));
   }
