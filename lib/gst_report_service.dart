@@ -6,7 +6,6 @@ import 'package:intl/intl.dart';
 import 'models.dart';
 
 class GstReportService {
-  // 1. GSTR-1 (Sales)
   static Future<void> generateGstr1Pdf(List<Sale> sales, String periodLabel) async {
     final pdf = pw.Document();
     final prefs = await SharedPreferences.getInstance();
@@ -28,16 +27,16 @@ class GstReportService {
     await Printing.layoutPdf(onLayout: (f) async => pdf.save(), name: "GSTR1");
   }
 
-  // 2. GSTR-2 (Purchases & Expense ITC)
   static Future<void> generateGstr2Pdf(List<Purchase> purchases, List<Voucher> vouchers, List<Party> parties, String periodLabel) async {
     final pdf = pw.Document();
     final prefs = await SharedPreferences.getInstance();
     String cName = (prefs.getString('compName') ?? "PHAROAH ERP").toUpperCase();
 
+    // FIXED: accountGroup ki jagah 'group' use kiya
     List<Voucher> expenseVouchers = vouchers.where((v) {
       final pList = parties.where((pt) => pt.id == v.partyId);
       if (pList.isEmpty) return false;
-      return pList.first.accountGroup == "Expenses" && pList.first.gst != "N/A";
+      return pList.first.group == "Expenses" && pList.first.gst != "N/A";
     }).toList();
 
     pdf.addPage(pw.MultiPage(
@@ -52,7 +51,6 @@ class GstReportService {
     await Printing.layoutPdf(onLayout: (f) async => pdf.save(), name: "GSTR2");
   }
 
-  // 3. GSTR-3B (Summary)
   static Future<void> generateGstr3bPdf(List<Sale> sales, List<Purchase> purchases, String periodLabel) async {
     final pdf = pw.Document();
     final prefs = await SharedPreferences.getInstance();
@@ -82,10 +80,8 @@ class GstReportService {
     await Printing.layoutPdf(onLayout: (f) async => pdf.save());
   }
 
-  // --- INTERNAL UI HELPERS ---
   static pw.Widget _header(String n, String t, String p) => pw.Column(children: [pw.Text(n, style: pw.TextStyle(fontSize: 18, fontWeight: pw.FontWeight.bold)), pw.Text(t, style: const pw.TextStyle(fontSize: 14)), pw.Text("Period: $p"), pw.Divider()]);
   static pw.Widget _title(String t) => pw.Padding(padding: const pw.EdgeInsets.symmetric(vertical: 5), child: pw.Text(t, style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 10)));
-  
   static pw.Widget _tableB2B(List<Sale> l) => pw.TableHelper.fromTextArray(headers: ['Date', 'Inv No', 'Party', 'GSTIN', 'Total'], data: l.map((s) => [DateFormat('dd/MM/yy').format(s.date), s.billNo, s.partyName, s.partyGstin, s.totalAmount.toStringAsFixed(2)]).toList());
   static pw.Widget _tableB2C(List<Sale> l) => pw.TableHelper.fromTextArray(headers: ['State', 'Taxable Val', 'GST', 'Total'], data: l.map((s) => [s.partyState, (s.totalAmount * 0.88).toStringAsFixed(2), (s.totalAmount * 0.12).toStringAsFixed(2), s.totalAmount.toStringAsFixed(2)]).toList());
   static pw.Widget _tableHSN(List<Sale> l) => pw.TableHelper.fromTextArray(headers: ['HSN', 'Qty', 'Net Amt'], data: l.expand((s) => s.items).fold<Map<String, List<double>>>({}, (map, it) { map[it.hsn] = [(map[it.hsn]?[0] ?? 0) + it.qty, (map[it.hsn]?[1] ?? 0) + it.total]; return map; }).entries.map((e) => [e.key, e.value[0].toString(), e.value[1].toStringAsFixed(2)]).toList());
