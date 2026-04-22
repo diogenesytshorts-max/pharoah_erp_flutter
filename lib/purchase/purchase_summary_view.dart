@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import '../pharoah_manager.dart';
 import '../models.dart';
+import '../pdf/purchase_pdf.dart'; // IMPORT FIX
 import '../pdf/purchase_report_pdf.dart'; 
 import 'purchase_entry_view.dart'; 
 
@@ -60,7 +61,7 @@ class _PurchaseSummaryViewState extends State<PurchaseSummaryView> {
                   title: Text(p.distributorName, style: const TextStyle(fontWeight: FontWeight.bold)),
                   subtitle: Text("Bill: ${p.billNo} | ${DateFormat('dd/MM/yy').format(p.date)}"),
                   trailing: Row(mainAxisSize: MainAxisSize.min, children: [
-                    IconButton(icon: const Icon(Icons.print, color: Colors.blueGrey), onPressed: () => PurchasePdf.generate([p], supplier)),
+                    IconButton(icon: const Icon(Icons.print, color: Colors.blueGrey), onPressed: () => PurchasePdf.generate(p, supplier)),
                     IconButton(icon: const Icon(Icons.edit, color: Colors.blue), onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (c) => PurchaseEntryView(existingPurchase: p)))),
                     IconButton(icon: const Icon(Icons.delete, color: Colors.red), onPressed: () => ph.deletePurchase(p.id)),
                   ]),
