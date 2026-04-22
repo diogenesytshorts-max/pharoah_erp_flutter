@@ -8,7 +8,7 @@ import 'package:intl/intl.dart';
 
 class SaleEntryView extends StatefulWidget {
   final Sale? existingSale;
-  final bool isReadOnly; // Naya Parameter: Bill lock karne ke liye
+  final bool isReadOnly; 
 
   const SaleEntryView({super.key, this.existingSale, this.isReadOnly = false});
 
@@ -59,9 +59,8 @@ class _SaleEntryViewState extends State<SaleEntryView> {
         foregroundColor: Colors.white
       ),
       body: IgnorePointer(
-        ignoring: widget.isReadOnly, // Agar Read-only hai toh poori screen block kar do
+        ignoring: widget.isReadOnly,
         child: Column(children: [
-          // Bill Header
           Container(
             padding: const EdgeInsets.all(20), 
             color: Colors.white, 
@@ -91,7 +90,6 @@ class _SaleEntryViewState extends State<SaleEntryView> {
             ]),
           ),
 
-          // Cash/Credit Selection
           Padding(
             padding: const EdgeInsets.all(15), 
             child: SegmentedButton<String>(
@@ -104,10 +102,8 @@ class _SaleEntryViewState extends State<SaleEntryView> {
             )
           ),
           
-          // Party Selection
           Expanded(child: selectedParty != null ? _buildPartyCard() : _buildPartyList(ph)),
           
-          // Bottom Button
           if(selectedParty != null) Padding(
             padding: const EdgeInsets.all(20), 
             child: ElevatedButton(
@@ -123,6 +119,7 @@ class _SaleEntryViewState extends State<SaleEntryView> {
                 mode: paymentMode, 
                 existingItems: widget.existingSale?.items, 
                 modifySaleId: widget.existingSale?.id,
+                isReadOnly: widget.isReadOnly,
               ))),
               child: Text(
                 widget.isReadOnly ? "VIEW ITEMS LIST" : "PROCEED TO BILLING", 
@@ -138,7 +135,10 @@ class _SaleEntryViewState extends State<SaleEntryView> {
   Widget _buildPartyCard() => Card(
     elevation: 4,
     margin: const EdgeInsets.all(15), 
-    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15), border: Border.all(color: Colors.blue.shade100)),
+    shape: RoundedRectangleBorder(
+      borderRadius: BorderRadius.circular(15), 
+      side: BorderSide(color: Colors.blue.shade100, width: 1), // FIXED PARAMETER
+    ),
     child: ListTile(
       contentPadding: const EdgeInsets.all(15),
       leading: const CircleAvatar(backgroundColor: Colors.blue, child: Icon(Icons.person, color: Colors.white)),
