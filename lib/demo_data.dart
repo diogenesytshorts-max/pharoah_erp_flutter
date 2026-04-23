@@ -2,31 +2,79 @@ import 'models.dart';
 
 class DemoData {
   static List<Medicine> getMedicines() {
-    List<Map<String, dynamic>> products = [
-      {"name": "DOLO 650 MG", "pack": "10 TAB", "mrp": 50.0, "pur": 40.0, "a": 42.0, "b": 41.0, "c": 40.5, "stock": 0.0},
-      {"name": "PAN 40 MG", "pack": "10 TAB", "mrp": 120.0, "pur": 90.0, "a": 100.0, "b": 95.0, "c": 92.0, "stock": 0.0},
-      {"name": "CALPOL 500", "pack": "15 TAB", "mrp": 30.0, "pur": 20.0, "a": 25.0, "b": 24.0, "c": 22.0, "stock": 0.0},
-      {"name": "LIMCEE 500", "pack": "15 TAB", "mrp": 25.0, "pur": 15.0, "a": 20.0, "b": 19.0, "c": 18.0, "stock": 0.0},
-      {"name": "AZITHRAL 500", "pack": "5 TAB", "mrp": 150.0, "pur": 110.0, "a": 130.0, "b": 125.0, "c": 120.0, "stock": 0.0},
-    ];
-
-    return products.map((p) {
-      String name = p['name'];
-      String pack = p['pack'];
-      return Medicine(
-        id: "demo_${name.replaceAll(' ', '_')}",
-        uniqueCode: "$name|$pack",
-        name: name,
-        packing: pack,
-        mrp: p['mrp'],
-        purRate: p['pur'],
-        rateA: p['a'],
-        rateB: p['b'],
-        rateC: p['c'],
-        stock: 0.0, // Stock is now 0
+    // Demo products mapped to the new Universal ID Series
+    return [
+      Medicine(
+        id: "demo_1",
+        systemId: "PH-10001",
+        name: "DOLO 650 MG",
+        packing: "15 TAB",
+        mrp: 30.91,
+        purRate: 25.40,
+        rateA: 28.50,
+        rateB: 27.00,
+        rateC: 26.50,
+        stock: 0.0,
         gst: 12.0,
-      );
-    }).toList();
+        hsnCode: "3004",
+      ),
+      Medicine(
+        id: "demo_2",
+        systemId: "PH-10002",
+        name: "PAN 40 MG",
+        packing: "10 TAB",
+        mrp: 120.00,
+        purRate: 95.00,
+        rateA: 110.00,
+        rateB: 105.00,
+        rateC: 100.00,
+        stock: 0.0,
+        gst: 12.0,
+        hsnCode: "3004",
+      ),
+      Medicine(
+        id: "demo_3",
+        systemId: "PH-10003",
+        name: "CALPOL 500",
+        packing: "15 TAB",
+        mrp: 15.50,
+        purRate: 12.00,
+        rateA: 14.50,
+        rateB: 14.00,
+        rateC: 13.50,
+        stock: 0.0,
+        gst: 12.0,
+        hsnCode: "3004",
+      ),
+      Medicine(
+        id: "demo_4",
+        systemId: "PH-10004",
+        name: "LIMCEE 500",
+        packing: "15 TAB",
+        mrp: 25.00,
+        purRate: 18.00,
+        rateA: 23.00,
+        rateB: 22.00,
+        rateC: 20.00,
+        stock: 0.0,
+        gst: 12.0,
+        hsnCode: "3004",
+      ),
+      Medicine(
+        id: "demo_5",
+        systemId: "PH-10005",
+        name: "AZITHRAL 500",
+        packing: "5 TAB",
+        mrp: 115.00,
+        purRate: 88.00,
+        rateA: 105.00,
+        rateB: 100.00,
+        rateC: 98.00,
+        stock: 0.0,
+        gst: 12.0,
+        hsnCode: "3004",
+      ),
+    ];
   }
 
   static Party getDemoParty() {
