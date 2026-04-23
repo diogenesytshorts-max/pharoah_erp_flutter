@@ -85,6 +85,7 @@ class PharoahManager with ChangeNotifier {
       (bD as Map).forEach((k, v) => batchHistory[k] = (v as List).map((b) => BatchInfo.fromMap(b)).toList());
     }
 
+    // AUTO REBUILD BATCH STOCK
     InventoryLogicCenter.rebuildAllInventory(medicines: medicines, batchHistory: batchHistory, purchases: purchases, sales: sales);
     notifyListeners();
   }
@@ -110,7 +111,7 @@ class PharoahManager with ChangeNotifier {
       await prefs.setString('fy', nextFY);
       await prefs.setInt('lastBillID', 0); 
       await loadAllData();
-      addLog("SYSTEM", "Financial Year Switched to $nextFY");
+      addLog("SYSTEM", "New Financial Year $nextFY started");
     }
     return success;
   }
@@ -118,19 +119,16 @@ class PharoahManager with ChangeNotifier {
   void finalizeSale({required String billNo, required DateTime date, required Party party, required List<BillItem> items, required double total, required String mode}) {
     SaleBillNumber.incrementIfNecessary(billNo);
     sales.add(Sale(id: DateTime.now().toString(), billNo: billNo, date: date, partyName: party.name, partyGstin: party.gst, partyState: party.state, items: items, totalAmount: total, paymentMode: mode));
-    addLog("SALE", "New Bill #$billNo for ${party.name}");
     save().then((_) => loadAllData()); 
   }
 
   void finalizePurchase({required String internalNo, required String billNo, required DateTime date, DateTime? entryDate, required Party party, required List<PurchaseItem> items, required double total, required String mode}) {
     purchases.add(Purchase(id: DateTime.now().toString(), internalNo: internalNo, billNo: billNo, date: date, entryDate: entryDate ?? DateTime.now(), distributorName: party.name, items: items, totalAmount: total, paymentMode: mode));
-    addLog("PURCHASE", "New Purchase Bill #$billNo from ${party.name}");
     save().then((_) => loadAllData()); 
   }
 
   void deleteBill(String id) {
     sales.removeWhere((s) => s.id == id);
-    addLog("DELETE", "Sale Bill Deleted");
     save().then((_) => loadAllData());
   }
 
@@ -138,14 +136,12 @@ class PharoahManager with ChangeNotifier {
     int i = sales.indexWhere((s) => s.id == id);
     if(i != -1) {
       sales[i].status = "Cancelled";
-      addLog("CANCEL", "Bill #${sales[i].billNo} Cancelled");
       save().then((_) => loadAllData());
     }
   }
 
   void deletePurchase(String id) {
     purchases.removeWhere((p) => p.id == id);
-    addLog("DELETE", "Purchase Bill Deleted");
     save().then((_) => loadAllData());
   }
 
