@@ -1,12 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
-import 'package:pharoah_erp/pharoah_manager.dart';
-import 'package:pharoah_erp/models.dart';
-import 'package:pharoah_erp/pharoah_date_controller.dart';
+import 'pharoah_manager.dart';
+import 'models.dart';
+import 'pharoah_date_controller.dart'; // NAYA
+import 'app_date_logic.dart'; // NAYA
 
 class VoucherEntryView extends StatefulWidget {
-  final String type; 
+  final String type; // Receipt, Payment, Contra, Expense
   const VoucherEntryView({super.key, required this.type});
 
   @override State<VoucherEntryView> createState() => _VoucherEntryViewState();
@@ -19,16 +20,19 @@ class _VoucherEntryViewState extends State<VoucherEntryView> {
   final narrationC = TextEditingController();
   String payMode = "Cash";
   String partySearchQuery = "";
+  bool _isInit = false;
 
   @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (!_isInit) {
       final ph = Provider.of<PharoahManager>(context, listen: false);
+      // NAYA: Smart Initial Date according to FY
       setState(() {
         selectedDate = PharoahDateController.getInitialBillDate(ph.currentFY);
       });
-    });
+      _isInit = true;
+    }
   }
 
   @override
@@ -47,12 +51,18 @@ class _VoucherEntryViewState extends State<VoucherEntryView> {
 
     return Scaffold(
       backgroundColor: const Color(0xFFF5F6F9),
-      appBar: AppBar(title: Text("${widget.type} Entry"), backgroundColor: _getThemeColor(), foregroundColor: Colors.white),
+      appBar: AppBar(
+        title: Text("${widget.type} Entry"), 
+        backgroundColor: _getThemeColor(), 
+        foregroundColor: Colors.white,
+        elevation: 0,
+      ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(20),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Row(children: [
-                Expanded(child: _infoTile("DATE", DateFormat('dd/MM/yyyy').format(selectedDate), Icons.calendar_today, onTap: () => _pickDate(ph))),
+                // NAYA: Date Tile with FY Locked Picker
+                Expanded(child: _infoTile("DATE", AppDateLogic.format(selectedDate), Icons.calendar_today, onTap: () => _pickDate(ph))),
                 const SizedBox(width: 15),
                 Expanded(child: Container(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.black12)), child: DropdownButtonHideUnderline(child: DropdownButton<String>(value: payMode, items: ["Cash", "Bank", "UPI", "Cheque"].map((m) => DropdownMenuItem(value: m, child: Text(m))).toList(), onChanged: (v) => setState(() => payMode = v!))))),
             ]),
@@ -95,6 +105,7 @@ class _VoucherEntryViewState extends State<VoucherEntryView> {
     Navigator.pop(context);
   }
 
+  // NAYA: FY Locked Picker Integration
   void _pickDate(PharoahManager ph) async {
     DateTime? p = await PharoahDateController.pickDate(context: context, currentFY: ph.currentFY, initialDate: selectedDate);
     if (p != null) setState(() => selectedDate = p);
