@@ -69,7 +69,11 @@ class _BatchMasterViewState extends State<BatchMasterView> {
           else
             ListTile(
               tileColor: Colors.indigo.withOpacity(0.05),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.indigo.shade200)),
+              // FIXED: 'border' changed to 'side' with BorderSide
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12), 
+                side: BorderSide(color: Colors.indigo.shade200)
+              ),
               leading: const Icon(Icons.medication, color: Colors.indigo),
               title: Text(selectedMed!.name, style: const TextStyle(fontWeight: FontWeight.bold)),
               subtitle: Text("ID: ${selectedMed!.systemId} | Total Stock: ${selectedMed!.stock}"),
