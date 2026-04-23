@@ -5,6 +5,7 @@ import '../pharoah_manager.dart';
 import '../models.dart';
 import 'pdf/sale_invoice_pdf.dart';
 import 'item_entry_card.dart';
+import 'product_master.dart'; // NAYA: Product Master access ke liye
 
 class BillingView extends StatefulWidget {
   final Party party;
@@ -13,7 +14,7 @@ class BillingView extends StatefulWidget {
   final String mode;
   final List<BillItem>? existingItems;
   final String? modifySaleId;
-  final bool isReadOnly; // NAYA PARAMETER
+  final bool isReadOnly; 
 
   const BillingView({
     super.key,
@@ -23,7 +24,7 @@ class BillingView extends StatefulWidget {
     required this.mode,
     this.existingItems,
     this.modifySaleId,
-    this.isReadOnly = false, // DEFAULT FALSE
+    this.isReadOnly = false,
   });
 
   @override
@@ -41,7 +42,7 @@ class _BillingViewState extends State<BillingView> {
   }
 
   void _showItemSearchSheet(PharoahManager ph, {BillItem? itemToEdit}) {
-    if (widget.isReadOnly) return; // Read-only mein block
+    if (widget.isReadOnly) return; 
 
     String localSearch = "";
     Medicine? selectedMed;
@@ -77,15 +78,38 @@ class _BillingViewState extends State<BillingView> {
                   if (selectedMed == null) ...[
                     Padding(
                       padding: const EdgeInsets.all(15),
-                      child: TextField(
-                        autofocus: true,
-                        decoration: InputDecoration(
-                          hintText: "Search Product...",
-                          prefixIcon: const Icon(Icons.search),
-                          filled: true, fillColor: Colors.white,
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-                        ),
-                        onChanged: (v) => setSheetState(() => localSearch = v),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: TextField(
+                              autofocus: true,
+                              decoration: InputDecoration(
+                                hintText: "Search Product...",
+                                prefixIcon: const Icon(Icons.search),
+                                filled: true, fillColor: Colors.white,
+                                border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                              ),
+                              onChanged: (v) => setSheetState(() => localSearch = v),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          // NAYA: Quick Product Add Button
+                          IconButton.filled(
+                            onPressed: () async {
+                              final result = await Navigator.push(
+                                context,
+                                MaterialPageRoute(builder: (c) => const ProductMasterView(isSelectionMode: true)),
+                              );
+                              if (result != null && result is Medicine) {
+                                setSheetState(() {
+                                  selectedMed = result;
+                                });
+                              }
+                            },
+                            icon: const Icon(Icons.add_box_rounded),
+                            style: IconButton.styleFrom(backgroundColor: Colors.teal.shade800, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
+                          )
+                        ],
                       ),
                     ),
                     Expanded(
