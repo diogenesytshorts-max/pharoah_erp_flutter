@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'pharoah_manager.dart';
-import 'inventory_logic_center.dart'; // NAYA
+import 'inventory_logic_center.dart';
 import 'widgets.dart';
 import 'sale_entry_view.dart';
 import 'purchase/purchase_entry_view.dart';
@@ -11,6 +11,7 @@ import 'sale_summary_view.dart';
 import 'purchase/purchase_summary_view.dart';
 import 'data_exchange_view.dart';
 import 'more_features_view.dart';
+import 'app_date_logic.dart'; // NAYA: Connection with Date Master
 
 class DashboardView extends StatelessWidget {
   final VoidCallback onLogout;
@@ -19,20 +20,27 @@ class DashboardView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final ph = Provider.of<PharoahManager>(context);
-    final now = DateTime.now();
+    
+    // NAYA: 'Contextual Today' logic
+    // Agar user current year mein hai toh 'today' asli aaj ki date hogi.
+    // Agar user purane saal mein hai (Audit Mode), toh 'today' us saal ki 31st March hogi.
+    DateTime workingDate = AppDateLogic.getSmartDate(ph.currentFY);
 
     double todaySales = ph.sales
-        .where((s) => s.status == "Active" && _isSameDay(s.date, now))
+        .where((s) => s.status == "Active" && _isSameDay(s.date, workingDate))
         .fold(0.0, (sum, s) => sum + s.totalAmount);
+    
     double todayPur = ph.purchases
-        .where((p) => _isSameDay(p.date, now))
+        .where((p) => _isSameDay(p.date, workingDate))
         .fold(0.0, (sum, p) => sum + p.totalAmount);
         
-    // NAYA: Precision Batch-wise without GST valuation
     double stockVal = InventoryLogicCenter.calculateTotalStockValue(
       batchHistory: ph.batchHistory, 
       medicines: ph.medicines
     );
+
+    // NAYA: Audit Mode checking for UI
+    bool isPastYear = !AppDateLogic.isValidInFY(DateTime.now(), ph.currentFY);
 
     return Scaffold(
       backgroundColor: const Color(0xFFF8F9FD),
@@ -40,17 +48,19 @@ class DashboardView extends StatelessWidget {
         children: [
           Container(
             padding: const EdgeInsets.only(top: 60, left: 25, right: 25, bottom: 25),
-            decoration: const BoxDecoration(
-              color: Color(0xFF0D47A1),
-              borderRadius: BorderRadius.only(bottomLeft: Radius.circular(30), bottomRight: Radius.circular(30))
+            decoration: BoxDecoration(
+              // NAYA: Color changes to Purple in Audit Mode to alert user
+              color: isPastYear ? Colors.purple.shade900 : const Color(0xFF0D47A1),
+              borderRadius: const BorderRadius.only(bottomLeft: Radius.circular(30), bottomRight: Radius.circular(30))
             ),
             child: Row(
               children: [
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text("PHAROAH ERP", style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.white)),
-                    Text("Financial Year: ${ph.currentFY}", style: const TextStyle(fontSize: 11, color: Colors.white70)),
+                    Text(isPastYear ? "AUDIT MODE" : "PHAROAH ERP", 
+                      style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.white)),
+                    Text("Working Year: ${ph.currentFY}", style: const TextStyle(fontSize: 11, color: Colors.white70)),
                   ],
                 ),
                 const Spacer(),
@@ -58,19 +68,54 @@ class DashboardView extends StatelessWidget {
               ],
             ),
           ),
+          
           Expanded(
             child: SingleChildScrollView(
               padding: const EdgeInsets.all(20),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  // NAYA: Date Indicator Label
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 10, left: 5),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.history_toggle_off, size: 14, color: Colors.blueGrey),
+                        const SizedBox(width: 5),
+                        Text(
+                          isPastYear ? "Showing data for: ${AppDateLogic.format(workingDate)}" : "Today: ${AppDateLogic.format(workingDate)}",
+                          style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.blueGrey),
+                        ),
+                      ],
+                    ),
+                  ),
+
                   Row(children: [
-                    Expanded(child: StatWidget(title: "TODAY SALE", value: "₹${todaySales.toStringAsFixed(0)}", period: "Today", icon: "trending_up", color: Colors.green)),
+                    Expanded(child: StatWidget(
+                      title: isPastYear ? "LAST DAY SALE" : "TODAY SALE", 
+                      value: "₹${todaySales.toStringAsFixed(0)}", 
+                      period: isPastYear ? "Final" : "Today", 
+                      icon: "trending_up", 
+                      color: Colors.green
+                    )),
                     const SizedBox(width: 12),
-                    Expanded(child: StatWidget(title: "TODAY PUR", value: "₹${todayPur.toStringAsFixed(0)}", period: "Today", icon: "shopping_cart", color: Colors.orange)),
+                    Expanded(child: StatWidget(
+                      title: isPastYear ? "LAST DAY PUR" : "TODAY PUR", 
+                      value: "₹${todayPur.toStringAsFixed(0)}", 
+                      period: isPastYear ? "Final" : "Today", 
+                      icon: "shopping_cart", 
+                      color: Colors.orange
+                    )),
                   ]),
+                  
                   const SizedBox(height: 12),
-                  StatWidget(title: "TOTAL STOCK VALUE", value: "₹${stockVal.toStringAsFixed(0)}", period: "Real-time", icon: "inventory_2", color: Colors.purple),
+                  StatWidget(
+                    title: isPastYear ? "CLOSING STOCK VALUE" : "TOTAL STOCK VALUE", 
+                    value: "₹${stockVal.toStringAsFixed(0)}", 
+                    period: "Real-time", 
+                    icon: "inventory_2", 
+                    color: Colors.purple
+                  ),
                   
                   const SizedBox(height: 30),
                   const Text("DAILY TRANSACTIONS", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.blueGrey, letterSpacing: 1)),
