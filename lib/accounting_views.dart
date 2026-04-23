@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
-import 'pharoah_manager.dart';
-import 'models.dart';
-import 'pharoah_date_controller.dart'; // NAYA
+import 'package:pharoah_erp/pharoah_manager.dart';
+import 'package:pharoah_erp/models.dart';
+import 'package:pharoah_erp/pharoah_date_controller.dart';
 
 class VoucherEntryView extends StatefulWidget {
   final String type; 
@@ -23,7 +23,6 @@ class _VoucherEntryViewState extends State<VoucherEntryView> {
   @override
   void initState() {
     super.initState();
-    // NAYA: Smart Initial Date for FY
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final ph = Provider.of<PharoahManager>(context, listen: false);
       setState(() {
@@ -96,7 +95,6 @@ class _VoucherEntryViewState extends State<VoucherEntryView> {
     Navigator.pop(context);
   }
 
-  // NAYA: Using Controller
   void _pickDate(PharoahManager ph) async {
     DateTime? p = await PharoahDateController.pickDate(context: context, currentFY: ph.currentFY, initialDate: selectedDate);
     if (p != null) setState(() => selectedDate = p);
