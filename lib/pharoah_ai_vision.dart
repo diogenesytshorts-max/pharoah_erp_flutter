@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'ai_setup_view.dart'; // Naya configuration page link karne ke liye
-
+import 'vision_input_hub.dart';
 class PharoahAiVision extends StatefulWidget {
   const PharoahAiVision({super.key});
 
@@ -177,3 +177,22 @@ class _PharoahAiVisionState extends State<PharoahAiVision> {
     );
   }
 }
+// ... Purchase AI Card ...
+_buildActionCard(
+  title: "PURCHASE AI",
+  // ... gradient etc ...
+  onTap: () {
+    Navigator.push(context, MaterialPageRoute(builder: (c) => const VisionInputHub(mode: "PURCHASE")));
+  },
+),
+
+const SizedBox(height: 20),
+
+// ... Sale AI Card ...
+_buildActionCard(
+  title: "SALE AI",
+  // ... gradient etc ...
+  onTap: () {
+    Navigator.push(context, MaterialPageRoute(builder: (c) => const VisionInputHub(mode: "SALE")));
+  },
+),
