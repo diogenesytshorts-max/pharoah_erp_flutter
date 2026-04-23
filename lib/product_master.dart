@@ -4,7 +4,8 @@ import 'pharoah_manager.dart';
 import 'models.dart';
 
 class ProductMasterView extends StatefulWidget {
-  const ProductMasterView({super.key});
+  final bool isSelectionMode; // NAYA
+  const ProductMasterView({super.key, this.isSelectionMode = false});
 
   @override State<ProductMasterView> createState() => _ProductMasterViewState();
 }
@@ -16,8 +17,16 @@ class _ProductMasterViewState extends State<ProductMasterView> {
   final List<String> drugForms = ["TAB", "CAP", "SYP", "INJ", "IV", "PCS", "EXT", "OINT", "DROP"];
   final List<String> storageOptions = ["Room Temp", "Refrigerated (2-8°C)", "Cool Place"];
 
-  // --- 1. SEARCHABLE PICKER DIALOG ---
-  // Yeh function Company aur Salt dono ke liye kaam karega
+  @override
+  void initState() {
+    super.initState();
+    if (widget.isSelectionMode) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _showProductForm();
+      });
+    }
+  }
+
   void _showSearchablePicker({
     required String title,
     required List<dynamic> items,
@@ -84,7 +93,6 @@ class _ProductMasterViewState extends State<ProductMasterView> {
     );
   }
 
-  // --- 2. QUICK ADD METHODS ---
   void _quickAddCompany(PharoahManager ph) {
     final cC = TextEditingController();
     showDialog(context: context, builder: (c) => AlertDialog(
@@ -119,7 +127,6 @@ class _ProductMasterViewState extends State<ProductMasterView> {
     ));
   }
 
-  // --- 3. MAIN PRODUCT FORM ---
   void _showProductForm({Medicine? med}) {
     final ph = Provider.of<PharoahManager>(context, listen: false);
 
@@ -130,13 +137,11 @@ class _ProductMasterViewState extends State<ProductMasterView> {
     final reorderC = TextEditingController(text: med?.reorderLevel.toString() ?? "0");
     final gstC = TextEditingController(text: med?.gst.toString() ?? "12");
     
-    // Advanced fields state
     String selForm = med?.drugForm ?? "TAB";
     bool naco = med?.isNarcotic ?? false;
     bool schH1 = med?.isScheduleH1 ?? false;
     String selStore = med?.storageCondition ?? "Room Temp";
     
-    // Selectable Objects
     String? companyId = med?.companyId;
     String? saltId = med?.saltId;
     String companyName = companyId != null && companyId.isNotEmpty 
@@ -160,7 +165,6 @@ class _ProductMasterViewState extends State<ProductMasterView> {
                 children: [
                   _section("PRIMARY DETAILS"),
                   _input(nameC, "Product Name *", Icons.medication),
-                  
                   Row(children: [
                     Expanded(child: _input(packC, "Packing *", Icons.inventory)),
                     const SizedBox(width: 10),
@@ -171,10 +175,7 @@ class _ProductMasterViewState extends State<ProductMasterView> {
                       onChanged: (v) => setDialogState(() => selForm = v!),
                     )),
                   ]),
-
                   const SizedBox(height: 15),
-
-                  // Searchable Company Field
                   _searchableField(
                     label: "Company",
                     value: companyName,
@@ -186,10 +187,7 @@ class _ProductMasterViewState extends State<ProductMasterView> {
                       onQuickAdd: () => _quickAddCompany(ph),
                     ),
                   ),
-
                   const SizedBox(height: 15),
-                  
-                  // Searchable Salt Field
                   _searchableField(
                     label: "Salt / Composition",
                     value: saltName,
@@ -201,7 +199,6 @@ class _ProductMasterViewState extends State<ProductMasterView> {
                       onQuickAdd: () => _quickAddSalt(ph),
                     ),
                   ),
-
                   _section("LEGAL & STORAGE"),
                   Row(children: [
                     Expanded(child: SwitchListTile(
@@ -217,7 +214,6 @@ class _ProductMasterViewState extends State<ProductMasterView> {
                       onChanged: (v) => setDialogState(() => schH1 = v)
                     )),
                   ]),
-
                   const SizedBox(height: 10),
                   DropdownButtonFormField<String>(
                     value: selStore,
@@ -225,7 +221,6 @@ class _ProductMasterViewState extends State<ProductMasterView> {
                     items: storageOptions.map((s) => DropdownMenuItem(value: s, child: Text(s))).toList(),
                     onChanged: (v) => setDialogState(() => selStore = v!),
                   ),
-
                   _section("TAX & INVENTORY"),
                   Row(children: [
                     Expanded(child: _input(hsnC, "HSN Code", Icons.tag)),
@@ -247,7 +242,6 @@ class _ProductMasterViewState extends State<ProductMasterView> {
               style: ElevatedButton.styleFrom(backgroundColor: Colors.purple, foregroundColor: Colors.white),
               onPressed: () {
                 if(nameC.text.isEmpty || packC.text.isEmpty) return;
-                
                 String newUniqueCode = med?.uniqueCode ?? "ITEM-${DateTime.now().millisecondsSinceEpoch.toString().substring(6)}";
 
                 final newItem = Medicine(
@@ -266,13 +260,20 @@ class _ProductMasterViewState extends State<ProductMasterView> {
                   isNarcotic: naco,
                   isScheduleH1: schH1,
                   storageCondition: selStore,
-                  // Purane values retain karein
                   mrp: med?.mrp ?? 0, purRate: med?.purRate ?? 0, rateA: med?.rateA ?? 0, rateB: med?.rateB ?? 0, rateC: med?.rateC ?? 0,
                 );
 
                 if(med == null) ph.medicines.add(newItem);
                 else { int i = ph.medicines.indexWhere((x)=>x.id==med.id); ph.medicines[i] = newItem; }
-                ph.save(); Navigator.pop(c);
+                ph.save(); 
+
+                // NAYA logic selection return ke liye
+                if (widget.isSelectionMode) {
+                  Navigator.pop(c); // dialog
+                  Navigator.pop(context, newItem); // screen return with item
+                } else {
+                  Navigator.pop(c);
+                }
               }, 
               child: const Text("SAVE PRODUCT")
             )
@@ -323,7 +324,6 @@ class _ProductMasterViewState extends State<ProductMasterView> {
     );
   }
 
-  // --- UI COMPONENTS ---
   Widget _section(String t) => Padding(padding: const EdgeInsets.symmetric(vertical: 12), child: Align(alignment: Alignment.centerLeft, child: Text(t, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.blueGrey, letterSpacing: 1))));
   
   Widget _input(TextEditingController ctrl, String label, IconData icon, {bool isNum = false}) => Padding(
