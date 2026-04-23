@@ -4,7 +4,7 @@ import 'package:intl/intl.dart';
 import '../pharoah_manager.dart';
 import '../models.dart';
 import '../party_master.dart';
-import '../pharoah_date_controller.dart';
+import '../pharoah_date_controller.dart'; // NAYA: Master Lock Connection
 import 'purchase_billing_view.dart';
 
 class PurchaseEntryView extends StatefulWidget {
@@ -42,13 +42,17 @@ class _PurchaseEntryViewState extends State<PurchaseEntryView> {
           paymentMode = widget.existingPurchase!.paymentMode;
           selectedDistributor = ph.parties.firstWhere(
             (p) => p.name == widget.existingPurchase!.distributorName, 
-            orElse: () => Party(id: '0', name: widget.existingPurchase!.distributorName)
+            orElse: () => ph.parties[0]
           );
         });
       } else {
         internalEntryNoC.text = "PUR-${DateTime.now().millisecondsSinceEpoch.toString().substring(7)}";
+        // NAYA: FY Smart Default
         DateTime smartDate = PharoahDateController.getInitialBillDate(ph.currentFY);
-        setState(() { selectedBillDate = smartDate; selectedEntryDate = smartDate; });
+        setState(() {
+          selectedBillDate = smartDate;
+          selectedEntryDate = smartDate;
+        });
       }
     });
   }
@@ -72,7 +76,7 @@ class _PurchaseEntryViewState extends State<PurchaseEntryView> {
         child: Column(children: [
           Container(padding: const EdgeInsets.all(20), color: Colors.white, child: Column(children: [
             Row(children: [
-              Expanded(child: TextField(controller: internalEntryNoC, decoration: const InputDecoration(labelText: "ENTRY ID", border: OutlineInputBorder()))),
+              Expanded(child: TextField(controller: internalEntryNoC, enabled: false, decoration: const InputDecoration(labelText: "ENTRY ID", border: OutlineInputBorder(), filled: true, fillColor: Color(0xFFF5F5F5)))),
               const SizedBox(width: 15),
               Expanded(child: TextField(controller: supplierBillNoC, textCapitalization: TextCapitalization.characters, decoration: const InputDecoration(labelText: "SUPPLIER BILL NO", border: OutlineInputBorder()))),
             ]),
@@ -80,6 +84,7 @@ class _PurchaseEntryViewState extends State<PurchaseEntryView> {
             Row(children: [
               Expanded(child: InkWell(
                 onTap: () async { 
+                  // NAYA: PickDate with FY Range Lock
                   DateTime? p = await PharoahDateController.pickDate(context: context, currentFY: ph.currentFY, initialDate: selectedBillDate);
                   if (p != null) setState(() => selectedBillDate = p); 
                 }, 
@@ -88,6 +93,7 @@ class _PurchaseEntryViewState extends State<PurchaseEntryView> {
               const SizedBox(width: 10),
               Expanded(child: InkWell(
                 onTap: () async { 
+                  // NAYA: PickDate with FY Range Lock
                   DateTime? p = await PharoahDateController.pickDate(context: context, currentFY: ph.currentFY, initialDate: selectedEntryDate);
                   if (p != null) setState(() => selectedEntryDate = p); 
                 }, 
@@ -101,7 +107,9 @@ class _PurchaseEntryViewState extends State<PurchaseEntryView> {
               onSelectionChanged: (v) => setState(() => paymentMode = v.first)
             ),
           ])),
+
           Expanded(child: selectedDistributor != null ? _buildSupplierCard() : _buildSearchList(ph)),
+
           if (selectedDistributor != null) Padding(
             padding: const EdgeInsets.all(20), 
             child: ElevatedButton(
@@ -140,7 +148,7 @@ class _PurchaseEntryViewState extends State<PurchaseEntryView> {
 
   Widget _buildSearchList(PharoahManager ph) => Column(children: [
     Padding(padding: const EdgeInsets.all(15), child: Row(children: [
-      Expanded(child: TextField(decoration: const InputDecoration(hintText: "Search/Change Supplier...", prefixIcon: Icon(Icons.search), border: OutlineInputBorder()), onChanged: (v) => setState(() => distSearchQuery = v))), 
+      Expanded(child: TextField(decoration: const InputDecoration(hintText: "Search Supplier...", prefixIcon: Icon(Icons.search), border: OutlineInputBorder()), onChanged: (v) => setState(() => distSearchQuery = v))), 
       const SizedBox(width: 10),
       IconButton.filled(onPressed: _handleQuickAddSupplier, icon: const Icon(Icons.group_add_rounded), style: IconButton.styleFrom(backgroundColor: Colors.orange.shade800, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)))),
     ])), 
