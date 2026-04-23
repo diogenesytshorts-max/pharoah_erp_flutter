@@ -85,7 +85,6 @@ class PharoahManager with ChangeNotifier {
       (bD as Map).forEach((k, v) => batchHistory[k] = (v as List).map((b) => BatchInfo.fromMap(b)).toList());
     }
 
-    // Auto-Repair Inventory on Load
     InventoryLogicCenter.rebuildAllInventory(
       medicines: medicines, 
       batchHistory: batchHistory, 
@@ -119,48 +118,30 @@ class PharoahManager with ChangeNotifier {
   void finalizeSale({required String billNo, required DateTime date, required Party party, required List<BillItem> items, required double total, required String mode}) {
     SaleBillNumber.incrementIfNecessary(billNo);
     sales.add(Sale(id: DateTime.now().toString(), billNo: billNo, date: date, partyName: party.name, partyGstin: party.gst, partyState: party.state, items: items, totalAmount: total, paymentMode: mode));
-    
-    // Immediate Update for real-time stock
-    for (var it in items) {
-      Medicine m = medicines.firstWhere((med) => med.id == it.medicineID);
-      m.stock -= (it.qty + it.freeQty);
-      if (!batchHistory.containsKey(m.identityKey)) batchHistory[m.identityKey] = [];
-      InventoryLogicCenter.updateBatchOnSale(batchHistory[m.identityKey]!, it.batch, (it.qty + it.freeQty));
-    }
-    save();
+    save().then((_) => loadAllData()); // NAYA: Auto-Sync Inventory
   }
 
   void finalizePurchase({required String internalNo, required String billNo, required DateTime date, DateTime? entryDate, required Party party, required List<PurchaseItem> items, required double total, required String mode}) {
     purchases.add(Purchase(id: DateTime.now().toString(), internalNo: internalNo, billNo: billNo, date: date, entryDate: entryDate ?? DateTime.now(), distributorName: party.name, items: items, totalAmount: total, paymentMode: mode));
-    
-    for (var it in items) {
-      Medicine m = medicines.firstWhere((med) => med.id == it.medicineID);
-      m.stock += (it.qty + it.freeQty);
-      m.purRate = it.purchaseRate;
-      m.mrp = it.mrp;
-      
-      if (!batchHistory.containsKey(m.identityKey)) batchHistory[m.identityKey] = [];
-      InventoryLogicCenter.updateBatchOnPurchase(batchHistory[m.identityKey]!, BatchInfo(batch: it.batch, exp: it.exp, packing: it.packing, mrp: it.mrp, rate: it.purchaseRate, qty: (it.qty + it.freeQty)));
-    }
-    save();
+    save().then((_) => loadAllData()); // NAYA: Auto-Sync Inventory
   }
 
   void deleteBill(String id) {
     sales.removeWhere((s) => s.id == id);
-    loadAllData().then((_) => save());
+    save().then((_) => loadAllData());
   }
 
   void cancelBill(String id) {
     int i = sales.indexWhere((s) => s.id == id);
     if(i != -1) {
       sales[i].status = "Cancelled";
-      loadAllData().then((_) => save());
+      save().then((_) => loadAllData());
     }
   }
 
   void deletePurchase(String id) {
     purchases.removeWhere((p) => p.id == id);
-    loadAllData().then((_) => save());
+    save().then((_) => loadAllData());
   }
 
   void deleteParty(String id) { parties.removeWhere((p) => p.id == id); save(); }
