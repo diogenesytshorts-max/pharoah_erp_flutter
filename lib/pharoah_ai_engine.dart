@@ -7,89 +7,97 @@ import 'package:http/http.dart' as http;
 
 class PharoahAiEngine {
   
-  /// MAIN ENTRY POINT (Ye function bahar se call hoga)
   static Future<Map<String, dynamic>> processBills(List<File> images, String mode) async {
     final prefs = await SharedPreferences.getInstance();
     String apiKey = prefs.getString('geminiKey') ?? "";
     bool autoOffline = prefs.getBool('autoOffline') ?? true;
 
-    // --- CASE 1: TRY ONLINE CLOUD AI (GEMINI) ---
-    if (apiKey.isNotEmpty) {
+    String geminiErrorLog = "";
+
+    // --- CLOUD AI (GEMINI) ---
+    if (apiKey.trim().isNotEmpty) {
       try {
         debugPrint("Starting Cloud AI (Gemini)...");
-        return await _runGeminiVision(images, apiKey);
+        return await _runGeminiVision(images, apiKey, mode);
       } catch (e) {
         debugPrint("Cloud AI Failed: $e");
+        geminiErrorLog = e.toString(); // Save error to show to user
+        
         if (!autoOffline) {
-          throw Exception("Cloud AI Failed and Auto-Fallback is OFF. Please check internet.");
+          throw Exception("Cloud AI Failed: $geminiErrorLog");
         }
-        debugPrint("Falling back to Offline AI...");
       }
-    }
+    } 
     
-    // --- CASE 2: OFFLINE AI (ML KIT) ---
-    debugPrint("Starting Offline AI (ML Kit)...");
-    return await _runOfflineMLKit(images);
+    // --- OFFLINE AI (ML KIT FALLBACK) ---
+    debugPrint("Starting Offline AI...");
+    return await _runOfflineMLKit(images, geminiErrorLog);
   }
 
   // =========================================================================
-  // 1. OFFLINE ENGINE (Google ML Kit)
+  // 1. OFFLINE ENGINE (ML Kit)
   // =========================================================================
-  static Future<Map<String, dynamic>> _runOfflineMLKit(List<File> images) async {
+  static Future<Map<String, dynamic>> _runOfflineMLKit(List<File> images, String previousError) async {
     final textRecognizer = TextRecognizer(script: TextRecognitionScript.latin);
     String fullText = "";
 
-    // Har ek photo ka text nikalna
-    for (var img in images) {
-      final inputImage = InputImage.fromFile(img);
-      final RecognizedText recognizedText = await textRecognizer.processImage(inputImage);
-      fullText += "${recognizedText.text}\n---PAGE BREAK---\n";
+    try {
+      for (var img in images) {
+        final inputImage = InputImage.fromFile(img);
+        final RecognizedText recognizedText = await textRecognizer.processImage(inputImage);
+        fullText += "${recognizedText.text}\n\n";
+      }
+    } catch (e) {
+      textRecognizer.close();
+      throw Exception("Offline OCR Failed: $e");
     }
+    
     textRecognizer.close();
 
-    // Offline me exact table nikalna mushkil hota hai, isliye hum raw text bhejenge
-    // jisse user screen par dekh kar type kar sake.
+    String msg = "Processed Offline. Read raw text below.";
+    if (previousError.isNotEmpty) {
+      msg = "Gemini AI Failed ($previousError). Switched to Offline Mode.";
+    }
+
     return {
       "status": "OFFLINE",
-      "partyName": "Needs Manual Entry",
+      "partyName": "Manual Entry",
       "billNo": "N/A",
       "date": DateTime.now().toString(),
       "items": [],
-      "raw_text": fullText, // User reference ke liye
-      "message": "Processed Offline. Please verify details manually."
+      "raw_text": fullText.isEmpty ? "No readable text found." : fullText,
+      "message": msg
     };
   }
 
   // =========================================================================
-  // 2. ONLINE ENGINE (Google Gemini 1.5 Flash)
+  // 2. ONLINE ENGINE (Gemini 1.5 Flash)
   // =========================================================================
-  static Future<Map<String, dynamic>> _runGeminiVision(List<File> images, String apiKey) async {
+  static Future<Map<String, dynamic>> _runGeminiVision(List<File> images, String apiKey, String mode) async {
     const String url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent";
     
-    // Convert first image to Base64 (Filhal Gemini 1 image per request acche se process karta hai)
     List<int> imageBytes = await images.first.readAsBytes();
     String base64Image = base64Encode(imageBytes);
 
-    // The Master Prompt (AI ko samjhana ki kya chahiye)
+    // EXACT strict JSON format required
     String prompt = """
-      You are an expert ERP Data Extractor. Analyze this invoice image.
-      Extract the following information and return ONLY a JSON object (no markdown, no extra text):
+      Analyze this invoice image. Extract data and return ONLY a valid JSON object. Do not use Markdown, do not say 'Here is the JSON'.
+      Must use EXACTLY these keys:
       {
-        "partyName": "Vendor or Customer Name",
+        "partyName": "Vendor Name",
         "billNo": "Invoice Number",
         "date": "Invoice Date",
         "items": [
           {
             "name": "Item Name",
-            "qty": Total quantity (number),
-            "rate": Unit rate or price (number),
-            "total": Total amount for this item (number)
+            "qty": 10,
+            "rate": 150.5,
+            "total": 1505.0
           }
         ]
       }
     """;
 
-    // Build the request payload
     Map<String, dynamic> payload = {
       "contents": [
         {
@@ -106,7 +114,6 @@ class PharoahAiEngine {
       ]
     };
 
-    // Call API
     final response = await http.post(
       Uri.parse("$url?key=$apiKey"),
       headers: {"Content-Type": "application/json"},
@@ -115,18 +122,28 @@ class PharoahAiEngine {
 
     if (response.statusCode == 200) {
       var data = jsonDecode(response.body);
-      String rawJson = data['candidates'][0]['content']['parts'][0]['text'];
+      String rawText = data['candidates'][0]['content']['parts'][0]['text'];
       
-      // Clean the string if Gemini wrapped it in markdown ```json ... ```
-      rawJson = rawJson.replaceAll("```json", "").replaceAll("```", "").trim();
+      // CRASH-PROOF JSON EXTRACTOR
+      int startIndex = rawText.indexOf('{');
+      int endIndex = rawText.lastIndexOf('}');
       
-      Map<String, dynamic> result = jsonDecode(rawJson);
-      result["status"] = "ONLINE";
-      result["raw_text"] = "Processed via Gemini Cloud";
-      result["message"] = "High Accuracy Cloud Extraction Complete.";
-      return result;
+      if (startIndex != -1 && endIndex != -1) {
+        String cleanJson = rawText.substring(startIndex, endIndex + 1);
+        
+        // Debugging ke liye check karein
+        debugPrint("Gemini JSON: $cleanJson");
+
+        Map<String, dynamic> result = jsonDecode(cleanJson);
+        result["status"] = "ONLINE";
+        result["message"] = "High Accuracy Cloud Extraction Complete.";
+        return result;
+      } else {
+        throw Exception("Invalid Format from AI.");
+      }
     } else {
-      throw Exception("Gemini API Error: ${response.statusCode}");
+      var errorData = jsonDecode(response.body);
+      throw Exception("${errorData['error']['message']}");
     }
   }
 }
