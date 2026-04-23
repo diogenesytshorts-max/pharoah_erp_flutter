@@ -4,6 +4,7 @@ import 'pharoah_manager.dart';
 import 'models.dart';
 import 'sale_bill_number.dart';
 import 'billing_view.dart';
+import 'party_master.dart'; // NAYA: Party Master access ke liye
 import 'package:intl/intl.dart';
 
 class SaleEntryView extends StatefulWidget {
@@ -46,6 +47,22 @@ class _SaleEntryViewState extends State<SaleEntryView> {
         setState(() { billNoC.text = nextNo; });
       }
     });
+  }
+
+  // --- NAYA LOGIC: QUICK ADD PARTY ---
+  Future<void> _handleQuickAddParty() async {
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (c) => const PartyMasterView(isSelectionMode: true),
+      ),
+    );
+
+    if (result != null && result is Party) {
+      setState(() {
+        selectedParty = result;
+      });
+    }
   }
 
   @override Widget build(BuildContext context) {
@@ -119,7 +136,7 @@ class _SaleEntryViewState extends State<SaleEntryView> {
                 mode: paymentMode, 
                 existingItems: widget.existingSale?.items, 
                 modifySaleId: widget.existingSale?.id,
-                isReadOnly: widget.isReadOnly, // FIXED: Now passing correctly
+                isReadOnly: widget.isReadOnly,
               ))),
               child: Text(
                 widget.isReadOnly ? "VIEW ITEMS LIST" : "PROCEED TO BILLING", 
@@ -149,7 +166,30 @@ class _SaleEntryViewState extends State<SaleEntryView> {
   );
   
   Widget _buildPartyList(PharoahManager ph) => Column(children: [
-    Padding(padding: const EdgeInsets.all(15), child: TextField(decoration: InputDecoration(hintText: "Search Party...", prefixIcon: const Icon(Icons.search), border: OutlineInputBorder(borderRadius: BorderRadius.circular(10))), onChanged: (v) => setState(() => searchQuery = v))),
+    Padding(
+      padding: const EdgeInsets.all(15), 
+      child: Row(
+        children: [
+          Expanded(
+            child: TextField(
+              decoration: InputDecoration(
+                hintText: "Search Party...", 
+                prefixIcon: const Icon(Icons.search), 
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(10))
+              ), 
+              onChanged: (v) => setState(() => searchQuery = v)
+            ),
+          ),
+          const SizedBox(width: 10),
+          // NAYA: Quick Add Button
+          IconButton.filled(
+            onPressed: _handleQuickAddParty, 
+            icon: const Icon(Icons.person_add_alt_1),
+            style: IconButton.styleFrom(backgroundColor: Colors.blue.shade900, foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
+          )
+        ],
+      )
+    ),
     Expanded(child: ListView(children: ph.parties.where((p) => p.name.toLowerCase().contains(searchQuery.toLowerCase())).map((p) => ListTile(title: Text(p.name, style: const TextStyle(fontWeight: FontWeight.bold)), subtitle: Text(p.city), onTap: () => setState(() => selectedParty = p))).toList()))
   ]);
 }
