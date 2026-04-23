@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+// 1. ROUTE / AREA MASTER
 class RouteArea {
   String id, name;
   RouteArea({required this.id, required this.name});
@@ -7,6 +8,7 @@ class RouteArea {
   factory RouteArea.fromMap(Map<String, dynamic> map) => RouteArea(id: map['id'] ?? "", name: map['name'] ?? "");
 }
 
+// 2. COMPANY MASTER
 class Company {
   String id, name;
   Company({required this.id, required this.name});
@@ -14,6 +16,7 @@ class Company {
   factory Company.fromMap(Map<String, dynamic> map) => Company(id: map['id'] ?? "", name: map['name'] ?? "");
 }
 
+// 3. SALT / COMPOSITION MASTER
 class Salt {
   String id, name, type;
   Salt({required this.id, required this.name, this.type = "Mono"});
@@ -21,6 +24,7 @@ class Salt {
   factory Salt.fromMap(Map<String, dynamic> map) => Salt(id: map['id'] ?? "", name: map['name'] ?? "", type: map['type'] ?? "Mono");
 }
 
+// 4. DRUG TYPE MASTER
 class DrugType {
   String id, name;
   DrugType({required this.id, required this.name});
@@ -28,19 +32,72 @@ class DrugType {
   factory DrugType.fromMap(Map<String, dynamic> map) => DrugType(id: map['id'] ?? "", name: map['name'] ?? "");
 }
 
+// 5. MEDICINE MODEL (Updated with Locked systemId)
 class Medicine {
-  String id, uniqueCode, name, packing, companyId, saltId, drugTypeId, rackNo, hsnCode;
+  String id;           // Internal UUID
+  String systemId;     // Locked Series ID (e.g. PH-10001)
+  String uniqueCode;   // Secondary HSN or Barcode
+  String name, packing, companyId, saltId, drugTypeId, rackNo, hsnCode;
   int conversion; 
   double reorderLevel, gst, mrp, purRate, rateA, rateB, rateC, stock;
-  String drugForm; bool isNarcotic; bool isScheduleH1; String storageCondition; 
-  String get identityKey => uniqueCode.isEmpty ? "$name|$packing" : uniqueCode;
+  String drugForm; 
+  bool isNarcotic;
+  bool isScheduleH1;
+  String storageCondition; 
 
-  Medicine({required this.id, this.uniqueCode = "", required this.name, required this.packing, this.companyId = "", this.saltId = "", this.drugTypeId = "", this.rackNo = "", this.hsnCode = "N/A", this.conversion = 1, this.reorderLevel = 0.0, this.gst = 12.0, this.mrp = 0.0, this.purRate = 0.0, this.rateA = 0.0, this.rateB = 0.0, this.rateC = 0.0, this.stock = 0.0, this.drugForm = "TAB", this.isNarcotic = false, this.isScheduleH1 = false, this.storageCondition = "Room Temp"});
+  // Batch mapping is now bound to systemId, making it immune to name changes
+  String get identityKey => systemId.isEmpty ? id : systemId;
 
-  Map<String, dynamic> toMap() => {'id': id, 'uniqueCode': uniqueCode, 'name': name, 'packing': packing, 'companyId': companyId, 'saltId': saltId, 'drugTypeId': drugTypeId, 'rackNo': rackNo, 'hsnCode': hsnCode, 'conversion': conversion, 'reorderLevel': reorderLevel, 'gst': gst, 'mrp': mrp, 'purRate': purRate, 'rateA': rateA, 'rateB': rateB, 'rateC': rateC, 'stock': stock, 'drugForm': drugForm, 'isNarcotic': isNarcotic, 'isScheduleH1': isScheduleH1, 'storageCondition': storageCondition};
-  factory Medicine.fromMap(Map<String, dynamic> map) => Medicine(id: map['id'] ?? "", uniqueCode: map['uniqueCode'] ?? "", name: map['name'] ?? "", packing: map['packing'] ?? "", companyId: map['companyId'] ?? "", saltId: map['saltId'] ?? "", drugTypeId: map['drugTypeId'] ?? "", rackNo: map['rackNo'] ?? "", hsnCode: map['hsnCode'] ?? "N/A", conversion: map['conversion'] ?? 1, reorderLevel: (map['reorderLevel'] ?? 0.0).toDouble(), gst: (map['gst'] ?? 12).toDouble(), mrp: (map['mrp'] ?? 0.0).toDouble(), purRate: (map['purRate'] ?? 0.0).toDouble(), rateA: (map['rateA'] ?? 0.0).toDouble(), rateB: (map['rateB'] ?? 0.0).toDouble(), rateC: (map['rateC'] ?? 0.0).toDouble(), stock: (map['stock'] ?? 0.0).toDouble(), drugForm: map['drugForm'] ?? "TAB", isNarcotic: map['isNarcotic'] ?? false, isScheduleH1: map['isScheduleH1'] ?? false, storageCondition: map['storageCondition'] ?? "Room Temp");
+  Medicine({
+    required this.id, 
+    this.systemId = "", 
+    this.uniqueCode = "", 
+    required this.name, 
+    required this.packing,
+    this.companyId = "", 
+    this.saltId = "", 
+    this.drugTypeId = "", 
+    this.rackNo = "",
+    this.hsnCode = "N/A", 
+    this.conversion = 1, 
+    this.reorderLevel = 0.0, 
+    this.gst = 12.0,
+    this.mrp = 0.0, 
+    this.purRate = 0.0, 
+    this.rateA = 0.0, 
+    this.rateB = 0.0, 
+    this.rateC = 0.0,
+    this.stock = 0.0,
+    this.drugForm = "TAB",
+    this.isNarcotic = false,
+    this.isScheduleH1 = false,
+    this.storageCondition = "Room Temp",
+  });
+
+  Map<String, dynamic> toMap() => {
+    'id': id, 'systemId': systemId, 'uniqueCode': uniqueCode, 'name': name, 'packing': packing, 
+    'companyId': companyId, 'saltId': saltId, 'drugTypeId': drugTypeId, 
+    'rackNo': rackNo, 'hsnCode': hsnCode, 'conversion': conversion, 
+    'reorderLevel': reorderLevel, 'gst': gst, 'mrp': mrp, 'purRate': purRate, 
+    'rateA': rateA, 'rateB': rateB, 'rateC': rateC, 'stock': stock,
+    'drugForm': drugForm, 'isNarcotic': isNarcotic, 'isScheduleH1': isScheduleH1, 'storageCondition': storageCondition,
+  };
+
+  factory Medicine.fromMap(Map<String, dynamic> map) => Medicine(
+    id: map['id'] ?? "", systemId: map['systemId'] ?? "", uniqueCode: map['uniqueCode'] ?? "", name: map['name'] ?? "", 
+    packing: map['packing'] ?? "", companyId: map['companyId'] ?? "", saltId: map['saltId'] ?? "", 
+    drugTypeId: map['drugTypeId'] ?? "", rackNo: map['rackNo'] ?? "", hsnCode: map['hsnCode'] ?? "N/A", 
+    conversion: map['conversion'] ?? 1, reorderLevel: (map['reorderLevel'] ?? 0.0).toDouble(), 
+    gst: (map['gst'] ?? 12).toDouble(), mrp: (map['mrp'] ?? 0.0).toDouble(), 
+    purRate: (map['purRate'] ?? 0.0).toDouble(), rateA: (map['rateA'] ?? 0.0).toDouble(), 
+    rateB: (map['rateB'] ?? 0.0).toDouble(), rateC: (map['rateC'] ?? 0.0).toDouble(), 
+    stock: (map['stock'] ?? 0.0).toDouble(),
+    drugForm: map['drugForm'] ?? "TAB", isNarcotic: map['isNarcotic'] ?? false, 
+    isScheduleH1: map['isScheduleH1'] ?? false, storageCondition: map['storageCondition'] ?? "Room Temp",
+  );
 }
 
+// 6. PARTY MODEL
 class Party {
   String id, name, group, phone, email, address, city, state, route, gst, dl, dlExp, pan, transport, priceLevel, hsnCode;
   double opBal, creditLimit; int creditDays;
@@ -49,6 +106,7 @@ class Party {
   factory Party.fromMap(Map<String, dynamic> map) => Party(id: map['id'] ?? "", name: map['name'] ?? "", group: map['group'] ?? "Sundry Debtors", phone: map['phone'] ?? "", email: map['email'] ?? "", address: map['address'] ?? "", city: map['city'] ?? "", state: map['state'] ?? "Rajasthan", route: map['route'] ?? "", gst: map['gst'] ?? "", dl: map['dl'] ?? "", dlExp: map['dlExp'] ?? "", pan: map['pan'] ?? "", transport: map['transport'] ?? "", priceLevel: map['priceLevel'] ?? "A", hsnCode: map['hsnCode'] ?? "N/A", opBal: (map['opBal'] ?? 0.0).toDouble(), creditLimit: (map['creditLimit'] ?? 0.0).toDouble(), creditDays: map['creditDays'] ?? 0);
 }
 
+// 7. TRANSACTION MODELS
 class BillItem {
   String id, medicineID, name, packing, batch, exp, hsn; int srNo; double mrp, qty, freeQty, rate, gstRate, cgst, sgst, igst, total, discountRupees;
   BillItem({required this.id, required this.srNo, required this.medicineID, required this.name, required this.packing, required this.batch, required this.exp, required this.hsn, required this.mrp, required this.qty, this.freeQty = 0, required this.rate, required this.gstRate, this.cgst = 0, this.sgst = 0, this.igst = 0, required this.total, this.discountRupees = 0});
@@ -77,18 +135,50 @@ class PurchaseItem {
   factory PurchaseItem.fromMap(Map<String, dynamic> map) => PurchaseItem(id: map['id'] ?? "", srNo: map['srNo'] ?? 0, medicineID: map['medicineID'] ?? "", name: map['name'] ?? "", packing: map['packing'] ?? "", batch: map['batch'] ?? "", exp: map['exp'] ?? "", hsn: map['hsn'] ?? "", mrp: (map['mrp'] ?? 0.0).toDouble(), qty: (map['qty'] ?? 0.0).toDouble(), freeQty: (map['freeQty'] ?? 0.0).toDouble(), purchaseRate: (map['purchaseRate'] ?? 0.0).toDouble(), gstRate: (map['gstRate'] ?? 0.0).toDouble(), total: (map['total'] ?? 0.0).toDouble(), rateA: (map['rateA'] ?? 0.0).toDouble(), rateB: (map['rateB'] ?? 0.0).toDouble(), rateC: (map['rateC'] ?? 0.0).toDouble());
 }
 
-class BatchInfo {
-  String batch, exp, packing; double mrp, rate, qty;
-  BatchInfo({required this.batch, required this.exp, required this.packing, required this.mrp, required this.rate, this.qty = 0.0});
-  Map<String, dynamic> toMap() => {'batch': batch, 'exp': exp, 'packing': packing, 'mrp': mrp, 'rate': rate, 'qty': qty};
-  factory BatchInfo.fromMap(Map<String, dynamic> map) => BatchInfo(batch: map['batch'] ?? "", exp: map['exp'] ?? "", packing: map['packing'] ?? "", mrp: (map['mrp'] ?? 0.0).toDouble(), rate: (map['rate'] ?? 0.0).toDouble(), qty: (map['qty'] ?? 0.0).toDouble());
-}
-
 class LogEntry {
   String id, action, details; DateTime time;
   LogEntry({required this.id, required this.action, required this.details, required this.time});
   Map<String, dynamic> toMap() => {'id': id, 'action': action, 'details': details, 'time': time.toIso8601String()};
   factory LogEntry.fromMap(Map<String, dynamic> map) => LogEntry(id: map['id'], action: map['action'], details: map['details'], time: DateTime.parse(map['time']));
+}
+
+// 8. UPGRADED BATCH INFO (The Inventory Brain)
+class BatchInfo {
+  String batch, exp, packing; 
+  double mrp, rate, qty;
+  double openingQty;    // Stock carry forward from last year
+  double adjustmentQty; // Manual +/- entries (Breakage etc)
+  String adjReason;     // Why was it adjusted?
+  bool isShell;         // True if batch was created via Sale without Purchase details
+
+  BatchInfo({
+    required this.batch, 
+    required this.exp, 
+    required this.packing, 
+    required this.mrp, 
+    required this.rate,
+    this.qty = 0.0,
+    this.openingQty = 0.0,
+    this.adjustmentQty = 0.0,
+    this.adjReason = "",
+    this.isShell = false,
+  });
+
+  Map<String, dynamic> toMap() => {
+    'batch': batch, 'exp': exp, 'packing': packing, 'mrp': mrp, 'rate': rate,
+    'qty': qty, 'openingQty': openingQty, 'adjustmentQty': adjustmentQty, 
+    'adjReason': adjReason, 'isShell': isShell,
+  };
+
+  factory BatchInfo.fromMap(Map<String, dynamic> map) => BatchInfo(
+    batch: map['batch'] ?? "", exp: map['exp'] ?? "", packing: map['packing'] ?? "", 
+    mrp: (map['mrp'] ?? 0.0).toDouble(), rate: (map['rate'] ?? 0.0).toDouble(),
+    qty: (map['qty'] ?? 0.0).toDouble(),
+    openingQty: (map['openingQty'] ?? 0.0).toDouble(),
+    adjustmentQty: (map['adjustmentQty'] ?? 0.0).toDouble(),
+    adjReason: map['adjReason'] ?? "",
+    isShell: map['isShell'] ?? false,
+  );
 }
 
 class Voucher {
