@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'pharoah_manager.dart';
+import 'inventory_logic_center.dart'; // NAYA
 import 'widgets.dart';
 import 'sale_entry_view.dart';
 import 'purchase/purchase_entry_view.dart';
@@ -26,7 +27,12 @@ class DashboardView extends StatelessWidget {
     double todayPur = ph.purchases
         .where((p) => _isSameDay(p.date, now))
         .fold(0.0, (sum, p) => sum + p.totalAmount);
-    double stockVal = ph.medicines.fold(0.0, (sum, m) => sum + (m.stock * m.purRate));
+        
+    // NAYA: Precision Batch-wise without GST valuation
+    double stockVal = InventoryLogicCenter.calculateTotalStockValue(
+      batchHistory: ph.batchHistory, 
+      medicines: ph.medicines
+    );
 
     return Scaffold(
       backgroundColor: const Color(0xFFF8F9FD),
