@@ -6,10 +6,9 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'models.dart';
 import 'master_data_library.dart';
 import 'demo_data.dart';
-import 'batch_master_logic.dart';
 import 'sale_bill_number.dart';
-import 'inventory_engine.dart';
-import 'fy_transfer_engine.dart'; // NAYA
+import 'inventory_logic_center.dart'; // NAYA
+import 'fy_transfer_engine.dart';
 
 class PharoahManager with ChangeNotifier {
   List<Medicine> medicines = [];
@@ -91,56 +90,74 @@ class PharoahManager with ChangeNotifier {
 
   // NAYA: FY Transfer Trigger
   Future<bool> startNewFinancialYear(String nextFY) async {
-    await save(); // Pehle current data save karlo
+    await save(); 
     bool success = await FYTransferEngine.transferData(sourceFY: currentFY, targetFY: nextFY);
     if (success) {
       currentFY = nextFY;
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString('fy', nextFY);
-      await prefs.setInt('lastBillID', 0); // Reset Bill Number for new year
+      await prefs.setInt('lastBillID', 0); 
       await loadAllData();
     }
     return success;
   }
 
-  // --- CORE METHODS (Existing) ---
+  // NAYA: Purani zero quantities ko recover karne ke liye ek call
+  Future<void> runFullMaintenance() async { 
+    await loadAllData(); 
+    InventoryLogicCenter.rebuildAllInventory(
+      medicines: medicines, 
+      batchHistory: batchHistory, 
+      purchases: purchases, 
+      sales: sales
+    );
+    await save();
+  }
+
+  // --- CORE METHODS ---
   void addVoucher(Voucher v) { vouchers.add(v); save(); }
   void addCompany(Company c) { companies.add(c); save(); }
   void addSalt(Salt s) { salts.add(s); save(); }
   void addDrugType(DrugType d) { drugTypes.add(d); save(); }
   void addRoute(RouteArea r) { routes.add(r); save(); }
   void deleteRoute(String id) { routes.removeWhere((r) => r.id == id); save(); }
-  
-  void saveBatchCentrally(Medicine med, BatchInfo b) {
-    String key = med.identityKey; 
-    if(!batchHistory.containsKey(key)) batchHistory[key] = [];
-    batchHistory[key] = BatchMasterLogic.updateBatchList(batchHistory[key]!, b);
-    save();
-  }
 
   void addLog(String action, String details) { logs.add(LogEntry(id: DateTime.now().toString(), action: action, details: details, time: DateTime.now())); save(); }
   
   void finalizeSale({required String billNo, required DateTime date, required Party party, required List<BillItem> items, required double total, required String mode}) {
     SaleBillNumber.incrementIfNecessary(billNo);
     sales.add(Sale(id: DateTime.now().toString(), billNo: billNo, date: date, partyName: party.name, partyGstin: party.gst, partyState: party.state, items: items, totalAmount: total, paymentMode: mode));
+    
     for (var it in items) {
       Medicine m = medicines.firstWhere((med) => med.id == it.medicineID);
       m.stock -= (it.qty + it.freeQty);
-      saveBatchCentrally(m, BatchInfo(batch: it.batch, exp: it.exp, packing: it.packing, mrp: it.mrp, rate: it.rate));
+      
+      // NAYA: Batch wise stock OUT
+      if (!batchHistory.containsKey(m.identityKey)) batchHistory[m.identityKey] = [];
+      InventoryLogicCenter.updateBatchOnSale(batchHistory[m.identityKey]!, it.batch, (it.qty + it.freeQty));
     }
+    
     addLog("SALE", "New Bill: #$billNo for ${party.name}");
     save();
   }
 
   void finalizePurchase({required String internalNo, required String billNo, required DateTime date, DateTime? entryDate, required Party party, required List<PurchaseItem> items, required double total, required String mode}) {
     purchases.add(Purchase(id: DateTime.now().toString(), internalNo: internalNo, billNo: billNo, date: date, entryDate: entryDate ?? DateTime.now(), distributorName: party.name, items: items, totalAmount: total, paymentMode: mode));
+    
     for (var it in items) {
       Medicine m = medicines.firstWhere((med) => med.id == it.medicineID);
       m.stock += (it.qty + it.freeQty);
       m.purRate = it.purchaseRate;
       m.mrp = it.mrp;
-      saveBatchCentrally(m, BatchInfo(batch: it.batch, exp: it.exp, packing: it.packing, mrp: it.mrp, rate: it.purchaseRate));
+      
+      // NAYA: Batch wise stock IN
+      if (!batchHistory.containsKey(m.identityKey)) batchHistory[m.identityKey] = [];
+      InventoryLogicCenter.updateBatchOnPurchase(
+        batchHistory[m.identityKey]!, 
+        BatchInfo(batch: it.batch, exp: it.exp, packing: it.packing, mrp: it.mrp, rate: it.purchaseRate, qty: (it.qty + it.freeQty))
+      );
     }
+    
     addLog("PURCHASE", "New Purchase: #$billNo from ${party.name}");
     save();
   }
@@ -148,7 +165,14 @@ class PharoahManager with ChangeNotifier {
   void deleteBill(String id) {
     try {
       final sale = sales.firstWhere((s) => s.id == id);
-      if (sale.status == "Active") { InventoryEngine.reverseSaleStock(sale, medicines); }
+      if (sale.status == "Active") {
+         for (var it in sale.items) {
+           Medicine m = medicines.firstWhere((med) => med.id == it.medicineID);
+           m.stock += (it.qty + it.freeQty);
+           // NAYA: Reverse Batch stock (Sale delete hui toh stock wapas aaya)
+           InventoryLogicCenter.updateBatchOnPurchase(batchHistory[m.identityKey]!, BatchInfo(batch: it.batch, exp: it.exp, packing: it.packing, mrp: it.mrp, rate: it.rate, qty: (it.qty + it.freeQty)));
+         }
+      }
       sales.removeWhere((s) => s.id == id);
       addLog("DELETE", "Bill #${sale.billNo} deleted.");
       save();
@@ -159,7 +183,12 @@ class PharoahManager with ChangeNotifier {
     try {
       int i = sales.indexWhere((s) => s.id == id);
       if(i != -1 && sales[i].status == "Active") {
-        InventoryEngine.reverseSaleStock(sales[i], medicines);
+         for (var it in sales[i].items) {
+           Medicine m = medicines.firstWhere((med) => med.id == it.medicineID);
+           m.stock += (it.qty + it.freeQty);
+           // NAYA: Reverse Batch stock
+           InventoryLogicCenter.updateBatchOnPurchase(batchHistory[m.identityKey]!, BatchInfo(batch: it.batch, exp: it.exp, packing: it.packing, mrp: it.mrp, rate: it.rate, qty: (it.qty + it.freeQty)));
+         }
         sales[i].status = "Cancelled";
         addLog("CANCEL", "Bill #${sales[i].billNo} Cancelled.");
         save();
@@ -170,7 +199,12 @@ class PharoahManager with ChangeNotifier {
   void deletePurchase(String id) {
     try {
       final pur = purchases.firstWhere((p) => p.id == id);
-      InventoryEngine.reversePurchaseStock(pur, medicines);
+      for (var it in pur.items) {
+         Medicine m = medicines.firstWhere((med) => med.id == it.medicineID);
+         m.stock -= (it.qty + it.freeQty);
+         // NAYA: Reverse Batch stock (Purchase delete hui toh stock kam hua)
+         InventoryLogicCenter.updateBatchOnSale(batchHistory[m.identityKey]!, it.batch, (it.qty + it.freeQty));
+      }
       purchases.removeWhere((p) => p.id == id);
       addLog("DELETE", "Purchase #${pur.billNo} deleted.");
       save();
@@ -185,6 +219,5 @@ class PharoahManager with ChangeNotifier {
     if(d.existsSync()) d.deleteSync(recursive: true); 
     await loadAllData(); 
   }
-  Future<void> runFullMaintenance() async { await loadAllData(); }
   Future<void> switchYear(String year) async { currentFY = year; await loadAllData(); notifyListeners(); }
 }
