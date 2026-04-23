@@ -63,7 +63,6 @@ class PharoahManager with ChangeNotifier {
       return f.existsSync() ? jsonDecode(f.readAsStringSync()) : null;
     }
 
-    // A. Basic Master Data Load
     if (File('$dir/meds.json').existsSync()) {
       medicines = (loadJson('meds.json') as List).map((e) => Medicine.fromMap(e)).toList();
     } else {
@@ -86,28 +85,23 @@ class PharoahManager with ChangeNotifier {
       (bD as Map).forEach((k, v) => batchHistory[k] = (v as List).map((b) => BatchInfo.fromMap(b)).toList());
     }
 
-    // B. NAYA SMART LOGIC: AUTO-REBUILD ON EVERY LOAD
-    // Isse user ko kabhi repair button dabane ki zaroorat nahi padegi.
-    // Stock aur Batch quantities hamesha Bills ke mutabiq refresh rahengi.
+    // Auto-Repair Inventory on Load
     InventoryLogicCenter.rebuildAllInventory(
       medicines: medicines, 
       batchHistory: batchHistory, 
       purchases: purchases, 
       sales: sales
     );
-
     notifyListeners();
   }
 
-  // --- CORE METHODS ---
+  // --- METHODS ---
   void addVoucher(Voucher v) { vouchers.add(v); save(); }
   void addCompany(Company c) { companies.add(c); save(); }
   void addSalt(Salt s) { salts.add(s); save(); }
   void addDrugType(DrugType d) { drugTypes.add(d); save(); }
   void addRoute(RouteArea r) { routes.add(r); save(); }
   void deleteRoute(String id) { routes.removeWhere((r) => r.id == id); save(); }
-  
-  void addLog(String action, String details) { logs.add(LogEntry(id: DateTime.now().toString(), action: action, details: details, time: DateTime.now())); save(); }
 
   Future<bool> startNewFinancialYear(String nextFY) async {
     await save(); 
@@ -126,8 +120,7 @@ class PharoahManager with ChangeNotifier {
     SaleBillNumber.incrementIfNecessary(billNo);
     sales.add(Sale(id: DateTime.now().toString(), billNo: billNo, date: date, partyName: party.name, partyGstin: party.gst, partyState: party.state, items: items, totalAmount: total, paymentMode: mode));
     
-    // Batch updates are handled by rebuild during load, 
-    // but we do it here too for real-time dashboard update.
+    // Immediate Update for real-time stock
     for (var it in items) {
       Medicine m = medicines.firstWhere((med) => med.id == it.medicineID);
       m.stock -= (it.qty + it.freeQty);
@@ -139,11 +132,13 @@ class PharoahManager with ChangeNotifier {
 
   void finalizePurchase({required String internalNo, required String billNo, required DateTime date, DateTime? entryDate, required Party party, required List<PurchaseItem> items, required double total, required String mode}) {
     purchases.add(Purchase(id: DateTime.now().toString(), internalNo: internalNo, billNo: billNo, date: date, entryDate: entryDate ?? DateTime.now(), distributorName: party.name, items: items, totalAmount: total, paymentMode: mode));
+    
     for (var it in items) {
       Medicine m = medicines.firstWhere((med) => med.id == it.medicineID);
       m.stock += (it.qty + it.freeQty);
       m.purRate = it.purchaseRate;
       m.mrp = it.mrp;
+      
       if (!batchHistory.containsKey(m.identityKey)) batchHistory[m.identityKey] = [];
       InventoryLogicCenter.updateBatchOnPurchase(batchHistory[m.identityKey]!, BatchInfo(batch: it.batch, exp: it.exp, packing: it.packing, mrp: it.mrp, rate: it.purchaseRate, qty: (it.qty + it.freeQty)));
     }
@@ -152,24 +147,24 @@ class PharoahManager with ChangeNotifier {
 
   void deleteBill(String id) {
     sales.removeWhere((s) => s.id == id);
-    loadAllData().then((_) => save()); // Auto-rebuild stock after delete
+    loadAllData().then((_) => save());
   }
 
   void cancelBill(String id) {
     int i = sales.indexWhere((s) => s.id == id);
     if(i != -1) {
       sales[i].status = "Cancelled";
-      loadAllData().then((_) => save()); // Auto-rebuild stock after cancel
+      loadAllData().then((_) => save());
     }
   }
 
   void deletePurchase(String id) {
     purchases.removeWhere((p) => p.id == id);
-    loadAllData().then((_) => save()); // Auto-rebuild stock after delete
+    loadAllData().then((_) => save());
   }
 
   void deleteParty(String id) { parties.removeWhere((p) => p.id == id); save(); }
-  Future<void> runAutoBackup() async { addLog("SYSTEM", "Backup taken"); await save(); }
+  Future<void> runAutoBackup() async { await save(); }
   Future<void> masterReset() async { 
     final dir = await getFYDirectory(); 
     final d = Directory(dir); 
