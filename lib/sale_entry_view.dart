@@ -5,7 +5,7 @@ import 'models.dart';
 import 'sale_bill_number.dart';
 import 'billing_view.dart';
 import 'party_master.dart';
-import 'pharoah_date_controller.dart'; // NAYA: Controller Import
+import 'pharoah_date_controller.dart';
 import 'package:intl/intl.dart';
 
 class SaleEntryView extends StatefulWidget {
@@ -40,14 +40,13 @@ class _SaleEntryViewState extends State<SaleEntryView> {
           billNoC.text = widget.existingSale!.billNo;
           selectedParty = ph.parties.firstWhere(
             (p) => p.name == widget.existingSale!.partyName, 
-            orElse: () => ph.parties[0]
+            orElse: () => Party(id: '0', name: widget.existingSale!.partyName)
           );
         });
       } else {
         String nextNo = await SaleBillNumber.getNextNumber(ph.sales);
         setState(() { 
           billNoC.text = nextNo;
-          // Central Controller se initial date le rahe hain
           selectedDate = PharoahDateController.getInitialBillDate(ph.currentFY);
         });
       }
@@ -55,13 +54,8 @@ class _SaleEntryViewState extends State<SaleEntryView> {
   }
 
   Future<void> _handleQuickAddParty() async {
-    final result = await Navigator.push(
-      context,
-      MaterialPageRoute(builder: (c) => const PartyMasterView(isSelectionMode: true)),
-    );
-    if (result != null && result is Party) {
-      setState(() { selectedParty = result; });
-    }
+    final result = await Navigator.push(context, MaterialPageRoute(builder: (c) => const PartyMasterView(isSelectionMode: true)));
+    if (result != null && result is Party) { setState(() { selectedParty = result; }); }
   }
 
   @override Widget build(BuildContext context) {
@@ -81,39 +75,31 @@ class _SaleEntryViewState extends State<SaleEntryView> {
             padding: const EdgeInsets.all(20), 
             color: Colors.white, 
             child: Row(children: [
-              Expanded(child: TextField(controller: billNoC, decoration: const InputDecoration(labelText: "BILL NO", border: OutlineInputBorder(), filled: true, fillColor: Color(0xFFF5F5F5)))),
+              // BILL NO - Ab ye enabled hai edit ke liye
+              Expanded(child: TextField(controller: billNoC, decoration: const InputDecoration(labelText: "BILL NO", border: OutlineInputBorder()))),
               const SizedBox(width: 15),
               Expanded(child: InkWell(
                 onTap: () async { 
-                  // CENTRAL CALL: No range logic needed here anymore!
-                  DateTime? p = await PharoahDateController.pickDate(
-                    context: context, 
-                    currentFY: ph.currentFY, 
-                    initialDate: selectedDate
-                  ); 
+                  DateTime? p = await PharoahDateController.pickDate(context: context, currentFY: ph.currentFY, initialDate: selectedDate); 
                   if(p!=null) setState(() => selectedDate = p); 
                 }, 
                 child: Container(
                   padding: const EdgeInsets.all(12), 
                   decoration: BoxDecoration(border: Border.all(color: Colors.grey), borderRadius: BorderRadius.circular(5)), 
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
+                  child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
                       Text(DateFormat('dd/MM/yy').format(selectedDate), style: const TextStyle(fontWeight: FontWeight.bold)),
                       const Icon(Icons.calendar_month, size: 18, color: Colors.grey),
-                    ],
-                  )
+                  ])
                 )
               )),
             ]),
           ),
-          // ... (Rest of UI same as before)
           Padding(
             padding: const EdgeInsets.all(15), 
             child: SegmentedButton<String>(
               segments: const [
-                ButtonSegment(value: 'CASH', label: Text('CASH'), icon: Icon(Icons.money)), 
-                ButtonSegment(value: 'CREDIT', label: Text('CREDIT'), icon: Icon(Icons.credit_card))
+                ButtonSegment(value: 'CASH', label: Text('CASH')), 
+                ButtonSegment(value: 'CREDIT', label: Text('CREDIT'))
               ], 
               selected: {paymentMode}, 
               onSelectionChanged: (v) => setState(() => paymentMode = v.first)
@@ -123,18 +109,14 @@ class _SaleEntryViewState extends State<SaleEntryView> {
           if(selectedParty != null) Padding(
             padding: const EdgeInsets.all(20), 
             child: ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                minimumSize: const Size(double.infinity, 60), 
-                backgroundColor: widget.isReadOnly ? Colors.purple : Colors.blue.shade700,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15))
-              ),
+              style: ElevatedButton.styleFrom(minimumSize: const Size(double.infinity, 60), backgroundColor: widget.isReadOnly ? Colors.purple : Colors.blue.shade700, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15))),
               onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (c) => BillingView(
                 party: selectedParty!, 
                 billNo: billNoC.text, 
                 billDate: selectedDate, 
                 mode: paymentMode, 
                 existingItems: widget.existingSale?.items, 
-                modifySaleId: widget.existingSale?.id,
+                modifySaleId: widget.existingSale?.id, // ID pass ho raha hai replacement ke liye
                 isReadOnly: widget.isReadOnly,
               ))),
               child: Text(widget.isReadOnly ? "VIEW ITEMS LIST" : "PROCEED TO BILLING", style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
@@ -149,7 +131,6 @@ class _SaleEntryViewState extends State<SaleEntryView> {
     elevation: 4, margin: const EdgeInsets.all(15), 
     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15), side: BorderSide(color: Colors.blue.shade100, width: 1)),
     child: ListTile(
-      contentPadding: const EdgeInsets.all(15),
       leading: const CircleAvatar(backgroundColor: Colors.blue, child: Icon(Icons.person, color: Colors.white)),
       title: Text(selectedParty!.name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)), 
       subtitle: Text("${selectedParty!.city} | GST: ${selectedParty!.gst}"), 
@@ -159,9 +140,9 @@ class _SaleEntryViewState extends State<SaleEntryView> {
   
   Widget _buildPartyList(PharoahManager ph) => Column(children: [
     Padding(padding: const EdgeInsets.all(15), child: Row(children: [
-      Expanded(child: TextField(decoration: InputDecoration(hintText: "Search Party...", prefixIcon: const Icon(Icons.search), border: OutlineInputBorder(borderRadius: BorderRadius.circular(10))), onChanged: (v) => setState(() => searchQuery = v))),
+      Expanded(child: TextField(decoration: InputDecoration(hintText: "Search/Change Party...", prefixIcon: const Icon(Icons.search), border: OutlineInputBorder(borderRadius: BorderRadius.circular(10))), onChanged: (v) => setState(() => searchQuery = v))),
       const SizedBox(width: 10),
-      IconButton.filled(onPressed: _handleQuickAddParty, icon: const Icon(Icons.person_add_alt_1), style: IconButton.styleFrom(backgroundColor: Colors.blue.shade900, foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)))),
+      IconButton.filled(onPressed: _handleQuickAddParty, icon: const Icon(Icons.person_add_alt_1), style: IconButton.styleFrom(backgroundColor: Colors.blue.shade900, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)))),
     ])),
     Expanded(child: ListView(children: ph.parties.where((p) => p.name.toLowerCase().contains(searchQuery.toLowerCase())).map((p) => ListTile(title: Text(p.name, style: const TextStyle(fontWeight: FontWeight.bold)), subtitle: Text(p.city), onTap: () => setState(() => selectedParty = p))).toList()))
   ]);
