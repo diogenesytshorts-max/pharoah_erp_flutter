@@ -3,7 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'pharoah_manager.dart';
 import 'dashboard_view.dart';
-import 'setup_view.dart'; // <--- YE IMPORT ZAROORI HAI
+import 'setup_view.dart'; // <-- YE LINE THEEK KI GAYI HAI
 import 'login_view.dart';
 
 void main() async {
@@ -51,6 +51,12 @@ class _MyAppState extends State<MyApp> {
       theme: ThemeData(
         useMaterial3: true,
         colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF0D47A1)),
+        cardTheme: const CardTheme(
+          elevation: 3,
+          surfaceTintColor: Colors.white,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(15))),
+        ),
+        appBarTheme: const AppBarTheme(centerTitle: false, elevation: 0),
       ),
       home: !isSetupDone 
           ? SetupView(onComplete: () => setState(() => isSetupDone = true))
