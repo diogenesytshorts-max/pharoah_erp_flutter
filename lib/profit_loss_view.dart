@@ -1,56 +1,145 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
-import 'pharoah_manager.dart';
-import 'models.dart';
+import '../pharoah_manager.dart';
+import '../models.dart';
+import '../pdf/purchase_pdf.dart';
+import '../pdf/purchase_report_pdf.dart'; 
+import 'purchase_entry_view.dart'; 
+import '../app_date_logic.dart'; // NAYA
+import '../pharoah_date_controller.dart'; // NAYA
 
-class ProfitLossView extends StatefulWidget {
-  const ProfitLossView({super.key});
-  @override State<ProfitLossView> createState() => _ProfitLossViewState();
+class PurchaseSummaryView extends StatefulWidget {
+  const PurchaseSummaryView({super.key});
+  @override State<PurchaseSummaryView> createState() => _PurchaseSummaryViewState();
 }
 
-class _ProfitLossViewState extends State<ProfitLossView> {
-  DateTime fromDate = DateTime.now().subtract(const Duration(days: 30));
+class _PurchaseSummaryViewState extends State<PurchaseSummaryView> {
+  DateTime fromDate = DateTime.now();
   DateTime toDate = DateTime.now();
+  String searchQuery = "";
+  bool _isInit = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (!_isInit) {
+      final ph = Provider.of<PharoahManager>(context, listen: false);
+      
+      // logic: Naye FY ke hisab se default range set karna
+      toDate = AppDateLogic.getSmartDate(ph.currentFY);
+      DateTime thirtyDaysAgo = toDate.subtract(const Duration(days: 30));
+      DateTime fyStart = AppDateLogic.getFYStart(ph.currentFY);
+      
+      // From date 30 din piche hogi, lekin 1st April (FY Start) se pehle nahi
+      fromDate = thirtyDaysAgo.isBefore(fyStart) ? fyStart : thirtyDaysAgo;
+      _isInit = true;
+    }
+  }
 
   @override Widget build(BuildContext context) {
     final ph = Provider.of<PharoahManager>(context);
-    double sales = 0, cogs = 0, expenses = 0;
+    
+    List<Purchase> filteredPur = ph.purchases.reversed.where((p) {
+      bool dateMatch = p.date.isAfter(fromDate.subtract(const Duration(days: 1))) && 
+                       p.date.isBefore(toDate.add(const Duration(days: 1)));
+      bool searchMatch = p.distributorName.toLowerCase().contains(searchQuery.toLowerCase()) || 
+                         p.billNo.toLowerCase().contains(searchQuery.toLowerCase());
+      return dateMatch && searchMatch;
+    }).toList();
 
-    for (var s in ph.sales.where((s) => s.status == "Active" && s.date.isAfter(fromDate.subtract(const Duration(days: 1))) && s.date.isBefore(toDate.add(const Duration(days: 1))))) {
-      sales += s.totalAmount;
-      for (var it in s.items) {
-        var m = ph.medicines.firstWhere((med) => med.id == it.medicineID, orElse: () => Medicine(id: '0', name: '', packing: '', mrp: 0, rateA: 0, rateB: 0, rateC: 0));
-        cogs += (m.purRate * (it.qty + it.freeQty));
-      }
-    }
-    for (var v in ph.vouchers.where((v) => v.type == "Payment" && v.date.isAfter(fromDate.subtract(const Duration(days: 1))) && v.date.isBefore(toDate.add(const Duration(days: 1))))) {
-      if (ph.parties.firstWhere((p) => p.id == v.partyId).accountGroup == "Expenses") expenses += v.amount;
+    double totalTaxable = 0; double totalTax = 0; double netTotal = 0;
+    for(var p in filteredPur) {
+      double pTaxable = p.items.fold(0, (sum, it) => sum + (it.purchaseRate * it.qty));
+      totalTaxable += pTaxable; totalTax += (p.totalAmount - pTaxable); netTotal += p.totalAmount;
     }
 
     return Scaffold(
       backgroundColor: const Color(0xFFF5F6F9),
-      appBar: AppBar(title: const Text("P & L Statement"), backgroundColor: Colors.indigo.shade900, foregroundColor: Colors.white),
+      appBar: AppBar(
+        title: const Text("Purchase Register"), 
+        backgroundColor: Colors.orange.shade800, 
+        foregroundColor: Colors.white,
+        actions: [
+          IconButton(icon: const Icon(Icons.picture_as_pdf), onPressed: filteredPur.isEmpty ? null : () => PurchaseReportPdf.generate(filteredPur, fromDate, toDate, null))
+        ],
+      ),
       body: Column(children: [
-        Padding(padding: const EdgeInsets.all(15), child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-          Text("Period: ${DateFormat('dd/MM').format(fromDate)} to ${DateFormat('dd/MM').format(toDate)}"),
-          IconButton(icon: const Icon(Icons.date_range), onPressed: () async {
-            var p = await showDateRangePicker(context: context, firstDate: DateTime(2020), lastDate: DateTime(2100));
-            if (p != null) setState(() { fromDate = p.start; toDate = p.end; });
-          })
-        ])),
-        Expanded(child: ListView(padding: const EdgeInsets.all(20), children: [
-          _row("TOTAL SALES", sales, isBold: true),
-          _row("LESS: COST OF GOODS (COGS)", -cogs, color: Colors.red),
-          const Divider(),
-          _row("GROSS PROFIT", sales - cogs, color: Colors.green, isBold: true),
-          const SizedBox(height: 20),
-          _row("TOTAL OPERATING EXPENSES", -expenses, color: Colors.red),
-          const Divider(thickness: 2),
-          _row("NET PROFIT / LOSS", (sales - cogs) - expenses, isBold: true, color: Colors.blue.shade900),
-        ]))
+        Container(
+          padding: const EdgeInsets.all(12), color: Colors.white,
+          child: Column(children: [
+            Row(children: [
+              Expanded(child: _dateTile("FROM", fromDate, (d) => setState(()=> fromDate = d), ph.currentFY)),
+              const SizedBox(width: 10),
+              Expanded(child: _dateTile("TO", toDate, (d) => setState(()=> toDate = d), ph.currentFY)),
+            ]),
+            Padding(padding: const EdgeInsets.only(top: 10), child: TextField(
+              decoration: const InputDecoration(hintText: "Search Supplier/Bill...", prefixIcon: Icon(Icons.search), border: OutlineInputBorder(), isDense: true), 
+              onChanged: (v) => setState(() => searchQuery = v)
+            ))
+          ]),
+        ),
+        
+        Expanded(
+          child: filteredPur.isEmpty 
+          ? const Center(child: Text("No records found for this period."))
+          : ListView.builder(
+            padding: const EdgeInsets.all(10), itemCount: filteredPur.length,
+            itemBuilder: (c, i) {
+              final p = filteredPur[i];
+              final supplier = ph.parties.firstWhere((pt) => pt.name == p.distributorName, orElse: () => Party(id: "", name: p.distributorName));
+              return Card(
+                elevation: 2, margin: const EdgeInsets.only(bottom: 8),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                child: ListTile(
+                  title: Text(p.distributorName, style: const TextStyle(fontWeight: FontWeight.bold)),
+                  subtitle: Text("Bill: ${p.billNo} | ${AppDateLogic.format(p.date)}\nTotal: ₹${p.totalAmount.toStringAsFixed(2)}"),
+                  trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+                    IconButton(icon: const Icon(Icons.print, color: Colors.blueGrey), onPressed: () => PurchasePdf.generate(p, supplier)),
+                    IconButton(icon: const Icon(Icons.edit, color: Colors.blue), onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (c) => PurchaseEntryView(existingPurchase: p)))),
+                    IconButton(icon: const Icon(Icons.delete, color: Colors.red), onPressed: () => _confirmDelete(context, ph, p.id)),
+                  ]),
+                ),
+              );
+            },
+          )
+        ),
+        
+        Container(
+          padding: const EdgeInsets.all(15), color: Colors.deepOrange.shade900,
+          child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+            _botCol("TAXABLE", totalTaxable), _botCol("TOTAL ITC", totalTax), _botCol("NET TOTAL", netTotal, isNet: true),
+          ]),
+        )
       ]),
     );
   }
-  Widget _row(String l, double v, {bool isBold = false, Color? color}) => Padding(padding: const EdgeInsets.symmetric(vertical: 10), child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [Text(l, style: TextStyle(fontWeight: isBold ? FontWeight.bold : FontWeight.normal)), Text("₹${v.toStringAsFixed(2)}", style: TextStyle(fontWeight: FontWeight.bold, color: color))]));
+
+  Widget _dateTile(String l, DateTime d, Function(DateTime) onPick, String fy) {
+    return InkWell(
+      onTap: () async { 
+        DateTime? p = await PharoahDateController.pickDate(context: context, currentFY: fy, initialDate: d); 
+        if(p!=null) onPick(p); 
+      },
+      child: Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(border: Border.all(color: Colors.grey.shade300), borderRadius: BorderRadius.circular(5)), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(l, style: const TextStyle(fontSize: 8, color: Colors.grey, fontWeight: FontWeight.bold)), Text(DateFormat('dd/MM/yyyy').format(d), style: const TextStyle(fontWeight: FontWeight.bold))])),
+    );
+  }
+
+  Widget _botCol(String l, double v, {bool isNet = false}) {
+    return Column(children: [Text(l, style: const TextStyle(color: Colors.white70, fontSize: 10, fontWeight: FontWeight.bold)), Text("₹${v.toStringAsFixed(2)}", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: isNet ? 16 : 12))]);
+  }
+
+  void _confirmDelete(BuildContext context, PharoahManager ph, String id) {
+    showDialog(
+      context: context,
+      builder: (c) => AlertDialog(
+        title: const Text("Delete Purchase?"),
+        content: const Text("Are you sure you want to delete this purchase record? Stock will be adjusted back."),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(c), child: const Text("CANCEL")),
+          ElevatedButton(style: ElevatedButton.styleFrom(backgroundColor: Colors.red), onPressed: () { ph.deletePurchase(id); Navigator.pop(c); }, child: const Text("YES, DELETE", style: TextStyle(color: Colors.white))),
+        ],
+      ),
+    );
+  }
 }
