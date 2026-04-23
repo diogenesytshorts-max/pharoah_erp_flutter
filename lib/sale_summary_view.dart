@@ -4,8 +4,10 @@ import 'package:intl/intl.dart';
 import 'pharoah_manager.dart';
 import 'models.dart';
 import 'pdf/sale_report_pdf.dart'; 
-import 'pdf/sale_invoice_pdf.dart'; // Naya Import: Invoice ke liye
+import 'pdf/sale_invoice_pdf.dart'; 
 import 'sale_entry_view.dart';
+import 'app_date_logic.dart'; // NAYA
+import 'pharoah_date_controller.dart'; // NAYA
 
 class SaleSummaryView extends StatefulWidget {
   const SaleSummaryView({super.key});
@@ -13,22 +15,42 @@ class SaleSummaryView extends StatefulWidget {
 }
 
 class _SaleSummaryViewState extends State<SaleSummaryView> {
-  DateTime fromDate = DateTime.now().subtract(const Duration(days: 30));
+  DateTime fromDate = DateTime.now();
   DateTime toDate = DateTime.now();
   String searchQuery = "";
+  bool _isInit = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (!_isInit) {
+      final ph = Provider.of<PharoahManager>(context, listen: false);
+      
+      // logic: Naye FY ke hisab se default range set karna
+      toDate = AppDateLogic.getSmartDate(ph.currentFY);
+      DateTime thirtyDaysAgo = toDate.subtract(const Duration(days: 30));
+      DateTime fyStart = AppDateLogic.getFYStart(ph.currentFY);
+      
+      // From date 30 din piche hogi, lekin 1st April (FY Start) se pehle nahi
+      fromDate = thirtyDaysAgo.isBefore(fyStart) ? fyStart : thirtyDaysAgo;
+      _isInit = true;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final ph = Provider.of<PharoahManager>(context);
     
-    // Filter Logic: Sirf active bills aur search query ke hisab se
+    // Filter Logic: Dates, Search Query aur Status
     List<Sale> filteredSales = ph.sales.reversed.where((s) {
-      bool dateMatch = s.date.isAfter(fromDate.subtract(const Duration(days: 1))) && s.date.isBefore(toDate.add(const Duration(days: 1)));
-      bool searchMatch = s.billNo.toLowerCase().contains(searchQuery.toLowerCase()) || s.partyName.toLowerCase().contains(searchQuery.toLowerCase());
+      bool dateMatch = s.date.isAfter(fromDate.subtract(const Duration(seconds: 1))) && 
+                       s.date.isBefore(toDate.add(const Duration(seconds: 1)));
+      bool searchMatch = s.billNo.toLowerCase().contains(searchQuery.toLowerCase()) || 
+                         s.partyName.toLowerCase().contains(searchQuery.toLowerCase());
       return s.status == "Active" && dateMatch && searchMatch;
     }).toList();
 
-    // Bottom totals calculation
+    // Calculations for Bottom Bar
     double totalTaxable = 0; double totalTax = 0; double netTotal = 0;
     for(var s in filteredSales) {
       double sTax = s.items.fold(0.0, (sum, it) => sum + (it.cgst + it.sgst + it.igst));
@@ -42,23 +64,22 @@ class _SaleSummaryViewState extends State<SaleSummaryView> {
         backgroundColor: Colors.blue.shade900, 
         foregroundColor: Colors.white,
         actions: [
-          // AppBar wala icon poori list ki report generate karega
           IconButton(
             icon: const Icon(Icons.picture_as_pdf), 
-            tooltip: "Export Sales Register",
+            tooltip: "Export Full Register",
             onPressed: filteredSales.isEmpty ? null : () => SaleReportPdf.generate(filteredSales, fromDate, toDate, null)
           )
         ],
       ),
       body: Column(children: [
-        // Filter Header Section
+        // --- 1. FILTER SECTION ---
         Container(
           padding: const EdgeInsets.all(12), color: Colors.white,
           child: Column(children: [
             Row(children: [
-              Expanded(child: _dateTile("FROM", fromDate, (d) => setState(()=> fromDate = d))),
+              Expanded(child: _dateTile("FROM", fromDate, (d) => setState(()=> fromDate = d), ph.currentFY)),
               const SizedBox(width: 10),
-              Expanded(child: _dateTile("TO", toDate, (d) => setState(()=> toDate = d))),
+              Expanded(child: _dateTile("TO", toDate, (d) => setState(()=> toDate = d), ph.currentFY)),
             ]),
             Padding(padding: const EdgeInsets.only(top: 10), child: TextField(
               decoration: const InputDecoration(
@@ -72,7 +93,7 @@ class _SaleSummaryViewState extends State<SaleSummaryView> {
           ]),
         ),
         
-        // Sales List
+        // --- 2. LIST SECTION ---
         Expanded(
           child: filteredSales.isEmpty 
           ? const Center(child: Text("No records found for selected period."))
@@ -80,7 +101,7 @@ class _SaleSummaryViewState extends State<SaleSummaryView> {
             padding: const EdgeInsets.all(10), itemCount: filteredSales.length,
             itemBuilder: (c, i) {
               final s = filteredSales[i];
-              // Party details nikalna taaki Invoice par address/GST sahi aaye
+              // Party details fetch karna for correct PDF addresses
               final p = ph.parties.firstWhere(
                 (x) => x.name == s.partyName, 
                 orElse: () => Party(id: "", name: s.partyName, address: "N/A", gst: s.partyGstin)
@@ -91,12 +112,10 @@ class _SaleSummaryViewState extends State<SaleSummaryView> {
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                 child: ListTile(
                   title: Text(s.partyName, style: const TextStyle(fontWeight: FontWeight.bold)),
-                  subtitle: Text("Bill: ${s.billNo} | Date: ${DateFormat('dd/MM/yy').format(s.date)}\nTotal: ₹${s.totalAmount.toStringAsFixed(2)}"),
+                  subtitle: Text("Bill: ${s.billNo} | Date: ${AppDateLogic.format(s.date)}\nTotal: ₹${s.totalAmount.toStringAsFixed(2)}"),
                   trailing: Row(mainAxisSize: MainAxisSize.min, children: [
-                    // ROW PRINT BUTTON: Yeh ab asli Sale Invoice PDF generate karega
                     IconButton(
                       icon: const Icon(Icons.print, color: Colors.blueGrey), 
-                      tooltip: "Print Bill",
                       onPressed: () => SaleInvoicePdf.generate(s, p)
                     ),
                     IconButton(
@@ -114,7 +133,7 @@ class _SaleSummaryViewState extends State<SaleSummaryView> {
           )
         ),
         
-        // Bottom Summary Bar
+        // --- 3. BOTTOM SUMMARY BAR ---
         Container(
           padding: const EdgeInsets.all(15), color: Colors.blue.shade900,
           child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
@@ -127,10 +146,21 @@ class _SaleSummaryViewState extends State<SaleSummaryView> {
     );
   }
 
-  Widget _dateTile(String l, DateTime d, Function(DateTime) onPick) {
+  // Helper for Date Tiles (Now using Strict Picker)
+  Widget _dateTile(String l, DateTime d, Function(DateTime) onPick, String fy) {
     return InkWell(
-      onTap: () async { DateTime? p = await showDatePicker(context: context, initialDate: d, firstDate: DateTime(2020), lastDate: DateTime(2100)); if(p!=null) onPick(p); },
-      child: Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(border: Border.all(color: Colors.grey.shade300), borderRadius: BorderRadius.circular(5)), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(l, style: const TextStyle(fontSize: 8, color: Colors.grey, fontWeight: FontWeight.bold)), Text(DateFormat('dd/MM/yyyy').format(d), style: const TextStyle(fontWeight: FontWeight.bold))])),
+      onTap: () async { 
+        DateTime? p = await PharoahDateController.pickDate(context: context, currentFY: fy, initialDate: d); 
+        if(p != null) onPick(p); 
+      },
+      child: Container(
+        padding: const EdgeInsets.all(8), 
+        decoration: BoxDecoration(border: Border.all(color: Colors.grey.shade300), borderRadius: BorderRadius.circular(5)), 
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(l, style: const TextStyle(fontSize: 8, color: Colors.grey, fontWeight: FontWeight.bold)), 
+          Text(DateFormat('dd/MM/yyyy').format(d), style: const TextStyle(fontWeight: FontWeight.bold))
+        ])
+      ),
     );
   }
 
@@ -138,12 +168,13 @@ class _SaleSummaryViewState extends State<SaleSummaryView> {
     return Column(children: [Text(l, style: const TextStyle(color: Colors.white70, fontSize: 10, fontWeight: FontWeight.bold)), Text("₹${v.toStringAsFixed(2)}", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: isNet ? 16 : 12))]);
   }
 
+  // Purana Confirmation Logic (RE-ADDED)
   void _confirmDelete(BuildContext context, PharoahManager ph, String id) {
     showDialog(
       context: context,
       builder: (c) => AlertDialog(
         title: const Text("Delete Bill?"),
-        content: const Text("Kya aap is bill को permanent delete करना चाहते हैं? इससे स्टॉक वापस जुड़ जाएगा।"),
+        content: const Text("Are you sure you want to permanently delete this bill? This will reverse the stock levels."),
         actions: [
           TextButton(onPressed: () => Navigator.pop(c), child: const Text("CANCEL")),
           ElevatedButton(
