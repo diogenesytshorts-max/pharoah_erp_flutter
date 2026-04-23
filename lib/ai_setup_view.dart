@@ -121,7 +121,11 @@ class _AiSetupViewState extends State<AiSetupView> {
   Widget _buildGeminiCard() {
     return Card(
       elevation: 0,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20), border: Border.all(color: Colors.indigo.withOpacity(0.1))),
+      // FIXED: 'border' parameter ko 'side' se replace kiya gaya hai
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(20), 
+        side: BorderSide(color: Colors.indigo.withOpacity(0.1)) 
+      ),
       child: Padding(
         padding: const EdgeInsets.all(20),
         child: Column(
