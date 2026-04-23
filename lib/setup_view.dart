@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'app_date_logic.dart'; // Date Master se connection
 
 class SetupView extends StatefulWidget {
   final VoidCallback onComplete;
@@ -10,6 +11,7 @@ class SetupView extends StatefulWidget {
 }
 
 class _SetupViewState extends State<SetupView> {
+  // --- FORM CONTROLLERS ---
   final nameC = TextEditingController();
   final addressC = TextEditingController();
   final gstinC = TextEditingController();
@@ -19,7 +21,7 @@ class _SetupViewState extends State<SetupView> {
   final usernameC = TextEditingController();
   final passwordC = TextEditingController();
 
-  String selectedFY = "2025-26";
+  String selectedFY = ""; // Ab ye dynamic hoga
   String selectedState = "Rajasthan";
 
   final List<String> states = [
@@ -30,16 +32,25 @@ class _SetupViewState extends State<SetupView> {
     "Telangana", "Tripura", "Uttar Pradesh", "Uttarakhand", "West Bengal"
   ];
 
+  @override
+  void initState() {
+    super.initState();
+    // NAYA: Install hote hi Date Master se Current Financial Year mangna
+    selectedFY = AppDateLogic.getCurrentFYString();
+  }
+
+  // --- SAVE SETUP LOGIC ---
   Future<void> _handleFinishSetup() async {
     if (nameC.text.trim().isEmpty || usernameC.text.trim().isEmpty || passwordC.text.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Firm Name, Admin Username and Password are mandatory!"))
+        const SnackBar(content: Text("Firm Name, Admin Username and Password are mandatory!"), backgroundColor: Colors.red)
       );
       return;
     }
 
     final prefs = await SharedPreferences.getInstance();
     
+    // Save Company Details
     await prefs.setString('compName', nameC.text.trim().toUpperCase());
     await prefs.setString('compAddr', addressC.text.trim());
     await prefs.setString('compState', selectedState);
@@ -48,11 +59,13 @@ class _SetupViewState extends State<SetupView> {
     await prefs.setString('compPh', phoneC.text.trim());
     await prefs.setString('compEmail', emailC.text.trim().toLowerCase());
     
+    // Save Admin Credentials
     await prefs.setString('adminUser', usernameC.text.trim().toLowerCase());
     await prefs.setString('adminPass', passwordC.text.trim());
     
+    // Save System Settings
     await prefs.setString('fy', selectedFY);
-    await prefs.setBool('isSetupDone', true);
+    await prefs.setBool('isSetupDone', true); 
 
     widget.onComplete();
   }
@@ -80,27 +93,31 @@ class _SetupViewState extends State<SetupView> {
               child: const Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text("Welcome to Pharoah ERP", style: TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold)),
+                  Text("Welcome to Pharoah ERP", style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold)),
                   SizedBox(height: 5),
-                  Text("Please configure your business details to get started.", style: TextStyle(color: Colors.white70, fontSize: 13)),
+                  Text("Configure your business details to get started.", style: TextStyle(color: Colors.white70, fontSize: 12)),
                 ],
               ),
             ),
+
             Padding(
               padding: const EdgeInsets.all(20),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   _buildSectionTitle("BUSINESS PROFILE"),
-                  _setupField(nameC, "Firm / Shop Name", Icons.store_mall_directory),
+                  _setupField(nameC, "Firm / Shop Name *", Icons.store_mall_directory),
                   _setupField(addressC, "Full Office Address", Icons.location_on),
+                  
                   DropdownButtonFormField<String>(
                     value: selectedState,
-                    decoration: const InputDecoration(labelText: "Shop State (For GST)", border: OutlineInputBorder(), prefixIcon: Icon(Icons.map)),
-                    items: states.map((s) => DropdownMenuItem(value: s, child: Text(s))).toList(),
+                    decoration: const InputDecoration(labelText: "Shop State (For GST)", border: OutlineInputBorder(), prefixIcon: Icon(Icons.map, size: 20)),
+                    items: states.map((s) => DropdownMenuItem(value: s, child: Text(s, style: const TextStyle(fontSize: 14)))).toList(),
                     onChanged: (v) => setState(() => selectedState = v!),
                   ),
+                  
                   const SizedBox(height: 15),
+
                   Row(
                     children: [
                       Expanded(child: _setupField(phoneC, "Mobile No", Icons.phone, isNum: true)),
@@ -108,6 +125,7 @@ class _SetupViewState extends State<SetupView> {
                       Expanded(child: _setupField(emailC, "Business Email", Icons.email)),
                     ],
                   ),
+
                   _buildSectionTitle("STATUTORY & TAX DETAILS"),
                   Row(
                     children: [
@@ -116,16 +134,21 @@ class _SetupViewState extends State<SetupView> {
                       Expanded(child: _setupField(dlNoC, "Drug License (DL)", Icons.medical_services)),
                     ],
                   ),
+
+                  // FINANCIAL YEAR SELECTION (Auto-detected but changeable)
                   DropdownButtonFormField<String>(
                     value: selectedFY,
-                    decoration: const InputDecoration(labelText: "Current Financial Year", border: OutlineInputBorder(), prefixIcon: Icon(Icons.calendar_today)),
-                    items: ["2024-25", "2025-26", "2026-27"].map((y) => DropdownMenuItem(value: y, child: Text(y))).toList(),
+                    decoration: const InputDecoration(labelText: "Working Financial Year", border: OutlineInputBorder(), prefixIcon: Icon(Icons.calendar_today, size: 20)),
+                    items: ["2023-24", "2024-25", "2025-26", "2026-27"].map((y) => DropdownMenuItem(value: y, child: Text(y))).toList(),
                     onChanged: (v) => setState(() => selectedFY = v!),
                   ),
+
                   _buildSectionTitle("ADMIN LOGIN ACCESS"),
-                  _setupField(usernameC, "Create Admin Username", Icons.person_add),
-                  _setupField(passwordC, "Create Admin Password", Icons.lock_outline, isPassword: true),
+                  _setupField(usernameC, "Create Admin Username *", Icons.person_add),
+                  _setupField(passwordC, "Create Admin Password *", Icons.lock_outline, isPassword: true),
+
                   const SizedBox(height: 30),
+
                   SizedBox(
                     width: double.infinity,
                     height: 60,
@@ -153,7 +176,7 @@ class _SetupViewState extends State<SetupView> {
   Widget _buildSectionTitle(String title) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 15),
-      child: Text(title, style: TextStyle(color: Colors.blue.shade900, fontWeight: FontWeight.bold, fontSize: 13, letterSpacing: 1.2)),
+      child: Text(title, style: TextStyle(color: Colors.blue.shade900, fontWeight: FontWeight.bold, fontSize: 11, letterSpacing: 1.2)),
     );
   }
 
@@ -164,6 +187,7 @@ class _SetupViewState extends State<SetupView> {
         controller: ctrl,
         obscureText: isPassword,
         keyboardType: isNum ? TextInputType.number : TextInputType.text,
+        textCapitalization: isPassword ? TextCapitalization.none : TextCapitalization.words,
         decoration: InputDecoration(
           labelText: label,
           prefixIcon: Icon(icon, size: 20),
