@@ -32,14 +32,12 @@ class _AiVerificationDashboardState extends State<AiVerificationDashboard> {
   @override
   void initState() {
     super.initState();
-    // AI se aaya hua data controllers mein daalna
     billNoC = TextEditingController(text: widget.aiData['billNo'] ?? "");
     partyNameC = TextEditingController(text: widget.aiData['partyName'] ?? "");
     if (widget.aiData['items'] != null) {
       extractedItems = widget.aiData['items'];
     }
     
-    // Auto-match Party (Agar AI ne jo naam nikala wo master me hua to auto-select ho jayega)
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _attemptPartyMatch();
     });
@@ -66,7 +64,6 @@ class _AiVerificationDashboardState extends State<AiVerificationDashboard> {
     final ph = Provider.of<PharoahManager>(context, listen: false);
     
     if (widget.mode == "PURCHASE") {
-      // Create Dummy Items from AI data (to be edited in final screen)
       List<PurchaseItem> pItems = extractedItems.asMap().entries.map((e) {
         var it = e.value;
         return PurchaseItem(
@@ -82,10 +79,9 @@ class _AiVerificationDashboardState extends State<AiVerificationDashboard> {
       Navigator.pushReplacement(context, MaterialPageRoute(builder: (c) => PurchaseBillingView(
         distributor: matchedParty!, internalNo: intNo, distBillNo: billNoC.text,
         billDate: DateTime.now(), entryDate: DateTime.now(), mode: "CREDIT",
-        existingItems: pItems, // AI Items pre-filled!
+        existingItems: pItems, 
       )));
     } else {
-      // Same logic for SALE
       List<BillItem> sItems = extractedItems.asMap().entries.map((e) {
         var it = e.value;
         return BillItem(
@@ -113,7 +109,6 @@ class _AiVerificationDashboardState extends State<AiVerificationDashboard> {
       appBar: AppBar(title: const Text("Verify AI Data"), backgroundColor: themeColor, foregroundColor: Colors.white),
       body: Column(
         children: [
-          // 1. IMAGE PREVIEW (Horizontal scroll if multiple)
           Container(
             height: 150, color: Colors.black,
             child: ListView.builder(
@@ -125,7 +120,6 @@ class _AiVerificationDashboardState extends State<AiVerificationDashboard> {
             ),
           ),
 
-          // 2. AI STATUS ALERT
           Container(
             padding: const EdgeInsets.all(10), color: isOffline ? Colors.orange.shade100 : Colors.green.shade100,
             child: Row(children: [
@@ -135,7 +129,6 @@ class _AiVerificationDashboardState extends State<AiVerificationDashboard> {
             ]),
           ),
 
-          // 3. DATA VERIFICATION FORM
           Expanded(
             child: SingleChildScrollView(
               padding: const EdgeInsets.all(20),
@@ -147,7 +140,6 @@ class _AiVerificationDashboardState extends State<AiVerificationDashboard> {
                   TextField(controller: billNoC, decoration: const InputDecoration(labelText: "Bill / Invoice No", border: OutlineInputBorder(), filled: true, fillColor: Colors.white)),
                   const SizedBox(height: 15),
 
-                  // SMART PARTY MAPPING
                   Container(
                     padding: const EdgeInsets.all(15), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(10), border: Border.all(color: matchedParty != null ? Colors.green : Colors.red)),
                     child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -169,10 +161,10 @@ class _AiVerificationDashboardState extends State<AiVerificationDashboard> {
                   const SizedBox(height: 25),
                   Text("EXTRACTED ITEMS (${extractedItems.length})", style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.blueGrey)),
                   
-                  // ITEMS LIST OR OFFLINE RAW TEXT
                   isOffline 
                   ? Container(
-                      margin: const EdgeInsets.top: 10, padding: const EdgeInsets.all(15), color: Colors.yellow.shade50,
+                      // ERROR FIXED HERE: EdgeInsets.only(top: 10)
+                      margin: const EdgeInsets.only(top: 10), padding: const EdgeInsets.all(15), color: Colors.yellow.shade50,
                       child: Text(widget.aiData['raw_text'] ?? "No text found", style: const TextStyle(fontFamily: 'monospace', fontSize: 12)),
                     )
                   : ListView.builder(
@@ -192,7 +184,6 @@ class _AiVerificationDashboardState extends State<AiVerificationDashboard> {
             ),
           ),
 
-          // 4. PROCEED BUTTON
           Container(
             padding: const EdgeInsets.all(20), decoration: const BoxDecoration(color: Colors.white, boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 10)]),
             child: ElevatedButton(
