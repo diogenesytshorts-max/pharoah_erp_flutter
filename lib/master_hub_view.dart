@@ -6,6 +6,7 @@ import 'route_master_view.dart';
 import 'company_master_view.dart';
 import 'salt_master_view.dart';
 import 'drug_type_master_view.dart';
+import 'batch_master_view.dart'; // NAYA IMPORT
 
 class MasterHubView extends StatelessWidget {
   const MasterHubView({super.key});
@@ -33,8 +34,31 @@ class MasterHubView extends StatelessWidget {
               shrinkWrap: true, physics: const NeverScrollableScrollPhysics(),
               crossAxisCount: 2, crossAxisSpacing: 15, mainAxisSpacing: 15, childAspectRatio: 1.2,
               children: [
-                ActionIconBtn(title: "Parties / Ledgers", icon: Icons.people_alt_rounded, color: Colors.indigo, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => const PartyMasterView()))),
-                ActionIconBtn(title: "Item Master", icon: Icons.inventory_2_rounded, color: Colors.purple, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => const ProductMasterView()))),
+                ActionIconBtn(
+                  title: "Parties / Ledgers", 
+                  icon: Icons.people_alt_rounded, 
+                  color: Colors.indigo, 
+                  onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => const PartyMasterView()))
+                ),
+                ActionIconBtn(
+                  title: "Item Master", 
+                  icon: Icons.inventory_2_rounded, 
+                  color: Colors.purple, 
+                  onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => const ProductMasterView()))
+                ),
+                // NAYA BATCH MASTER ENTRY
+                ActionIconBtn(
+                  title: "Batch Master", 
+                  icon: Icons.layers_outlined, 
+                  color: Colors.indigo.shade900, 
+                  onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => const BatchMasterView()))
+                ),
+                ActionIconBtn(
+                  title: "Route Master", 
+                  icon: Icons.map_rounded, 
+                  color: Colors.teal, 
+                  onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => const RouteMasterView()))
+                ),
               ],
             ),
 
@@ -48,7 +72,6 @@ class MasterHubView extends StatelessWidget {
               shrinkWrap: true, physics: const NeverScrollableScrollPhysics(),
               crossAxisCount: 2, crossAxisSpacing: 15, mainAxisSpacing: 15, childAspectRatio: 1.2,
               children: [
-                ActionIconBtn(title: "Route Master", icon: Icons.map_rounded, color: Colors.teal, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => const RouteMasterView()))),
                 ActionIconBtn(title: "Company Master", icon: Icons.business_rounded, color: Colors.brown, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => const CompanyMasterView()))),
                 ActionIconBtn(title: "Salt Master", icon: Icons.science_rounded, color: Colors.deepOrange, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => const SaltMasterView()))),
                 ActionIconBtn(title: "Drug Categories", icon: Icons.verified_user_rounded, color: Colors.cyan.shade700, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => const DrugTypeMasterView()))),
@@ -64,9 +87,10 @@ class MasterHubView extends StatelessWidget {
               child: const Row(children: [
                 Icon(Icons.tips_and_updates_outlined, color: Colors.orange, size: 20),
                 SizedBox(width: 10),
-                Expanded(child: Text("Pre-filled libraries (Top 100 Companies/Salts) are active. You can modify them here.", style: TextStyle(fontSize: 11, color: Colors.blueGrey))),
+                Expanded(child: Text("Central Batch Master allows manual stock correction and expiry management without editing bills.", style: TextStyle(fontSize: 11, color: Colors.blueGrey))),
               ]),
             ),
+            const SizedBox(height: 30),
           ],
         ),
       ),
