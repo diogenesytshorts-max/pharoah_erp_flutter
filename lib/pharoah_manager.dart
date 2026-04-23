@@ -9,7 +9,7 @@ import 'demo_data.dart';
 import 'sale_bill_number.dart';
 import 'inventory_logic_center.dart';
 import 'fy_transfer_engine.dart';
-import 'app_date_logic.dart'; // NAYA: Date Master connection
+import 'app_date_logic.dart';
 
 class PharoahManager with ChangeNotifier {
   List<Medicine> medicines = [];
@@ -24,24 +24,18 @@ class PharoahManager with ChangeNotifier {
   List<Voucher> vouchers = [];
   Map<String, List<BatchInfo>> batchHistory = {};
   
-  // NAYA: Hardcoding hatayi gayi hai. Default saal ab dynamic detect hoga.
   String currentFY = AppDateLogic.getCurrentFYString();
 
   PharoahManager() { 
     initManager(); 
   }
 
-  /// App shuru hote hi logic check karta hai
   Future<void> initManager() async {
     final prefs = await SharedPreferences.getInstance();
-    // 1. Check karo kya pehle se koi saal save hai?
-    // 2. Agar nahi (Fresh Install), toh Date Master se current saal uthao.
     currentFY = prefs.getString('fy') ?? AppDateLogic.getCurrentFYString();
-    
     await loadAllData();
   }
 
-  /// Har saal ka data alag folder mein save karne ke liye path
   Future<String> getFYDirectory() async {
     final root = await getApplicationDocumentsDirectory();
     final directory = Directory('${root.path}/DATA_FY_$currentFY');
@@ -50,7 +44,18 @@ class PharoahManager with ChangeNotifier {
   }
 
   // ===========================================================================
-  // DATA PERSISTENCE (SAVE & LOAD)
+  // MEDICINE ID GENERATOR (Universal Locked Series)
+  // ===========================================================================
+  Future<String> generateNewMedicineId() async {
+    final prefs = await SharedPreferences.getInstance();
+    int lastCounter = prefs.getInt('last_med_id_counter') ?? 10000;
+    int newCounter = lastCounter + 1;
+    await prefs.setInt('last_med_id_counter', newCounter);
+    return "PH-$newCounter";
+  }
+
+  // ===========================================================================
+  // DATA PERSISTENCE
   // ===========================================================================
 
   Future<void> save() async {
@@ -76,24 +81,20 @@ class PharoahManager with ChangeNotifier {
       return f.existsSync() ? jsonDecode(f.readAsStringSync()) : null;
     }
 
-    // Medicines load logic
     if (File('$dir/meds.json').existsSync()) {
       medicines = (loadJson('meds.json') as List).map((e) => Medicine.fromMap(e)).toList();
     } else {
-      medicines = DemoData.getMedicines();
+      medicines = DemoData.getMedicines(); 
     }
 
-    // Parties load logic (Default CASH party inclusion)
     parties = (loadJson('parts.json') as List?)?.map((e) => Party.fromMap(e)).toList() ?? 
               [DemoData.getDemoParty(), Party(id: 'cash', name: "CASH", group: "Cash in Hand")];
 
-    // Other Transactional & Master data
     sales = (loadJson('sales.json') as List?)?.map((e) => Sale.fromMap(e)).toList() ?? [];
     purchases = (loadJson('purc.json') as List?)?.map((e) => Purchase.fromMap(e)).toList() ?? [];
     vouchers = (loadJson('vouc.json') as List?)?.map((e) => Voucher.fromMap(e)).toList() ?? [];
     logs = (loadJson('logs.json') as List?)?.map((e) => LogEntry.fromMap(e)).toList() ?? [];
     
-    // Static Libraries
     companies = (loadJson('comps.json') as List?)?.map((e) => Company.fromMap(e)).toList() ?? 
                 MasterDataLibrary.topCompanies.map((n) => Company(id: n, name: n)).toList();
     salts = (loadJson('salts.json') as List?)?.map((e) => Salt.fromMap(e)).toList() ?? 
@@ -103,51 +104,146 @@ class PharoahManager with ChangeNotifier {
     routes = (loadJson('routs.json') as List?)?.map((e) => RouteArea.fromMap(e)).toList() ?? 
              [RouteArea(id: '1', name: "LOCAL AREA")];
 
-    // Batch History load
     var bD = loadJson('bats.json');
     if (bD != null) {
       batchHistory.clear();
       (bD as Map).forEach((k, v) => batchHistory[k] = (v as List).map((b) => BatchInfo.fromMap(b)).toList());
     }
 
-    // Auto-Rebuild stock after loading to ensure accuracy
-    InventoryLogicCenter.rebuildAllInventory(medicines: medicines, batchHistory: batchHistory, purchases: purchases, sales: sales);
+    // Auto-Rebuild Inventory using Batch Master Logic
+    _rebuildInventoryRegistry();
     notifyListeners();
   }
 
   // ===========================================================================
-  // YEAR MANAGEMENT (SYSTEM ADMIN)
+  // CORE INVENTORY ENGINE (Refactored for Batch Master)
   // ===========================================================================
 
-  /// NAYA: Naye saal mein switch karne ka logic
-  Future<bool> startNewFinancialYear(String nextFY) async {
-    await save(); // Purana data pehle save karein
-    
-    // FYTransferEngine ko call karke stock aur balance naye saal ke folder mein le jayein
-    bool success = await FYTransferEngine.transferData(sourceFY: currentFY, targetFY: nextFY);
-    
-    if (success) {
-      currentFY = nextFY;
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString('fy', nextFY);
-      await prefs.setInt('lastBillID', 0); // Bill numbering reset karein
-      
-      await loadAllData(); // Naya folder load karein
-      addLog("SYSTEM", "Transitioned to New Financial Year: $nextFY");
+  void _rebuildInventoryRegistry() {
+    // 1. Reset dynamic stock count in history (Keep opening and adjustments)
+    batchHistory.forEach((medId, list) {
+      for (var b in list) { b.qty = b.openingQty + b.adjustmentQty; }
+    });
+
+    // 2. Add Purchases
+    for (var pur in purchases) {
+      for (var item in pur.items) {
+        String key = _getMedIdentityKey(item.medicineID, item.name);
+        _ensureBatchExists(key, item.batch, item.exp, item.packing, item.mrp, item.purchaseRate);
+        var b = batchHistory[key]!.firstWhere((x) => x.batch == item.batch);
+        b.qty += (item.qty + item.freeQty);
+        b.isShell = false; // Validated by purchase
+      }
     }
-    return success;
+
+    // 3. Subtract Sales
+    for (var sale in sales.where((s) => s.status == "Active")) {
+      for (var item in sale.items) {
+        String key = _getMedIdentityKey(item.medicineID, item.name);
+        _ensureBatchExists(key, item.batch, item.exp, item.packing, item.mrp, item.rate);
+        var b = batchHistory[key]!.firstWhere((x) => x.batch == item.batch);
+        b.qty -= (item.qty + item.freeQty);
+      }
+    }
+
+    // 4. Update Medicine Master totals
+    for (var med in medicines) {
+      double total = 0;
+      if (batchHistory.containsKey(med.identityKey)) {
+        for (var b in batchHistory[med.identityKey]!) { total += b.qty; }
+      }
+      med.stock = total;
+    }
   }
 
-  /// System settings mein saal badalne ke liye
-  Future<void> switchYear(String year) async { 
-    currentFY = year; 
-    await loadAllData(); 
-    notifyListeners(); 
+  String _getMedIdentityKey(String id, String name) {
+    try {
+      return medicines.firstWhere((m) => m.id == id || m.name == name).identityKey;
+    } catch (e) { return id; }
+  }
+
+  void _ensureBatchExists(String medKey, String batchNo, String exp, String pack, double mrp, double rate) {
+    if (!batchHistory.containsKey(medKey)) batchHistory[medKey] = [];
+    bool exists = batchHistory[medKey]!.any((b) => b.batch == batchNo);
+    if (!exists) {
+      batchHistory[medKey]!.add(BatchInfo(
+        batch: batchNo, exp: exp, packing: pack, mrp: mrp, rate: rate, isShell: true
+      ));
+    }
   }
 
   // ===========================================================================
-  // MASTER DATA MODIFIERS
+  // TRANSACTIONS
   // ===========================================================================
+
+  void finalizeSale({required String billNo, required DateTime date, required Party party, required List<BillItem> items, required double total, required String mode}) {
+    SaleBillNumber.incrementIfNecessary(billNo);
+    sales.add(Sale(id: DateTime.now().toString(), billNo: billNo, date: date, partyName: party.name, partyGstin: party.gst, partyState: party.state, items: items, totalAmount: total, paymentMode: mode));
+    
+    // Register batches immediately to fix the Sale-Purchase bug
+    for (var it in items) {
+      String key = _getMedIdentityKey(it.medicineID, it.name);
+      _ensureBatchExists(key, it.batch, it.exp, it.packing, it.mrp, it.rate);
+    }
+
+    save().then((_) => loadAllData()); 
+  }
+
+  void finalizePurchase({required String internalNo, required String billNo, required DateTime date, DateTime? entryDate, required Party party, required List<PurchaseItem> items, required double total, required String mode}) {
+    purchases.add(Purchase(id: DateTime.now().toString(), internalNo: internalNo, billNo: billNo, date: date, entryDate: entryDate ?? DateTime.now(), distributorName: party.name, items: items, totalAmount: total, paymentMode: mode));
+    
+    for (var it in items) {
+      String key = _getMedIdentityKey(it.medicineID, it.name);
+      _ensureBatchExists(key, it.batch, it.exp, it.packing, it.mrp, it.purchaseRate);
+      
+      // Update metadata if it was a shell batch
+      var b = batchHistory[key]!.firstWhere((x) => x.batch == it.batch);
+      b.mrp = it.mrp;
+      b.rate = it.purchaseRate;
+      b.exp = it.exp;
+      b.isShell = false;
+
+      // Update master rate/mrp for the product
+      try {
+        var med = medicines.firstWhere((m) => m.identityKey == key);
+        med.purRate = it.purchaseRate;
+        med.mrp = it.mrp;
+      } catch(e) {}
+    }
+    save().then((_) => loadAllData()); 
+  }
+
+  // ===========================================================================
+  // BATCH MASTER SPECIAL ACTIONS
+  // ===========================================================================
+  
+  void adjustBatchStock({required String medId, required String batchNo, required double adjQty, required String reason}) {
+    if (batchHistory.containsKey(medId)) {
+      try {
+        var b = batchHistory[medId]!.firstWhere((x) => x.batch == batchNo);
+        b.adjustmentQty += adjQty;
+        addLog("STOCK ADJUST", "Item: $medId, Batch: $batchNo, Qty: $adjQty, Reason: $reason");
+        save().then((_) => loadAllData());
+      } catch (e) {}
+    }
+  }
+
+  void updateBatchMetadata({required String medId, required String batchNo, required String newExp, required double newMrp, required double newRate}) {
+    if (batchHistory.containsKey(medId)) {
+      try {
+        var b = batchHistory[medId]!.firstWhere((x) => x.batch == batchNo);
+        b.exp = newExp;
+        b.mrp = newMrp;
+        b.rate = newRate;
+        save().then((_) => loadAllData());
+      } catch (e) {}
+    }
+  }
+
+  // ===========================================================================
+  // OTHERS
+  // ===========================================================================
+
   void addVoucher(Voucher v) { vouchers.add(v); save(); }
   void addCompany(Company c) { companies.add(c); save(); }
   void addSalt(Salt s) { salts.add(s); save(); }
@@ -157,21 +253,6 @@ class PharoahManager with ChangeNotifier {
   void addLog(String action, String details) { 
     logs.add(LogEntry(id: DateTime.now().toString(), action: action, details: details, time: DateTime.now())); 
     save(); 
-  }
-
-  // ===========================================================================
-  // TRANSACTIONAL LOGIC
-  // ===========================================================================
-
-  void finalizeSale({required String billNo, required DateTime date, required Party party, required List<BillItem> items, required double total, required String mode}) {
-    SaleBillNumber.incrementIfNecessary(billNo);
-    sales.add(Sale(id: DateTime.now().toString(), billNo: billNo, date: date, partyName: party.name, partyGstin: party.gst, partyState: party.state, items: items, totalAmount: total, paymentMode: mode));
-    save().then((_) => loadAllData()); 
-  }
-
-  void finalizePurchase({required String internalNo, required String billNo, required DateTime date, DateTime? entryDate, required Party party, required List<PurchaseItem> items, required double total, required String mode}) {
-    purchases.add(Purchase(id: DateTime.now().toString(), internalNo: internalNo, billNo: billNo, date: date, entryDate: entryDate ?? DateTime.now(), distributorName: party.name, items: items, totalAmount: total, paymentMode: mode));
-    save().then((_) => loadAllData()); 
   }
 
   void deleteBill(String id) { sales.removeWhere((s) => s.id == id); save().then((_) => loadAllData()); }
@@ -189,5 +270,25 @@ class PharoahManager with ChangeNotifier {
     final d = Directory(dir); 
     if(d.existsSync()) d.deleteSync(recursive: true); 
     await loadAllData(); 
+  }
+
+  Future<void> switchYear(String year) async { 
+    currentFY = year; 
+    await loadAllData(); 
+    notifyListeners(); 
+  }
+
+  Future<bool> startNewFinancialYear(String nextFY) async {
+    await save();
+    bool success = await FYTransferEngine.transferData(sourceFY: currentFY, targetFY: nextFY);
+    if (success) {
+      currentFY = nextFY;
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('fy', nextFY);
+      await prefs.setInt('lastBillID', 0);
+      await loadAllData();
+      addLog("SYSTEM", "Transitioned to Financial Year $nextFY");
+    }
+    return success;
   }
 }
