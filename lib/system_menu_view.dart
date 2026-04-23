@@ -10,9 +10,8 @@ class SystemMenuView extends StatelessWidget {
   final VoidCallback onLogout;
   const SystemMenuView({super.key, required this.onLogout});
 
-  // --- NAYA: FINANCIAL YEAR TRANSFER PROCESS ---
+  // --- FINANCIAL YEAR TRANSFER PROCESS ---
   void _handleFYTransfer(BuildContext context, PharoahManager ph) {
-    // Current saal se agla saal calculate karna
     String current = ph.currentFY;
     int startYear = int.parse(current.split('-')[0]);
     String nextFY = "${startYear + 1}-${(startYear + 2).toString().substring(2)}";
@@ -31,7 +30,6 @@ class SystemMenuView extends StatelessWidget {
             style: ElevatedButton.styleFrom(backgroundColor: Colors.blue.shade900),
             onPressed: () async {
               Navigator.pop(c);
-              // Show Loader
               showDialog(context: context, barrierDismissible: false, builder: (c) => const Center(child: CircularProgressIndicator()));
               
               bool success = await ph.startNewFinancialYear(nextFY);
@@ -44,7 +42,8 @@ class SystemMenuView extends StatelessWidget {
                 ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Error: Transfer failed!")));
               }
             },
-            child: const Text("YES, START $nextFY", style: TextStyle(color: Colors.white)),
+            // FIXED: Removed 'const' because of string interpolation $nextFY
+            child: Text("YES, START $nextFY", style: const TextStyle(color: Colors.white)),
           ),
         ],
       ),
@@ -68,7 +67,7 @@ class SystemMenuView extends StatelessWidget {
     );
   }
 
-  // --- EXISTING MASTER RESET LOGIC ---
+  // --- MASTER RESET LOGIC ---
   void _startResetProcess(BuildContext context) {
     final List<Map<String, String>> steps = [
       {"t": "Step 1/7", "m": "Kya aap vastav me sara data delete karna chahte hain?", "b": "CONTINUE"},
@@ -118,7 +117,6 @@ class SystemMenuView extends StatelessWidget {
           const Text("MAINTENANCE & YEAR-END TOOLS", style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.blueGrey, letterSpacing: 1)),
           const SizedBox(height: 15),
           
-          // NAYA: FY Transfer Card
           InkWell(
             onTap: () => _handleFYTransfer(context, ph),
             child: Container(
