@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
-import 'package:pharoah_erp/pharoah_manager.dart';
-import 'package:pharoah_erp/models.dart';
-import 'package:pharoah_erp/bill_view_only.dart'; 
-import 'package:pharoah_erp/purchase/purchase_view_only.dart';
+import 'pharoah_manager.dart';
+import 'models.dart';
+import 'bill_view_only.dart'; 
+import 'purchase/purchase_view_only.dart';
 
 class ItemLedgerSearchView extends StatefulWidget {
   const ItemLedgerSearchView({super.key});
