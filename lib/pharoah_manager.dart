@@ -8,7 +8,8 @@ import 'master_data_library.dart';
 import 'demo_data.dart';
 import 'batch_master_logic.dart';
 import 'sale_bill_number.dart';
-import 'inventory_engine.dart'; // NAYA IMPORT
+import 'inventory_engine.dart';
+import 'fy_transfer_engine.dart'; // NAYA
 
 class PharoahManager with ChangeNotifier {
   List<Medicine> medicines = [];
@@ -88,7 +89,21 @@ class PharoahManager with ChangeNotifier {
     notifyListeners();
   }
 
-  // --- CORE METHODS ---
+  // NAYA: FY Transfer Trigger
+  Future<bool> startNewFinancialYear(String nextFY) async {
+    await save(); // Pehle current data save karlo
+    bool success = await FYTransferEngine.transferData(sourceFY: currentFY, targetFY: nextFY);
+    if (success) {
+      currentFY = nextFY;
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('fy', nextFY);
+      await prefs.setInt('lastBillID', 0); // Reset Bill Number for new year
+      await loadAllData();
+    }
+    return success;
+  }
+
+  // --- CORE METHODS (Existing) ---
   void addVoucher(Voucher v) { vouchers.add(v); save(); }
   void addCompany(Company c) { companies.add(c); save(); }
   void addSalt(Salt s) { salts.add(s); save(); }
@@ -110,7 +125,7 @@ class PharoahManager with ChangeNotifier {
     sales.add(Sale(id: DateTime.now().toString(), billNo: billNo, date: date, partyName: party.name, partyGstin: party.gst, partyState: party.state, items: items, totalAmount: total, paymentMode: mode));
     for (var it in items) {
       Medicine m = medicines.firstWhere((med) => med.id == it.medicineID);
-      m.stock -= (it.qty + it.freeQty); // Stock kam karo (with free qty)
+      m.stock -= (it.qty + it.freeQty);
       saveBatchCentrally(m, BatchInfo(batch: it.batch, exp: it.exp, packing: it.packing, mrp: it.mrp, rate: it.rate));
     }
     addLog("SALE", "New Bill: #$billNo for ${party.name}");
@@ -121,7 +136,7 @@ class PharoahManager with ChangeNotifier {
     purchases.add(Purchase(id: DateTime.now().toString(), internalNo: internalNo, billNo: billNo, date: date, entryDate: entryDate ?? DateTime.now(), distributorName: party.name, items: items, totalAmount: total, paymentMode: mode));
     for (var it in items) {
       Medicine m = medicines.firstWhere((med) => med.id == it.medicineID);
-      m.stock += (it.qty + it.freeQty); // Stock badhao
+      m.stock += (it.qty + it.freeQty);
       m.purRate = it.purchaseRate;
       m.mrp = it.mrp;
       saveBatchCentrally(m, BatchInfo(batch: it.batch, exp: it.exp, packing: it.packing, mrp: it.mrp, rate: it.purchaseRate));
@@ -130,17 +145,12 @@ class PharoahManager with ChangeNotifier {
     save();
   }
 
-  // --- UPDATED DELETE & CANCEL METHODS WITH STOCK REVERSAL ---
-
   void deleteBill(String id) {
     try {
       final sale = sales.firstWhere((s) => s.id == id);
-      // Sirf Active bill ka stock reverse hoga, Cancelled ka pehle hi ho chuka hoga
-      if (sale.status == "Active") {
-        InventoryEngine.reverseSaleStock(sale, medicines);
-      }
+      if (sale.status == "Active") { InventoryEngine.reverseSaleStock(sale, medicines); }
       sales.removeWhere((s) => s.id == id);
-      addLog("DELETE", "Bill #${sale.billNo} deleted. Stock adjusted.");
+      addLog("DELETE", "Bill #${sale.billNo} deleted.");
       save();
     } catch (e) {}
   }
@@ -151,7 +161,7 @@ class PharoahManager with ChangeNotifier {
       if(i != -1 && sales[i].status == "Active") {
         InventoryEngine.reverseSaleStock(sales[i], medicines);
         sales[i].status = "Cancelled";
-        addLog("CANCEL", "Bill #${sales[i].billNo} Cancelled. Stock restored.");
+        addLog("CANCEL", "Bill #${sales[i].billNo} Cancelled.");
         save();
       }
     } catch (e) {}
@@ -162,7 +172,7 @@ class PharoahManager with ChangeNotifier {
       final pur = purchases.firstWhere((p) => p.id == id);
       InventoryEngine.reversePurchaseStock(pur, medicines);
       purchases.removeWhere((p) => p.id == id);
-      addLog("DELETE", "Purchase #${pur.billNo} deleted. Stock reduced.");
+      addLog("DELETE", "Purchase #${pur.billNo} deleted.");
       save();
     } catch (e) {}
   }
