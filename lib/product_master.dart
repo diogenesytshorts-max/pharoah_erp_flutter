@@ -4,7 +4,7 @@ import 'pharoah_manager.dart';
 import 'models.dart';
 
 class ProductMasterView extends StatefulWidget {
-  final bool isSelectionMode; // NAYA
+  final bool isSelectionMode; 
   const ProductMasterView({super.key, this.isSelectionMode = false});
 
   @override State<ProductMasterView> createState() => _ProductMasterViewState();
@@ -12,8 +12,6 @@ class ProductMasterView extends StatefulWidget {
 
 class _ProductMasterViewState extends State<ProductMasterView> {
   String searchQuery = "";
-  String? filterCompanyId;
-
   final List<String> drugForms = ["TAB", "CAP", "SYP", "INJ", "IV", "PCS", "EXT", "OINT", "DROP"];
   final List<String> storageOptions = ["Room Temp", "Refrigerated (2-8°C)", "Cool Place"];
 
@@ -27,6 +25,7 @@ class _ProductMasterViewState extends State<ProductMasterView> {
     }
   }
 
+  // --- SEARCHABLE PICKER FOR COMPANY/SALT ---
   void _showSearchablePicker({
     required String title,
     required List<dynamic> items,
@@ -59,28 +58,19 @@ class _ProductMasterViewState extends State<ProductMasterView> {
                   const SizedBox(height: 10),
                   Flexible(
                     child: filtered.isEmpty 
-                      ? Padding(
-                          padding: const EdgeInsets.all(20.0),
-                          child: Text("No $title found."),
-                        )
+                      ? const Padding(padding: EdgeInsets.all(20.0), child: Text("No items found."))
                       : ListView.builder(
                           shrinkWrap: true,
                           itemCount: filtered.length,
                           itemBuilder: (c, i) => ListTile(
                             title: Text(filtered[i].name),
-                            onTap: () {
-                              onSelected(filtered[i]);
-                              Navigator.pop(context);
-                            },
+                            onTap: () { onSelected(filtered[i]); Navigator.pop(context); },
                           ),
                         ),
                   ),
                   const Divider(),
                   TextButton.icon(
-                    onPressed: () {
-                      Navigator.pop(context);
-                      onQuickAdd();
-                    },
+                    onPressed: () { Navigator.pop(context); onQuickAdd(); },
                     icon: const Icon(Icons.add),
                     label: Text("ADD NEW ${title.toUpperCase()}"),
                   )
@@ -93,43 +83,11 @@ class _ProductMasterViewState extends State<ProductMasterView> {
     );
   }
 
-  void _quickAddCompany(PharoahManager ph) {
-    final cC = TextEditingController();
-    showDialog(context: context, builder: (c) => AlertDialog(
-      title: const Text("Quick Add Company"),
-      content: TextField(controller: cC, decoration: const InputDecoration(labelText: "Company Name"), textCapitalization: TextCapitalization.characters),
-      actions: [
-        TextButton(onPressed: () => Navigator.pop(c), child: const Text("CANCEL")),
-        ElevatedButton(onPressed: () {
-          if(cC.text.isNotEmpty) {
-            ph.addCompany(Company(id: DateTime.now().toString(), name: cC.text.toUpperCase()));
-            Navigator.pop(c);
-          }
-        }, child: const Text("ADD"))
-      ],
-    ));
-  }
-
-  void _quickAddSalt(PharoahManager ph) {
-    final sC = TextEditingController();
-    showDialog(context: context, builder: (c) => AlertDialog(
-      title: const Text("Quick Add Salt"),
-      content: TextField(controller: sC, decoration: const InputDecoration(labelText: "Salt Name"), textCapitalization: TextCapitalization.characters),
-      actions: [
-        TextButton(onPressed: () => Navigator.pop(c), child: const Text("CANCEL")),
-        ElevatedButton(onPressed: () {
-          if(sC.text.isNotEmpty) {
-            ph.addSalt(Salt(id: DateTime.now().toString(), name: sC.text.toUpperCase()));
-            Navigator.pop(c);
-          }
-        }, child: const Text("ADD"))
-      ],
-    ));
-  }
-
-  void _showProductForm({Medicine? med}) {
+  // --- PRODUCT FORM (WITH ID LOCKING) ---
+  void _showProductForm({Medicine? med}) async {
     final ph = Provider.of<PharoahManager>(context, listen: false);
 
+    // Initializing Controllers
     final nameC = TextEditingController(text: med?.name);
     final packC = TextEditingController(text: med?.packing);
     final rackC = TextEditingController(text: med?.rackNo);
@@ -137,6 +95,12 @@ class _ProductMasterViewState extends State<ProductMasterView> {
     final reorderC = TextEditingController(text: med?.reorderLevel.toString() ?? "0");
     final gstC = TextEditingController(text: med?.gst.toString() ?? "12");
     
+    // NAYA: ID Handling
+    String systemId = med?.systemId ?? "";
+    if (systemId.isEmpty) {
+      systemId = await ph.generateNewMedicineId(); // Auto-generate for new items
+    }
+
     String selForm = med?.drugForm ?? "TAB";
     bool naco = med?.isNarcotic ?? false;
     bool schH1 = med?.isScheduleH1 ?? false;
@@ -151,6 +115,8 @@ class _ProductMasterViewState extends State<ProductMasterView> {
         ? ph.salts.firstWhere((s) => s.id == saltId, orElse: () => Salt(id: "", name: "")).name 
         : "Tap to Select Salt";
 
+    if (!mounted) return;
+
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -163,6 +129,20 @@ class _ProductMasterViewState extends State<ProductMasterView> {
             child: SingleChildScrollView(
               child: Column(
                 children: [
+                  // NAYA: LOCKED ID DISPLAY
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    margin: const EdgeInsets.only(bottom: 15),
+                    decoration: BoxDecoration(color: Colors.grey.shade100, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.grey.shade300)),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text("SYSTEM ID (LOCKED):", style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.blueGrey)),
+                        Text(systemId, style: const TextStyle(fontWeight: FontWeight.w900, color: Colors.indigo)),
+                      ],
+                    ),
+                  ),
+
                   _section("PRIMARY DETAILS"),
                   _input(nameC, "Product Name *", Icons.medication),
                   Row(children: [
@@ -170,7 +150,7 @@ class _ProductMasterViewState extends State<ProductMasterView> {
                     const SizedBox(width: 10),
                     Expanded(child: DropdownButtonFormField<String>(
                       value: selForm,
-                      decoration: const InputDecoration(labelText: "Drug Form", border: OutlineInputBorder()),
+                      decoration: const InputDecoration(labelText: "Form", border: OutlineInputBorder()),
                       items: drugForms.map((f) => DropdownMenuItem(value: f, child: Text(f))).toList(),
                       onChanged: (v) => setDialogState(() => selForm = v!),
                     )),
@@ -204,14 +184,12 @@ class _ProductMasterViewState extends State<ProductMasterView> {
                     Expanded(child: SwitchListTile(
                       contentPadding: EdgeInsets.zero,
                       title: const Text("Narcotic", style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-                      value: naco, 
-                      onChanged: (v) => setDialogState(() => naco = v)
+                      value: naco, onChanged: (v) => setDialogState(() => naco = v)
                     )),
                     Expanded(child: SwitchListTile(
                       contentPadding: EdgeInsets.zero,
                       title: const Text("Sch. H1", style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-                      value: schH1, 
-                      onChanged: (v) => setDialogState(() => schH1 = v)
+                      value: schH1, onChanged: (v) => setDialogState(() => schH1 = v)
                     )),
                   ]),
                   const SizedBox(height: 10),
@@ -242,11 +220,10 @@ class _ProductMasterViewState extends State<ProductMasterView> {
               style: ElevatedButton.styleFrom(backgroundColor: Colors.purple, foregroundColor: Colors.white),
               onPressed: () {
                 if(nameC.text.isEmpty || packC.text.isEmpty) return;
-                String newUniqueCode = med?.uniqueCode ?? "ITEM-${DateTime.now().millisecondsSinceEpoch.toString().substring(6)}";
 
                 final newItem = Medicine(
                   id: med?.id ?? DateTime.now().toString(),
-                  uniqueCode: newUniqueCode,
+                  systemId: systemId, // LOCKED ID SAVED
                   name: nameC.text.toUpperCase(),
                   packing: packC.text.toUpperCase(),
                   companyId: companyId ?? "",
@@ -265,12 +242,12 @@ class _ProductMasterViewState extends State<ProductMasterView> {
 
                 if(med == null) ph.medicines.add(newItem);
                 else { int i = ph.medicines.indexWhere((x)=>x.id==med.id); ph.medicines[i] = newItem; }
+                
                 ph.save(); 
 
-                // NAYA logic selection return ke liye
                 if (widget.isSelectionMode) {
                   Navigator.pop(c); // dialog
-                  Navigator.pop(context, newItem); // screen return with item
+                  Navigator.pop(context, newItem); // return to billing
                 } else {
                   Navigator.pop(c);
                 }
@@ -285,9 +262,7 @@ class _ProductMasterViewState extends State<ProductMasterView> {
 
   @override Widget build(BuildContext context) {
     final ph = Provider.of<PharoahManager>(context);
-    final list = ph.medicines.where((m) => 
-      m.name.toLowerCase().contains(searchQuery.toLowerCase())
-    ).toList();
+    final list = ph.medicines.where((m) => m.name.toLowerCase().contains(searchQuery.toLowerCase())).toList();
 
     return Scaffold(
       backgroundColor: const Color(0xFFF5F6F9),
@@ -295,7 +270,7 @@ class _ProductMasterViewState extends State<ProductMasterView> {
       body: Column(children: [
         Container(padding: const EdgeInsets.all(15), color: Colors.purple.shade50, child: TextField(
           decoration: InputDecoration(
-            hintText: "Search Product...", prefixIcon: const Icon(Icons.search, color: Colors.purple), 
+            hintText: "Search Product Name...", prefixIcon: const Icon(Icons.search, color: Colors.purple), 
             filled: true, fillColor: Colors.white, border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none)
           ), 
           onChanged: (v) => setState(() => searchQuery = v)
@@ -308,12 +283,12 @@ class _ProductMasterViewState extends State<ProductMasterView> {
               elevation: 2, margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6), 
               child: ListTile(
                 leading: CircleAvatar(
-                  backgroundColor: m.isNarcotic ? Colors.red.shade100 : Colors.purple.shade50,
-                  child: Icon(m.drugForm == "INJ" ? Icons.colorize : Icons.medication, color: m.isNarcotic ? Colors.red : Colors.purple),
+                  backgroundColor: Colors.purple.shade50,
+                  child: Text(m.systemId.replaceAll("PH-", ""), style: const TextStyle(fontSize: 8, fontWeight: FontWeight.bold, color: Colors.purple)),
                 ),
-                title: Text("${m.name} - ${m.drugForm}", style: const TextStyle(fontWeight: FontWeight.bold)),
-                subtitle: Text("Pack: ${m.packing} | Stock: ${m.stock} | Rack: ${m.rackNo}"),
-                trailing: m.isScheduleH1 ? const Icon(Icons.report_problem, color: Colors.orange, size: 18) : null,
+                title: Text("${m.name} (${m.packing})", style: const TextStyle(fontWeight: FontWeight.bold)),
+                subtitle: Text("ID: ${m.systemId} | Stock: ${m.stock} | Rack: ${m.rackNo}"),
+                trailing: const Icon(Icons.edit, size: 18, color: Colors.grey),
                 onTap: () => _showProductForm(med: m),
               ),
             );
@@ -324,6 +299,7 @@ class _ProductMasterViewState extends State<ProductMasterView> {
     );
   }
 
+  // --- UI HELPERS ---
   Widget _section(String t) => Padding(padding: const EdgeInsets.symmetric(vertical: 12), child: Align(alignment: Alignment.centerLeft, child: Text(t, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.blueGrey, letterSpacing: 1))));
   
   Widget _input(TextEditingController ctrl, String label, IconData icon, {bool isNum = false}) => Padding(
@@ -341,21 +317,37 @@ class _ProductMasterViewState extends State<ProductMasterView> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 15),
         decoration: BoxDecoration(border: Border.all(color: Colors.grey), borderRadius: BorderRadius.circular(5)),
-        child: Row(
-          children: [
+        child: Row(children: [
             Icon(icon, color: Colors.grey, size: 20),
             const SizedBox(width: 10),
-            Expanded(child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(label, style: const TextStyle(fontSize: 10, color: Colors.grey)),
-                Text(value, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
-              ],
-            )),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(label, style: const TextStyle(fontSize: 10, color: Colors.grey)), Text(value, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold))])),
             const Icon(Icons.arrow_drop_down, color: Colors.grey),
-          ],
-        ),
+        ]),
       ),
     );
+  }
+
+  void _quickAddCompany(PharoahManager ph) {
+    final cC = TextEditingController();
+    showDialog(context: context, builder: (c) => AlertDialog(
+      title: const Text("Quick Add Company"),
+      content: TextField(controller: cC, decoration: const InputDecoration(labelText: "Company Name"), textCapitalization: TextCapitalization.characters),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(c), child: const Text("CANCEL")),
+        ElevatedButton(onPressed: () { if(cC.text.isNotEmpty) { ph.addCompany(Company(id: DateTime.now().toString(), name: cC.text.toUpperCase())); Navigator.pop(c); } }, child: const Text("ADD"))
+      ],
+    ));
+  }
+
+  void _quickAddSalt(PharoahManager ph) {
+    final sC = TextEditingController();
+    showDialog(context: context, builder: (c) => AlertDialog(
+      title: const Text("Quick Add Salt"),
+      content: TextField(controller: sC, decoration: const InputDecoration(labelText: "Salt Name"), textCapitalization: TextCapitalization.characters),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(c), child: const Text("CANCEL")),
+        ElevatedButton(onPressed: () { if(sC.text.isNotEmpty) { ph.addSalt(Salt(id: DateTime.now().toString(), name: sC.text.toUpperCase())); Navigator.pop(c); } }, child: const Text("ADD"))
+      ],
+    ));
   }
 }
