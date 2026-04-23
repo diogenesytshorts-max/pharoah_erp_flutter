@@ -1,172 +1,147 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-class AiSetupView extends StatefulWidget {
-  const AiSetupView({super.key});
+class SetupView extends StatefulWidget {
+  final VoidCallback onComplete;
+  const SetupView({super.key, required this.onComplete});
 
   @override
-  State<AiSetupView> createState() => _AiSetupViewState();
+  State<SetupView> createState() => _SetupViewState();
 }
 
-class _AiSetupViewState extends State<AiSetupView> {
-  // 1. Controller for the Text Field
-  final TextEditingController geminiKeyC = TextEditingController();
-  
-  // 2. Settings variables
-  bool autoOffline = true;
-  bool isLoading = true;
+class _SetupViewState extends State<SetupView> {
+  final nameC = TextEditingController();
+  final addressC = TextEditingController();
+  final gstinC = TextEditingController();
+  final dlNoC = TextEditingController();
+  final phoneC = TextEditingController();
+  final emailC = TextEditingController();
+  final usernameC = TextEditingController();
+  final passwordC = TextEditingController();
 
-  @override
-  void initState() {
-    super.initState();
-    _loadSavedSettings();
-  }
+  String selectedFY = "2025-26";
+  String selectedState = "Rajasthan";
 
-  // STEP 1: Load data from local storage
-  Future<void> _loadSavedSettings() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      setState(() {
-        geminiKeyC.text = prefs.getString('geminiKey') ?? "";
-        autoOffline = prefs.getBool('autoOffline') ?? true;
-        isLoading = false;
-      });
-    } catch (e) {
-      debugPrint("Error loading settings: $e");
-      setState(() => isLoading = false);
-    }
-  }
+  final List<String> states = [
+    "Andhra Pradesh", "Arunachal Pradesh", "Assam", "Bihar", "Chhattisgarh", 
+    "Goa", "Gujarat", "Haryana", "Himachal Pradesh", "Jharkhand", "Karnataka", 
+    "Kerala", "Madhya Pradesh", "Maharashtra", "Manipur", "Meghalaya", "Mizoram", 
+    "Nagaland", "Odisha", "Punjab", "Rajasthan", "Sikkim", "Tamil Nadu", 
+    "Telangana", "Tripura", "Uttar Pradesh", "Uttarakhand", "West Bengal"
+  ];
 
-  // STEP 2: Save data back to storage
-  Future<void> _saveSettings() async {
-    // Basic Validation
-    if (geminiKeyC.text.trim().isEmpty) {
+  Future<void> _handleFinishSetup() async {
+    if (nameC.text.trim().isEmpty || usernameC.text.trim().isEmpty || passwordC.text.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Warning: No API Key entered. Online AI will not work."), backgroundColor: Colors.orange),
+        const SnackBar(content: Text("Firm Name, Admin Username and Password are mandatory!"))
       );
+      return;
     }
 
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString('geminiKey', geminiKeyC.text.trim());
-      await prefs.setBool('autoOffline', autoOffline);
+    final prefs = await SharedPreferences.getInstance();
+    
+    await prefs.setString('compName', nameC.text.trim().toUpperCase());
+    await prefs.setString('compAddr', addressC.text.trim());
+    await prefs.setString('compState', selectedState);
+    await prefs.setString('compGST', gstinC.text.trim().toUpperCase().isEmpty ? "N/A" : gstinC.text.trim().toUpperCase());
+    await prefs.setString('compDL', dlNoC.text.trim().toUpperCase().isEmpty ? "N/A" : dlNoC.text.trim().toUpperCase());
+    await prefs.setString('compPh', phoneC.text.trim());
+    await prefs.setString('compEmail', emailC.text.trim().toLowerCase());
+    
+    await prefs.setString('adminUser', usernameC.text.trim().toLowerCase());
+    await prefs.setString('adminPass', passwordC.text.trim());
+    
+    await prefs.setString('fy', selectedFY);
+    await prefs.setBool('isSetupDone', true);
 
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("✅ AI Configuration Activated!"), backgroundColor: Colors.green),
-        );
-        Navigator.pop(context); // Go back to landing page
-      }
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Error saving: $e"), backgroundColor: Colors.red),
-      );
-    }
+    widget.onComplete();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F7FA),
+      backgroundColor: Colors.white,
       appBar: AppBar(
-        title: const Text("AI Configuration", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-        backgroundColor: Colors.indigo.shade900,
+        title: const Text("Initial Company Setup"),
+        backgroundColor: Colors.blue.shade900,
         foregroundColor: Colors.white,
         elevation: 0,
       ),
-      body: isLoading 
-        ? const Center(child: CircularProgressIndicator()) // Loader while reading memory
-        : SingleChildScrollView(
-            padding: const EdgeInsets.all(25),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _buildHeaderHeader(),
-                const SizedBox(height: 30),
-                
-                _buildLabel("PRIMARY AI ENGINE"),
-                _buildGeminiCard(),
-                
-                const SizedBox(height: 25),
-                
-                _buildLabel("INTELLIGENCE SETTINGS"),
-                _buildSettingsCard(),
-
-                const SizedBox(height: 40),
-                
-                // MAIN ACTION BUTTON
-                SizedBox(
-                  width: double.infinity,
-                  height: 60,
-                  child: ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.indigo.shade900,
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-                      elevation: 5
-                    ),
-                    onPressed: _saveSettings,
-                    child: const Text("SAVE & ACTIVATE", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, letterSpacing: 1)),
-                  ),
-                ),
-              ],
-            ),
-          ),
-    );
-  }
-
-  // --- UI COMPONENTS ---
-
-  Widget _buildHeaderHeader() {
-    return const Center(
-      child: Column(
-        children: [
-          Icon(Icons.hub_rounded, size: 60, color: Colors.indigo),
-          SizedBox(height: 10),
-          Text("AI Vision Settings", style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: Color(0xFF1A237E))),
-          Text("Configure your extraction engines", style: TextStyle(color: Colors.grey, fontSize: 13)),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildLabel(String text) {
-    return Padding(
-      padding: const EdgeInsets.only(left: 5, bottom: 10),
-      child: Text(text, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.blueGrey, letterSpacing: 1.2)),
-    );
-  }
-
-  Widget _buildGeminiCard() {
-    return Card(
-      elevation: 0,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(20),
-        side: BorderSide(color: Colors.indigo.withOpacity(0.1), width: 1.5)
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(20),
+      body: SingleChildScrollView(
         child: Column(
           children: [
-            Row(
-              children: [
-                const Icon(Icons.auto_awesome, color: Colors.blue),
-                const SizedBox(width: 10),
-                const Text("Google Gemini", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                const Spacer(),
-                const Text("Free Plan", style: TextStyle(fontSize: 10, color: Colors.green, fontWeight: FontWeight.bold)),
-              ],
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(25),
+              decoration: BoxDecoration(
+                color: Colors.blue.shade900,
+                borderRadius: const BorderRadius.only(bottomLeft: Radius.circular(30), bottomRight: Radius.circular(30)),
+              ),
+              child: const Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text("Welcome to Pharoah ERP", style: TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold)),
+                  SizedBox(height: 5),
+                  Text("Please configure your business details to get started.", style: TextStyle(color: Colors.white70, fontSize: 13)),
+                ],
+              ),
             ),
-            const SizedBox(height: 20),
-            TextField(
-              controller: geminiKeyC,
-              decoration: InputDecoration(
-                labelText: "Paste API Key",
-                hintText: "AIzaSy...",
-                prefixIcon: const Icon(Icons.vpn_key_outlined),
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                filled: true,
-                fillColor: Colors.grey.shade50
+            Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildSectionTitle("BUSINESS PROFILE"),
+                  _setupField(nameC, "Firm / Shop Name", Icons.store_mall_directory),
+                  _setupField(addressC, "Full Office Address", Icons.location_on),
+                  DropdownButtonFormField<String>(
+                    value: selectedState,
+                    decoration: const InputDecoration(labelText: "Shop State (For GST)", border: OutlineInputBorder(), prefixIcon: Icon(Icons.map)),
+                    items: states.map((s) => DropdownMenuItem(value: s, child: Text(s))).toList(),
+                    onChanged: (v) => setState(() => selectedState = v!),
+                  ),
+                  const SizedBox(height: 15),
+                  Row(
+                    children: [
+                      Expanded(child: _setupField(phoneC, "Mobile No", Icons.phone, isNum: true)),
+                      const SizedBox(width: 10),
+                      Expanded(child: _setupField(emailC, "Business Email", Icons.email)),
+                    ],
+                  ),
+                  _buildSectionTitle("STATUTORY & TAX DETAILS"),
+                  Row(
+                    children: [
+                      Expanded(child: _setupField(gstinC, "GSTIN Number", Icons.receipt_long)),
+                      const SizedBox(width: 10),
+                      Expanded(child: _setupField(dlNoC, "Drug License (DL)", Icons.medical_services)),
+                    ],
+                  ),
+                  DropdownButtonFormField<String>(
+                    value: selectedFY,
+                    decoration: const InputDecoration(labelText: "Current Financial Year", border: OutlineInputBorder(), prefixIcon: Icon(Icons.calendar_today)),
+                    items: ["2024-25", "2025-26", "2026-27"].map((y) => DropdownMenuItem(value: y, child: Text(y))).toList(),
+                    onChanged: (v) => setState(() => selectedFY = v!),
+                  ),
+                  _buildSectionTitle("ADMIN LOGIN ACCESS"),
+                  _setupField(usernameC, "Create Admin Username", Icons.person_add),
+                  _setupField(passwordC, "Create Admin Password", Icons.lock_outline, isPassword: true),
+                  const SizedBox(height: 30),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 60,
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.blue.shade900,
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+                        elevation: 5,
+                      ),
+                      onPressed: _handleFinishSetup,
+                      child: const Text("FINISH & CREATE COMPANY", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                    ),
+                  ),
+                  const SizedBox(height: 30),
+                ],
               ),
             ),
           ],
@@ -175,26 +150,26 @@ class _AiSetupViewState extends State<AiSetupView> {
     );
   }
 
-  Widget _buildSettingsCard() {
-    return Card(
-      elevation: 0,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      child: Column(
-        children: [
-          SwitchListTile(
-            title: const Text("Hybrid Auto-Fallback", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-            subtitle: const Text("Automatically switch to Offline mode if API fails.", style: TextStyle(fontSize: 11)),
-            value: autoOffline,
-            onChanged: (v) => setState(() => autoOffline = v),
-            activeColor: Colors.indigo,
-          ),
-          const Divider(height: 1),
-          const ListTile(
-            leading: Icon(Icons.security, size: 20),
-            title: Text("Privacy", style: TextStyle(fontSize: 13)),
-            subtitle: Text("API keys are stored encrypted on your device.", style: TextStyle(fontSize: 10)),
-          )
-        ],
+  Widget _buildSectionTitle(String title) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 15),
+      child: Text(title, style: TextStyle(color: Colors.blue.shade900, fontWeight: FontWeight.bold, fontSize: 13, letterSpacing: 1.2)),
+    );
+  }
+
+  Widget _setupField(TextEditingController ctrl, String label, IconData icon, {bool isNum = false, bool isPassword = false}) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 15),
+      child: TextField(
+        controller: ctrl,
+        obscureText: isPassword,
+        keyboardType: isNum ? TextInputType.number : TextInputType.text,
+        decoration: InputDecoration(
+          labelText: label,
+          prefixIcon: Icon(icon, size: 20),
+          border: const OutlineInputBorder(),
+          contentPadding: const EdgeInsets.symmetric(horizontal: 15, vertical: 15),
+        ),
       ),
     );
   }
