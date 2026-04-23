@@ -1,162 +1,203 @@
-import 'dart:convert';
-import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:path_provider/path_provider.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import 'models.dart';
-import 'master_data_library.dart';
-import 'demo_data.dart';
-import 'sale_bill_number.dart';
-import 'inventory_logic_center.dart';
-import 'fy_transfer_engine.dart';
+import 'package:provider/provider.dart';
+import 'package:intl/intl.dart';
+import 'package:pharoah_erp/pharoah_manager.dart';
+import 'package:pharoah_erp/models.dart';
+import 'package:pharoah_erp/bill_view_only.dart'; 
+import 'package:pharoah_erp/purchase/purchase_view_only.dart';
 
-class PharoahManager with ChangeNotifier {
-  List<Medicine> medicines = [];
-  List<Party> parties = [];
-  List<Sale> sales = [];
-  List<Purchase> purchases = [];
-  List<RouteArea> routes = [];
-  List<Company> companies = [];
-  List<Salt> salts = [];
-  List<DrugType> drugTypes = [];
-  List<LogEntry> logs = [];
-  List<Voucher> vouchers = [];
-  Map<String, List<BatchInfo>> batchHistory = {};
-  
-  String currentFY = "2025-26";
+class ItemLedgerSearchView extends StatefulWidget {
+  const ItemLedgerSearchView({super.key});
+  @override State<ItemLedgerSearchView> createState() => _ItemLedgerSearchViewState();
+}
 
-  PharoahManager() { initManager(); }
+class _ItemLedgerSearchViewState extends State<ItemLedgerSearchView> {
+  String search = "";
+  String filterType = "ALL"; 
 
-  Future<void> initManager() async {
-    final prefs = await SharedPreferences.getInstance();
-    currentFY = prefs.getString('fy') ?? "2025-26";
-    await loadAllData();
+  bool _isNearExpiry(String exp) {
+    try {
+      if (exp.isEmpty || !exp.contains('/')) return false;
+      DateTime expiryDate = DateFormat('MM/yy').parse(exp);
+      DateTime now = DateTime.now();
+      int diffMonths = (expiryDate.year - now.year) * 12 + expiryDate.month - now.month;
+      return diffMonths >= 0 && diffMonths <= 3;
+    } catch (e) { return false; }
   }
 
-  Future<String> getFYDirectory() async {
-    final root = await getApplicationDocumentsDirectory();
-    final directory = Directory('${root.path}/DATA_FY_$currentFY');
-    if (!await directory.exists()) await directory.create(recursive: true);
-    return directory.path;
+  bool _isExpired(String exp) {
+    try {
+      if (exp.isEmpty || !exp.contains('/')) return false;
+      DateTime expiryDate = DateFormat('MM/yy').parse(exp);
+      DateTime lastDayOfMonth = DateTime(expiryDate.year, expiryDate.month + 1, 0);
+      return lastDayOfMonth.isBefore(DateTime.now());
+    } catch (e) { return false; }
   }
 
-  Future<void> save() async {
-    final dir = await getFYDirectory();
-    await File('$dir/meds.json').writeAsString(jsonEncode(medicines.map((e) => e.toMap()).toList()));
-    await File('$dir/parts.json').writeAsString(jsonEncode(parties.map((e) => e.toMap()).toList()));
-    await File('$dir/sales.json').writeAsString(jsonEncode(sales.map((e) => e.toMap()).toList()));
-    await File('$dir/purc.json').writeAsString(jsonEncode(purchases.map((e) => e.toMap()).toList()));
-    await File('$dir/routs.json').writeAsString(jsonEncode(routes.map((e) => e.toMap()).toList()));
-    await File('$dir/comps.json').writeAsString(jsonEncode(companies.map((e) => e.toMap()).toList()));
-    await File('$dir/salts.json').writeAsString(jsonEncode(salts.map((e) => e.toMap()).toList()));
-    await File('$dir/dtypes.json').writeAsString(jsonEncode(drugTypes.map((e) => e.toMap()).toList()));
-    await File('$dir/logs.json').writeAsString(jsonEncode(logs.map((e) => e.toMap()).toList()));
-    await File('$dir/vouc.json').writeAsString(jsonEncode(vouchers.map((e) => e.toMap()).toList()));
-    await File('$dir/bats.json').writeAsString(jsonEncode(batchHistory.map((k, v) => MapEntry(k, v.map((b) => b.toMap()).toList()))));
-    notifyListeners();
+  @override Widget build(BuildContext context) {
+    final ph = Provider.of<PharoahManager>(context);
+    final filteredMeds = ph.medicines.where((m) {
+      bool matchesSearch = m.name.toLowerCase().contains(search.toLowerCase());
+      if (!matchesSearch) return false;
+      var batches = ph.batchHistory[m.identityKey] ?? [];
+      if (filterType == "NEAR") return batches.any((b) => _isNearExpiry(b.exp));
+      if (filterType == "EXPIRED") return batches.any((b) => _isExpired(b.exp));
+      return true;
+    }).toList();
+
+    return Scaffold(
+      backgroundColor: const Color(0xFFF5F6F9),
+      appBar: AppBar(
+        title: const Text("Stock Ledger & Batch Tracker"), 
+        backgroundColor: Colors.teal.shade800, 
+        foregroundColor: Colors.white
+      ),
+      body: Column(children: [
+        Container(padding: const EdgeInsets.symmetric(vertical: 10), color: Colors.white, child: Row(mainAxisAlignment: MainAxisAlignment.spaceAround, children: [
+          _filterChip("ALL", Colors.blue),
+          _filterChip("NEAR EXPIRY", Colors.orange),
+          _filterChip("EXPIRED", Colors.red),
+        ])),
+        Padding(padding: const EdgeInsets.all(15), child: TextField(
+          decoration: InputDecoration(
+            hintText: "Search Product Name...", 
+            prefixIcon: const Icon(Icons.search, color: Colors.teal), 
+            filled: true, fillColor: Colors.white, 
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(15), borderSide: BorderSide.none),
+            contentPadding: EdgeInsets.zero
+          ), 
+          onChanged: (v) => setState(() => search = v)
+        )),
+        Expanded(
+          child: filteredMeds.isEmpty 
+          ? const Center(child: Text("No items found"))
+          : ListView.builder(
+            padding: const EdgeInsets.symmetric(horizontal: 10), 
+            itemCount: filteredMeds.length, 
+            itemBuilder: (c, i) {
+              final med = filteredMeds[i];
+              return Card(
+                child: ListTile(
+                  leading: CircleAvatar(backgroundColor: Colors.teal.shade50, child: Icon(Icons.medication, color: Colors.teal.shade800)),
+                  title: Text(med.name, style: const TextStyle(fontWeight: FontWeight.bold)),
+                  subtitle: Text("Current Stock: ${med.stock.toStringAsFixed(1)} ${med.packing}"),
+                  trailing: const Icon(Icons.arrow_forward_ios, size: 14),
+                  onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => ItemLedgerDetailView(medicine: med))),
+                ),
+              );
+            }
+          )
+        )
+      ]),
+    );
   }
 
-  Future<void> loadAllData() async {
-    final dir = await getFYDirectory();
-    dynamic loadJson(String name) {
-      final f = File('$dir/$name');
-      return f.existsSync() ? jsonDecode(f.readAsStringSync()) : null;
+  Widget _filterChip(String label, Color color) {
+    bool isSel = filterType == label.split(" ")[0];
+    return ActionChip(
+      backgroundColor: isSel ? color : Colors.grey.shade100,
+      label: Text(label, style: TextStyle(color: isSel ? Colors.white : Colors.black87, fontSize: 10, fontWeight: FontWeight.bold)),
+      onPressed: () => setState(() => filterType = label.split(" ")[0]),
+    );
+  }
+}
+
+class ItemLedgerDetailView extends StatefulWidget {
+  final Medicine medicine;
+  const ItemLedgerDetailView({super.key, required this.medicine});
+  @override State<ItemLedgerDetailView> createState() => _ItemLedgerDetailViewState();
+}
+
+class _ItemLedgerDetailViewState extends State<ItemLedgerDetailView> {
+  String selectedBatch = "ALL";
+
+  @override Widget build(BuildContext context) {
+    final ph = Provider.of<PharoahManager>(context);
+    List<Map<String, dynamic>> history = [];
+    Map<String, double> batchStockMap = {};
+
+    for (var p in ph.purchases) {
+      for (var it in p.items) {
+        if (it.medicineID == widget.medicine.id) {
+          history.add({'date': p.date, 'type': 'IN', 'qty': it.qty + it.freeQty, 'party': p.distributorName, 'bill': p, 'batch': it.batch});
+          batchStockMap[it.batch] = (batchStockMap[it.batch] ?? 0) + (it.qty + it.freeQty);
+        }
+      }
     }
 
-    if (File('$dir/meds.json').existsSync()) {
-      medicines = (loadJson('meds.json') as List).map((e) => Medicine.fromMap(e)).toList();
-    } else {
-      medicines = DemoData.getMedicines();
+    for (var s in ph.sales.where((s) => s.status == "Active")) {
+      for (var it in s.items) {
+        if (it.medicineID == widget.medicine.id) {
+          history.add({'date': s.date, 'type': 'OUT', 'qty': it.qty + it.freeQty, 'party': s.partyName, 'bill': s, 'batch': it.batch});
+          batchStockMap[it.batch] = (batchStockMap[it.batch] ?? 0) - (it.qty + it.freeQty);
+        }
+      }
     }
 
-    parties = (loadJson('parts.json') as List?)?.map((e) => Party.fromMap(e)).toList() ?? [DemoData.getDemoParty(), Party(id: 'cash', name: "CASH", group: "Cash in Hand")];
-    sales = (loadJson('sales.json') as List?)?.map((e) => Sale.fromMap(e)).toList() ?? [];
-    purchases = (loadJson('purc.json') as List?)?.map((e) => Purchase.fromMap(e)).toList() ?? [];
-    vouchers = (loadJson('vouc.json') as List?)?.map((e) => Voucher.fromMap(e)).toList() ?? [];
-    logs = (loadJson('logs.json') as List?)?.map((e) => LogEntry.fromMap(e)).toList() ?? [];
-    companies = (loadJson('comps.json') as List?)?.map((e) => Company.fromMap(e)).toList() ?? MasterDataLibrary.topCompanies.map((n) => Company(id: n, name: n)).toList();
-    salts = (loadJson('salts.json') as List?)?.map((e) => Salt.fromMap(e)).toList() ?? MasterDataLibrary.topSalts.map((s) => Salt(id: s['name']!, name: s['name']!, type: s['type']!)).toList();
-    drugTypes = (loadJson('dtypes.json') as List?)?.map((e) => DrugType.fromMap(e)).toList() ?? MasterDataLibrary.drugTypes.map((n) => DrugType(id: n, name: n)).toList();
-    routes = (loadJson('routs.json') as List?)?.map((e) => RouteArea.fromMap(e)).toList() ?? [RouteArea(id: '1', name: "LOCAL AREA")];
+    history.sort((a, b) => b['date'].compareTo(a['date']));
+    var displayHistory = selectedBatch == "ALL" ? history : history.where((h) => h['batch'] == selectedBatch).toList();
 
-    var bD = loadJson('bats.json');
-    if (bD != null) {
-      batchHistory.clear();
-      (bD as Map).forEach((k, v) => batchHistory[k] = (v as List).map((b) => BatchInfo.fromMap(b)).toList());
-    }
-
-    InventoryLogicCenter.rebuildAllInventory(medicines: medicines, batchHistory: batchHistory, purchases: purchases, sales: sales);
-    notifyListeners();
+    return Scaffold(
+      backgroundColor: const Color(0xFFF5F6F9),
+      appBar: AppBar(title: Text(widget.medicine.name), backgroundColor: Colors.teal.shade800, foregroundColor: Colors.white),
+      body: Column(children: [
+        Container(
+          padding: const EdgeInsets.all(20), 
+          decoration: const BoxDecoration(color: Colors.white, borderRadius: BorderRadius.only(bottomLeft: Radius.circular(20), bottomRight: Radius.circular(20))),
+          child: Row(mainAxisAlignment: MainAxisAlignment.spaceAround, children: [
+            _sumCol("TOTAL IN", history.where((h)=>h['type']=='IN').fold(0.0, (s, e)=>s+e['qty']), Colors.green),
+            _sumCol("TOTAL OUT", history.where((h)=>h['type']=='OUT').fold(0.0, (s, e)=>s+e['qty']), Colors.red),
+            _sumCol("ON HAND", widget.medicine.stock, Colors.blue.shade900),
+          ]),
+        ),
+        SizedBox(
+          height: 65,
+          child: ListView(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+            children: [
+              ChoiceChip(label: const Text("ALL BATCHES"), selected: selectedBatch == "ALL", onSelected: (v)=>setState(()=>selectedBatch="ALL")),
+              ...batchStockMap.entries.map((e) => Padding(
+                padding: const EdgeInsets.only(left: 8),
+                child: ChoiceChip(
+                  label: Text("${e.key} (${e.value.toInt()})"), 
+                  selected: selectedBatch == e.key,
+                  onSelected: (v) => setState(() => selectedBatch = e.key),
+                ),
+              )).toList(),
+            ],
+          ),
+        ),
+        Expanded(
+          child: displayHistory.isEmpty 
+          ? const Center(child: Text("No transactions found")) 
+          : ListView.builder(
+            padding: const EdgeInsets.all(10),
+            itemCount: displayHistory.length,
+            itemBuilder: (c, i) {
+              final h = displayHistory[i];
+              bool isIn = h['type'] == 'IN';
+              return Card(
+                child: ListTile(
+                  onTap: () {
+                    if (isIn) {
+                      Navigator.push(context, MaterialPageRoute(builder: (c) => PurchaseViewOnly(purchase: h['bill'] as Purchase)));
+                    } else {
+                      final partyObj = ph.parties.firstWhere((p) => p.name == h['party'], orElse: () => Party(id: "", name: h['party']));
+                      Navigator.push(context, MaterialPageRoute(builder: (c) => BillViewOnly(sale: h['bill'] as Sale, party: partyObj)));
+                    }
+                  },
+                  leading: Icon(isIn ? Icons.south_west : Icons.north_east, color: isIn ? Colors.green : Colors.red),
+                  title: Text(h['party']),
+                  subtitle: Text("${DateFormat('dd/MM/yy').format(h['date'])} | Batch: ${h['batch']}"),
+                  trailing: Text("${isIn ? '+' : '-'} ${h['qty'].toInt()}", style: TextStyle(fontWeight: FontWeight.bold, color: isIn ? Colors.green : Colors.red)),
+                ),
+              );
+            },
+          ),
+        )
+      ]),
+    );
   }
-
-  // FIXED: Method Restored
-  void addLog(String action, String details) {
-    logs.add(LogEntry(id: DateTime.now().toString(), action: action, details: details, time: DateTime.now()));
-    save();
-  }
-
-  void addVoucher(Voucher v) { vouchers.add(v); save(); }
-  void addCompany(Company c) { companies.add(c); save(); }
-  void addSalt(Salt s) { salts.add(s); save(); }
-  void addDrugType(DrugType d) { drugTypes.add(d); save(); }
-  void addRoute(RouteArea r) { routes.add(r); save(); }
-  void deleteRoute(String id) { routes.removeWhere((r) => r.id == id); save(); }
-
-  Future<bool> startNewFinancialYear(String nextFY) async {
-    await save(); 
-    bool success = await FYTransferEngine.transferData(sourceFY: currentFY, targetFY: nextFY);
-    if (success) {
-      currentFY = nextFY;
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString('fy', nextFY);
-      await prefs.setInt('lastBillID', 0); 
-      await loadAllData();
-      addLog("SYSTEM", "Financial Year Switched to $nextFY");
-    }
-    return success;
-  }
-
-  void finalizeSale({required String billNo, required DateTime date, required Party party, required List<BillItem> items, required double total, required String mode}) {
-    SaleBillNumber.incrementIfNecessary(billNo);
-    sales.add(Sale(id: DateTime.now().toString(), billNo: billNo, date: date, partyName: party.name, partyGstin: party.gst, partyState: party.state, items: items, totalAmount: total, paymentMode: mode));
-    addLog("SALE", "New Bill #$billNo for ${party.name}");
-    save().then((_) => loadAllData()); 
-  }
-
-  void finalizePurchase({required String internalNo, required String billNo, required DateTime date, DateTime? entryDate, required Party party, required List<PurchaseItem> items, required double total, required String mode}) {
-    purchases.add(Purchase(id: DateTime.now().toString(), internalNo: internalNo, billNo: billNo, date: date, entryDate: entryDate ?? DateTime.now(), distributorName: party.name, items: items, totalAmount: total, paymentMode: mode));
-    addLog("PURCHASE", "New Purchase Bill #$billNo from ${party.name}");
-    save().then((_) => loadAllData()); 
-  }
-
-  void deleteBill(String id) {
-    sales.removeWhere((s) => s.id == id);
-    addLog("DELETE", "Sale Bill Deleted");
-    save().then((_) => loadAllData());
-  }
-
-  void cancelBill(String id) {
-    int i = sales.indexWhere((s) => s.id == id);
-    if(i != -1) {
-      sales[i].status = "Cancelled";
-      addLog("CANCEL", "Bill #${sales[i].billNo} Cancelled");
-      save().then((_) => loadAllData());
-    }
-  }
-
-  void deletePurchase(String id) {
-    purchases.removeWhere((p) => p.id == id);
-    addLog("DELETE", "Purchase Bill Deleted");
-    save().then((_) => loadAllData());
-  }
-
-  void deleteParty(String id) { parties.removeWhere((p) => p.id == id); save(); }
-  Future<void> runAutoBackup() async { save(); }
-  Future<void> masterReset() async { 
-    final dir = await getFYDirectory(); 
-    final d = Directory(dir); 
-    if(d.existsSync()) d.deleteSync(recursive: true); 
-    await loadAllData(); 
-  }
-  Future<void> switchYear(String year) async { currentFY = year; await loadAllData(); notifyListeners(); }
+  Widget _sumCol(String t, double v, Color c) => Column(children: [Text(t, style: const TextStyle(fontSize: 9, fontWeight: FontWeight.bold)), Text(v.toInt().toString(), style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: c))]);
 }
