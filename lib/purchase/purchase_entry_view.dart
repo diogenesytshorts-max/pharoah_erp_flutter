@@ -3,7 +3,8 @@ import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import '../pharoah_manager.dart';
 import '../models.dart';
-import '../party_master.dart'; // NAYA
+import '../party_master.dart';
+import '../pharoah_date_controller.dart'; // NAYA
 import 'purchase_billing_view.dart';
 
 class PurchaseEntryView extends StatefulWidget {
@@ -46,23 +47,23 @@ class _PurchaseEntryViewState extends State<PurchaseEntryView> {
         });
       } else {
         internalEntryNoC.text = "PUR-${DateTime.now().millisecondsSinceEpoch.toString().substring(7)}";
+        // NAYA: Smart Initial Date
+        DateTime smartDate = PharoahDateController.getInitialBillDate(ph.currentFY);
+        setState(() {
+          selectedBillDate = smartDate;
+          selectedEntryDate = smartDate;
+        });
       }
     });
   }
 
-  // NAYA: Quick Add Logic
   Future<void> _handleQuickAddSupplier() async {
     final result = await Navigator.push(
       context,
-      MaterialPageRoute(
-        builder: (c) => const PartyMasterView(isSelectionMode: true),
-      ),
+      MaterialPageRoute(builder: (c) => const PartyMasterView(isSelectionMode: true)),
     );
-
     if (result != null && result is Party) {
-      setState(() {
-        selectedDistributor = result;
-      });
+      setState(() { selectedDistributor = result; });
     }
   }
 
@@ -86,9 +87,23 @@ class _PurchaseEntryViewState extends State<PurchaseEntryView> {
             ]),
             const SizedBox(height: 15),
             Row(children: [
-              Expanded(child: InkWell(onTap: () async { DateTime? p = await showDatePicker(context: context, initialDate: selectedBillDate, firstDate: DateTime(2020), lastDate: DateTime(2100)); if (p != null) setState(() => selectedBillDate = p); }, child: _dateDisplay("BILL DATE", selectedBillDate, Colors.orange))),
+              Expanded(child: InkWell(
+                onTap: () async { 
+                  // NAYA: Central Date Picker Call
+                  DateTime? p = await PharoahDateController.pickDate(context: context, currentFY: ph.currentFY, initialDate: selectedBillDate);
+                  if (p != null) setState(() => selectedBillDate = p); 
+                }, 
+                child: _dateDisplay("BILL DATE", selectedBillDate, Colors.orange)
+              )),
               const SizedBox(width: 10),
-              Expanded(child: InkWell(onTap: () async { DateTime? p = await showDatePicker(context: context, initialDate: selectedEntryDate, firstDate: DateTime(2020), lastDate: DateTime(2100)); if (p != null) setState(() => selectedEntryDate = p); }, child: _dateDisplay("ENTRY DATE", selectedEntryDate, Colors.blue))),
+              Expanded(child: InkWell(
+                onTap: () async { 
+                  // NAYA: Central Date Picker Call
+                  DateTime? p = await PharoahDateController.pickDate(context: context, currentFY: ph.currentFY, initialDate: selectedEntryDate);
+                  if (p != null) setState(() => selectedEntryDate = p); 
+                }, 
+                child: _dateDisplay("ENTRY DATE", selectedEntryDate, Colors.blue)
+              )),
             ]),
             const SizedBox(height: 15),
             SegmentedButton<String>(
@@ -119,10 +134,7 @@ class _PurchaseEntryViewState extends State<PurchaseEntryView> {
                 modifyPurchaseId: widget.existingPurchase?.id,
                 isReadOnly: widget.isReadOnly,
               ))), 
-              child: Text(
-                widget.isReadOnly ? "VIEW PURCHASED ITEMS" : "PROCEED TO ITEM ENTRY", 
-                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)
-              )
+              child: Text(widget.isReadOnly ? "VIEW PURCHASED ITEMS" : "PROCEED TO ITEM ENTRY", style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16))
             )
           )
         ]),
@@ -135,10 +147,7 @@ class _PurchaseEntryViewState extends State<PurchaseEntryView> {
   Widget _buildSupplierCard() => Card(
     margin: const EdgeInsets.all(15), 
     elevation: 3,
-    shape: RoundedRectangleBorder(
-      borderRadius: BorderRadius.circular(15), 
-      side: BorderSide(color: Colors.orange.shade100, width: 1), 
-    ),
+    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15), side: BorderSide(color: Colors.orange.shade100, width: 1)),
     child: ListTile(
       leading: const CircleAvatar(backgroundColor: Colors.orange, child: Icon(Icons.business, color: Colors.white)),
       title: Text(selectedDistributor!.name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 17)), 
@@ -148,26 +157,11 @@ class _PurchaseEntryViewState extends State<PurchaseEntryView> {
   );
 
   Widget _buildSearchList(PharoahManager ph) => Column(children: [
-    Padding(
-      padding: const EdgeInsets.all(15), 
-      child: Row(
-        children: [
-          Expanded(
-            child: TextField(
-              decoration: const InputDecoration(hintText: "Search Supplier...", prefixIcon: Icon(Icons.search), border: OutlineInputBorder()), 
-              onChanged: (v) => setState(() => distSearchQuery = v)
-            ),
-          ),
-          const SizedBox(width: 10),
-          // NAYA: Quick Add Button
-          IconButton.filled(
-            onPressed: _handleQuickAddSupplier, 
-            icon: const Icon(Icons.group_add_rounded),
-            style: IconButton.styleFrom(backgroundColor: Colors.orange.shade800, foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
-          )
-        ],
-      )
-    ), 
+    Padding(padding: const EdgeInsets.all(15), child: Row(children: [
+      Expanded(child: TextField(decoration: const InputDecoration(hintText: "Search Supplier...", prefixIcon: Icon(Icons.search), border: OutlineInputBorder()), onChanged: (v) => setState(() => distSearchQuery = v))), 
+      const SizedBox(width: 10),
+      IconButton.filled(onPressed: _handleQuickAddSupplier, icon: const Icon(Icons.group_add_rounded), style: IconButton.styleFrom(backgroundColor: Colors.orange.shade800, foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)))),
+    ])), 
     Expanded(child: ListView(children: ph.parties.where((p) => p.group == "Sundry Creditors" && p.name.toLowerCase().contains(distSearchQuery.toLowerCase())).map((p) => ListTile(title: Text(p.name), subtitle: Text(p.city), onTap: () => setState(() => selectedDistributor = p))).toList()))
   ]);
 }
