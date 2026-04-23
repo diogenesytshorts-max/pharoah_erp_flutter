@@ -1,8 +1,8 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
-import 'pharoah_ai_engine.dart'; // AI Engine ko import kiya
-import 'ai_verification_dashboard.dart'; // Naye Dashboard ko import kiya
+import 'pharoah_ai_engine.dart'; 
+import 'ai_verification_dashboard.dart'; 
 
 class VisionInputHub extends StatefulWidget {
   final String mode; // "PURCHASE" ya "SALE"
@@ -15,9 +15,8 @@ class VisionInputHub extends StatefulWidget {
 class _VisionInputHubState extends State<VisionInputHub> {
   List<File> scannedImages = []; 
   final ImagePicker _picker = ImagePicker();
-  bool isAnalyzing = false; // Loading animation ke liye
+  bool isAnalyzing = false; 
 
-  // --- CAMERA LOGIC ---
   Future<void> _openCamera() async {
     try {
       final XFile? photo = await _picker.pickImage(
@@ -32,7 +31,6 @@ class _VisionInputHubState extends State<VisionInputHub> {
     }
   }
 
-  // --- GALLERY LOGIC ---
   Future<void> _openGallery() async {
     try {
       final List<XFile> images = await _picker.pickMultiImage(
@@ -50,18 +48,13 @@ class _VisionInputHubState extends State<VisionInputHub> {
     }
   }
 
-  // --- THE MAGIC BUTTON: Run AI ---
   Future<void> _startAiAnalysis() async {
-    setState(() => isAnalyzing = true); // Loading shuru
+    setState(() => isAnalyzing = true); 
 
     try {
-      // 1. Send photos to Pharoah Brain
       Map<String, dynamic> result = await PharoahAiEngine.processBills(scannedImages, widget.mode);
-
-      // 2. Loading roko
       setState(() => isAnalyzing = false);
 
-      // 3. Dashboard par bhejo
       if (mounted) {
         Navigator.pushReplacement(
           context, 
@@ -97,7 +90,7 @@ class _VisionInputHubState extends State<VisionInputHub> {
         elevation: 0,
       ),
       body: isAnalyzing 
-        ? _buildLoadingScreen(themeColor) // NAYA: Futuristic loading screen
+        ? _buildLoadingScreen(themeColor) 
         : Column(
             children: [
               Expanded(child: Center(child: Icon(Icons.qr_code_scanner_rounded, size: 120, color: themeColor.withOpacity(0.3)))),
@@ -120,7 +113,6 @@ class _VisionInputHubState extends State<VisionInputHub> {
                 ),
               ),
 
-              // --- TRAY SECTION ---
               Container(
                 height: 190,
                 padding: const EdgeInsets.all(25),
@@ -132,7 +124,8 @@ class _VisionInputHubState extends State<VisionInputHub> {
                       children: [
                         Text("${scannedImages.length} PAGES READY", style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1)),
                         if (scannedImages.isNotEmpty) 
-                          TextButton(onPressed: () => setState(() => scannedPages.clear()), child: const Text("CLEAR ALL", style: TextStyle(color: Colors.red, fontSize: 10, fontWeight: FontWeight.bold))),
+                          // ERROR FIXED HERE: scannedImages.clear()
+                          TextButton(onPressed: () => setState(() => scannedImages.clear()), child: const Text("CLEAR ALL", style: TextStyle(color: Colors.red, fontSize: 10, fontWeight: FontWeight.bold))),
                       ],
                     ),
                     const SizedBox(height: 10),
@@ -146,7 +139,7 @@ class _VisionInputHubState extends State<VisionInputHub> {
                         padding: const EdgeInsets.only(top: 10),
                         child: ElevatedButton(
                           style: ElevatedButton.styleFrom(backgroundColor: themeColor, foregroundColor: Colors.white, minimumSize: const Size(double.infinity, 45), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15))), 
-                          onPressed: _startAiAnalysis, // <--- MAGIC BUTTON LINKED
+                          onPressed: _startAiAnalysis, 
                           child: const Text("RUN AI ANALYSIS", style: TextStyle(fontWeight: FontWeight.bold, letterSpacing: 1))
                         ),
                       ),
@@ -158,7 +151,6 @@ class _VisionInputHubState extends State<VisionInputHub> {
     );
   }
 
-  // --- FUTURISTIC LOADING SCREEN ---
   Widget _buildLoadingScreen(Color color) {
     return Center(
       child: Column(
@@ -174,7 +166,6 @@ class _VisionInputHubState extends State<VisionInputHub> {
     );
   }
 
-  // UI Helpers
   Widget _buildLargeBtn(String label, String sub, IconData icon, Color color, VoidCallback onTap) {
     return InkWell(
       onTap: onTap, borderRadius: BorderRadius.circular(25),
