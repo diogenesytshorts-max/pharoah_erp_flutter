@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../pharoah_manager.dart';
 import '../models.dart';
+import '../product_master.dart'; // NAYA
 import 'package:intl/intl.dart';
 
 class PurchaseBillingView extends StatefulWidget {
@@ -10,7 +11,7 @@ class PurchaseBillingView extends StatefulWidget {
   final DateTime billDate, entryDate;
   final List<PurchaseItem>? existingItems;
   final String? modifyPurchaseId;
-  final bool isReadOnly; // NAYA PARAMETER
+  final bool isReadOnly; 
 
   const PurchaseBillingView({
     super.key,
@@ -22,7 +23,7 @@ class PurchaseBillingView extends StatefulWidget {
     required this.mode,
     this.existingItems,
     this.modifyPurchaseId,
-    this.isReadOnly = false, // DEFAULT FALSE
+    this.isReadOnly = false,
   });
 
   @override
@@ -40,7 +41,7 @@ class _PurchaseBillingViewState extends State<PurchaseBillingView> {
   }
 
   void _showItemSearchSheet(PharoahManager ph, {PurchaseItem? itemToEdit}) {
-    if (widget.isReadOnly) return; // Safety
+    if (widget.isReadOnly) return; 
 
     String localSearch = "";
     Medicine? selectedMed;
@@ -76,15 +77,38 @@ class _PurchaseBillingViewState extends State<PurchaseBillingView> {
                   if (selectedMed == null) ...[
                     Padding(
                       padding: const EdgeInsets.all(15),
-                      child: TextField(
-                        autofocus: true,
-                        decoration: InputDecoration(
-                          hintText: "Search Product for Purchase...",
-                          prefixIcon: const Icon(Icons.search, color: Colors.orange),
-                          filled: true, fillColor: Colors.white,
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-                        ),
-                        onChanged: (v) => setSheetState(() => localSearch = v),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: TextField(
+                              autofocus: true,
+                              decoration: InputDecoration(
+                                hintText: "Search Product for Purchase...",
+                                prefixIcon: const Icon(Icons.search, color: Colors.orange),
+                                filled: true, fillColor: Colors.white,
+                                border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                              ),
+                              onChanged: (v) => setSheetState(() => localSearch = v),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          // NAYA: Quick Add Product
+                          IconButton.filled(
+                            onPressed: () async {
+                              final result = await Navigator.push(
+                                context,
+                                MaterialPageRoute(builder: (c) => const ProductMasterView(isSelectionMode: true)),
+                              );
+                              if (result != null && result is Medicine) {
+                                setSheetState(() {
+                                  selectedMed = result;
+                                });
+                              }
+                            },
+                            icon: const Icon(Icons.library_add_rounded),
+                            style: IconButton.styleFrom(backgroundColor: Colors.orange.shade900, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
+                          )
+                        ],
                       ),
                     ),
                     Expanded(
@@ -195,7 +219,7 @@ class _PurchaseBillingViewState extends State<PurchaseBillingView> {
   }
 }
 
-// PurchaseItemEntryCard wala part same rahega jaisa pehle tha
+// NOTE: PurchaseItemEntryCard and PurchaseItemEntryCardState code below is same as before, keeping file complete
 class PurchaseItemEntryCard extends StatefulWidget {
   final Medicine med;
   final int srNo;
