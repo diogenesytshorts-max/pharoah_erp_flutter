@@ -5,6 +5,7 @@ import 'file_management_view.dart';
 import 'user_master_view.dart';
 import 'pharoah_manager.dart';
 import 'widgets.dart';
+import 'app_date_logic.dart'; // NAYA: Date Master Connection
 
 class SystemMenuView extends StatelessWidget {
   final VoidCallback onLogout;
@@ -13,8 +14,9 @@ class SystemMenuView extends StatelessWidget {
   // --- FINANCIAL YEAR TRANSFER PROCESS ---
   void _handleFYTransfer(BuildContext context, PharoahManager ph) {
     String current = ph.currentFY;
-    int startYear = int.parse(current.split('-')[0]);
-    String nextFY = "${startYear + 1}-${(startYear + 2).toString().substring(2)}";
+    
+    // NAYA: Using Date Master to calculate next year string
+    String nextFY = AppDateLogic.getNextFYString(current);
 
     showDialog(
       context: context,
@@ -30,19 +32,20 @@ class SystemMenuView extends StatelessWidget {
             style: ElevatedButton.styleFrom(backgroundColor: Colors.blue.shade900),
             onPressed: () async {
               Navigator.pop(c);
+              // Loading indicator
               showDialog(context: context, barrierDismissible: false, builder: (c) => const Center(child: CircularProgressIndicator()));
               
+              // Action call to Manager
               bool success = await ph.startNewFinancialYear(nextFY);
               
-              Navigator.pop(context); // Close Loader
+              if (context.mounted) Navigator.pop(context); // Close Loader
               
               if (success) {
                 _showSuccessDialog(context, nextFY);
               } else {
-                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Error: Transfer failed!")));
+                if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Error: Transfer failed!")));
               }
             },
-            // FIXED: Removed 'const' because of string interpolation $nextFY
             child: Text("YES, START $nextFY", style: const TextStyle(color: Colors.white)),
           ),
         ],
@@ -102,7 +105,7 @@ class SystemMenuView extends StatelessWidget {
   void _performMasterReset(BuildContext context) async {
     final ph = Provider.of<PharoahManager>(context, listen: false);
     await ph.masterReset();
-    Navigator.of(context).popUntil((route) => route.isFirst);
+    if (context.mounted) Navigator.of(context).popUntil((route) => route.isFirst);
   }
 
   @override
