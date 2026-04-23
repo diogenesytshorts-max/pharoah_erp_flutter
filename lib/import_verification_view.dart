@@ -1,15 +1,21 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
-import 'package:pharoah_erp/pharoah_manager.dart';
-import 'package:pharoah_erp/models.dart';
+import 'pharoah_manager.dart';
+import 'models.dart';
 
 class ImportVerificationView extends StatefulWidget {
   final List<List<dynamic>> csvData;
   final String importType; 
   final bool isOtherFormat;
 
-  const ImportVerificationView({super.key, required this.csvData, required this.importType, this.isOtherFormat = false});
+  const ImportVerificationView({
+    super.key, 
+    required this.csvData, 
+    required this.importType, 
+    this.isOtherFormat = false
+  });
+
   @override State<ImportVerificationView> createState() => _ImportVerificationViewState();
 }
 
@@ -17,6 +23,7 @@ class _ImportVerificationViewState extends State<ImportVerificationView> {
   Map<String, List<List<dynamic>>> groupedBills = {};
   List<String> billNumbers = [];
   bool isShowingOverview = true;
+
   String? activeBillKey;
   int wizardStep = 0;
   final billNoC = TextEditingController();
@@ -39,7 +46,9 @@ class _ImportVerificationViewState extends State<ImportVerificationView> {
       var row = widget.csvData[i];
       if (row.length < 18) continue;
       String bNo = row[1].toString().trim();
-      if (!groupedBills.containsKey(bNo)) { groupedBills[bNo] = []; }
+      if (!groupedBills.containsKey(bNo)) {
+        groupedBills[bNo] = [];
+      }
       groupedBills[bNo]!.add(row);
     }
     billNumbers = groupedBills.keys.toList();
@@ -55,10 +64,13 @@ class _ImportVerificationViewState extends State<ImportVerificationView> {
       wizardStep = 0;
       isShowingOverview = false;
       billNoC.text = bNo;
-      try { selectedDate = DateFormat('dd/MM/yyyy').parse(firstRow[0].toString()); } catch (e) { selectedDate = DateTime.now(); }
+      try { selectedDate = DateFormat('dd/MM/yyyy').parse(firstRow[0].toString()); } 
+      catch (e) { selectedDate = DateTime.now(); }
+
       String extractedParty = firstRow[2].toString().toUpperCase().trim();
       Party? existing;
-      try { existing = ph.parties.firstWhere((p) => p.name.toUpperCase() == extractedParty); } catch (e) { existing = null; }
+      try { existing = ph.parties.firstWhere((p) => p.name.toUpperCase() == extractedParty); } 
+      catch (e) { existing = null; }
 
       if (existing == null) {
         isNewParty = true;
@@ -80,12 +92,12 @@ class _ImportVerificationViewState extends State<ImportVerificationView> {
           'batch': r[8].toString().toUpperCase(),
           'exp': r[9].toString(),
           'hsn': r[10].toString(),
-          'qty': double.tryParse(r[11].toString()) ?? 0.0,
-          'free': double.tryParse(r[12].toString()) ?? 0.0,
-          'mrp': double.tryParse(r[13].toString()) ?? 0.0,
-          'rate': double.tryParse(r[14].toString()) ?? 0.0,
-          'gst': double.tryParse(r[16].toString().replaceAll("%", "")) ?? 12.0,
-          'total': double.tryParse(r[17].toString()) ?? 0.0,
+          'qty': double.tryParse(r[11].toString()) ?? 0,
+          'free': double.tryParse(r[12].toString()) ?? 0,
+          'mrp': double.tryParse(r[13].toString()) ?? 0,
+          'rate': double.tryParse(r[14].toString()) ?? 0,
+          'gst': double.tryParse(r[16].toString().replaceAll("%", "")) ?? 12,
+          'total': double.tryParse(r[17].toString()) ?? 0,
           'exists': ph.medicines.any((m) => m.name.toUpperCase() == r[5].toString().toUpperCase()),
         });
       }
@@ -96,7 +108,11 @@ class _ImportVerificationViewState extends State<ImportVerificationView> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF5F6F9),
-      appBar: AppBar(title: Text(isShowingOverview ? "Import Overview" : "Verifying: $activeBillKey"), backgroundColor: Colors.indigo.shade900, foregroundColor: Colors.white),
+      appBar: AppBar(
+        title: Text(isShowingOverview ? "Import Overview" : "Verifying: $activeBillKey"),
+        backgroundColor: Colors.indigo.shade900,
+        foregroundColor: Colors.white,
+      ),
       body: isShowingOverview ? _buildOverview() : _buildWizard(),
     );
   }
@@ -108,7 +124,7 @@ class _ImportVerificationViewState extends State<ImportVerificationView> {
         Expanded(child: ListView.builder(padding: const EdgeInsets.all(12), itemCount: billNumbers.length, itemBuilder: (c, i) {
               String bNo = billNumbers[i];
               var rows = groupedBills[bNo]!;
-              double total = rows.fold(0.0, (sum, r) => sum + (double.tryParse(r[17].toString()) ?? 0.0));
+              double total = rows.fold(0, (sum, r) => sum + (double.tryParse(r[17].toString()) ?? 0));
               bool alreadyExists = widget.importType == "SALE" ? ph.sales.any((s) => s.billNo == bNo) : ph.purchases.any((p) => p.billNo == bNo);
               return Card(child: ListTile(title: Text(bNo, style: const TextStyle(fontWeight: FontWeight.bold)), subtitle: Text("Party: ${rows[0][2]}\nItems: ${rows.length} | ₹${total.toStringAsFixed(2)}"), trailing: ElevatedButton(onPressed: alreadyExists ? null : () => _startSingleBillWizard(bNo), child: Text(alreadyExists ? "EXISTS" : "VERIFY"))));
             })),
@@ -119,7 +135,15 @@ class _ImportVerificationViewState extends State<ImportVerificationView> {
     return Column(children: [
         Container(padding: const EdgeInsets.symmetric(vertical: 20), color: Colors.white, child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [_stepCircle(1, "Header", wizardStep >= 0), _stepLine(wizardStep >= 1), _stepCircle(2, "Party", wizardStep >= 1), _stepLine(wizardStep >= 2), _stepCircle(3, "Items", wizardStep >= 2)])),
         Expanded(child: SingleChildScrollView(padding: const EdgeInsets.all(20), child: wizardStep == 0 ? _stepHeader() : (wizardStep == 1 ? _stepParty() : _stepItems()))),
-        Container(padding: const EdgeInsets.all(20), decoration: const BoxDecoration(color: Colors.white, boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 10)]), child: Row(children: [if (wizardStep > 0) OutlinedButton(onPressed: () => setState(() => wizardStep--), child: const Text("BACK")), const Spacer(), ElevatedButton(onPressed: () { if (wizardStep < 2) setState(() => wizardStep++); else _finishAndSaveBill(); }, child: const Text(wizardStep == 2 ? "FINISH & SAVE" : "NEXT STEP"))])),
+        Container(
+          padding: const EdgeInsets.all(20), 
+          decoration: BoxDecoration(color: Colors.white, boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 10)]), 
+          child: Row(children: [
+            if (wizardStep > 0) OutlinedButton(onPressed: () => setState(() => wizardStep--), child: const Text("BACK")), 
+            const Spacer(), 
+            ElevatedButton(onPressed: () { if (wizardStep < 2) setState(() => wizardStep++); else _finishAndSaveBill(); }, child: Text(wizardStep == 2 ? "FINISH & SAVE" : "NEXT STEP"))
+          ])
+        ),
       ]);
   }
 
@@ -143,21 +167,21 @@ class _ImportVerificationViewState extends State<ImportVerificationView> {
         Medicine m = _getOrCreateMed(ph, it);
         bItems.add(BillItem(id: DateTime.now().toString(), srNo: bItems.length + 1, medicineID: m.id, name: m.name, packing: m.packing, batch: it['batch'], exp: it['exp'], hsn: it['hsn'], mrp: it['mrp'], qty: it['qty'], freeQty: it['free'], rate: it['rate'], gstRate: it['gst'], total: it['total']));
       }
-      ph.finalizeSale(billNo: billNoC.text, date: selectedDate, party: targetParty, items: bItems, total: bItems.fold(0.0, (s, i) => s + i.total), mode: "CREDIT");
+      ph.finalizeSale(billNo: billNoC.text, date: selectedDate, party: targetParty, items: bItems, total: bItems.fold(0, (s, i) => s + i.total), mode: "CREDIT");
     } else {
       List<PurchaseItem> pItems = [];
       for (var it in itemsToImport) {
         Medicine m = _getOrCreateMed(ph, it);
         pItems.add(PurchaseItem(id: DateTime.now().toString(), srNo: pItems.length + 1, medicineID: m.id, name: m.name, packing: m.packing, batch: it['batch'], exp: it['exp'], hsn: it['hsn'], mrp: it['mrp'], qty: it['qty'], freeQty: it['free'], purchaseRate: it['rate'], gstRate: it['gst'], total: it['total']));
       }
-      ph.finalizePurchase(internalNo: "IMP-${DateTime.now().millisecondsSinceEpoch.toString().substring(7)}", billNo: billNoC.text, date: selectedDate, entryDate: DateTime.now(), party: targetParty, items: pItems, total: pItems.fold(0.0, (s, i) => s + i.total), mode: "CREDIT");
+      ph.finalizePurchase(internalNo: "IMP-${DateTime.now().millisecondsSinceEpoch.toString().substring(7)}", billNo: billNoC.text, date: selectedDate, entryDate: DateTime.now(), party: targetParty, items: pItems, total: pItems.fold(0, (s, i) => s + i.total), mode: "CREDIT");
     }
     await ph.save();
     setState(() { _groupCsvData(); isShowingOverview = true; });
     if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("✅ Import Successful!"), backgroundColor: Colors.green));
   }
 
-   Medicine _getOrCreateMed(PharoahManager ph, Map<String, dynamic> it) {
+  Medicine _getOrCreateMed(PharoahManager ph, Map<String, dynamic> it) {
     try { return ph.medicines.firstWhere((m) => m.name.toUpperCase() == it['name']); } catch (e) {
       Medicine n = Medicine(id: DateTime.now().toString(), name: it['name'], packing: it['pack'], mrp: it['mrp'], rateA: it['rate'] * 1.1, rateB: it['rate'] * 1.05, rateC: it['rate'], stock: 0.0, purRate: it['rate'], gst: it['gst'], hsnCode: it['hsn']);
       ph.medicines.add(n);
