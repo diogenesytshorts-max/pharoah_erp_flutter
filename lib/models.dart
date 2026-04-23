@@ -32,19 +32,16 @@ class DrugType {
   factory DrugType.fromMap(Map<String, dynamic> map) => DrugType(id: map['id'] ?? "", name: map['name'] ?? "");
 }
 
-// 5. MEDICINE MODEL (ADVANCED UPDATED)
+// 5. MEDICINE MODEL
 class Medicine {
   String id, uniqueCode, name, packing, companyId, saltId, drugTypeId, rackNo, hsnCode;
   int conversion; 
   double reorderLevel, gst, mrp, purRate, rateA, rateB, rateC, stock;
-
-  // --- NEW ADVANCED FIELDS ---
-  String drugForm; // TAB, CAP, SYP, etc.
+  String drugForm; 
   bool isNarcotic;
   bool isScheduleH1;
-  String storageCondition; // Room Temp, Fridge, etc.
+  String storageCondition; 
 
-  // KEY LOGIC: Unique code na hone par Name+Packing se ID generate karega
   String get identityKey => uniqueCode.isEmpty ? "$name|$packing" : uniqueCode;
 
   Medicine({
@@ -66,7 +63,6 @@ class Medicine {
     this.rateB = 0.0, 
     this.rateC = 0.0,
     this.stock = 0.0,
-    // Defaults for new fields
     this.drugForm = "TAB",
     this.isNarcotic = false,
     this.isScheduleH1 = false,
@@ -79,11 +75,7 @@ class Medicine {
     'rackNo': rackNo, 'hsnCode': hsnCode, 'conversion': conversion, 
     'reorderLevel': reorderLevel, 'gst': gst, 'mrp': mrp, 'purRate': purRate, 
     'rateA': rateA, 'rateB': rateB, 'rateC': rateC, 'stock': stock,
-    // Saving new fields
-    'drugForm': drugForm,
-    'isNarcotic': isNarcotic,
-    'isScheduleH1': isScheduleH1,
-    'storageCondition': storageCondition,
+    'drugForm': drugForm, 'isNarcotic': isNarcotic, 'isScheduleH1': isScheduleH1, 'storageCondition': storageCondition,
   };
 
   factory Medicine.fromMap(Map<String, dynamic> map) => Medicine(
@@ -95,11 +87,8 @@ class Medicine {
     purRate: (map['purRate'] ?? 0.0).toDouble(), rateA: (map['rateA'] ?? 0.0).toDouble(), 
     rateB: (map['rateB'] ?? 0.0).toDouble(), rateC: (map['rateC'] ?? 0.0).toDouble(), 
     stock: (map['stock'] ?? 0.0).toDouble(),
-    // Loading new fields with fallback for old data
-    drugForm: map['drugForm'] ?? "TAB",
-    isNarcotic: map['isNarcotic'] ?? false,
-    isScheduleH1: map['isScheduleH1'] ?? false,
-    storageCondition: map['storageCondition'] ?? "Room Temp",
+    drugForm: map['drugForm'] ?? "TAB", isNarcotic: map['isNarcotic'] ?? false, 
+    isScheduleH1: map['isScheduleH1'] ?? false, storageCondition: map['storageCondition'] ?? "Room Temp",
   );
 }
 
@@ -148,11 +137,37 @@ class LogEntry {
   factory LogEntry.fromMap(Map<String, dynamic> map) => LogEntry(id: map['id'], action: map['action'], details: map['details'], time: DateTime.parse(map['time']));
 }
 
+// UPGRADED: BATCH INFO MODEL
 class BatchInfo {
-  String batch, exp, packing; double mrp, rate;
-  BatchInfo({required this.batch, required this.exp, required this.packing, required this.mrp, required this.rate});
-  Map<String, dynamic> toMap() => {'batch': batch, 'exp': exp, 'packing': packing, 'mrp': mrp, 'rate': rate};
-  factory BatchInfo.fromMap(Map<String, dynamic> map) => BatchInfo(batch: map['batch'] ?? "", exp: map['exp'] ?? "", packing: map['packing'] ?? "", mrp: (map['mrp'] ?? 0.0).toDouble(), rate: (map['rate'] ?? 0.0).toDouble());
+  String batch, exp, packing; 
+  double mrp, rate, qty; // NAYA: qty add kiya gaya hai tracker ke liye
+
+  BatchInfo({
+    required this.batch, 
+    required this.exp, 
+    required this.packing, 
+    required this.mrp, 
+    required this.rate,
+    this.qty = 0.0, // Default zero stock
+  });
+
+  Map<String, dynamic> toMap() => {
+    'batch': batch, 
+    'exp': exp, 
+    'packing': packing, 
+    'mrp': mrp, 
+    'rate': rate,
+    'qty': qty,
+  };
+
+  factory BatchInfo.fromMap(Map<String, dynamic> map) => BatchInfo(
+    batch: map['batch'] ?? "", 
+    exp: map['exp'] ?? "", 
+    packing: map['packing'] ?? "", 
+    mrp: (map['mrp'] ?? 0.0).toDouble(), 
+    rate: (map['rate'] ?? 0.0).toDouble(),
+    qty: (map['qty'] ?? 0.0).toDouble(),
+  );
 }
 
 class Voucher {
