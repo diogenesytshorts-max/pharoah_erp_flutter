@@ -25,9 +25,13 @@ class _PurchaseSummaryViewState extends State<PurchaseSummaryView> {
     super.didChangeDependencies();
     if (!_isInit) {
       final ph = Provider.of<PharoahManager>(context, listen: false);
+      
+      // logic: Naye FY ke hisab se default range set karna
       toDate = AppDateLogic.getSmartDate(ph.currentFY);
       DateTime thirtyDaysAgo = toDate.subtract(const Duration(days: 30));
       DateTime fyStart = AppDateLogic.getFYStart(ph.currentFY);
+      
+      // From date 30 din piche hogi, lekin 1st April (FY Start) se pehle nahi
       fromDate = thirtyDaysAgo.isBefore(fyStart) ? fyStart : thirtyDaysAgo;
       _isInit = true;
     }
@@ -37,8 +41,8 @@ class _PurchaseSummaryViewState extends State<PurchaseSummaryView> {
     final ph = Provider.of<PharoahManager>(context);
     
     List<Purchase> filteredPur = ph.purchases.reversed.where((p) {
-      bool dateMatch = p.date.isAfter(fromDate.subtract(const Duration(seconds: 1))) && 
-                       p.date.isBefore(toDate.add(const Duration(seconds: 1)));
+      bool dateMatch = p.date.isAfter(fromDate.subtract(const Duration(days: 1))) && 
+                       p.date.isBefore(toDate.add(const Duration(days: 1)));
       bool searchMatch = p.distributorName.toLowerCase().contains(searchQuery.toLowerCase()) || 
                          p.billNo.toLowerCase().contains(searchQuery.toLowerCase());
       return dateMatch && searchMatch;
@@ -51,9 +55,15 @@ class _PurchaseSummaryViewState extends State<PurchaseSummaryView> {
     }
 
     return Scaffold(
-      appBar: AppBar(title: const Text("Purchase Register"), backgroundColor: Colors.orange.shade800, foregroundColor: Colors.white, actions: [
-        IconButton(icon: const Icon(Icons.picture_as_pdf), onPressed: filteredPur.isEmpty ? null : () => PurchaseReportPdf.generate(filteredPur, fromDate, toDate, null))
-      ]),
+      backgroundColor: const Color(0xFFF5F6F9),
+      appBar: AppBar(
+        title: const Text("Purchase Register"), 
+        backgroundColor: Colors.orange.shade800, 
+        foregroundColor: Colors.white,
+        actions: [
+          IconButton(icon: const Icon(Icons.picture_as_pdf), onPressed: filteredPur.isEmpty ? null : () => PurchaseReportPdf.generate(filteredPur, fromDate, toDate, null))
+        ],
+      ),
       body: Column(children: [
         Container(
           padding: const EdgeInsets.all(12), color: Colors.white,
@@ -63,13 +73,16 @@ class _PurchaseSummaryViewState extends State<PurchaseSummaryView> {
               const SizedBox(width: 10),
               Expanded(child: _dateTile("TO", toDate, (d) => setState(()=> toDate = d), ph.currentFY)),
             ]),
-            Padding(padding: const EdgeInsets.only(top: 10), child: TextField(decoration: const InputDecoration(hintText: "Search Supplier/Bill...", prefixIcon: Icon(Icons.search), border: OutlineInputBorder()), onChanged: (v) => setState(() => searchQuery = v)))
+            Padding(padding: const EdgeInsets.only(top: 10), child: TextField(
+              decoration: const InputDecoration(hintText: "Search Supplier/Bill...", prefixIcon: Icon(Icons.search), border: OutlineInputBorder(), isDense: true), 
+              onChanged: (v) => setState(() => searchQuery = v)
+            ))
           ]),
         ),
         
         Expanded(
           child: filteredPur.isEmpty 
-          ? const Center(child: Text("No records found."))
+          ? const Center(child: Text("No records found for this period."))
           : ListView.builder(
             padding: const EdgeInsets.all(10), itemCount: filteredPur.length,
             itemBuilder: (c, i) {
@@ -77,12 +90,14 @@ class _PurchaseSummaryViewState extends State<PurchaseSummaryView> {
               final supplier = ph.parties.firstWhere((pt) => pt.name == p.distributorName, orElse: () => Party(id: "", name: p.distributorName));
               return Card(
                 elevation: 2, margin: const EdgeInsets.only(bottom: 8),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                 child: ListTile(
                   title: Text(p.distributorName, style: const TextStyle(fontWeight: FontWeight.bold)),
-                  subtitle: Text("Bill: ${p.billNo} | ${AppDateLogic.format(p.date)}"),
+                  subtitle: Text("Bill: ${p.billNo} | ${AppDateLogic.format(p.date)}\nTotal: ₹${p.totalAmount.toStringAsFixed(2)}"),
                   trailing: Row(mainAxisSize: MainAxisSize.min, children: [
                     IconButton(icon: const Icon(Icons.print, color: Colors.blueGrey), onPressed: () => PurchasePdf.generate(p, supplier)),
                     IconButton(icon: const Icon(Icons.edit, color: Colors.blue), onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (c) => PurchaseEntryView(existingPurchase: p)))),
+                    IconButton(icon: const Icon(Icons.delete, color: Colors.red), onPressed: () => _confirmDelete(context, ph, p.id)),
                   ]),
                 ),
               );
@@ -112,5 +127,19 @@ class _PurchaseSummaryViewState extends State<PurchaseSummaryView> {
 
   Widget _botCol(String l, double v, {bool isNet = false}) {
     return Column(children: [Text(l, style: const TextStyle(color: Colors.white70, fontSize: 10, fontWeight: FontWeight.bold)), Text("₹${v.toStringAsFixed(2)}", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: isNet ? 16 : 12))]);
+  }
+
+  void _confirmDelete(BuildContext context, PharoahManager ph, String id) {
+    showDialog(
+      context: context,
+      builder: (c) => AlertDialog(
+        title: const Text("Delete Purchase?"),
+        content: const Text("Are you sure you want to delete this purchase record? Stock will be adjusted back."),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(c), child: const Text("CANCEL")),
+          ElevatedButton(style: ElevatedButton.styleFrom(backgroundColor: Colors.red), onPressed: () { ph.deletePurchase(id); Navigator.pop(c); }, child: const Text("YES, DELETE", style: TextStyle(color: Colors.white))),
+        ],
+      ),
+    );
   }
 }
