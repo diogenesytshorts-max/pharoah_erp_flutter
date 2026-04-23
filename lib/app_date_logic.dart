@@ -1,61 +1,60 @@
 import 'package:intl/intl.dart';
 
 class AppDateLogic {
-  /// Yeh function faisla karta hai ki bill par kaunsi date dikhani hai
-  static DateTime getSmartDate(String currentFY) {
-    try {
-      DateTime now = DateTime.now();
-      // Aaj ki date (samay 00:00:00 kar diya taaki calculation sahi rahe)
-      DateTime today = DateTime(now.year, now.month, now.day);
-      
-      // Financial Year string se start aur end year nikaalna (e.g., "2025-26")
-      List<String> parts = currentFY.split('-');
-      int startYear = int.parse(parts[0]);
-      if (startYear < 2000) startYear += 2000;
-      
-      // FY ki boundary dates tay karna
-      DateTime fyStart = DateTime(startYear, 4, 1); // 1st April
-      DateTime fyEnd = DateTime(startYear + 1, 3, 31, 23, 59, 59); // 31st March
-
-      // --- LOGIC 1: AGAR AAJ KI DATE FY KE ANDAR HAI ---
-      // Agar aaj 15 May 2025 hai aur FY 2025-26 chal raha hai, toh 'Today' return karega.
-      if (today.isAfter(fyStart.subtract(const Duration(days: 1))) && 
-          today.isBefore(fyEnd.add(const Duration(days: 1)))) {
-        return today; 
-      } 
-      
-      // --- LOGIC 2: AGAR AAJ KI DATE FY SE AAGE NIKAL GAYI HAI ---
-      // Agar aaj April 2026 hai par aap 2025-26 ke khate mein kaam kar rahe hain, 
-      // toh ye automatic '31 March 2026' dikhayega (Late Date Logic).
-      else if (today.isAfter(fyEnd)) {
-        return DateTime(startYear + 1, 3, 31);
-      } 
-      
-      // --- LOGIC 3: AGAR AAJ KI DATE FY SE PEHLE KI HAI ---
-      // Agar aapne aage ka saal chuna hai par aaj ki date piche hai, toh 1st April dikhayega.
-      else {
-        return fyStart;
-      }
-    } catch (e) {
-      // Kisi bhi error ki surat mein aaj ki default date return karega
-      return DateTime.now();
+  
+  /// NAYA: Aaj ki date ke hisaab se automatic FY string nikalna
+  static String getCurrentFYString() {
+    DateTime now = DateTime.now();
+    if (now.month >= 4) {
+      return "${now.year}-${(now.year + 1).toString().substring(2)}";
+    } else {
+      return "${now.year - 1}-${now.year.toString().substring(2)}";
     }
   }
 
-  /// Date ko standard Indian format (dd/MM/yyyy) mein dikhane ke liye
-  static String format(DateTime date) {
-    return DateFormat('dd/MM/yyyy').format(date);
+  /// NAYA: Picker boundary ke liye Start Date helper
+  static DateTime getFYStart(String fy) {
+    try {
+      int startYear = int.parse(fy.split('-')[0]);
+      if (startYear < 2000) startYear += 2000;
+      return DateTime(startYear, 4, 1);
+    } catch (e) { return DateTime(DateTime.now().year, 4, 1); }
   }
 
-  /// Check karta hai ki user jo date select kar raha hai wo FY ke andar hai ya nahi
-  static bool isValidInFY(DateTime pickedDate, String currentFY) {
-    List<String> parts = currentFY.split('-');
-    int startYear = int.parse(parts[0]);
-    if (startYear < 2000) startYear += 2000;
-    
-    DateTime fyStart = DateTime(startYear, 4, 1);
-    DateTime fyEnd = DateTime(startYear + 1, 3, 31, 23, 59, 59);
+  /// NAYA: Picker boundary ke liye End Date helper
+  static DateTime getFYEnd(String fy) {
+    try {
+      int startYear = int.parse(fy.split('-')[0]);
+      if (startYear < 2000) startYear += 2000;
+      return DateTime(startYear + 1, 3, 31, 23, 59, 59);
+    } catch (e) { return DateTime(DateTime.now().year + 1, 3, 31); }
+  }
 
+  /// AAPKA PURANA LOGIC (Improved): Default date decide karne ke liye
+  static DateTime getSmartDate(String currentFY) {
+    try {
+      DateTime now = DateTime.now();
+      DateTime today = DateTime(now.year, now.month, now.day);
+      
+      DateTime fyStart = getFYStart(currentFY);
+      DateTime fyEnd = getFYEnd(currentFY);
+
+      if (today.isAfter(fyStart.subtract(const Duration(days: 1))) && 
+          today.isBefore(fyEnd.add(const Duration(days: 1)))) {
+        return today; 
+      } else if (today.isAfter(fyEnd)) {
+        return DateTime(fyEnd.year, 3, 31);
+      } else {
+        return fyStart;
+      }
+    } catch (e) { return DateTime.now(); }
+  }
+
+  static String format(DateTime date) => DateFormat('dd/MM/yyyy').format(date);
+
+  static bool isValidInFY(DateTime pickedDate, String currentFY) {
+    DateTime fyStart = getFYStart(currentFY);
+    DateTime fyEnd = getFYEnd(currentFY);
     return pickedDate.isAfter(fyStart.subtract(const Duration(days: 1))) && 
            pickedDate.isBefore(fyEnd.add(const Duration(days: 1)));
   }
