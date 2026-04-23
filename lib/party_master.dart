@@ -4,7 +4,8 @@ import 'pharoah_manager.dart';
 import 'models.dart';
 
 class PartyMasterView extends StatefulWidget {
-  const PartyMasterView({super.key});
+  final bool isSelectionMode; // NAYA: Quick add ke liye
+  const PartyMasterView({super.key, this.isSelectionMode = false});
 
   @override
   State<PartyMasterView> createState() => _PartyMasterViewState();
@@ -12,6 +13,17 @@ class PartyMasterView extends StatefulWidget {
 
 class _PartyMasterViewState extends State<PartyMasterView> {
   String searchQuery = "";
+
+  @override
+  void initState() {
+    super.initState();
+    // Agar Quick Add mode hai, toh screen load hote hi form khul jayega
+    if (widget.isSelectionMode) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _showPartyForm();
+      });
+    }
+  }
 
   // --- HIDE/SHOW ADD & EDIT FORM ---
   void _showPartyForm({Party? party}) {
@@ -34,12 +46,11 @@ class _PartyMasterViewState extends State<PartyMasterView> {
 
     String selectedGroup = party?.group ?? "Sundry Debtors";
     String selectedPriceLevel = party?.priceLevel ?? "A";
-    String selectedRoute = party?.route ?? "";
+    String selectedRoute = (party?.route != null && party!.route.isNotEmpty) ? party.route : "";
 
     // --- LOGIC: AUTO-EXTRACT PAN FROM GSTIN ---
     gstC.addListener(() {
       if (gstC.text.length >= 12) {
-        // GST index 2 to 12 is PAN Number
         String extractedPan = gstC.text.substring(2, 12).toUpperCase();
         if (panC.text != extractedPan) {
           panC.text = extractedPan;
@@ -58,7 +69,6 @@ class _PartyMasterViewState extends State<PartyMasterView> {
           child: SingleChildScrollView(
             child: Column(
               children: [
-                // SECTION 1: BASIC INFO
                 _sectionTitle("BASIC INFORMATION"),
                 _inputField(nameC, "Party/Firm Name *", Icons.business),
                 _inputField(phoneC, "Mobile Number", Icons.phone, isNum: true),
@@ -78,9 +88,7 @@ class _PartyMasterViewState extends State<PartyMasterView> {
                     ),
                   ],
                 ),
-
                 const SizedBox(height: 20),
-                // SECTION 2: STATUTORY & TAX
                 _sectionTitle("TAX & LICENSES"),
                 _inputField(gstC, "GSTIN Number (15-Digit)", Icons.receipt_long),
                 _inputField(panC, "PAN Card (Auto-Extracted)", Icons.badge_outlined),
@@ -91,9 +99,7 @@ class _PartyMasterViewState extends State<PartyMasterView> {
                     Expanded(child: _inputField(dlExpC, "DL Expiry (Optional)", Icons.event_busy)),
                   ],
                 ),
-
                 const SizedBox(height: 20),
-                // SECTION 3: BILLING CONTROL
                 _sectionTitle("BILLING & CREDIT CONTROL"),
                 Row(
                   children: [
@@ -156,7 +162,14 @@ class _PartyMasterViewState extends State<PartyMasterView> {
               }
 
               ph.save();
-              Navigator.pop(c);
+
+              // NAYA: Agar selection mode hai, toh dialog aur screen dono pop honge
+              if (widget.isSelectionMode) {
+                Navigator.pop(c); // Close Dialog
+                Navigator.pop(context, newParty); // Close Screen and return Party
+              } else {
+                Navigator.pop(c); // Just close dialog
+              }
             },
             child: const Text("SAVE PARTY / LEDGER"),
           ),
@@ -168,8 +181,6 @@ class _PartyMasterViewState extends State<PartyMasterView> {
   @override
   Widget build(BuildContext context) {
     final ph = Provider.of<PharoahManager>(context);
-    
-    // Filter logic for search bar
     final filteredList = ph.parties.where((p) => 
       p.name.toLowerCase().contains(searchQuery.toLowerCase()) || 
       p.city.toLowerCase().contains(searchQuery.toLowerCase())
@@ -184,7 +195,6 @@ class _PartyMasterViewState extends State<PartyMasterView> {
       ),
       body: Column(
         children: [
-          // --- SEARCH BAR SECTION ---
           Container(
             padding: const EdgeInsets.all(15),
             color: Colors.indigo.shade50,
@@ -200,8 +210,6 @@ class _PartyMasterViewState extends State<PartyMasterView> {
               onChanged: (v) => setState(() => searchQuery = v),
             ),
           ),
-
-          // --- PARTY LIST ---
           Expanded(
             child: filteredList.isEmpty
                 ? const Center(child: Text("No parties found."))
@@ -243,8 +251,6 @@ class _PartyMasterViewState extends State<PartyMasterView> {
       ),
     );
   }
-
-  // --- UI HELPERS ---
 
   Widget _sectionTitle(String title) {
     return Align(
