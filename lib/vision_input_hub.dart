@@ -5,7 +5,7 @@ import 'pharoah_ai_engine.dart';
 import 'ai_verification_dashboard.dart'; 
 
 class VisionInputHub extends StatefulWidget {
-  final String mode; // "PURCHASE" ya "SALE"
+  final String mode; 
   const VisionInputHub({super.key, required this.mode});
 
   @override
@@ -21,7 +21,9 @@ class _VisionInputHubState extends State<VisionInputHub> {
     try {
       final XFile? photo = await _picker.pickImage(
         source: ImageSource.camera,
-        imageQuality: 90, 
+        imageQuality: 70, // FIXED: Photo compressed for AI
+        maxWidth: 1200,   // FIXED: Resolution limit set
+        maxHeight: 1200,
       );
       if (photo != null) {
         setState(() => scannedImages.add(File(photo.path)));
@@ -34,7 +36,9 @@ class _VisionInputHubState extends State<VisionInputHub> {
   Future<void> _openGallery() async {
     try {
       final List<XFile> images = await _picker.pickMultiImage(
-        imageQuality: 90,
+        imageQuality: 70, // FIXED
+        maxWidth: 1200,   // FIXED
+        maxHeight: 1200,
       );
       if (images.isNotEmpty) {
         setState(() {
@@ -69,9 +73,9 @@ class _VisionInputHubState extends State<VisionInputHub> {
       setState(() => isAnalyzing = false);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text("AI Failed: $e"), 
+          content: Text("AI Error: $e"), 
           backgroundColor: Colors.red,
-          duration: const Duration(seconds: 5),
+          duration: const Duration(seconds: 6),
         ));
       }
     }
@@ -124,7 +128,6 @@ class _VisionInputHubState extends State<VisionInputHub> {
                       children: [
                         Text("${scannedImages.length} PAGES READY", style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1)),
                         if (scannedImages.isNotEmpty) 
-                          // ERROR FIXED HERE: scannedImages.clear()
                           TextButton(onPressed: () => setState(() => scannedImages.clear()), child: const Text("CLEAR ALL", style: TextStyle(color: Colors.red, fontSize: 10, fontWeight: FontWeight.bold))),
                       ],
                     ),
@@ -160,7 +163,7 @@ class _VisionInputHubState extends State<VisionInputHub> {
           const SizedBox(height: 25),
           const Text("PHAROAH AI IS THINKING...", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, letterSpacing: 2)),
           const SizedBox(height: 10),
-          Text("Extracting items, calculating taxes...", style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 12)),
+          Text("Compressing image & extracting data...", style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 12)),
         ],
       ),
     );
