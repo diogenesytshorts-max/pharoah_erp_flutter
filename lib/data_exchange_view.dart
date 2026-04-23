@@ -35,6 +35,14 @@ class _DataExchangeViewState extends State<DataExchangeView> {
             color: Colors.blue.shade800, 
             onTap: () => _showOptions(context, ph, "PHAROAH")
           ),
+          // Data Hub file me jahan options khatam ho rahe hain, wahan ye card jodein
+_buildMainActionCard(
+  title: "PHAROAH AI VISION", 
+  subtitle: "New! Scan physical bills to auto-fill entries.", 
+  icon: Icons.auto_awesome_rounded, 
+  color: Colors.purple.shade700, 
+  onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => const PharoahAiVision()))
+),
           
           const SizedBox(height: 20),
           
