@@ -210,12 +210,16 @@ class _PurchaseBillingViewState extends State<PurchaseBillingView> {
   );
 
   void _handleSave(PharoahManager ph) {
-    if (widget.modifyPurchaseId != null) ph.deletePurchase(widget.modifyPurchaseId!);
+    // NAYA: Replacement Logic
+    if (widget.modifyPurchaseId != null) {
+      ph.deletePurchase(widget.modifyPurchaseId!);
+    }
     ph.finalizePurchase(internalNo: widget.internalNo, billNo: widget.distBillNo, date: widget.billDate, entryDate: widget.entryDate, party: widget.distributor, items: items, total: totalAmt, mode: widget.mode);
     Navigator.of(context).popUntil((route) => route.isFirst);
   }
 }
 
+// PurchaseItemEntryCard logic is standard...
 class PurchaseItemEntryCard extends StatefulWidget {
   final Medicine med;
   final int srNo;
