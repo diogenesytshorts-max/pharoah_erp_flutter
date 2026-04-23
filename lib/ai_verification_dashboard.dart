@@ -51,8 +51,10 @@ class _AiVerificationDashboardState extends State<AiVerificationDashboard> {
     final ph = Provider.of<PharoahManager>(context, listen: false);
     String aiName = partyNameC.text.trim().toLowerCase();
     
+    if (aiName.isEmpty) return;
+
     try {
-      // Trying to find a match where AI name is part of our Party name
+      // Trying to find a match where AI name is part of our Party name or vice-versa
       matchedParty = ph.parties.firstWhere(
         (p) => p.name.toLowerCase().contains(aiName) || aiName.contains(p.name.toLowerCase())
       );
@@ -74,7 +76,7 @@ class _AiVerificationDashboardState extends State<AiVerificationDashboard> {
       // Pre-filling Purchase Items
       List<PurchaseItem> pItems = extractedItems.map((it) {
         return PurchaseItem(
-          id: DateTime.now().millisecondsSinceEpoch.toString() + it['name'],
+          id: DateTime.now().millisecondsSinceEpoch.toString() + it['name'].toString(),
           srNo: extractedItems.indexOf(it) + 1,
           medicineID: "temp", // Will be matched in next screen
           name: it['name']?.toString().toUpperCase() ?? "UNKNOWN",
@@ -82,11 +84,11 @@ class _AiVerificationDashboardState extends State<AiVerificationDashboard> {
           batch: "AUTO",
           exp: "12/26",
           hsn: "0000",
-          mrp: (it['rate'] ?? 0).toDouble() * 1.2,
-          qty: (it['qty'] ?? 1).toDouble(),
-          purchaseRate: (it['rate'] ?? 0).toDouble(),
+          mrp: (double.tryParse(it['rate']?.toString() ?? "0") ?? 0) * 1.2,
+          qty: double.tryParse(it['qty']?.toString() ?? "1") ?? 1,
+          purchaseRate: double.tryParse(it['rate']?.toString() ?? "0") ?? 0,
           gstRate: 12,
-          total: (it['total'] ?? 0).toDouble()
+          total: double.tryParse(it['total']?.toString() ?? "0") ?? 0
         );
       }).toList();
 
@@ -103,7 +105,7 @@ class _AiVerificationDashboardState extends State<AiVerificationDashboard> {
       // Pre-filling Sale Items
       List<BillItem> sItems = extractedItems.map((it) {
         return BillItem(
-          id: DateTime.now().millisecondsSinceEpoch.toString() + it['name'],
+          id: DateTime.now().millisecondsSinceEpoch.toString() + it['name'].toString(),
           srNo: extractedItems.indexOf(it) + 1,
           medicineID: "temp",
           name: it['name']?.toString().toUpperCase() ?? "UNKNOWN",
@@ -111,11 +113,11 @@ class _AiVerificationDashboardState extends State<AiVerificationDashboard> {
           batch: "AUTO",
           exp: "12/26",
           hsn: "0000",
-          mrp: (it['rate'] ?? 0).toDouble() * 1.2,
-          qty: (it['qty'] ?? 1).toDouble(),
-          rate: (it['rate'] ?? 0).toDouble(),
+          mrp: (double.tryParse(it['rate']?.toString() ?? "0") ?? 0) * 1.2,
+          qty: double.tryParse(it['qty']?.toString() ?? "1") ?? 1,
+          rate: double.tryParse(it['rate']?.toString() ?? "0") ?? 0,
           gstRate: 12,
-          total: (it['total'] ?? 0).toDouble()
+          total: double.tryParse(it['total']?.toString() ?? "0") ?? 0
         );
       }).toList();
 
@@ -161,7 +163,8 @@ class _AiVerificationDashboardState extends State<AiVerificationDashboard> {
             padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 8),
             color: isOnline ? Colors.green.shade50 : Colors.orange.shade50,
             child: Row(children: [
-              Icon(isOnline ? Icons.auto_awesome : Icons.Warning, size: 16, color: isOnline ? Colors.green : Colors.orange),
+              // FIXED: Icons.warning small letter use kiya hai ab error nahi aayega
+              Icon(isOnline ? Icons.auto_awesome : Icons.warning_rounded, size: 16, color: isOnline ? Colors.green : Colors.orange),
               const SizedBox(width: 8),
               Expanded(child: Text(widget.aiData['message'] ?? "", style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: isOnline ? Colors.green.shade900 : Colors.orange.shade900))),
             ]),
@@ -234,7 +237,7 @@ class _AiVerificationDashboardState extends State<AiVerificationDashboard> {
                         final it = extractedItems[i];
                         return Card(
                           child: ListTile(
-                            title: Text(it['name'] ?? "Unknown", style: const TextStyle(fontWeight: FontWeight.bold)),
+                            title: Text(it['name']?.toString() ?? "Unknown", style: const TextStyle(fontWeight: FontWeight.bold)),
                             subtitle: Text("Qty: ${it['qty']} | Rate: ₹${it['rate']}"),
                             trailing: Text("₹${it['total']}", style: TextStyle(fontWeight: FontWeight.bold, color: themeColor)),
                           ),
