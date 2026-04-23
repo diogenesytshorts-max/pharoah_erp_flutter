@@ -3,6 +3,8 @@ import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import 'pharoah_manager.dart';
 import 'models.dart';
+import 'app_date_logic.dart'; // NAYA
+import 'pharoah_date_controller.dart'; // NAYA
 
 class DaybookView extends StatefulWidget {
   const DaybookView({super.key});
@@ -11,52 +13,45 @@ class DaybookView extends StatefulWidget {
 
 class _DaybookViewState extends State<DaybookView> {
   DateTime selectedDate = DateTime.now();
+  bool _isInit = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (!_isInit) {
+      final ph = Provider.of<PharoahManager>(context, listen: false);
+      // NAYA: Smart date initialization according to FY
+      selectedDate = AppDateLogic.getSmartDate(ph.currentFY);
+      _isInit = true;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final ph = Provider.of<PharoahManager>(context);
     
-    // --- TRANSACTION AGGREGATION LOGIC ---
-    // Hum sabhi alag-alag sources se data ik इकट्ठा karenge
+    // --- TRANSACTION AGGREGATION LOGIC (Purana Logic preserved 100%) ---
     List<Map<String, dynamic>> allEntries = [];
 
-    // 1. Sales Add karein
+    // 1. Sales
     for (var s in ph.sales.where((s) => _isSameDay(s.date, selectedDate) && s.status == "Active")) {
-      allEntries.add({
-        'time': s.date,
-        'type': 'SALE',
-        'party': s.partyName,
-        'ref': 'Bill #${s.billNo}',
-        'amount': s.totalAmount,
-        'isIn': true // Paisa aayega (udhaar ya cash)
-      });
+      allEntries.add({'time': s.date, 'type': 'SALE', 'party': s.partyName, 'ref': 'Bill #${s.billNo}', 'amount': s.totalAmount, 'isIn': true});
     }
 
-    // 2. Purchases Add karein
+    // 2. Purchases
     for (var p in ph.purchases.where((p) => _isSameDay(p.date, selectedDate))) {
-      allEntries.add({
-        'time': p.date,
-        'type': 'PURCHASE',
-        'party': p.distributorName,
-        'ref': 'Bill #${p.billNo}',
-        'amount': p.totalAmount,
-        'isIn': false // Paisa jayega
-      });
+      allEntries.add({'time': p.date, 'type': 'PURCHASE', 'party': p.distributorName, 'ref': 'Bill #${p.billNo}', 'amount': p.totalAmount, 'isIn': false});
     }
 
-    // 3. Vouchers Add karein (Receipt, Payment, Contra, Expense)
+    // 3. Vouchers (Receipt, Payment, Contra, Expense)
     for (var v in ph.vouchers.where((v) => _isSameDay(v.date, selectedDate))) {
       allEntries.add({
-        'time': v.date,
-        'type': v.type.toUpperCase(),
-        'party': v.partyName,
-        'ref': v.paymentMode,
-        'amount': v.amount,
-        'isIn': v.type == 'Receipt' || v.type == 'Contra' // Simplified logic
+        'time': v.date, 'type': v.type.toUpperCase(), 'party': v.partyName, 
+        'ref': v.paymentMode, 'amount': v.amount, 
+        'isIn': v.type == 'Receipt' || v.type == 'Contra'
       });
     }
 
-    // Latest entries upar dikhane ke liye sort karein
     allEntries.sort((a, b) => b['time'].compareTo(a['time']));
 
     // --- SUMMARY CALCULATIONS ---
@@ -73,7 +68,8 @@ class _DaybookViewState extends State<DaybookView> {
           IconButton(
             icon: const Icon(Icons.calendar_month_rounded),
             onPressed: () async {
-              DateTime? p = await showDatePicker(context: context, initialDate: selectedDate, firstDate: DateTime(2020), lastDate: DateTime(2100));
+              // NAYA: FY Locked Date Picker
+              DateTime? p = await PharoahDateController.pickDate(context: context, currentFY: ph.currentFY, initialDate: selectedDate);
               if (p != null) setState(() => selectedDate = p);
             },
           )
@@ -81,7 +77,7 @@ class _DaybookViewState extends State<DaybookView> {
       ),
       body: Column(
         children: [
-          // --- TOP SUMMARY PANEL ---
+          // --- TOP SUMMARY PANEL (Aapka purana design separators ke sath) ---
           Container(
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
@@ -114,7 +110,7 @@ class _DaybookViewState extends State<DaybookView> {
                     children: [
                       Icon(Icons.history_toggle_off_rounded, size: 60, color: Colors.grey.shade400),
                       const SizedBox(height: 10),
-                      const Text("No transactions for this day.", style: TextStyle(color: Colors.grey)),
+                      Text("No transactions for ${DateFormat('dd/MM/yy').format(selectedDate)}", style: const TextStyle(color: Colors.grey)),
                     ],
                   ))
                 : ListView.builder(
