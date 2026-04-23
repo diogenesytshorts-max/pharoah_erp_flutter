@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'ai_setup_view.dart'; // Naya configuration page link karne ke liye
 
 class PharoahAiVision extends StatefulWidget {
   const PharoahAiVision({super.key});
@@ -8,7 +9,7 @@ class PharoahAiVision extends StatefulWidget {
 }
 
 class _PharoahAiVisionState extends State<PharoahAiVision> {
-  // Filhal ke liye status manually set kar rahe hain, baad me settings se link karenge
+  // Baad me isse actual settings se link karenge
   bool isOnlineActive = true; 
 
   @override
@@ -24,7 +25,8 @@ class _PharoahAiVisionState extends State<PharoahAiVision> {
             icon: const Icon(Icons.settings_suggest_rounded),
             tooltip: "AI Configuration",
             onPressed: () {
-              // TODO: Navigate to AI Setup Screen (API Keys)
+              // Nayi Configuration Screen par bhejne ke liye
+              Navigator.push(context, MaterialPageRoute(builder: (c) => const AiSetupView()));
             },
           )
         ],
@@ -34,7 +36,7 @@ class _PharoahAiVisionState extends State<PharoahAiVision> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // --- 1. AI STATUS INDICATOR ---
+            // --- AI STATUS INDICATOR ---
             _buildStatusCard(),
 
             const SizedBox(height: 30),
@@ -44,27 +46,27 @@ class _PharoahAiVisionState extends State<PharoahAiVision> {
             ),
             const SizedBox(height: 15),
 
-            // --- 2. PURCHASE AI BUTTON ---
+            // --- PURCHASE AI BUTTON ---
             _buildActionCard(
               title: "PURCHASE AI",
               subtitle: "Scan Vendor bills to auto-fill Stock Inward.",
               icon: Icons.document_scanner_rounded,
               gradient: const LinearGradient(colors: [Color(0xFFFF9800), Color(0xFFF44336)]),
               onTap: () {
-                // TODO: Start Image Picker for Purchase
+                // Future Step: Start Camera for Purchase
               },
             ),
 
             const SizedBox(height: 20),
 
-            // --- 3. SALE AI BUTTON ---
+            // --- SALE AI BUTTON ---
             _buildActionCard(
               title: "SALE AI",
               subtitle: "Quick scan customer orders or invoices.",
               icon: Icons.bolt_rounded,
               gradient: const LinearGradient(colors: [Color(0xFF2196F3), Color(0xFF0D47A1)]),
               onTap: () {
-                // TODO: Start Image Picker for Sale
+                // Future Step: Start Camera for Sale
               },
             ),
 
@@ -84,7 +86,7 @@ class _PharoahAiVisionState extends State<PharoahAiVision> {
                   SizedBox(width: 15),
                   Expanded(
                     child: Text(
-                      "Tip: Keep the bill flat and ensure good lighting for 99.9% AI accuracy.",
+                      "Tip: Keep the bill flat and ensure good lighting for high AI accuracy.",
                       style: TextStyle(fontSize: 11, color: Colors.blueGrey),
                     ),
                   )
@@ -129,9 +131,6 @@ class _PharoahAiVisionState extends State<PharoahAiVision> {
               ),
             ],
           ),
-          const Spacer(),
-          if (isOnlineActive)
-            const Text("LIVE", style: TextStyle(color: Colors.green, fontWeight: FontWeight.bold, fontSize: 10)),
         ],
       ),
     );
@@ -152,13 +151,6 @@ class _PharoahAiVisionState extends State<PharoahAiVision> {
         decoration: BoxDecoration(
           gradient: gradient,
           borderRadius: BorderRadius.circular(25),
-          boxShadow: [
-            BoxShadow(
-              color: (gradient as LinearGradient).colors.first.withOpacity(0.3),
-              blurRadius: 15,
-              offset: const Offset(0, 8)
-            )
-          ],
         ),
         child: Row(
           children: [
@@ -168,7 +160,7 @@ class _PharoahAiVisionState extends State<PharoahAiVision> {
                 children: [
                   Text(
                     title,
-                    style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w900, letterSpacing: 1),
+                    style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w900),
                   ),
                   const SizedBox(height: 5),
                   Text(
@@ -178,14 +170,7 @@ class _PharoahAiVisionState extends State<PharoahAiVision> {
                 ],
               ),
             ),
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.2),
-                shape: BoxShape.circle
-              ),
-              child: Icon(icon, color: Colors.white, size: 35),
-            )
+            Icon(icon, color: Colors.white, size: 35),
           ],
         ),
       ),
