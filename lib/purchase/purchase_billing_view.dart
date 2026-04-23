@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../pharoah_manager.dart';
 import '../models.dart';
-import '../product_master.dart';
+import '../product_master.dart'; // NAYA
 import 'package:intl/intl.dart';
 
 class PurchaseBillingView extends StatefulWidget {
@@ -83,7 +83,7 @@ class _PurchaseBillingViewState extends State<PurchaseBillingView> {
                             child: TextField(
                               autofocus: true,
                               decoration: InputDecoration(
-                                hintText: "Search Product...",
+                                hintText: "Search Product for Purchase...",
                                 prefixIcon: const Icon(Icons.search, color: Colors.orange),
                                 filled: true, fillColor: Colors.white,
                                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
@@ -92,6 +92,7 @@ class _PurchaseBillingViewState extends State<PurchaseBillingView> {
                             ),
                           ),
                           const SizedBox(width: 10),
+                          // NAYA: Quick Add Product
                           IconButton.filled(
                             onPressed: () async {
                               final result = await Navigator.push(
@@ -99,7 +100,9 @@ class _PurchaseBillingViewState extends State<PurchaseBillingView> {
                                 MaterialPageRoute(builder: (c) => const ProductMasterView(isSelectionMode: true)),
                               );
                               if (result != null && result is Medicine) {
-                                setSheetState(() { selectedMed = result; });
+                                setSheetState(() {
+                                  selectedMed = result;
+                                });
                               }
                             },
                             icon: const Icon(Icons.library_add_rounded),
@@ -210,16 +213,13 @@ class _PurchaseBillingViewState extends State<PurchaseBillingView> {
   );
 
   void _handleSave(PharoahManager ph) {
-    // NAYA: Replacement Logic
-    if (widget.modifyPurchaseId != null) {
-      ph.deletePurchase(widget.modifyPurchaseId!);
-    }
+    if (widget.modifyPurchaseId != null) ph.deletePurchase(widget.modifyPurchaseId!);
     ph.finalizePurchase(internalNo: widget.internalNo, billNo: widget.distBillNo, date: widget.billDate, entryDate: widget.entryDate, party: widget.distributor, items: items, total: totalAmt, mode: widget.mode);
     Navigator.of(context).popUntil((route) => route.isFirst);
   }
 }
 
-// PurchaseItemEntryCard logic is standard...
+// NOTE: PurchaseItemEntryCard and PurchaseItemEntryCardState code below is same as before, keeping file complete
 class PurchaseItemEntryCard extends StatefulWidget {
   final Medicine med;
   final int srNo;
