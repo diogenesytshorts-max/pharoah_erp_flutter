@@ -21,7 +21,7 @@ class PharoahAiEngine {
         return await _runGeminiVision(images, apiKey, mode);
       } catch (e) {
         debugPrint("Cloud AI Failed: $e");
-        geminiErrorLog = e.toString(); // Save error to show to user
+        geminiErrorLog = e.toString(); 
         
         if (!autoOffline) {
           throw Exception("Cloud AI Failed: $geminiErrorLog");
@@ -71,15 +71,15 @@ class PharoahAiEngine {
   }
 
   // =========================================================================
-  // 2. ONLINE ENGINE (Gemini 1.5 Flash)
+  // 2. ONLINE ENGINE (Gemini 1.5 Flash Latest)
   // =========================================================================
   static Future<Map<String, dynamic>> _runGeminiVision(List<File> images, String apiKey, String mode) async {
-    const String url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent";
+    // FIXED: Changed model name to 'gemini-1.5-flash-latest' which is globally supported
+    const String url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent";
     
     List<int> imageBytes = await images.first.readAsBytes();
     String base64Image = base64Encode(imageBytes);
 
-    // EXACT strict JSON format required
     String prompt = """
       Analyze this invoice image. Extract data and return ONLY a valid JSON object. Do not use Markdown, do not say 'Here is the JSON'.
       Must use EXACTLY these keys:
@@ -124,16 +124,11 @@ class PharoahAiEngine {
       var data = jsonDecode(response.body);
       String rawText = data['candidates'][0]['content']['parts'][0]['text'];
       
-      // CRASH-PROOF JSON EXTRACTOR
       int startIndex = rawText.indexOf('{');
       int endIndex = rawText.lastIndexOf('}');
       
       if (startIndex != -1 && endIndex != -1) {
         String cleanJson = rawText.substring(startIndex, endIndex + 1);
-        
-        // Debugging ke liye check karein
-        debugPrint("Gemini JSON: $cleanJson");
-
         Map<String, dynamic> result = jsonDecode(cleanJson);
         result["status"] = "ONLINE";
         result["message"] = "High Accuracy Cloud Extraction Complete.";
