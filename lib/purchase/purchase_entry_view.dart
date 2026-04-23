@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import '../pharoah_manager.dart';
 import '../models.dart';
+import '../party_master.dart'; // NAYA
 import 'purchase_billing_view.dart';
 
 class PurchaseEntryView extends StatefulWidget {
@@ -47,6 +48,22 @@ class _PurchaseEntryViewState extends State<PurchaseEntryView> {
         internalEntryNoC.text = "PUR-${DateTime.now().millisecondsSinceEpoch.toString().substring(7)}";
       }
     });
+  }
+
+  // NAYA: Quick Add Logic
+  Future<void> _handleQuickAddSupplier() async {
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (c) => const PartyMasterView(isSelectionMode: true),
+      ),
+    );
+
+    if (result != null && result is Party) {
+      setState(() {
+        selectedDistributor = result;
+      });
+    }
   }
 
   @override Widget build(BuildContext context) {
@@ -100,7 +117,7 @@ class _PurchaseEntryViewState extends State<PurchaseEntryView> {
                 mode: paymentMode, 
                 existingItems: widget.existingPurchase?.items, 
                 modifyPurchaseId: widget.existingPurchase?.id,
-                isReadOnly: widget.isReadOnly, // FIXED: Now passing correctly
+                isReadOnly: widget.isReadOnly,
               ))), 
               child: Text(
                 widget.isReadOnly ? "VIEW PURCHASED ITEMS" : "PROCEED TO ITEM ENTRY", 
@@ -131,7 +148,26 @@ class _PurchaseEntryViewState extends State<PurchaseEntryView> {
   );
 
   Widget _buildSearchList(PharoahManager ph) => Column(children: [
-    Padding(padding: const EdgeInsets.all(15), child: TextField(decoration: const InputDecoration(hintText: "Search Supplier...", prefixIcon: Icon(Icons.search), border: OutlineInputBorder()), onChanged: (v) => setState(() => distSearchQuery = v))), 
+    Padding(
+      padding: const EdgeInsets.all(15), 
+      child: Row(
+        children: [
+          Expanded(
+            child: TextField(
+              decoration: const InputDecoration(hintText: "Search Supplier...", prefixIcon: Icon(Icons.search), border: OutlineInputBorder()), 
+              onChanged: (v) => setState(() => distSearchQuery = v)
+            ),
+          ),
+          const SizedBox(width: 10),
+          // NAYA: Quick Add Button
+          IconButton.filled(
+            onPressed: _handleQuickAddSupplier, 
+            icon: const Icon(Icons.group_add_rounded),
+            style: IconButton.styleFrom(backgroundColor: Colors.orange.shade800, foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
+          )
+        ],
+      )
+    ), 
     Expanded(child: ListView(children: ph.parties.where((p) => p.group == "Sundry Creditors" && p.name.toLowerCase().contains(distSearchQuery.toLowerCase())).map((p) => ListTile(title: Text(p.name), subtitle: Text(p.city), onTap: () => setState(() => selectedDistributor = p))).toList()))
   ]);
 }
