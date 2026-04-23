@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'pharoah_manager.dart';
-import 'file_management_view.dart'; // For Backup/FY logic
+import 'file_management_view.dart';
 
 class LoginView extends StatefulWidget {
   final VoidCallback onLogin;
@@ -31,7 +31,6 @@ class _LoginViewState extends State<LoginView> {
     });
   }
 
-  // --- MAIN LOGIN LOGIC WITH AUTO-BACKUP ---
   void _handleLogin() async {
     final ph = Provider.of<PharoahManager>(context, listen: false);
     final prefs = await SharedPreferences.getInstance();
@@ -42,10 +41,8 @@ class _LoginViewState extends State<LoginView> {
     if ((userC.text.trim().toLowerCase() == savedUser && passC.text == savedPass) || 
         (userC.text == "Rawat" && passC.text == "Rawat")) {
       
-      // 1. Run Silent Auto-Backup (Data Safety)
+      // Auto-Backup on Login
       await ph.runAutoBackup();
-      
-      // 2. Proceed to Dashboard
       widget.onLogin();
       
     } else {
@@ -53,23 +50,6 @@ class _LoginViewState extends State<LoginView> {
         const SnackBar(content: Text("Invalid Credentials!"), backgroundColor: Colors.red)
       );
     }
-  }
-
-  // --- UTILITY: FILE MAINTENANCE ---
-  void _runMaintenance() async {
-    final ph = Provider.of<PharoahManager>(context, listen: false);
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (c) => const Center(child: CircularProgressIndicator()),
-    );
-    
-    await ph.runFullMaintenance();
-    
-    Navigator.pop(context); // Close loader
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text("✅ System Maintenance & Stock Repair Complete!"), backgroundColor: Colors.green)
-    );
   }
 
   @override
@@ -90,12 +70,10 @@ class _LoginViewState extends State<LoginView> {
             padding: const EdgeInsets.all(30),
             child: Column(
               children: [
-                // 1. HEADER
                 const Icon(Icons.lock_person_rounded, size: 80, color: Colors.white),
                 const SizedBox(height: 15),
                 Text(compName, textAlign: TextAlign.center, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.white)),
                 
-                // 2. WORKING YEAR INDICATOR
                 const SizedBox(height: 10),
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 5),
@@ -105,7 +83,6 @@ class _LoginViewState extends State<LoginView> {
 
                 const SizedBox(height: 30),
 
-                // 3. LOGIN CARD
                 Container(
                   padding: const EdgeInsets.all(25),
                   decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20), boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 10)]),
@@ -135,23 +112,18 @@ class _LoginViewState extends State<LoginView> {
 
                 const SizedBox(height: 40),
 
-                // 4. TECHNICAL UTILITIES (THE GATEWAY)
-                const Text("SYSTEM UTILITIES", style: TextStyle(color: Colors.white70, fontSize: 10, letterSpacing: 1, fontWeight: FontWeight.bold)),
-                const SizedBox(height: 15),
+                // SYSTSEM TOOLS (Minimal)
                 Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    _utilBtn(Icons.calendar_month, "Year", () => Navigator.push(context, MaterialPageRoute(builder: (c) => const FileManagementView()))),
-                    _utilBtn(Icons.cloud_upload, "Backup", () => ph.runAutoBackup().then((value) => ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Backup Saved!"))))),
-                    _utilBtn(Icons.build_circle, "Repair", _runMaintenance),
-                    _utilBtn(Icons.rocket_launch, "Transfer", () {
-                       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("FY Transfer tool is in More Features.")));
-                    }),
+                    _utilBtn(Icons.calendar_month, "Change Year", () => Navigator.push(context, MaterialPageRoute(builder: (c) => const FileManagementView()))),
+                    const SizedBox(width: 30),
+                    _utilBtn(Icons.cloud_upload, "Save Backup", () => ph.runAutoBackup().then((value) => ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Backup Saved!"))))),
                   ],
                 ),
                 
                 const SizedBox(height: 50),
-                const Text("© 2026 Rawat Systems | Professional ERP Suite", style: TextStyle(color: Colors.white38, fontSize: 10)),
+                const Text("© 2026 Rawat Systems | Pharoah ERP Suite", style: TextStyle(color: Colors.white38, fontSize: 10)),
               ],
             ),
           ),
