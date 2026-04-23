@@ -1,13 +1,13 @@
 import 'dart:io';
-import 'dart:convert'; // FIXED: utf8 error yahan se theek hoga
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:file_picker/file_picker.dart';
-import 'package:csv/csv.dart';
 import 'pharoah_manager.dart';
 import 'csv_engine.dart';
 import 'import_verification_view.dart';
 import 'export_selector_view.dart';
+import 'pharoah_ai_vision.dart'; // <--- YE IMPORT ZAROORI HAI
 
 class DataExchangeView extends StatefulWidget {
   const DataExchangeView({super.key});
@@ -27,7 +27,18 @@ class _DataExchangeViewState extends State<DataExchangeView> {
           const Text("SELECT DATA SOURCE", style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.blueGrey, letterSpacing: 1)),
           const SizedBox(height: 15),
           
-          // --- OPTION 1: PHAROAH CSV ---
+          // --- OPTION 1: PHAROAH AI VISION (NEW) ---
+          _buildMainActionCard(
+            title: "PHAROAH AI VISION", 
+            subtitle: "Scan physical bills using AI to auto-fill entries.", 
+            icon: Icons.auto_awesome_rounded, 
+            color: Colors.purple.shade700, 
+            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => const PharoahAiVision()))
+          ),
+
+          const SizedBox(height: 20),
+          
+          // --- OPTION 2: PHAROAH CSV ---
           _buildMainActionCard(
             title: "PHAROAH CSV", 
             subtitle: "Import/Export in native Pharoah format for perfect sync.", 
@@ -35,18 +46,10 @@ class _DataExchangeViewState extends State<DataExchangeView> {
             color: Colors.blue.shade800, 
             onTap: () => _showOptions(context, ph, "PHAROAH")
           ),
-          // Data Hub file me jahan options khatam ho rahe hain, wahan ye card jodein
-_buildMainActionCard(
-  title: "PHAROAH AI VISION", 
-  subtitle: "New! Scan physical bills to auto-fill entries.", 
-  icon: Icons.auto_awesome_rounded, 
-  color: Colors.purple.shade700, 
-  onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => const PharoahAiVision()))
-),
           
           const SizedBox(height: 20),
           
-          // --- OPTION 2: OTHER CSV ---
+          // --- OPTION 3: OTHER CSV ---
           _buildMainActionCard(
             title: "OTHER CSV", 
             subtitle: "Import from Distributors or generic Excel sheets.", 
@@ -59,6 +62,7 @@ _buildMainActionCard(
     );
   }
 
+  // Baki functions (जैसे _showOptions, _buildMainActionCard) waise hi rahenge...
   void _showOptions(BuildContext context, PharoahManager ph, String mode) {
     showModalBottomSheet(
       context: context, 
@@ -83,23 +87,10 @@ _buildMainActionCard(
     if (result != null && result.files.single.path != null) {
       File file = File(result.files.single.path!);
       String content = await file.readAsString();
-      
-      // Parsing using CsvEngine
       List<List<dynamic>> rows = CsvEngine.parseCsv(content);
-      
       if (mounted) {
-        if (rows.length <= 1) { 
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Selected file is empty!"))); 
-          return; 
-        }
-        // Seedha purane Verification View par bhej rahe hain
-        Navigator.push(context, MaterialPageRoute(
-          builder: (c) => ImportVerificationView(
-            csvData: rows, 
-            importType: type, 
-            isOtherFormat: mode == "OTHER"
-          )
-        ));
+        if (rows.length <= 1) { ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Selected file is empty!"))); return; }
+        Navigator.push(context, MaterialPageRoute(builder: (c) => ImportVerificationView(csvData: rows, importType: type, isOtherFormat: mode == "OTHER")));
       }
     }
   }
