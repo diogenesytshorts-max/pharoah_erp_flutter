@@ -8,14 +8,12 @@ import '../models.dart';
 import '../gateway/company_registry_model.dart'; // NAYA SOURCE
 
 class PurchaseReportPdf {
-  // NAYA: Ab yeh active shop profile lega
+  // NAYA: Ab yeh active shop profile lega taaki header sahi aaye
   static Future<void> generate(List<Purchase> purchases, DateTime fDate, DateTime tDate, Party? selectedDist, CompanyProfile shop) async {
     final pdf = pw.Document();
-    
-    // NAYA: Dukan ka naam registry se
     String shopName = shop.name.toUpperCase();
 
-    // Summary Totals (ORIGINAL LOGIC)
+    // Summary Totals
     double totalTaxable = 0; double totalGst = 0; double netTotal = 0;
     int billCount = purchases.length;
 
@@ -33,7 +31,7 @@ class PurchaseReportPdf {
         pw.Row(mainAxisAlignment: pw.MainAxisAlignment.spaceBetween, children: [
           pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
             pw.Text(shopName, style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold)),
-            pw.Text("PURCHASE REGISTER (DISTRIBUTOR SUMMARY)", style: const pw.TextStyle(fontSize: 12)),
+            pw.Text("PURCHASE REGISTER (SUMMARY REPORT)", style: const pw.TextStyle(fontSize: 12)),
           ]),
           pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.end, children: [
             pw.Text("Period: ${DateFormat('dd/MM/yy').format(fDate)} to ${DateFormat('dd/MM/yy').format(tDate)}"),
@@ -63,7 +61,8 @@ class PurchaseReportPdf {
           }).toList(),
         ),
         pw.SizedBox(height: 20),
-        pw.Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+        // FIXED: pw. prefix added to MainAxisAlignment
+        pw.Row(mainAxisAlignment: pw.MainAxisAlignment.spaceBetween, children: [
            _sumBox("TOTAL BILLS", billCount.toDouble(), isInt: true),
            _sumBox("TAXABLE AMT", totalTaxable),
            _sumBox("INPUT GST (ITC)", totalGst),
