@@ -11,7 +11,7 @@ import 'sale_summary_view.dart';
 import 'purchase/purchase_summary_view.dart';
 import 'data_exchange_view.dart';
 import 'more_features_view.dart';
-import 'app_date_logic.dart'; // NAYA: Connection with Date Master
+import 'app_date_logic.dart'; // Aapka purana logic connection
 
 class DashboardView extends StatelessWidget {
   final VoidCallback onLogout;
@@ -21,8 +21,12 @@ class DashboardView extends StatelessWidget {
   Widget build(BuildContext context) {
     final ph = Provider.of<PharoahManager>(context);
     
-    // NAYA: 'Contextual Today' logic
-    // Agar user current year mein hai toh 'today' asli aaj ki date hogi.
+    // --- NAYA: MULTI-COMPANY INFO ---
+    final compName = ph.activeCompany?.name ?? "PHAROAH ERP";
+    final compID = ph.activeCompany?.id ?? "N/A";
+    final businessType = ph.activeCompany?.businessType ?? "WHOLESALE";
+
+    // --- PURANA SMART DATE LOGIC ---
     // Agar user purane saal mein hai (Audit Mode), toh 'today' us saal ki 31st March hogi.
     DateTime workingDate = AppDateLogic.getSmartDate(ph.currentFY);
 
@@ -39,17 +43,18 @@ class DashboardView extends StatelessWidget {
       medicines: ph.medicines
     );
 
-    // NAYA: Audit Mode checking for UI
+    // --- PURANA AUDIT MODE CHECK ---
     bool isPastYear = !AppDateLogic.isValidInFY(DateTime.now(), ph.currentFY);
 
     return Scaffold(
       backgroundColor: const Color(0xFFF8F9FD),
       body: Column(
         children: [
+          // --- HEADER SECTION (MERGED LOGIC) ---
           Container(
             padding: const EdgeInsets.only(top: 60, left: 25, right: 25, bottom: 25),
             decoration: BoxDecoration(
-              // NAYA: Color changes to Purple in Audit Mode to alert user
+              // NAYA: Color change based on Audit Mode (Purple) or Normal (Blue)
               color: isPastYear ? Colors.purple.shade900 : const Color(0xFF0D47A1),
               borderRadius: const BorderRadius.only(bottomLeft: Radius.circular(30), bottomRight: Radius.circular(30))
             ),
@@ -58,13 +63,29 @@ class DashboardView extends StatelessWidget {
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(isPastYear ? "AUDIT MODE" : "PHAROAH ERP", 
-                      style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.white)),
+                    Text(isPastYear ? "AUDIT: $compName" : compName, 
+                      style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white)),
+                    Row(
+                      children: [
+                        Text("ID: $compID", style: const TextStyle(fontSize: 10, color: Colors.white70)),
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                          decoration: BoxDecoration(color: isPastYear ? Colors.orange : Colors.blue.shade300, borderRadius: BorderRadius.circular(4)),
+                          child: Text(businessType, style: const TextStyle(fontSize: 7, fontWeight: FontWeight.bold, color: Colors.white)),
+                        ),
+                      ],
+                    ),
                     Text("Working Year: ${ph.currentFY}", style: const TextStyle(fontSize: 11, color: Colors.white70)),
                   ],
                 ),
                 const Spacer(),
-                IconButton(icon: const Icon(Icons.power_settings_new_rounded, color: Colors.white, size: 28), onPressed: onLogout)
+                // --- SWITCH COMPANY ICON (Updated from Power Icon) ---
+                IconButton(
+                  icon: const Icon(Icons.swap_horizontal_circle_outlined, color: Colors.white, size: 32), 
+                  onPressed: onLogout, // Session clear karke dukan selection par le jayega
+                  tooltip: "Switch Company",
+                )
               ],
             ),
           ),
@@ -75,12 +96,12 @@ class DashboardView extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // NAYA: Date Indicator Label
+                  // --- PURANA DATE INDICATOR ---
                   Padding(
                     padding: const EdgeInsets.only(bottom: 10, left: 5),
                     child: Row(
                       children: [
-                        const Icon(Icons.history_toggle_off, size: 14, color: Colors.blueGrey),
+                        Icon(isPastYear ? Icons.history_toggle_off : Icons.calendar_today, size: 14, color: Colors.blueGrey),
                         const SizedBox(width: 5),
                         Text(
                           isPastYear ? "Showing data for: ${AppDateLogic.format(workingDate)}" : "Today: ${AppDateLogic.format(workingDate)}",
@@ -90,19 +111,20 @@ class DashboardView extends StatelessWidget {
                     ),
                   ),
 
+                  // --- STATS WITH DYNAMIC TITLES ---
                   Row(children: [
                     Expanded(child: StatWidget(
                       title: isPastYear ? "LAST DAY SALE" : "TODAY SALE", 
                       value: "₹${todaySales.toStringAsFixed(0)}", 
-                      period: isPastYear ? "Final" : "Today", 
+                      period: isPastYear ? "FY Final" : "Today", 
                       icon: "trending_up", 
-                      color: Colors.green
+                      color: isPastYear ? Colors.purple : Colors.green
                     )),
                     const SizedBox(width: 12),
                     Expanded(child: StatWidget(
                       title: isPastYear ? "LAST DAY PUR" : "TODAY PUR", 
                       value: "₹${todayPur.toStringAsFixed(0)}", 
-                      period: isPastYear ? "Final" : "Today", 
+                      period: isPastYear ? "FY Final" : "Today", 
                       icon: "shopping_cart", 
                       color: Colors.orange
                     )),
@@ -112,9 +134,9 @@ class DashboardView extends StatelessWidget {
                   StatWidget(
                     title: isPastYear ? "CLOSING STOCK VALUE" : "TOTAL STOCK VALUE", 
                     value: "₹${stockVal.toStringAsFixed(0)}", 
-                    period: "Real-time", 
+                    period: "Calculated", 
                     icon: "inventory_2", 
-                    color: Colors.purple
+                    color: isPastYear ? Colors.deepPurple : Colors.indigo
                   ),
                   
                   const SizedBox(height: 30),
@@ -125,8 +147,10 @@ class DashboardView extends StatelessWidget {
                     const SizedBox(width: 15),
                     Expanded(child: _bigEntryButton(context, "PURCHASE ENTRY", Icons.downloading_rounded, Colors.orange.shade800, const PurchaseEntryView())),
                   ]),
+                  
                   const SizedBox(height: 30),
                   _buildMasterHubGateway(context),
+                  
                   const SizedBox(height: 30),
                   const Text("REPORTS & UTILITIES", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.blueGrey, letterSpacing: 1)),
                   const SizedBox(height: 12),
