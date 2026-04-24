@@ -1,5 +1,9 @@
+// FILE: lib/bill_view_only.dart
+
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart'; // NAYA
 import 'package:intl/intl.dart';
+import 'pharoah_manager.dart'; // NAYA
 import 'models.dart';
 import 'pdf/sale_invoice_pdf.dart';
 
@@ -11,6 +15,9 @@ class BillViewOnly extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // NAYA: Active company details lene ke liye
+    final ph = Provider.of<PharoahManager>(context);
+
     return Scaffold(
       backgroundColor: const Color(0xFFF5F6F9),
       appBar: AppBar(
@@ -20,7 +27,12 @@ class BillViewOnly extends StatelessWidget {
         actions: [
           IconButton(
             icon: const Icon(Icons.print),
-            onPressed: () => SaleInvoicePdf.generate(sale, party),
+            onPressed: () {
+              // NAYA: Check active shop and pass to PDF engine
+              if (ph.activeCompany != null) {
+                SaleInvoicePdf.generate(sale, party, ph.activeCompany!);
+              }
+            },
           )
         ],
       ),
