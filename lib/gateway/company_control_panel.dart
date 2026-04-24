@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../pharoah_manager.dart';
 import 'company_registry_model.dart';
+import 'maintenance_service.dart'; // Naya engine import
 
 class CompanyControlPanelView extends StatefulWidget {
   const CompanyControlPanelView({super.key});
@@ -15,43 +16,51 @@ class _CompanyControlPanelViewState extends State<CompanyControlPanelView> {
   double maintenanceProgress = 0.0;
   String maintenanceStatus = "";
 
-  // --- FILE MAINTENANCE ENGINE (THE DOCTOR) ---
+  // ===========================================================================
+  // 1. ASLI MAINTENANCE LOGIC (ENGINE CONNECTED)
+  // ===========================================================================
   void _runMaintenance(PharoahManager ph) async {
+    // Check karo ki koi folder raasta (path) mil raha hai ya nahi
+    // Note: Agar user ne koi FY nahi khola toh hum default 2025-26 ka rasta check karenge
+    String path = await ph.getWorkingPath();
+    if (path.isEmpty) {
+      // Temporary path for initial maintenance
+      final fy = ph.activeCompany?.fYears.first ?? "2025-26";
+      await ph.loginToCompany(ph.activeCompany!, fy);
+      path = await ph.getWorkingPath();
+    }
+
     setState(() {
       isMaintenanceRunning = true;
       maintenanceProgress = 0.0;
-      maintenanceStatus = "Starting Diagnostic Engine...";
+      maintenanceStatus = "Waking up Pharoah Doctor...";
     });
 
-    // Step 1: Scan Directory (10%)
-    await Future.delayed(const Duration(milliseconds: 800));
-    setState(() { maintenanceProgress = 0.15; maintenanceStatus = "Scanning Database Integrity..."; });
+    // Asli Maintenance Engine ko call karna
+    final engine = MaintenanceService(ph, path);
+    await engine.runFullMaintenance(
+      onProgress: (p, s) {
+        if (mounted) {
+          setState(() {
+            maintenanceProgress = p;
+            maintenanceStatus = s;
+          });
+        }
+      },
+    );
 
-    // Step 2: Verify Wholesale Records (40%)
-    await Future.delayed(const Duration(milliseconds: 1200));
-    setState(() { maintenanceProgress = 0.45; maintenanceStatus = "Verifying Sales & Item Master Sync..."; });
-
-    // Step 3: Inventory Re-calculation (80%)
-    // Yahan Manager asli stock re-build kar sakta hai
-    await ph.loadAllData(); 
-    setState(() { maintenanceProgress = 0.85; maintenanceStatus = "Repairing Batch Master Quantities..."; });
-
-    // Step 4: Finishing (100%)
-    await Future.delayed(const Duration(milliseconds: 800));
-    setState(() {
-      maintenanceProgress = 1.0;
-      maintenanceStatus = "Maintenance Complete! Data is 100% Healthy.";
-    });
-
+    // Thoda delay taaki user "Complete" message dekh sake
     await Future.delayed(const Duration(seconds: 1));
     if (mounted) setState(() => isMaintenanceRunning = false);
   }
 
-  // --- LOGIN LOGIC (Select Year) ---
+  // ===========================================================================
+  // 2. LOGIN LOGIC (SELECT YEAR)
+  // ===========================================================================
   void _showFYLoginDialog(PharoahManager ph) {
-    // Agar company naye hai toh sirf current year dikhao, purani hai toh list se
+    // Registry se saalon ki list uthana ya default dikhana
     List<String> years = ph.activeCompany?.fYears.isEmpty ?? true 
-        ? ["2024-25", "2025-26"] // Default options for new setup
+        ? ["2024-25", "2025-26"] 
         : ph.activeCompany!.fYears;
 
     showModalBottomSheet(
@@ -101,7 +110,7 @@ class _CompanyControlPanelViewState extends State<CompanyControlPanelView> {
         foregroundColor: Colors.white,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
-          onPressed: () => ph.clearSession(), // Wapas Company List par jayenge
+          onPressed: () => ph.clearSession(), // Wapas Company List par
         ),
       ),
       body: Stack(
@@ -110,7 +119,6 @@ class _CompanyControlPanelViewState extends State<CompanyControlPanelView> {
             padding: const EdgeInsets.all(20),
             child: Column(
               children: [
-                // --- QUICK SUMMARY CARD ---
                 _buildHeaderCard(comp),
                 const SizedBox(height: 25),
 
@@ -198,7 +206,7 @@ class _CompanyControlPanelViewState extends State<CompanyControlPanelView> {
 
   Widget _buildMaintenanceOverlay() {
     return Container(
-      color: Colors.black.withOpacity(0.8),
+      color: Colors.black.withOpacity(0.85),
       width: double.infinity,
       height: double.infinity,
       child: Column(
@@ -208,7 +216,10 @@ class _CompanyControlPanelViewState extends State<CompanyControlPanelView> {
           const SizedBox(height: 25),
           const Text("PHAROAH DOCTOR RUNNING", style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold, letterSpacing: 1)),
           const SizedBox(height: 10),
-          Text(maintenanceStatus, style: const TextStyle(color: Colors.white70, fontSize: 13)),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 40),
+            child: Text(maintenanceStatus, textAlign: TextAlign.center, style: const TextStyle(color: Colors.white70, fontSize: 13)),
+          ),
           const SizedBox(height: 30),
           Container(
             width: 250,
@@ -231,7 +242,7 @@ class _CompanyControlPanelViewState extends State<CompanyControlPanelView> {
       context: context,
       builder: (c) => AlertDialog(
         title: const Text("Delete Entire Company?"),
-        content: const Text("Isse is company ka sara data (Sales, Purchase, Stock) hamesha ke liye delete ho jayega. Kya aap confirm karte hain?"),
+        content: const Text("Isse is company ka sara data hamesha ke liye delete ho jayega. Kya aap confirm karte hain?"),
         actions: [
           TextButton(onPressed: () => Navigator.pop(c), child: const Text("CANCEL")),
           ElevatedButton(
