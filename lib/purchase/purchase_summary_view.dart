@@ -1,3 +1,5 @@
+// FILE: lib/purchase/purchase_summary_view.dart
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
@@ -6,8 +8,8 @@ import '../models.dart';
 import '../pdf/purchase_pdf.dart';
 import '../pdf/purchase_report_pdf.dart'; 
 import 'purchase_entry_view.dart'; 
-import '../app_date_logic.dart'; // NAYA
-import '../pharoah_date_controller.dart'; // NAYA
+import '../app_date_logic.dart'; 
+import '../pharoah_date_controller.dart'; 
 
 class PurchaseSummaryView extends StatefulWidget {
   const PurchaseSummaryView({super.key});
@@ -26,12 +28,12 @@ class _PurchaseSummaryViewState extends State<PurchaseSummaryView> {
     if (!_isInit) {
       final ph = Provider.of<PharoahManager>(context, listen: false);
       
-      // logic: Naye FY ke hisab se default range set karna
+      // Smart Logic: FY ke hisab se default range set karna
       toDate = AppDateLogic.getSmartDate(ph.currentFY);
       DateTime thirtyDaysAgo = toDate.subtract(const Duration(days: 30));
       DateTime fyStart = AppDateLogic.getFYStart(ph.currentFY);
       
-      // From date 30 din piche hogi, lekin 1st April (FY Start) se pehle nahi
+      // From date 30 din piche hogi, lekin FY Start se pehle nahi
       fromDate = thirtyDaysAgo.isBefore(fyStart) ? fyStart : thirtyDaysAgo;
       _isInit = true;
     }
@@ -39,7 +41,9 @@ class _PurchaseSummaryViewState extends State<PurchaseSummaryView> {
 
   @override Widget build(BuildContext context) {
     final ph = Provider.of<PharoahManager>(context);
+    final activeShop = ph.activeCompany;
     
+    // Filter logic based on Date Range and Search
     List<Purchase> filteredPur = ph.purchases.reversed.where((p) {
       bool dateMatch = p.date.isAfter(fromDate.subtract(const Duration(days: 1))) && 
                        p.date.isBefore(toDate.add(const Duration(days: 1)));
@@ -48,10 +52,13 @@ class _PurchaseSummaryViewState extends State<PurchaseSummaryView> {
       return dateMatch && searchMatch;
     }).toList();
 
+    // Summary Totals
     double totalTaxable = 0; double totalTax = 0; double netTotal = 0;
     for(var p in filteredPur) {
       double pTaxable = p.items.fold(0, (sum, it) => sum + (it.purchaseRate * it.qty));
-      totalTaxable += pTaxable; totalTax += (p.totalAmount - pTaxable); netTotal += p.totalAmount;
+      totalTaxable += pTaxable; 
+      totalTax += (p.totalAmount - pTaxable); 
+      netTotal += p.totalAmount;
     }
 
     return Scaffold(
@@ -61,10 +68,16 @@ class _PurchaseSummaryViewState extends State<PurchaseSummaryView> {
         backgroundColor: Colors.orange.shade800, 
         foregroundColor: Colors.white,
         actions: [
-          IconButton(icon: const Icon(Icons.picture_as_pdf), onPressed: filteredPur.isEmpty ? null : () => PurchaseReportPdf.generate(filteredPur, fromDate, toDate, null))
+          IconButton(
+            icon: const Icon(Icons.picture_as_pdf), 
+            onPressed: (filteredPur.isEmpty || activeShop == null) 
+              ? null 
+              : () => PurchaseReportPdf.generate(filteredPur, fromDate, toDate, null, activeShop)
+          )
         ],
       ),
       body: Column(children: [
+        // --- 1. FILTER SECTION ---
         Container(
           padding: const EdgeInsets.all(12), color: Colors.white,
           child: Column(children: [
@@ -74,12 +87,18 @@ class _PurchaseSummaryViewState extends State<PurchaseSummaryView> {
               Expanded(child: _dateTile("TO", toDate, (d) => setState(()=> toDate = d), ph.currentFY)),
             ]),
             Padding(padding: const EdgeInsets.only(top: 10), child: TextField(
-              decoration: const InputDecoration(hintText: "Search Supplier/Bill...", prefixIcon: Icon(Icons.search), border: OutlineInputBorder(), isDense: true), 
+              decoration: const InputDecoration(
+                hintText: "Search Supplier/Bill...", 
+                prefixIcon: Icon(Icons.search, color: Colors.orange), 
+                border: OutlineInputBorder(), 
+                isDense: true
+              ), 
               onChanged: (v) => setState(() => searchQuery = v)
             ))
           ]),
         ),
         
+        // --- 2. LIST SECTION ---
         Expanded(
           child: filteredPur.isEmpty 
           ? const Center(child: Text("No records found for this period."))
@@ -87,7 +106,10 @@ class _PurchaseSummaryViewState extends State<PurchaseSummaryView> {
             padding: const EdgeInsets.all(10), itemCount: filteredPur.length,
             itemBuilder: (c, i) {
               final p = filteredPur[i];
-              final supplier = ph.parties.firstWhere((pt) => pt.name == p.distributorName, orElse: () => Party(id: "", name: p.distributorName));
+              final supplier = ph.parties.firstWhere(
+                (pt) => pt.name == p.distributorName, 
+                orElse: () => Party(id: "", name: p.distributorName)
+              );
               return Card(
                 elevation: 2, margin: const EdgeInsets.only(bottom: 8),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
@@ -95,9 +117,18 @@ class _PurchaseSummaryViewState extends State<PurchaseSummaryView> {
                   title: Text(p.distributorName, style: const TextStyle(fontWeight: FontWeight.bold)),
                   subtitle: Text("Bill: ${p.billNo} | ${AppDateLogic.format(p.date)}\nTotal: ₹${p.totalAmount.toStringAsFixed(2)}"),
                   trailing: Row(mainAxisSize: MainAxisSize.min, children: [
-                    IconButton(icon: const Icon(Icons.print, color: Colors.blueGrey), onPressed: () => PurchasePdf.generate(p, supplier)),
-                    IconButton(icon: const Icon(Icons.edit, color: Colors.blue), onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (c) => PurchaseEntryView(existingPurchase: p)))),
-                    IconButton(icon: const Icon(Icons.delete, color: Colors.red), onPressed: () => _confirmDelete(context, ph, p.id)),
+                    IconButton(
+                      icon: const Icon(Icons.print, color: Colors.blueGrey), 
+                      onPressed: activeShop == null ? null : () => PurchasePdf.generate(p, supplier, activeShop)
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.edit, color: Colors.blue), 
+                      onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (c) => PurchaseEntryView(existingPurchase: p)))
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.delete, color: Colors.red), 
+                      onPressed: () => _confirmDelete(context, ph, p.id)
+                    ),
                   ]),
                 ),
               );
@@ -105,10 +136,13 @@ class _PurchaseSummaryViewState extends State<PurchaseSummaryView> {
           )
         ),
         
+        // --- 3. BOTTOM SUMMARY BAR ---
         Container(
           padding: const EdgeInsets.all(15), color: Colors.deepOrange.shade900,
           child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-            _botCol("TAXABLE", totalTaxable), _botCol("TOTAL ITC", totalTax), _botCol("NET TOTAL", netTotal, isNet: true),
+            _botCol("TAXABLE", totalTaxable), 
+            _botCol("TOTAL ITC", totalTax), 
+            _botCol("NET TOTAL", netTotal, isNet: true),
           ]),
         )
       ]),
@@ -121,7 +155,14 @@ class _PurchaseSummaryViewState extends State<PurchaseSummaryView> {
         DateTime? p = await PharoahDateController.pickDate(context: context, currentFY: fy, initialDate: d); 
         if(p!=null) onPick(p); 
       },
-      child: Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(border: Border.all(color: Colors.grey.shade300), borderRadius: BorderRadius.circular(5)), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(l, style: const TextStyle(fontSize: 8, color: Colors.grey, fontWeight: FontWeight.bold)), Text(DateFormat('dd/MM/yyyy').format(d), style: const TextStyle(fontWeight: FontWeight.bold))])),
+      child: Container(
+        padding: const EdgeInsets.all(8), 
+        decoration: BoxDecoration(border: Border.all(color: Colors.grey.shade300), borderRadius: BorderRadius.circular(5)), 
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(l, style: const TextStyle(fontSize: 8, color: Colors.grey, fontWeight: FontWeight.bold)), 
+          Text(DateFormat('dd/MM/yyyy').format(d), style: const TextStyle(fontWeight: FontWeight.bold))
+        ])
+      ),
     );
   }
 
@@ -137,7 +178,11 @@ class _PurchaseSummaryViewState extends State<PurchaseSummaryView> {
         content: const Text("Are you sure you want to delete this purchase record? Stock will be adjusted back."),
         actions: [
           TextButton(onPressed: () => Navigator.pop(c), child: const Text("CANCEL")),
-          ElevatedButton(style: ElevatedButton.styleFrom(backgroundColor: Colors.red), onPressed: () { ph.deletePurchase(id); Navigator.pop(c); }, child: const Text("YES, DELETE", style: TextStyle(color: Colors.white))),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red), 
+            onPressed: () { ph.deletePurchase(id); Navigator.pop(c); }, 
+            child: const Text("YES, DELETE", style: TextStyle(color: Colors.white))
+          ),
         ],
       ),
     );
