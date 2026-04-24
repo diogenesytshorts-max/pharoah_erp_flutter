@@ -1,5 +1,3 @@
-// FILE: lib/pharoah_manager.dart
-
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
@@ -8,14 +6,13 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'models.dart';
 import 'master_data_library.dart';
 import 'demo_data.dart';
-import 'pharoah_smart_logic.dart'; // NAYA: Logic Master Import
+import 'pharoah_smart_logic.dart';
 import 'inventory_logic_center.dart';
 import 'fy_transfer_engine.dart';
 import 'app_date_logic.dart';
 import 'gateway/company_registry_model.dart';
 
 class PharoahManager with ChangeNotifier {
-  // --- CORE DATA LISTS ---
   List<Medicine> medicines = [];
   List<Party> parties = [];
   List<Sale> sales = [];
@@ -28,26 +25,18 @@ class PharoahManager with ChangeNotifier {
   List<Voucher> vouchers = [];
   Map<String, List<BatchInfo>> batchHistory = {};
 
-  // --- MULTI-COMPANY REGISTRY & SESSION ---
   List<CompanyProfile> companiesRegistry = [];
   CompanyProfile? activeCompany;
   String currentFY = "";
   bool isAdminAuthenticated = false;
 
-  PharoahManager() {
-    initRegistry();
-  }
-
-  // ===========================================================================
-  // 1. REGISTRY & SESSION CONTROL
-  // ===========================================================================
+  PharoahManager() { initRegistry(); }
 
   Future<void> initRegistry() async {
     final root = await getApplicationDocumentsDirectory();
     final file = File('${root.path}/pharoah_registry.json');
     if (await file.exists()) {
-      String content = await file.readAsString();
-      List<dynamic> list = jsonDecode(content);
+      List<dynamic> list = jsonDecode(await file.readAsString());
       companiesRegistry = list.map((e) => CompanyProfile.fromMap(e)).toList();
     }
     notifyListeners();
@@ -66,27 +55,13 @@ class PharoahManager with ChangeNotifier {
     await loadAllData(); 
   }
 
-  void authenticateAdmin(bool status) {
-    isAdminAuthenticated = status;
-    notifyListeners();
-  }
+  void authenticateAdmin(bool status) { isAdminAuthenticated = status; notifyListeners(); }
 
   void clearSession() {
-    activeCompany = null;
-    currentFY = "";
-    isAdminAuthenticated = false;
-    medicines.clear();
-    parties.clear();
-    sales.clear();
-    purchases.clear();
-    vouchers.clear();
-    batchHistory.clear();
-    notifyListeners();
+    activeCompany = null; currentFY = ""; isAdminAuthenticated = false;
+    medicines.clear(); parties.clear(); sales.clear(); purchases.clear();
+    vouchers.clear(); batchHistory.clear(); notifyListeners();
   }
-
-  // ===========================================================================
-  // 2. DATA PERSISTENCE & INVENTORY
-  // ===========================================================================
 
   Future<String> getWorkingPath() async {
     if (activeCompany == null || currentFY.isEmpty) return "";
@@ -177,43 +152,63 @@ class PharoahManager with ChangeNotifier {
 
   void _ensureBatchExists(String medKey, String batchNo, String exp, String pack, double mrp, double rate) {
     if (!batchHistory.containsKey(medKey)) batchHistory[medKey] = [];
-    bool exists = batchHistory[medKey]!.any((b) => b.batch == batchNo);
-    if (!exists) {
+    if (!batchHistory[medKey]!.any((b) => b.batch == batchNo)) {
       batchHistory[medKey]!.add(BatchInfo(batch: batchNo, exp: exp, packing: pack, mrp: mrp, rate: rate, isShell: true));
     }
   }
 
-  // ===========================================================================
-  // 3. TRANSACTIONS (Using Smart Logic Master)
-  // ===========================================================================
+  // --- RE-ADDED MISSING METHODS ---
+  Future<void> switchYear(String year) async { currentFY = year; await loadAllData(); notifyListeners(); }
+
+  void adjustBatchStock({required String medId, required String batchNo, required double adjQty, required String reason}) {
+    if (batchHistory.containsKey(medId)) {
+      try {
+        var b = batchHistory[medId]!.firstWhere((x) => x.batch == batchNo);
+        b.adjustmentQty += adjQty;
+        addLog("STOCK ADJUST", "Item: $medId, Batch: $batchNo, Qty: $adjQty");
+        save().then((_) => loadAllData());
+      } catch (e) {}
+    }
+  }
+
+  void updateBatchMetadata({required String medId, required String batchNo, required String newExp, required double newMrp, required double newRate}) {
+    if (batchHistory.containsKey(medId)) {
+      try {
+        var b = batchHistory[medId]!.firstWhere((x) => x.batch == batchNo);
+        b.exp = newExp; b.mrp = newMrp; b.rate = newRate;
+        save().then((_) => loadAllData());
+      } catch (e) {}
+    }
+  }
+
+  Future<bool> startNewFinancialYear(String nextFY) async {
+    if (activeCompany == null) return false;
+    await save();
+    bool success = await FYTransferEngine.transferData(companyID: activeCompany!.id, businessType: activeCompany!.businessType, sourceFY: currentFY, targetFY: nextFY);
+    if (success) {
+      currentFY = nextFY;
+      int idx = companiesRegistry.indexWhere((c) => c.id == activeCompany!.id);
+      if (idx != -1 && !companiesRegistry[idx].fYears.contains(nextFY)) {
+        companiesRegistry[idx].fYears.add(nextFY); await saveRegistry();
+      }
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setInt('lastBillID_${activeCompany!.id}', 0);
+      await loadAllData();
+    }
+    return success;
+  }
 
   void finalizeSale({required String billNo, required DateTime date, required Party party, required List<BillItem> items, required double total, required String mode}) {
-    // 1. Register Sale
     sales.add(Sale(id: DateTime.now().toString(), billNo: billNo, date: date, partyName: party.name, partyGstin: party.gst, partyState: party.state, items: items, totalAmount: total, paymentMode: mode));
-    
-    // 2. NAYA: Update Smart Counter in Logic Master
-    if (activeCompany != null) {
-      PharoahSmartLogic.updateCountersAfterSave(type: "SALE", usedID: billNo, companyID: activeCompany!.id);
-    }
-
+    if (activeCompany != null) PharoahSmartLogic.updateCountersAfterSave(type: "SALE", usedID: billNo, companyID: activeCompany!.id);
     save().then((_) => loadAllData()); 
   }
 
   void finalizePurchase({required String internalNo, required String billNo, required DateTime date, DateTime? entryDate, required Party party, required List<PurchaseItem> items, required double total, required String mode}) {
-    // 1. Register Purchase
     purchases.add(Purchase(id: DateTime.now().toString(), internalNo: internalNo, billNo: billNo, date: date, entryDate: entryDate ?? DateTime.now(), distributorName: party.name, items: items, totalAmount: total, paymentMode: mode));
-    
-    // 2. NAYA: Update Smart Counter in Logic Master
-    if (activeCompany != null) {
-      PharoahSmartLogic.updateCountersAfterSave(type: "PURCHASE", usedID: internalNo, companyID: activeCompany!.id);
-    }
-
+    if (activeCompany != null) PharoahSmartLogic.updateCountersAfterSave(type: "PURCHASE", usedID: internalNo, companyID: activeCompany!.id);
     save().then((_) => loadAllData()); 
   }
-
-  // ===========================================================================
-  // 4. OTHERS
-  // ===========================================================================
 
   void addVoucher(Voucher v) { vouchers.add(v); save(); }
   void addCompany(Company c) { companies.add(c); save(); }
@@ -226,7 +221,6 @@ class PharoahManager with ChangeNotifier {
   void cancelBill(String id) { int i = sales.indexWhere((s) => s.id == id); if(i != -1) { sales[i].status = "Cancelled"; loadAllData().then((_) => save()); } }
   void deletePurchase(String id) { purchases.removeWhere((p) => p.id == id); loadAllData().then((_) => save()); }
   void deleteParty(String id) { parties.removeWhere((p) => p.id == id); save(); }
-  
   Future<void> runAutoBackup() async { await save(); }
   Future<void> masterReset() async { final dir = await getWorkingPath(); final d = Directory(dir); if(d.existsSync()) d.deleteSync(recursive: true); await loadAllData(); }
 }
