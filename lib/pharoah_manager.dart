@@ -297,14 +297,23 @@ class PharoahManager with ChangeNotifier {
   }
 
   Future<bool> startNewFinancialYear(String nextFY) async {
-    await save();
-    bool success = await FYTransferEngine.transferData(sourceFY: currentFY, targetFY: nextFY);
+    if (activeCompany == null) return false;
+
+    await save(); // Purana data save karo pehle
+    
+    // Naya Engine Call
+    bool success = await FYTransferEngine.transferData(
+      companyID: activeCompany!.id,
+      businessType: activeCompany!.businessType,
+      sourceFY: currentFY,
+      targetFY: nextFY,
+    );
+
     if (success) {
+      // Registry update (Already handled in Control Panel view)
       currentFY = nextFY;
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString('fy', nextFY);
-      await prefs.setInt('lastBillID', 0);
       await loadAllData();
+      notifyListeners();
     }
     return success;
   }
