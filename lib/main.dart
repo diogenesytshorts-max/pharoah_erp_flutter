@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'pharoah_manager.dart';
 import 'dashboard_view.dart';
-import 'setup_view.dart'; // <-- YE LINE THEEK KI GAYI HAI
-import 'login_view.dart';
+import 'gateway/multi_setup_view.dart'; // Nayi file Step 3 mein banayenge
+import 'gateway/company_list_screen.dart'; // Nayi file Step 4 mein banayenge
+import 'gateway/company_control_panel.dart'; // Nayi file Step 5 mein banayenge
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -16,36 +16,13 @@ void main() async {
   );
 }
 
-class MyApp extends StatefulWidget {
+class MyApp extends StatelessWidget {
   const MyApp({super.key});
-  @override State<MyApp> createState() => _MyAppState();
-}
-
-class _MyAppState extends State<MyApp> {
-  bool isSetupDone = false;
-  bool isLoggedIn = false;
-  bool isLoading = true;
-
-  @override
-  void initState() {
-    super.initState();
-    _checkInitialState();
-  }
-
-  Future<void> _checkInitialState() async {
-    final prefs = await SharedPreferences.getInstance();
-    setState(() {
-      isSetupDone = prefs.getBool('isSetupDone') ?? false;
-      isLoading = false;
-    });
-  }
 
   @override
   Widget build(BuildContext context) {
-    if (isLoading) return const MaterialApp(home: Scaffold(body: Center(child: CircularProgressIndicator())));
-
     return MaterialApp(
-      key: UniqueKey(),
+      key: UniqueKey(), // Aapka purana logic preserved
       title: 'Pharoah ERP',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
@@ -58,11 +35,37 @@ class _MyAppState extends State<MyApp> {
         ),
         appBarTheme: const AppBarTheme(centerTitle: false, elevation: 0),
       ),
-      home: !isSetupDone 
-          ? SetupView(onComplete: () => setState(() => isSetupDone = true))
-          : (!isLoggedIn 
-              ? LoginView(onLogin: () => setState(() => isLoggedIn = true)) 
-              : DashboardView(onLogout: () => setState(() => isLoggedIn = false))),
+      // Hume ab traffic control karne ke liye AppGateway chahiye
+      home: const AppGateway(),
     );
+  }
+}
+
+class AppGateway extends StatelessWidget {
+  const AppGateway({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final ph = Provider.of<PharoahManager>(context);
+
+    // STEP 1: Agar ek bhi company nahi hai toh Setup dikhao
+    if (ph.companiesRegistry.isEmpty) {
+      return MultiSetupView(isFirstRun: true);
+    }
+
+    // STEP 2: Agar company select nahi hui hai toh Selection Screen dikhao
+    if (ph.activeCompany == null) {
+      return const CompanyListScreen();
+    }
+
+    // STEP 3: Agar company select ho gayi par saal (FY) select nahi hua toh Control Panel dikhao
+    if (ph.currentFY.isEmpty) {
+      return const CompanyControlPanelView();
+    }
+
+    // STEP 4: Sab kuch set hai toh seedha Dashboard kholo
+    return DashboardView(onLogout: () {
+      ph.clearSession(); // Logout karne par wapas company list par
+    });
   }
 }
