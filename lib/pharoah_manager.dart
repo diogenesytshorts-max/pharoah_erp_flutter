@@ -1,3 +1,5 @@
+// FILE: lib/pharoah_manager.dart
+
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
@@ -30,6 +32,9 @@ class PharoahManager with ChangeNotifier {
   List<CompanyProfile> companiesRegistry = [];
   CompanyProfile? activeCompany;
   String currentFY = "";
+  
+  // NAYA: Admin Authentication State
+  bool isAdminAuthenticated = false;
 
   PharoahManager() {
     initRegistry();
@@ -75,9 +80,16 @@ class PharoahManager with ChangeNotifier {
     await loadAllData(); 
   }
 
+  // NAYA: Authentication toggle
+  void authenticateAdmin(bool status) {
+    isAdminAuthenticated = status;
+    notifyListeners();
+  }
+
   void clearSession() {
     activeCompany = null;
     currentFY = "";
+    isAdminAuthenticated = false; // Reset Admin Security
     medicines.clear();
     parties.clear();
     sales.clear();
@@ -87,7 +99,6 @@ class PharoahManager with ChangeNotifier {
     notifyListeners();
   }
 
-  // NAYA: FY switcher logic for legacy screens
   Future<void> switchYear(String year) async {
     currentFY = year;
     await loadAllData();
@@ -162,7 +173,7 @@ class PharoahManager with ChangeNotifier {
   }
 
   // ===========================================================================
-  // 5. CORE INVENTORY ENGINE
+  // 5. CORE INVENTORY ENGINE (Exactly as per your old code)
   // ===========================================================================
 
   void _rebuildInventoryRegistry() {
@@ -207,7 +218,7 @@ class PharoahManager with ChangeNotifier {
   }
 
   // ===========================================================================
-  // 6. BATCH & STOCK SPECIALS (NEW)
+  // 6. BATCH & STOCK SPECIALS
   // ===========================================================================
   void adjustBatchStock({required String medId, required String batchNo, required double adjQty, required String reason}) {
     if (batchHistory.containsKey(medId)) {
@@ -249,7 +260,7 @@ class PharoahManager with ChangeNotifier {
     for (var it in items) {
       String key = _getMedIdentityKey(it.medicineID, it.name);
       _ensureBatchExists(key, it.batch, it.exp, it.packing, it.mrp, it.purchaseRate);
-      var b = batchHistory[key]!.firstWhere((x) => x.batch == it.batch);
+      var b = batchHistory[key]!.firstWhere((x) => x.batch == item.batch);
       b.mrp = it.mrp; b.rate = it.purchaseRate; b.exp = it.exp; b.isShell = false;
       try {
         var med = medicines.firstWhere((m) => m.identityKey == key);
