@@ -1,10 +1,13 @@
+// FILE: lib/purchase/purchase_entry_view.dart
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import '../pharoah_manager.dart';
 import '../models.dart';
 import '../party_master.dart';
-import '../pharoah_date_controller.dart'; // NAYA: Master Lock Connection
+import '../pharoah_date_controller.dart'; 
+import '../pharoah_smart_logic.dart'; // NAYA: Logic Master Connection
 import 'purchase_billing_view.dart';
 
 class PurchaseEntryView extends StatefulWidget {
@@ -31,9 +34,11 @@ class _PurchaseEntryViewState extends State<PurchaseEntryView> {
   }
 
   void _initializePurchaseSession() {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
       final ph = Provider.of<PharoahManager>(context, listen: false);
+      
       if (widget.existingPurchase != null) {
+        // CASE: Modifying existing Purchase
         setState(() {
           supplierBillNoC.text = widget.existingPurchase!.billNo;
           internalEntryNoC.text = widget.existingPurchase!.internalNo;
@@ -46,13 +51,18 @@ class _PurchaseEntryViewState extends State<PurchaseEntryView> {
           );
         });
       } else {
-        internalEntryNoC.text = "PUR-${DateTime.now().millisecondsSinceEpoch.toString().substring(7)}";
-        // NAYA: FY Smart Default
-        DateTime smartDate = PharoahDateController.getInitialBillDate(ph.currentFY);
-        setState(() {
-          selectedBillDate = smartDate;
-          selectedEntryDate = smartDate;
-        });
+        // CASE: New Purchase Entry
+        if (ph.activeCompany != null) {
+          // NAYA: Smart Logic se Company-Specific Purchase ID mangna
+          String nextPurNo = await PharoahSmartLogic.getNextPurchaseNumber(ph.activeCompany!.id);
+          internalEntryNoC.text = nextPurNo;
+          
+          DateTime smartDate = PharoahDateController.getInitialBillDate(ph.currentFY);
+          setState(() {
+            selectedBillDate = smartDate;
+            selectedEntryDate = smartDate;
+          });
+        }
       }
     });
   }
@@ -76,6 +86,7 @@ class _PurchaseEntryViewState extends State<PurchaseEntryView> {
         child: Column(children: [
           Container(padding: const EdgeInsets.all(20), color: Colors.white, child: Column(children: [
             Row(children: [
+              // INTERNAL ID (e.g. PUR-1) - Managed by Smart Logic
               Expanded(child: TextField(controller: internalEntryNoC, enabled: false, decoration: const InputDecoration(labelText: "ENTRY ID", border: OutlineInputBorder(), filled: true, fillColor: Color(0xFFF5F5F5)))),
               const SizedBox(width: 15),
               Expanded(child: TextField(controller: supplierBillNoC, textCapitalization: TextCapitalization.characters, decoration: const InputDecoration(labelText: "SUPPLIER BILL NO", border: OutlineInputBorder()))),
@@ -84,7 +95,6 @@ class _PurchaseEntryViewState extends State<PurchaseEntryView> {
             Row(children: [
               Expanded(child: InkWell(
                 onTap: () async { 
-                  // NAYA: PickDate with FY Range Lock
                   DateTime? p = await PharoahDateController.pickDate(context: context, currentFY: ph.currentFY, initialDate: selectedBillDate);
                   if (p != null) setState(() => selectedBillDate = p); 
                 }, 
@@ -93,7 +103,6 @@ class _PurchaseEntryViewState extends State<PurchaseEntryView> {
               const SizedBox(width: 10),
               Expanded(child: InkWell(
                 onTap: () async { 
-                  // NAYA: PickDate with FY Range Lock
                   DateTime? p = await PharoahDateController.pickDate(context: context, currentFY: ph.currentFY, initialDate: selectedEntryDate);
                   if (p != null) setState(() => selectedEntryDate = p); 
                 }, 
