@@ -1,8 +1,11 @@
+// FILE: lib/purchase/purchase_billing_view.dart
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../pharoah_manager.dart';
 import '../models.dart';
-import '../product_master.dart'; // NAYA
+import '../product_master.dart'; 
+import '../pdf/purchase_pdf.dart'; // NAYA: Print ke liye
 import 'package:intl/intl.dart';
 
 class PurchaseBillingView extends StatefulWidget {
@@ -38,6 +41,15 @@ class _PurchaseBillingViewState extends State<PurchaseBillingView> {
   void initState() {
     super.initState();
     if (widget.existingItems != null) items = List.from(widget.existingItems!);
+  }
+
+  // NAYA: Serial Number auto-fixer logic
+  void _recalculateSR() {
+    setState(() {
+      for (int i = 0; i < items.length; i++) {
+        items[i] = items[i].copyWith(srNo: i + 1);
+      }
+    });
   }
 
   void _showItemSearchSheet(PharoahManager ph, {PurchaseItem? itemToEdit}) {
@@ -92,7 +104,6 @@ class _PurchaseBillingViewState extends State<PurchaseBillingView> {
                             ),
                           ),
                           const SizedBox(width: 10),
-                          // NAYA: Quick Add Product
                           IconButton.filled(
                             onPressed: () async {
                               final result = await Navigator.push(
@@ -100,13 +111,11 @@ class _PurchaseBillingViewState extends State<PurchaseBillingView> {
                                 MaterialPageRoute(builder: (c) => const ProductMasterView(isSelectionMode: true)),
                               );
                               if (result != null && result is Medicine) {
-                                setSheetState(() {
-                                  selectedMed = result;
-                                });
+                                setSheetState(() => selectedMed = result);
                               }
                             },
                             icon: const Icon(Icons.library_add_rounded),
-                            style: IconButton.styleFrom(backgroundColor: Colors.orange.shade900, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
+                            style: IconButton.styleFrom(backgroundColor: Colors.orange.shade900),
                           )
                         ],
                       ),
@@ -164,7 +173,7 @@ class _PurchaseBillingViewState extends State<PurchaseBillingView> {
         foregroundColor: Colors.white,
         title: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text(widget.distributor.name, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
-          Text(widget.isReadOnly ? "READ ONLY VIEW" : "Bill: ${widget.distBillNo} | ID: ${widget.internalNo}", style: const TextStyle(fontSize: 10))
+          Text(widget.isReadOnly ? "VIEWING PURCHASE" : "Bill: ${widget.distBillNo} | ID: ${widget.internalNo}", style: const TextStyle(fontSize: 10))
         ]),
         actions: [
           if (!widget.isReadOnly) 
@@ -176,7 +185,7 @@ class _PurchaseBillingViewState extends State<PurchaseBillingView> {
       body: Column(children: [
         Expanded(
           child: items.isEmpty
-              ? const Center(child: Text("No items to display"))
+              ? const Center(child: Text("No items added yet"))
               : ListView.builder(
                   padding: const EdgeInsets.all(10),
                   itemCount: items.length,
@@ -204,11 +213,19 @@ class _PurchaseBillingViewState extends State<PurchaseBillingView> {
   Widget _buildItemCard(PurchaseItem it, int index, PharoahManager ph) => Card(
     elevation: 2, margin: const EdgeInsets.symmetric(vertical: 5),
     child: ListTile(
+      // NAYA: Visual SR Number
+      leading: CircleAvatar(
+        backgroundColor: Colors.orange.shade50, 
+        child: Text("${it.srNo}", style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.deepOrange))
+      ),
       title: Text(it.name, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.deepOrange)),
       subtitle: Text("Batch: ${it.batch} | Qty: ${it.qty.toInt()} | Pur.Rate: ₹${it.purchaseRate.toStringAsFixed(2)}"),
       trailing: Text("₹${it.total.toStringAsFixed(2)}", style: const TextStyle(fontWeight: FontWeight.bold)),
       onTap: widget.isReadOnly ? null : () => _showItemSearchSheet(ph, itemToEdit: it),
-      onLongPress: widget.isReadOnly ? null : () => setState(() => items.removeAt(index)),
+      onLongPress: widget.isReadOnly ? null : () {
+        setState(() { items.removeAt(index); });
+        _recalculateSR(); // SR auto-fix after delete
+      },
     ),
   );
 
@@ -219,7 +236,9 @@ class _PurchaseBillingViewState extends State<PurchaseBillingView> {
   }
 }
 
-// NOTE: PurchaseItemEntryCard and PurchaseItemEntryCardState code below is same as before, keeping file complete
+// =============================================================================
+// PURCHASE ITEM ENTRY CARD
+// =============================================================================
 class PurchaseItemEntryCard extends StatefulWidget {
   final Medicine med;
   final int srNo;
