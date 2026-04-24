@@ -8,7 +8,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'models.dart';
 import 'master_data_library.dart';
 import 'demo_data.dart';
-import 'sale_bill_number.dart';
+import 'pharoah_smart_logic.dart'; // NAYA: Logic Master Import
 import 'inventory_logic_center.dart';
 import 'fy_transfer_engine.dart';
 import 'app_date_logic.dart';
@@ -32,8 +32,6 @@ class PharoahManager with ChangeNotifier {
   List<CompanyProfile> companiesRegistry = [];
   CompanyProfile? activeCompany;
   String currentFY = "";
-  
-  // NAYA: Admin Authentication State
   bool isAdminAuthenticated = false;
 
   PharoahManager() {
@@ -41,7 +39,7 @@ class PharoahManager with ChangeNotifier {
   }
 
   // ===========================================================================
-  // 1. REGISTRY & DYNAMIC PATH LOGIC
+  // 1. REGISTRY & SESSION CONTROL
   // ===========================================================================
 
   Future<void> initRegistry() async {
@@ -62,25 +60,12 @@ class PharoahManager with ChangeNotifier {
     notifyListeners();
   }
 
-  Future<String> getWorkingPath() async {
-    if (activeCompany == null || currentFY.isEmpty) return "";
-    final root = await getApplicationDocumentsDirectory();
-    final dir = Directory('${root.path}/Pharoah_Data/${activeCompany!.id}/${activeCompany!.businessType}/$currentFY');
-    if (!await dir.exists()) await dir.create(recursive: true);
-    return dir.path;
-  }
-
-  // ===========================================================================
-  // 2. SESSION CONTROL
-  // ===========================================================================
-
   Future<void> loginToCompany(CompanyProfile comp, String fy) async {
     activeCompany = comp;
     currentFY = fy;
     await loadAllData(); 
   }
 
-  // NAYA: Authentication toggle
   void authenticateAdmin(bool status) {
     isAdminAuthenticated = status;
     notifyListeners();
@@ -89,7 +74,7 @@ class PharoahManager with ChangeNotifier {
   void clearSession() {
     activeCompany = null;
     currentFY = "";
-    isAdminAuthenticated = false; // Reset Admin Security
+    isAdminAuthenticated = false;
     medicines.clear();
     parties.clear();
     sales.clear();
@@ -99,30 +84,17 @@ class PharoahManager with ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> switchYear(String year) async {
-    currentFY = year;
-    await loadAllData();
-    notifyListeners();
+  // ===========================================================================
+  // 2. DATA PERSISTENCE & INVENTORY
+  // ===========================================================================
+
+  Future<String> getWorkingPath() async {
+    if (activeCompany == null || currentFY.isEmpty) return "";
+    final root = await getApplicationDocumentsDirectory();
+    final dir = Directory('${root.path}/Pharoah_Data/${activeCompany!.id}/${activeCompany!.businessType}/$currentFY');
+    if (!await dir.exists()) await dir.create(recursive: true);
+    return dir.path;
   }
-
-  // ===========================================================================
-  // 3. COMPANY-SPECIFIC ID GENERATOR
-  // ===========================================================================
-  Future<String> generateNewMedicineId() async {
-    if (activeCompany == null) return "PH-ERROR";
-    final prefs = await SharedPreferences.getInstance();
-    String key = 'med_counter_${activeCompany!.id}';
-    int lastCounter = prefs.getInt(key) ?? 10000;
-    int newCounter = lastCounter + 1;
-    await prefs.setInt(key, newCounter);
-    return "PH-$newCounter";
-  }
-
-  String generateCompanyID() => "PH-C-${DateTime.now().millisecondsSinceEpoch.toString().substring(7)}";
-
-  // ===========================================================================
-  // 4. DATA PERSISTENCE
-  // ===========================================================================
 
   Future<void> save() async {
     final dir = await getWorkingPath();
@@ -172,14 +144,8 @@ class PharoahManager with ChangeNotifier {
     notifyListeners();
   }
 
-  // ===========================================================================
-  // 5. CORE INVENTORY ENGINE (Exactly as per your old code)
-  // ===========================================================================
-
   void _rebuildInventoryRegistry() {
-    batchHistory.forEach((medId, list) {
-      for (var b in list) { b.qty = b.openingQty + b.adjustmentQty; }
-    });
+    batchHistory.forEach((medId, list) { for (var b in list) { b.qty = b.openingQty + b.adjustmentQty; } });
     for (var pur in purchases) {
       for (var item in pur.items) {
         String key = _getMedIdentityKey(item.medicineID, item.name);
@@ -218,94 +184,37 @@ class PharoahManager with ChangeNotifier {
   }
 
   // ===========================================================================
-  // 6. BATCH & STOCK SPECIALS
-  // ===========================================================================
-  void adjustBatchStock({required String medId, required String batchNo, required double adjQty, required String reason}) {
-    if (batchHistory.containsKey(medId)) {
-      try {
-        var b = batchHistory[medId]!.firstWhere((x) => x.batch == batchNo);
-        b.adjustmentQty += adjQty;
-        addLog("STOCK ADJUST", "Item: $medId, Batch: $batchNo, Qty: $adjQty");
-        save().then((_) => loadAllData());
-      } catch (e) {}
-    }
-  }
-
-  void updateBatchMetadata({required String medId, required String batchNo, required String newExp, required double newMrp, required double newRate}) {
-    if (batchHistory.containsKey(medId)) {
-      try {
-        var b = batchHistory[medId]!.firstWhere((x) => x.batch == batchNo);
-        b.exp = newExp; b.mrp = newMrp; b.rate = newRate;
-        save().then((_) => loadAllData());
-      } catch (e) {}
-    }
-  }
-
-  // ===========================================================================
-  // 7. TRANSACTIONS
+  // 3. TRANSACTIONS (Using Smart Logic Master)
   // ===========================================================================
 
   void finalizeSale({required String billNo, required DateTime date, required Party party, required List<BillItem> items, required double total, required String mode}) {
-    SaleBillNumber.incrementIfNecessary(billNo);
+    // 1. Register Sale
     sales.add(Sale(id: DateTime.now().toString(), billNo: billNo, date: date, partyName: party.name, partyGstin: party.gst, partyState: party.state, items: items, totalAmount: total, paymentMode: mode));
-    for (var it in items) {
-      String key = _getMedIdentityKey(it.medicineID, it.name);
-      _ensureBatchExists(key, it.batch, it.exp, it.packing, it.mrp, it.rate);
+    
+    // 2. NAYA: Update Smart Counter in Logic Master
+    if (activeCompany != null) {
+      PharoahSmartLogic.updateCountersAfterSave(type: "SALE", usedID: billNo, companyID: activeCompany!.id);
     }
+
     save().then((_) => loadAllData()); 
   }
 
   void finalizePurchase({required String internalNo, required String billNo, required DateTime date, DateTime? entryDate, required Party party, required List<PurchaseItem> items, required double total, required String mode}) {
+    // 1. Register Purchase
     purchases.add(Purchase(id: DateTime.now().toString(), internalNo: internalNo, billNo: billNo, date: date, entryDate: entryDate ?? DateTime.now(), distributorName: party.name, items: items, totalAmount: total, paymentMode: mode));
-    for (var it in items) {
-      String key = _getMedIdentityKey(it.medicineID, it.name);
-      _ensureBatchExists(key, it.batch, it.exp, it.packing, it.mrp, it.purchaseRate);
-      var b = batchHistory[key]!.firstWhere((x) => x.batch == item.batch);
-      b.mrp = it.mrp; b.rate = it.purchaseRate; b.exp = it.exp; b.isShell = false;
-      try {
-        var med = medicines.firstWhere((m) => m.identityKey == key);
-        med.purRate = it.purchaseRate; med.mrp = it.mrp;
-      } catch(e) {}
+    
+    // 2. NAYA: Update Smart Counter in Logic Master
+    if (activeCompany != null) {
+      PharoahSmartLogic.updateCountersAfterSave(type: "PURCHASE", usedID: internalNo, companyID: activeCompany!.id);
     }
+
     save().then((_) => loadAllData()); 
   }
 
   // ===========================================================================
-  // 8. YEAR END & SYSTEM RESET
+  // 4. OTHERS
   // ===========================================================================
 
-  Future<bool> startNewFinancialYear(String nextFY) async {
-    if (activeCompany == null) return false;
-    await save();
-    bool success = await FYTransferEngine.transferData(companyID: activeCompany!.id, businessType: activeCompany!.businessType, sourceFY: currentFY, targetFY: nextFY);
-    if (success) {
-      currentFY = nextFY;
-      int idx = companiesRegistry.indexWhere((c) => c.id == activeCompany!.id);
-      if (idx != -1) {
-        if (!companiesRegistry[idx].fYears.contains(nextFY)) {
-          companiesRegistry[idx].fYears.add(nextFY);
-          await saveRegistry();
-        }
-      }
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setInt('lastBillID_${activeCompany!.id}', 0);
-      await loadAllData();
-    }
-    return success;
-  }
-
-  Future<void> masterReset() async { 
-    final dir = await getWorkingPath(); 
-    if(dir.isNotEmpty) {
-       final d = Directory(dir); 
-       if(d.existsSync()) d.deleteSync(recursive: true); 
-    }
-    await loadAllData(); 
-  }
-
-  // ===========================================================================
-  // 9. OTHERS
-  // ===========================================================================
   void addVoucher(Voucher v) { vouchers.add(v); save(); }
   void addCompany(Company c) { companies.add(c); save(); }
   void addSalt(Salt s) { salts.add(s); save(); }
@@ -314,10 +223,10 @@ class PharoahManager with ChangeNotifier {
   void deleteRoute(String id) { routes.removeWhere((r) => r.id == id); save(); }
   void addLog(String action, String details) { logs.add(LogEntry(id: DateTime.now().toString(), action: action, details: details, time: DateTime.now())); save(); }
   void deleteBill(String id) { sales.removeWhere((s) => s.id == id); loadAllData().then((_) => save()); }
-  void cancelBill(String id) {
-    int i = sales.indexWhere((s) => s.id == id);
-    if(i != -1) { sales[i].status = "Cancelled"; loadAllData().then((_) => save()); }
-  }
+  void cancelBill(String id) { int i = sales.indexWhere((s) => s.id == id); if(i != -1) { sales[i].status = "Cancelled"; loadAllData().then((_) => save()); } }
   void deletePurchase(String id) { purchases.removeWhere((p) => p.id == id); loadAllData().then((_) => save()); }
   void deleteParty(String id) { parties.removeWhere((p) => p.id == id); save(); }
+  
+  Future<void> runAutoBackup() async { await save(); }
+  Future<void> masterReset() async { final dir = await getWorkingPath(); final d = Directory(dir); if(d.existsSync()) d.deleteSync(recursive: true); await loadAllData(); }
 }
