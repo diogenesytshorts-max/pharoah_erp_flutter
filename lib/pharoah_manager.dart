@@ -87,20 +87,27 @@ class PharoahManager with ChangeNotifier {
     notifyListeners();
   }
 
+  // NAYA: FY switcher logic for legacy screens
+  Future<void> switchYear(String year) async {
+    currentFY = year;
+    await loadAllData();
+    notifyListeners();
+  }
+
   // ===========================================================================
-  // 3. COMPANY-SPECIFIC ID GENERATOR (NEW)
+  // 3. COMPANY-SPECIFIC ID GENERATOR
   // ===========================================================================
   Future<String> generateNewMedicineId() async {
     if (activeCompany == null) return "PH-ERROR";
     final prefs = await SharedPreferences.getInstance();
-    
-    // Key is now prefixed with Company ID
     String key = 'med_counter_${activeCompany!.id}';
     int lastCounter = prefs.getInt(key) ?? 10000;
     int newCounter = lastCounter + 1;
     await prefs.setInt(key, newCounter);
     return "PH-$newCounter";
   }
+
+  String generateCompanyID() => "PH-C-${DateTime.now().millisecondsSinceEpoch.toString().substring(7)}";
 
   // ===========================================================================
   // 4. DATA PERSISTENCE
@@ -109,7 +116,6 @@ class PharoahManager with ChangeNotifier {
   Future<void> save() async {
     final dir = await getWorkingPath();
     if (dir.isEmpty) return;
-
     await File('$dir/meds.json').writeAsString(jsonEncode(medicines.map((e) => e.toMap()).toList()));
     await File('$dir/parts.json').writeAsString(jsonEncode(parties.map((e) => e.toMap()).toList()));
     await File('$dir/sales.json').writeAsString(jsonEncode(sales.map((e) => e.toMap()).toList()));
@@ -127,41 +133,30 @@ class PharoahManager with ChangeNotifier {
   Future<void> loadAllData() async {
     final dir = await getWorkingPath();
     if (dir.isEmpty) return;
-
     dynamic loadJson(String name) {
       final f = File('$dir/$name');
       return f.existsSync() ? jsonDecode(f.readAsStringSync()) : null;
     }
-
     if (File('$dir/meds.json').existsSync()) {
       medicines = (loadJson('meds.json') as List).map((e) => Medicine.fromMap(e)).toList();
     } else {
       medicines = DemoData.getMedicines(); 
     }
-
     parties = (loadJson('parts.json') as List?)?.map((e) => Party.fromMap(e)).toList() ?? 
               [DemoData.getDemoParty(), Party(id: 'cash', name: "CASH", group: "Cash in Hand")];
-
     sales = (loadJson('sales.json') as List?)?.map((e) => Sale.fromMap(e)).toList() ?? [];
     purchases = (loadJson('purc.json') as List?)?.map((e) => Purchase.fromMap(e)).toList() ?? [];
     vouchers = (loadJson('vouc.json') as List?)?.map((e) => Voucher.fromMap(e)).toList() ?? [];
     logs = (loadJson('logs.json') as List?)?.map((e) => LogEntry.fromMap(e)).toList() ?? [];
-    
-    companies = (loadJson('comps.json') as List?)?.map((e) => Company.fromMap(e)).toList() ?? 
-                MasterDataLibrary.topCompanies.map((n) => Company(id: n, name: n)).toList();
-    salts = (loadJson('salts.json') as List?)?.map((e) => Salt.fromMap(e)).toList() ?? 
-            MasterDataLibrary.topSalts.map((s) => Salt(id: s['name']!, name: s['name']!, type: s['type']!)).toList();
-    drugTypes = (loadJson('dtypes.json') as List?)?.map((e) => DrugType.fromMap(e)).toList() ?? 
-                MasterDataLibrary.drugTypes.map((n) => DrugType(id: n, name: n)).toList();
-    routes = (loadJson('routs.json') as List?)?.map((e) => RouteArea.fromMap(e)).toList() ?? 
-             [RouteArea(id: '1', name: "LOCAL AREA")];
-
+    companies = (loadJson('comps.json') as List?)?.map((e) => Company.fromMap(e)).toList() ?? MasterDataLibrary.topCompanies.map((n) => Company(id: n, name: n)).toList();
+    salts = (loadJson('salts.json') as List?)?.map((e) => Salt.fromMap(e)).toList() ?? MasterDataLibrary.topSalts.map((s) => Salt(id: s['name']!, name: s['name']!, type: s['type']!)).toList();
+    drugTypes = (loadJson('dtypes.json') as List?)?.map((e) => DrugType.fromMap(e)).toList() ?? MasterDataLibrary.drugTypes.map((n) => DrugType(id: n, name: n)).toList();
+    routes = (loadJson('routs.json') as List?)?.map((e) => RouteArea.fromMap(e)).toList() ?? [RouteArea(id: '1', name: "LOCAL AREA")];
     var bD = loadJson('bats.json');
     if (bD != null) {
       batchHistory.clear();
       (bD as Map).forEach((k, v) => batchHistory[k] = (v as List).map((b) => BatchInfo.fromMap(b)).toList());
     }
-
     _rebuildInventoryRegistry();
     notifyListeners();
   }
@@ -174,17 +169,14 @@ class PharoahManager with ChangeNotifier {
     batchHistory.forEach((medId, list) {
       for (var b in list) { b.qty = b.openingQty + b.adjustmentQty; }
     });
-
     for (var pur in purchases) {
       for (var item in pur.items) {
         String key = _getMedIdentityKey(item.medicineID, item.name);
         _ensureBatchExists(key, item.batch, item.exp, item.packing, item.mrp, item.purchaseRate);
         var b = batchHistory[key]!.firstWhere((x) => x.batch == item.batch);
-        b.qty += (item.qty + item.freeQty);
-        b.isShell = false;
+        b.qty += (item.qty + item.freeQty); b.isShell = false;
       }
     }
-
     for (var sale in sales.where((s) => s.status == "Active")) {
       for (var item in sale.items) {
         String key = _getMedIdentityKey(item.medicineID, item.name);
@@ -193,7 +185,6 @@ class PharoahManager with ChangeNotifier {
         b.qty -= (item.qty + item.freeQty);
       }
     }
-
     for (var med in medicines) {
       double total = 0;
       if (batchHistory.containsKey(med.identityKey)) {
@@ -204,27 +195,46 @@ class PharoahManager with ChangeNotifier {
   }
 
   String _getMedIdentityKey(String id, String name) {
-    try {
-      return medicines.firstWhere((m) => m.id == id || m.name == name).identityKey;
-    } catch (e) { return id; }
+    try { return medicines.firstWhere((m) => m.id == id || m.name == name).identityKey; } catch (e) { return id; }
   }
 
   void _ensureBatchExists(String medKey, String batchNo, String exp, String pack, double mrp, double rate) {
     if (!batchHistory.containsKey(medKey)) batchHistory[medKey] = [];
     bool exists = batchHistory[medKey]!.any((b) => b.batch == batchNo);
     if (!exists) {
-      batchHistory[medKey]!.add(BatchInfo(
-        batch: batchNo, exp: exp, packing: pack, mrp: mrp, rate: rate, isShell: true
-      ));
+      batchHistory[medKey]!.add(BatchInfo(batch: batchNo, exp: exp, packing: pack, mrp: mrp, rate: rate, isShell: true));
     }
   }
 
   // ===========================================================================
-  // 6. TRANSACTIONS & BATCH SPECIALS
+  // 6. BATCH & STOCK SPECIALS (NEW)
+  // ===========================================================================
+  void adjustBatchStock({required String medId, required String batchNo, required double adjQty, required String reason}) {
+    if (batchHistory.containsKey(medId)) {
+      try {
+        var b = batchHistory[medId]!.firstWhere((x) => x.batch == batchNo);
+        b.adjustmentQty += adjQty;
+        addLog("STOCK ADJUST", "Item: $medId, Batch: $batchNo, Qty: $adjQty");
+        save().then((_) => loadAllData());
+      } catch (e) {}
+    }
+  }
+
+  void updateBatchMetadata({required String medId, required String batchNo, required String newExp, required double newMrp, required double newRate}) {
+    if (batchHistory.containsKey(medId)) {
+      try {
+        var b = batchHistory[medId]!.firstWhere((x) => x.batch == batchNo);
+        b.exp = newExp; b.mrp = newMrp; b.rate = newRate;
+        save().then((_) => loadAllData());
+      } catch (e) {}
+    }
+  }
+
+  // ===========================================================================
+  // 7. TRANSACTIONS
   // ===========================================================================
 
   void finalizeSale({required String billNo, required DateTime date, required Party party, required List<BillItem> items, required double total, required String mode}) {
-    // Note: SaleBillNumber class also needs prefixing (handled in its own file)
     SaleBillNumber.incrementIfNecessary(billNo);
     sales.add(Sale(id: DateTime.now().toString(), billNo: billNo, date: date, partyName: party.name, partyGstin: party.gst, partyState: party.state, items: items, totalAmount: total, paymentMode: mode));
     for (var it in items) {
@@ -249,37 +259,16 @@ class PharoahManager with ChangeNotifier {
     save().then((_) => loadAllData()); 
   }
 
-  void adjustBatchStock({required String medId, required String batchNo, required double adjQty, required String reason}) {
-    if (batchHistory.containsKey(medId)) {
-      try {
-        var b = batchHistory[medId]!.firstWhere((x) => x.batch == batchNo);
-        b.adjustmentQty += adjQty;
-        addLog("STOCK ADJUST", "Item: $medId, Batch: $batchNo, Qty: $adjQty, Reason: $reason");
-        save().then((_) => loadAllData());
-      } catch (e) {}
-    }
-  }
-
   // ===========================================================================
-  // 7. YEAR END & SYSTEM RESET
+  // 8. YEAR END & SYSTEM RESET
   // ===========================================================================
 
   Future<bool> startNewFinancialYear(String nextFY) async {
     if (activeCompany == null) return false;
     await save();
-    
-    bool success = await FYTransferEngine.transferData(
-      companyID: activeCompany!.id,
-      businessType: activeCompany!.businessType,
-      sourceFY: currentFY,
-      targetFY: nextFY
-    );
-
+    bool success = await FYTransferEngine.transferData(companyID: activeCompany!.id, businessType: activeCompany!.businessType, sourceFY: currentFY, targetFY: nextFY);
     if (success) {
-      // 1. Memory Update
       currentFY = nextFY;
-      
-      // 2. Registry Update (Persistent)
       int idx = companiesRegistry.indexWhere((c) => c.id == activeCompany!.id);
       if (idx != -1) {
         if (!companiesRegistry[idx].fYears.contains(nextFY)) {
@@ -287,11 +276,8 @@ class PharoahManager with ChangeNotifier {
           await saveRegistry();
         }
       }
-
-      // 3. Reset Bill ID for the NEW Year (Company Specific)
       final prefs = await SharedPreferences.getInstance();
       await prefs.setInt('lastBillID_${activeCompany!.id}', 0);
-      
       await loadAllData();
     }
     return success;
@@ -307,7 +293,7 @@ class PharoahManager with ChangeNotifier {
   }
 
   // ===========================================================================
-  // 8. OTHERS
+  // 9. OTHERS
   // ===========================================================================
   void addVoucher(Voucher v) { vouchers.add(v); save(); }
   void addCompany(Company c) { companies.add(c); save(); }
@@ -323,6 +309,4 @@ class PharoahManager with ChangeNotifier {
   }
   void deletePurchase(String id) { purchases.removeWhere((p) => p.id == id); loadAllData().then((_) => save()); }
   void deleteParty(String id) { parties.removeWhere((p) => p.id == id); save(); }
-  
-  String generateCompanyID() => "PH-C-${DateTime.now().millisecondsSinceEpoch.toString().substring(7)}";
 }
