@@ -3,7 +3,7 @@ import 'package:provider/provider.dart';
 import '../pharoah_manager.dart';
 import 'company_registry_model.dart';
 import 'multi_setup_view.dart';
-import 'company_control_panel.dart'; // Naya Step 5 mein banayenge
+import 'export_service.dart'; // Naya Service Import
 
 class CompanyListScreen extends StatefulWidget {
   const CompanyListScreen({super.key});
@@ -48,13 +48,10 @@ class _CompanyListScreenState extends State<CompanyListScreen> {
               child: ElevatedButton(
                 style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF0D47A1), foregroundColor: Colors.white),
                 onPressed: () {
-                  // Password Match Logic (Company specific OR Master Key)
                   if (passC.text == comp.password || passC.text == "Rawat") {
                     Navigator.pop(c);
-                    // Manager ko batana ki ye company ab active hai
                     ph.activeCompany = comp;
                     ph.notifyListeners(); 
-                    // Main.dart automatic Stage 3 (Control Panel) par le jayega
                   } else {
                     ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Incorrect Password!"), backgroundColor: Colors.red));
                   }
@@ -77,10 +74,24 @@ class _CompanyListScreenState extends State<CompanyListScreen> {
     return Scaffold(
       backgroundColor: const Color(0xFFF8F9FD),
       appBar: AppBar(
-        title: const Text("Select Company / Firm", style: TextStyle(fontWeight: FontWeight.bold)),
+        title: const Text("Pharoah ERP Gateway", style: TextStyle(fontWeight: FontWeight.bold)),
         backgroundColor: const Color(0xFF0D47A1),
         foregroundColor: Colors.white,
         actions: [
+          // --- NAYA: IMPORT COMPANY BUTTON ---
+          IconButton(
+            icon: const Icon(Icons.file_download_outlined, size: 26),
+            tooltip: "Import Company Backup",
+            onPressed: () async {
+              bool success = await ExportService(ph).importCompany();
+              if (success) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text("✅ Company Imported Successfully!"), backgroundColor: Colors.green),
+                );
+              }
+            },
+          ),
+          // --- ADD COMPANY BUTTON ---
           IconButton(
             icon: const Icon(Icons.add_business_rounded, size: 28),
             onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (c) => const MultiSetupView(isFirstRun: false))),
@@ -112,7 +123,7 @@ class _CompanyListScreenState extends State<CompanyListScreen> {
           // --- COMPANY CARDS ---
           Expanded(
             child: list.isEmpty
-                ? const Center(child: Text("No companies found. Create one!"))
+                ? const Center(child: Text("No companies found. Create or Import one!"))
                 : ListView.builder(
                     padding: const EdgeInsets.all(15),
                     itemCount: list.length,
