@@ -3,7 +3,8 @@ import 'package:provider/provider.dart';
 import '../pharoah_manager.dart';
 import 'company_registry_model.dart';
 import 'maintenance_service.dart';
-import 'modify_company_view.dart'; // Naya view jo humne banaya
+import 'modify_company_view.dart';
+import 'export_service.dart'; // NAYA: Service connect kar di
 
 class CompanyControlPanelView extends StatefulWidget {
   const CompanyControlPanelView({super.key});
@@ -21,7 +22,6 @@ class _CompanyControlPanelViewState extends State<CompanyControlPanelView> {
   void _runMaintenance(PharoahManager ph) async {
     String path = await ph.getWorkingPath();
     if (path.isEmpty) {
-      // Agar rasta nahi mila, toh pehle login karwao
       final fy = ph.activeCompany?.fYears.first ?? "2025-26";
       await ph.loginToCompany(ph.activeCompany!, fy);
       path = await ph.getWorkingPath();
@@ -44,7 +44,7 @@ class _CompanyControlPanelViewState extends State<CompanyControlPanelView> {
     if (mounted) setState(() => isMaintenanceRunning = false);
   }
 
-  // --- 2. NEW YEAR SETUP LOGIC (ZAROORI) ---
+  // --- 2. NEW YEAR SETUP LOGIC ---
   void _showNewYearDialog(PharoahManager ph) {
     final fyC = TextEditingController();
     showDialog(
@@ -68,16 +68,8 @@ class _CompanyControlPanelViewState extends State<CompanyControlPanelView> {
             onPressed: () async {
               if (fyC.text.isEmpty) return;
               Navigator.pop(c);
-              
-              // Asli transfer engine call karna
               bool ok = await ph.startNewFinancialYear(fyC.text.trim());
               if (ok) {
-                // Registry update karna naye saal ke saath
-                int idx = ph.companiesRegistry.indexWhere((comp) => comp.id == ph.activeCompany!.id);
-                if (!ph.companiesRegistry[idx].fYears.contains(fyC.text.trim())) {
-                  ph.companiesRegistry[idx].fYears.add(fyC.text.trim());
-                  await ph.saveRegistry();
-                }
                 ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("✅ New Year Created Successfully!")));
               }
             },
@@ -90,7 +82,6 @@ class _CompanyControlPanelViewState extends State<CompanyControlPanelView> {
 
   // --- 3. LOGIN LOGIC ---
   void _showFYLoginDialog(PharoahManager ph) {
-    // Agar dukan nayi hai, toh 2025-26 default dikhao
     List<String> years = ph.activeCompany?.fYears ?? [];
     if (years.isEmpty) years = ["2025-26"];
 
@@ -108,8 +99,14 @@ class _CompanyControlPanelViewState extends State<CompanyControlPanelView> {
               leading: const Icon(Icons.calendar_today, color: Color(0xFF0D47A1)),
               title: Text(fy, style: const TextStyle(fontWeight: FontWeight.bold)),
               trailing: const Icon(Icons.login_rounded, color: Colors.green),
-              onTap: () {
+              onTap: () async {
                 Navigator.pop(c);
+                // NAYA: Pehle saal login hote hi registry mein saal add karna (agar missing ho)
+                if (!ph.activeCompany!.fYears.contains(fy)) {
+                   int idx = ph.companiesRegistry.indexWhere((comp) => comp.id == ph.activeCompany!.id);
+                   ph.companiesRegistry[idx].fYears.add(fy);
+                   await ph.saveRegistry();
+                }
                 ph.loginToCompany(ph.activeCompany!, fy);
               },
             )),
@@ -138,10 +135,7 @@ class _CompanyControlPanelViewState extends State<CompanyControlPanelView> {
         ),
         backgroundColor: const Color(0xFF0D47A1),
         foregroundColor: Colors.white,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () => ph.clearSession(),
-        ),
+        leading: IconButton(icon: const Icon(Icons.arrow_back), onPressed: () => ph.clearSession()),
       ),
       body: Stack(
         children: [
@@ -161,9 +155,12 @@ class _CompanyControlPanelViewState extends State<CompanyControlPanelView> {
                   children: [
                     _menuItem("LOGIN TO WORK", Icons.play_circle_fill_rounded, Colors.green, () => _showFYLoginDialog(ph)),
                     _menuItem("FILE MAINTENANCE", Icons.health_and_safety_rounded, Colors.orange.shade800, () => _runMaintenance(ph)),
+                    
+                    // NAYA: EXPORT SERVICE CALL
                     _menuItem("BACKUP & EXPORT", Icons.cloud_upload_rounded, Colors.blue, () {
-                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Export feature coming in next update!")));
+                      ExportService(ph).exportEntireCompany(comp);
                     }),
+                    
                     _menuItem("NEW YEAR SETUP", Icons.fiber_new_rounded, Colors.purple, () => _showNewYearDialog(ph)),
                     _menuItem("MODIFY COMPANY", Icons.settings_applications_rounded, Colors.blueGrey, () {
                        Navigator.push(context, MaterialPageRoute(builder: (c) => ModifyCompanyView(comp: comp)));
@@ -180,7 +177,7 @@ class _CompanyControlPanelViewState extends State<CompanyControlPanelView> {
     );
   }
 
-  // --- UI COMPONENTS (SAME AS BEFORE) ---
+  // --- UI HELPERS ---
   Widget _buildHeaderCard(CompanyProfile comp) {
     return Container(
       width: double.infinity, padding: const EdgeInsets.all(20),
@@ -221,7 +218,7 @@ class _CompanyControlPanelViewState extends State<CompanyControlPanelView> {
   void _confirmDelete(PharoahManager ph) {
     showDialog(context: context, builder: (c) => AlertDialog(
         title: const Text("Delete Entire Company?"),
-        content: const Text("Isse is company ka sara data hamesha ke liye delete हो जाएगा। Kya aap confirm karte hain?"),
+        content: const Text("Isse is company ka sara data hamesha ke liye delete ho jayega."),
         actions: [
           TextButton(onPressed: () => Navigator.pop(c), child: const Text("CANCEL")),
           ElevatedButton(style: ElevatedButton.styleFrom(backgroundColor: Colors.red), onPressed: () { ph.companiesRegistry.removeWhere((x) => x.id == ph.activeCompany!.id); ph.saveRegistry(); ph.clearSession(); Navigator.pop(c); }, child: const Text("YES, WIPE DATA", style: TextStyle(color: Colors.white))),
