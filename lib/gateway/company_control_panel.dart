@@ -2,7 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../pharoah_manager.dart';
 import 'company_registry_model.dart';
-import 'maintenance_service.dart'; // Naya engine import
+import 'maintenance_service.dart';
+import 'modify_company_view.dart'; // Naya view jo humne banaya
 
 class CompanyControlPanelView extends StatefulWidget {
   const CompanyControlPanelView({super.key});
@@ -16,15 +17,11 @@ class _CompanyControlPanelViewState extends State<CompanyControlPanelView> {
   double maintenanceProgress = 0.0;
   String maintenanceStatus = "";
 
-  // ===========================================================================
-  // 1. ASLI MAINTENANCE LOGIC (ENGINE CONNECTED)
-  // ===========================================================================
+  // --- 1. ASLI MAINTENANCE ENGINE ---
   void _runMaintenance(PharoahManager ph) async {
-    // Check karo ki koi folder raasta (path) mil raha hai ya nahi
-    // Note: Agar user ne koi FY nahi khola toh hum default 2025-26 ka rasta check karenge
     String path = await ph.getWorkingPath();
     if (path.isEmpty) {
-      // Temporary path for initial maintenance
+      // Agar rasta nahi mila, toh pehle login karwao
       final fy = ph.activeCompany?.fYears.first ?? "2025-26";
       await ph.loginToCompany(ph.activeCompany!, fy);
       path = await ph.getWorkingPath();
@@ -36,32 +33,66 @@ class _CompanyControlPanelViewState extends State<CompanyControlPanelView> {
       maintenanceStatus = "Waking up Pharoah Doctor...";
     });
 
-    // Asli Maintenance Engine ko call karna
     final engine = MaintenanceService(ph, path);
     await engine.runFullMaintenance(
       onProgress: (p, s) {
-        if (mounted) {
-          setState(() {
-            maintenanceProgress = p;
-            maintenanceStatus = s;
-          });
-        }
+        if (mounted) setState(() { maintenanceProgress = p; maintenanceStatus = s; });
       },
     );
 
-    // Thoda delay taaki user "Complete" message dekh sake
     await Future.delayed(const Duration(seconds: 1));
     if (mounted) setState(() => isMaintenanceRunning = false);
   }
 
-  // ===========================================================================
-  // 2. LOGIN LOGIC (SELECT YEAR)
-  // ===========================================================================
+  // --- 2. NEW YEAR SETUP LOGIC (ZAROORI) ---
+  void _showNewYearDialog(PharoahManager ph) {
+    final fyC = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (c) => AlertDialog(
+        title: const Text("Setup New Financial Year"),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text("Enter the new year name. This will transfer closing stock to the next year.", style: TextStyle(fontSize: 12)),
+            const SizedBox(height: 15),
+            TextField(
+              controller: fyC, 
+              decoration: const InputDecoration(labelText: "New FY (e.g. 2026-27)", border: OutlineInputBorder())
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(c), child: const Text("CANCEL")),
+          ElevatedButton(
+            onPressed: () async {
+              if (fyC.text.isEmpty) return;
+              Navigator.pop(c);
+              
+              // Asli transfer engine call karna
+              bool ok = await ph.startNewFinancialYear(fyC.text.trim());
+              if (ok) {
+                // Registry update karna naye saal ke saath
+                int idx = ph.companiesRegistry.indexWhere((comp) => comp.id == ph.activeCompany!.id);
+                if (!ph.companiesRegistry[idx].fYears.contains(fyC.text.trim())) {
+                  ph.companiesRegistry[idx].fYears.add(fyC.text.trim());
+                  await ph.saveRegistry();
+                }
+                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("✅ New Year Created Successfully!")));
+              }
+            },
+            child: const Text("START TRANSFER"),
+          )
+        ],
+      ),
+    );
+  }
+
+  // --- 3. LOGIN LOGIC ---
   void _showFYLoginDialog(PharoahManager ph) {
-    // Registry se saalon ki list uthana ya default dikhana
-    List<String> years = ph.activeCompany?.fYears.isEmpty ?? true 
-        ? ["2024-25", "2025-26"] 
-        : ph.activeCompany!.fYears;
+    // Agar dukan nayi hai, toh 2025-26 default dikhao
+    List<String> years = ph.activeCompany?.fYears ?? [];
+    if (years.isEmpty) years = ["2025-26"];
 
     showModalBottomSheet(
       context: context,
@@ -79,7 +110,7 @@ class _CompanyControlPanelViewState extends State<CompanyControlPanelView> {
               trailing: const Icon(Icons.login_rounded, color: Colors.green),
               onTap: () {
                 Navigator.pop(c);
-                ph.loginToCompany(ph.activeCompany!, fy); // Dashboard entry point
+                ph.loginToCompany(ph.activeCompany!, fy);
               },
             )),
             const SizedBox(height: 20),
@@ -93,7 +124,6 @@ class _CompanyControlPanelViewState extends State<CompanyControlPanelView> {
   Widget build(BuildContext context) {
     final ph = Provider.of<PharoahManager>(context);
     final comp = ph.activeCompany;
-
     if (comp == null) return const Scaffold(body: Center(child: Text("Error: No active company")));
 
     return Scaffold(
@@ -110,7 +140,7 @@ class _CompanyControlPanelViewState extends State<CompanyControlPanelView> {
         foregroundColor: Colors.white,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
-          onPressed: () => ph.clearSession(), // Wapas Company List par
+          onPressed: () => ph.clearSession(),
         ),
       ),
       body: Stack(
@@ -121,8 +151,6 @@ class _CompanyControlPanelViewState extends State<CompanyControlPanelView> {
               children: [
                 _buildHeaderCard(comp),
                 const SizedBox(height: 25),
-
-                // --- MAIN CONTROL GRID ---
                 GridView.count(
                   shrinkWrap: true,
                   physics: const NeverScrollableScrollPhysics(),
@@ -133,130 +161,71 @@ class _CompanyControlPanelViewState extends State<CompanyControlPanelView> {
                   children: [
                     _menuItem("LOGIN TO WORK", Icons.play_circle_fill_rounded, Colors.green, () => _showFYLoginDialog(ph)),
                     _menuItem("FILE MAINTENANCE", Icons.health_and_safety_rounded, Colors.orange.shade800, () => _runMaintenance(ph)),
-                    _menuItem("BACKUP & EXPORT", Icons.cloud_upload_rounded, Colors.blue, () {}),
-                    _menuItem("NEW YEAR SETUP", Icons.fiber_new_rounded, Colors.purple, () {}),
-                    _menuItem("MODIFY COMPANY", Icons.settings_applications_rounded, Colors.blueGrey, () {}),
+                    _menuItem("BACKUP & EXPORT", Icons.cloud_upload_rounded, Colors.blue, () {
+                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Export feature coming in next update!")));
+                    }),
+                    _menuItem("NEW YEAR SETUP", Icons.fiber_new_rounded, Colors.purple, () => _showNewYearDialog(ph)),
+                    _menuItem("MODIFY COMPANY", Icons.settings_applications_rounded, Colors.blueGrey, () {
+                       Navigator.push(context, MaterialPageRoute(builder: (c) => ModifyCompanyView(comp: comp)));
+                    }),
                     _menuItem("DELETE COMPANY", Icons.delete_forever_rounded, Colors.red, () => _confirmDelete(ph)),
                   ],
                 ),
               ],
             ),
           ),
-
-          // --- MAINTENANCE PROGRESS OVERLAY ---
           if (isMaintenanceRunning) _buildMaintenanceOverlay(),
         ],
       ),
     );
   }
 
+  // --- UI COMPONENTS (SAME AS BEFORE) ---
   Widget _buildHeaderCard(CompanyProfile comp) {
     return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10)],
-      ),
-      child: Row(
-        children: [
-          CircleAvatar(
-            radius: 30,
-            backgroundColor: const Color(0xFF0D47A1).withOpacity(0.1),
-            child: const Icon(Icons.business_rounded, color: Color(0xFF0D47A1), size: 30),
-          ),
+      width: double.infinity, padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10)]),
+      child: Row(children: [
+          CircleAvatar(radius: 30, backgroundColor: const Color(0xFF0D47A1).withOpacity(0.1), child: const Icon(Icons.business_rounded, color: Color(0xFF0D47A1), size: 30)),
           const SizedBox(width: 15),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text("ACTIVE COMPANY", style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.blueGrey, letterSpacing: 1)),
-                Text(comp.name, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900)),
-                Text("Nature: ${comp.businessType}", style: const TextStyle(fontSize: 12, color: Colors.grey)),
-              ],
-            ),
-          )
-        ],
-      ),
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            const Text("ACTIVE COMPANY", style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.blueGrey, letterSpacing: 1)),
+            Text(comp.name, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900)),
+            Text("Nature: ${comp.businessType}", style: const TextStyle(fontSize: 12, color: Colors.grey)),
+          ]))
+      ]),
     );
   }
 
   Widget _menuItem(String title, IconData icon, Color color, VoidCallback onTap) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(20),
-      child: Container(
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: color.withOpacity(0.1), width: 2),
-        ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(icon, color: color, size: 40),
-            const SizedBox(height: 12),
-            Text(title, textAlign: TextAlign.center, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-          ],
-        ),
-      ),
-    );
+    return InkWell(onTap: onTap, borderRadius: BorderRadius.circular(20), child: Container(decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20), border: Border.all(color: color.withOpacity(0.1), width: 2)), child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(icon, color: color, size: 40), const SizedBox(height: 12), Text(title, textAlign: TextAlign.center, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold))])));
   }
 
   Widget _buildMaintenanceOverlay() {
     return Container(
-      color: Colors.black.withOpacity(0.85),
-      width: double.infinity,
-      height: double.infinity,
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
+      color: Colors.black.withOpacity(0.85), width: double.infinity, height: double.infinity,
+      child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
           const Icon(Icons.medical_services_outlined, color: Colors.orange, size: 80),
           const SizedBox(height: 25),
-          const Text("PHAROAH DOCTOR RUNNING", style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold, letterSpacing: 1)),
+          const Text("PHAROAH DOCTOR RUNNING", style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
           const SizedBox(height: 10),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 40),
-            child: Text(maintenanceStatus, textAlign: TextAlign.center, style: const TextStyle(color: Colors.white70, fontSize: 13)),
-          ),
+          Text(maintenanceStatus, style: const TextStyle(color: Colors.white70, fontSize: 13)),
           const SizedBox(height: 30),
-          Container(
-            width: 250,
-            height: 10,
-            decoration: BoxDecoration(color: Colors.white24, borderRadius: BorderRadius.circular(10)),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(10),
-              child: LinearProgressIndicator(value: maintenanceProgress, color: Colors.orange, backgroundColor: Colors.transparent),
-            ),
-          ),
+          Container(width: 250, height: 10, decoration: BoxDecoration(color: Colors.white24, borderRadius: BorderRadius.circular(10)), child: ClipRRect(borderRadius: BorderRadius.circular(10), child: LinearProgressIndicator(value: maintenanceProgress, color: Colors.orange, backgroundColor: Colors.transparent))),
           const SizedBox(height: 10),
           Text("${(maintenanceProgress * 100).toInt()}% Complete", style: const TextStyle(color: Colors.orange, fontWeight: FontWeight.bold)),
-        ],
-      ),
+      ]),
     );
   }
 
   void _confirmDelete(PharoahManager ph) {
-    showDialog(
-      context: context,
-      builder: (c) => AlertDialog(
+    showDialog(context: context, builder: (c) => AlertDialog(
         title: const Text("Delete Entire Company?"),
-        content: const Text("Isse is company ka sara data hamesha ke liye delete ho jayega. Kya aap confirm karte hain?"),
+        content: const Text("Isse is company ka sara data hamesha ke liye delete हो जाएगा। Kya aap confirm karte hain?"),
         actions: [
           TextButton(onPressed: () => Navigator.pop(c), child: const Text("CANCEL")),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-            onPressed: () {
-              ph.companiesRegistry.removeWhere((x) => x.id == ph.activeCompany!.id);
-              ph.saveRegistry();
-              ph.clearSession();
-              Navigator.pop(c);
-            },
-            child: const Text("YES, WIPE DATA", style: TextStyle(color: Colors.white)),
-          )
+          ElevatedButton(style: ElevatedButton.styleFrom(backgroundColor: Colors.red), onPressed: () { ph.companiesRegistry.removeWhere((x) => x.id == ph.activeCompany!.id); ph.saveRegistry(); ph.clearSession(); Navigator.pop(c); }, child: const Text("YES, WIPE DATA", style: TextStyle(color: Colors.white))),
         ],
-      ),
-    );
+    ));
   }
 }
