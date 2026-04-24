@@ -1,9 +1,11 @@
+// FILE: lib/sale_bill_modify_view.dart
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'pharoah_manager.dart';
 import 'models.dart';
 import 'sale_entry_view.dart';
-import 'pdf/sale_invoice_pdf.dart'; // Naya system
+import 'pdf/sale_invoice_pdf.dart'; 
 import 'package:intl/intl.dart';
 
 class SaleBillModifyView extends StatefulWidget {
@@ -16,6 +18,7 @@ class _SaleBillModifyViewState extends State<SaleBillModifyView> {
   String pF = "All"; 
   Party? sP;
 
+  // ORIGINAL FILTER LOGIC
   List<Sale> getFilteredSales(List<Sale> all) {
     DateTime n = DateTime.now();
     return all.where((s) {
@@ -68,9 +71,7 @@ class _SaleBillModifyViewState extends State<SaleBillModifyView> {
                         prefixIcon: Icon(Icons.search),
                         border: OutlineInputBorder(),
                       ),
-                      onChanged: (v) {
-                        setDialogState(() => dialogSearch = v);
-                      },
+                      onChanged: (v) => setDialogState(() => dialogSearch = v),
                     ),
                     const SizedBox(height: 10),
                     Flexible(
@@ -106,6 +107,7 @@ class _SaleBillModifyViewState extends State<SaleBillModifyView> {
   Widget build(BuildContext context) {
     final ph = Provider.of<PharoahManager>(context);
     final list = getFilteredSales(ph.sales);
+    final activeShop = ph.activeCompany;
 
     return Scaffold(
       backgroundColor: const Color(0xFFF5F6F9),
@@ -187,7 +189,10 @@ class _SaleBillModifyViewState extends State<SaleBillModifyView> {
                               final p = ph.parties.firstWhere((x) => x.name == s.partyName, orElse: () => ph.parties[0]);
                               if (v == 'v') Navigator.push(context, MaterialPageRoute(builder: (c) => SaleEntryView(existingSale: s, isReadOnly: true)));
                               if (v == 'm') Navigator.push(context, MaterialPageRoute(builder: (c) => SaleEntryView(existingSale: s)));
-                              if (v == 'p') SaleInvoicePdf.generate(s, p); // FIXED LINE
+                              
+                              // NAYA: Active Shop ke sath Print call
+                              if (v == 'p' && activeShop != null) SaleInvoicePdf.generate(s, p, activeShop); 
+                              
                               if (v == 'c') _confirmAction(context, "Cancel", () => ph.cancelBill(s.id));
                               if (v == 'd') _confirmAction(context, "Delete", () => ph.deleteBill(s.id));
                             },
