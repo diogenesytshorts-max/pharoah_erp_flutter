@@ -10,7 +10,7 @@ import 'sale_bill_number.dart';
 import 'inventory_logic_center.dart';
 import 'fy_transfer_engine.dart';
 import 'app_date_logic.dart';
-import 'gateway/company_registry_model.dart'; // Naya import
+import 'gateway/company_registry_model.dart';
 
 class PharoahManager with ChangeNotifier {
   // --- CORE DATA LISTS ---
@@ -39,11 +39,9 @@ class PharoahManager with ChangeNotifier {
   // 1. REGISTRY & DYNAMIC PATH LOGIC
   // ===========================================================================
 
-  // App khulte hi companies ki list load karega
   Future<void> initRegistry() async {
     final root = await getApplicationDocumentsDirectory();
     final file = File('${root.path}/pharoah_registry.json');
-
     if (await file.exists()) {
       String content = await file.readAsString();
       List<dynamic> list = jsonDecode(content);
@@ -59,7 +57,6 @@ class PharoahManager with ChangeNotifier {
     notifyListeners();
   }
 
-  // Dynamic Path: Documents / Pharoah_Data / {CompanyID} / {Type} / {FY}
   Future<String> getWorkingPath() async {
     if (activeCompany == null || currentFY.isEmpty) return "";
     final root = await getApplicationDocumentsDirectory();
@@ -91,13 +88,17 @@ class PharoahManager with ChangeNotifier {
   }
 
   // ===========================================================================
-  // 3. MEDICINE ID GENERATOR (Universal Series)
+  // 3. COMPANY-SPECIFIC ID GENERATOR (NEW)
   // ===========================================================================
   Future<String> generateNewMedicineId() async {
+    if (activeCompany == null) return "PH-ERROR";
     final prefs = await SharedPreferences.getInstance();
-    int lastCounter = prefs.getInt('last_med_id_counter') ?? 10000;
+    
+    // Key is now prefixed with Company ID
+    String key = 'med_counter_${activeCompany!.id}';
+    int lastCounter = prefs.getInt(key) ?? 10000;
     int newCounter = lastCounter + 1;
-    await prefs.setInt('last_med_id_counter', newCounter);
+    await prefs.setInt(key, newCounter);
     return "PH-$newCounter";
   }
 
@@ -223,6 +224,7 @@ class PharoahManager with ChangeNotifier {
   // ===========================================================================
 
   void finalizeSale({required String billNo, required DateTime date, required Party party, required List<BillItem> items, required double total, required String mode}) {
+    // Note: SaleBillNumber class also needs prefixing (handled in its own file)
     SaleBillNumber.incrementIfNecessary(billNo);
     sales.add(Sale(id: DateTime.now().toString(), billNo: billNo, date: date, partyName: party.name, partyGstin: party.gst, partyState: party.state, items: items, totalAmount: total, paymentMode: mode));
     for (var it in items) {
@@ -258,35 +260,43 @@ class PharoahManager with ChangeNotifier {
     }
   }
 
-  void updateBatchMetadata({required String medId, required String batchNo, required String newExp, required double newMrp, required double newRate}) {
-    if (batchHistory.containsKey(medId)) {
-      try {
-        var b = batchHistory[medId]!.firstWhere((x) => x.batch == batchNo);
-        b.exp = newExp; b.mrp = newMrp; b.rate = newRate;
-        save().then((_) => loadAllData());
-      } catch (e) {}
+  // ===========================================================================
+  // 7. YEAR END & SYSTEM RESET
+  // ===========================================================================
+
+  Future<bool> startNewFinancialYear(String nextFY) async {
+    if (activeCompany == null) return false;
+    await save();
+    
+    bool success = await FYTransferEngine.transferData(
+      companyID: activeCompany!.id,
+      businessType: activeCompany!.businessType,
+      sourceFY: currentFY,
+      targetFY: nextFY
+    );
+
+    if (success) {
+      // 1. Memory Update
+      currentFY = nextFY;
+      
+      // 2. Registry Update (Persistent)
+      int idx = companiesRegistry.indexWhere((c) => c.id == activeCompany!.id);
+      if (idx != -1) {
+        if (!companiesRegistry[idx].fYears.contains(nextFY)) {
+          companiesRegistry[idx].fYears.add(nextFY);
+          await saveRegistry();
+        }
+      }
+
+      // 3. Reset Bill ID for the NEW Year (Company Specific)
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setInt('lastBillID_${activeCompany!.id}', 0);
+      
+      await loadAllData();
     }
+    return success;
   }
 
-  // ===========================================================================
-  // 7. OTHERS & UTILITIES
-  // ===========================================================================
-  void addVoucher(Voucher v) { vouchers.add(v); save(); }
-  void addCompany(Company c) { companies.add(c); save(); }
-  void addSalt(Salt s) { salts.add(s); save(); }
-  void addDrugType(DrugType d) { drugTypes.add(d); save(); }
-  void addRoute(RouteArea r) { routes.add(r); save(); }
-  void deleteRoute(String id) { routes.removeWhere((r) => r.id == id); save(); }
-  void addLog(String action, String details) { logs.add(LogEntry(id: DateTime.now().toString(), action: action, details: details, time: DateTime.now())); save(); }
-  void deleteBill(String id) { sales.removeWhere((s) => s.id == id); save().then((_) => loadAllData()); }
-  void cancelBill(String id) {
-    int i = sales.indexWhere((s) => s.id == id);
-    if(i != -1) { sales[i].status = "Cancelled"; save().then((_) => loadAllData()); }
-  }
-  void deletePurchase(String id) { purchases.removeWhere((p) => p.id == id); save().then((_) => loadAllData()); }
-  void deleteParty(String id) { parties.removeWhere((p) => p.id == id); save(); }
-  Future<void> runAutoBackup() async { await save(); }
-  
   Future<void> masterReset() async { 
     final dir = await getWorkingPath(); 
     if(dir.isNotEmpty) {
@@ -296,29 +306,23 @@ class PharoahManager with ChangeNotifier {
     await loadAllData(); 
   }
 
-  Future<bool> startNewFinancialYear(String nextFY) async {
-    if (activeCompany == null) return false;
-
-    await save(); // Purana data save karo pehle
-    
-    // Naya Engine Call
-    bool success = await FYTransferEngine.transferData(
-      companyID: activeCompany!.id,
-      businessType: activeCompany!.businessType,
-      sourceFY: currentFY,
-      targetFY: nextFY,
-    );
-
-    if (success) {
-      // Registry update (Already handled in Control Panel view)
-      currentFY = nextFY;
-      await loadAllData();
-      notifyListeners();
-    }
-    return success;
+  // ===========================================================================
+  // 8. OTHERS
+  // ===========================================================================
+  void addVoucher(Voucher v) { vouchers.add(v); save(); }
+  void addCompany(Company c) { companies.add(c); save(); }
+  void addSalt(Salt s) { salts.add(s); save(); }
+  void addDrugType(DrugType d) { drugTypes.add(d); save(); }
+  void addRoute(RouteArea r) { routes.add(r); save(); }
+  void deleteRoute(String id) { routes.removeWhere((r) => r.id == id); save(); }
+  void addLog(String action, String details) { logs.add(LogEntry(id: DateTime.now().toString(), action: action, details: details, time: DateTime.now())); save(); }
+  void deleteBill(String id) { sales.removeWhere((s) => s.id == id); loadAllData().then((_) => save()); }
+  void cancelBill(String id) {
+    int i = sales.indexWhere((s) => s.id == id);
+    if(i != -1) { sales[i].status = "Cancelled"; loadAllData().then((_) => save()); }
   }
+  void deletePurchase(String id) { purchases.removeWhere((p) => p.id == id); loadAllData().then((_) => save()); }
+  void deleteParty(String id) { parties.removeWhere((p) => p.id == id); save(); }
   
-  String generateCompanyID() {
-    return "PH-C-${DateTime.now().millisecondsSinceEpoch.toString().substring(7)}";
-  }
+  String generateCompanyID() => "PH-C-${DateTime.now().millisecondsSinceEpoch.toString().substring(7)}";
 }
