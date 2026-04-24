@@ -1,17 +1,21 @@
+// FILE: lib/pdf/purchase_report_pdf.dart
+
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import 'package:intl/intl.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import '../models.dart';
+import '../gateway/company_registry_model.dart'; // NAYA SOURCE
 
 class PurchaseReportPdf {
-  static Future<void> generate(List<Purchase> purchases, DateTime fDate, DateTime tDate, Party? selectedDist) async {
+  // NAYA: Ab yeh active shop profile lega
+  static Future<void> generate(List<Purchase> purchases, DateTime fDate, DateTime tDate, Party? selectedDist, CompanyProfile shop) async {
     final pdf = pw.Document();
-    final prefs = await SharedPreferences.getInstance();
-    String shopName = (prefs.getString('compName') ?? "PHAROAH ERP").toUpperCase();
+    
+    // NAYA: Dukan ka naam registry se
+    String shopName = shop.name.toUpperCase();
 
-    // Summary Totals
+    // Summary Totals (ORIGINAL LOGIC)
     double totalTaxable = 0; double totalGst = 0; double netTotal = 0;
     int billCount = purchases.length;
 
@@ -47,13 +51,19 @@ class PurchaseReportPdf {
           data: purchases.map((p) {
             double taxable = p.items.fold(0.0, (sum, it) => sum + (it.purchaseRate * it.qty));
             return [
-              DateFormat('dd/MM/yy').format(p.date), p.billNo, p.internalNo, p.distributorName, p.paymentMode,
-              taxable.toStringAsFixed(2), (p.totalAmount - taxable).toStringAsFixed(2), p.totalAmount.toStringAsFixed(2)
+              DateFormat('dd/MM/yy').format(p.date), 
+              p.billNo, 
+              p.internalNo, 
+              p.distributorName, 
+              p.paymentMode,
+              taxable.toStringAsFixed(2), 
+              (p.totalAmount - taxable).toStringAsFixed(2), 
+              p.totalAmount.toStringAsFixed(2)
             ];
           }).toList(),
         ),
         pw.SizedBox(height: 20),
-        pw.Row(mainAxisAlignment: pw.MainAxisAlignment.spaceBetween, children: [
+        pw.Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
            _sumBox("TOTAL BILLS", billCount.toDouble(), isInt: true),
            _sumBox("TAXABLE AMT", totalTaxable),
            _sumBox("INPUT GST (ITC)", totalGst),
