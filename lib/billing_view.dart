@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
-import '../pharoah_manager.dart';
-import '../models.dart';
+import 'pharoah_manager.dart';
+import 'models.dart';
 import 'pdf/sale_invoice_pdf.dart';
 import 'item_entry_card.dart';
-import 'product_master.dart'; // NAYA: Product Master access ke liye
+import 'product_master.dart'; 
 
 class BillingView extends StatefulWidget {
   final Party party;
@@ -39,6 +39,15 @@ class _BillingViewState extends State<BillingView> {
   void initState() {
     super.initState();
     if (widget.existingItems != null) items = List.from(widget.existingItems!);
+  }
+
+  // NAYA: Serial Number auto-fixer logic
+  void _recalculateSR() {
+    setState(() {
+      for (int i = 0; i < items.length; i++) {
+        items[i] = items[i].copyWith(srNo: i + 1);
+      }
+    });
   }
 
   void _showItemSearchSheet(PharoahManager ph, {BillItem? itemToEdit}) {
@@ -93,7 +102,6 @@ class _BillingViewState extends State<BillingView> {
                             ),
                           ),
                           const SizedBox(width: 10),
-                          // NAYA: Quick Product Add Button
                           IconButton.filled(
                             onPressed: () async {
                               final result = await Navigator.push(
@@ -101,13 +109,11 @@ class _BillingViewState extends State<BillingView> {
                                 MaterialPageRoute(builder: (c) => const ProductMasterView(isSelectionMode: true)),
                               );
                               if (result != null && result is Medicine) {
-                                setSheetState(() {
-                                  selectedMed = result;
-                                });
+                                setSheetState(() => selectedMed = result);
                               }
                             },
                             icon: const Icon(Icons.add_box_rounded),
-                            style: IconButton.styleFrom(backgroundColor: Colors.teal.shade800, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
+                            style: IconButton.styleFrom(backgroundColor: Colors.teal.shade800),
                           )
                         ],
                       ),
@@ -166,7 +172,7 @@ class _BillingViewState extends State<BillingView> {
         backgroundColor: widget.isReadOnly ? Colors.purple.shade700 : Colors.teal.shade700,
         foregroundColor: Colors.white,
         actions: [
-          IconButton(icon: const Icon(Icons.picture_as_pdf), onPressed: items.isEmpty ? null : () => _printBill()),
+          IconButton(icon: const Icon(Icons.print_rounded), onPressed: items.isEmpty ? null : () => _printBill(ph)),
           if (!widget.isReadOnly) 
             TextButton(
               onPressed: items.isEmpty ? null : () => _handleSave(ph),
@@ -208,11 +214,15 @@ class _BillingViewState extends State<BillingView> {
   Widget _buildItemCard(BillItem it, int index, PharoahManager ph) => Card(
     elevation: 2, margin: const EdgeInsets.symmetric(vertical: 5),
     child: ListTile(
+      leading: CircleAvatar(backgroundColor: Colors.teal.shade50, child: Text("${it.srNo}", style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold))),
       title: Text(it.name, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.teal)),
       subtitle: Text("Batch: ${it.batch} | Qty: ${it.qty.toInt()} | Rate: ₹${it.rate.toStringAsFixed(2)}"),
       trailing: Text("₹${it.total.toStringAsFixed(2)}", style: const TextStyle(fontWeight: FontWeight.bold)),
       onTap: widget.isReadOnly ? null : () => _showItemSearchSheet(ph, itemToEdit: it),
-      onLongPress: widget.isReadOnly ? null : () => setState(() => items.removeAt(index)),
+      onLongPress: widget.isReadOnly ? null : () {
+        setState(() { items.removeAt(index); });
+        _recalculateSR(); // SR auto-fix after delete
+      },
     ),
   );
 
@@ -233,8 +243,9 @@ class _BillingViewState extends State<BillingView> {
     Navigator.of(context).popUntil((route) => route.isFirst);
   }
 
-  void _printBill() async {
+  void _printBill(PharoahManager ph) async {
+    if (ph.activeCompany == null) return;
     final sale = Sale(id: widget.modifySaleId ?? DateTime.now().toString(), billNo: widget.billNo, date: widget.billDate, partyName: widget.party.name, partyGstin: widget.party.gst, partyState: widget.party.state, items: items, totalAmount: totalAmt, paymentMode: widget.mode);
-    await SaleInvoicePdf.generate(sale, widget.party);
+    await SaleInvoicePdf.generate(sale, widget.party, ph.activeCompany!);
   }
 }
