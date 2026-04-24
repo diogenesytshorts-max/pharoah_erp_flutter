@@ -1,37 +1,33 @@
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:intl/intl.dart';
 import '../models.dart';
+import '../gateway/company_registry_model.dart'; // NAYA SOURCE
 
 class SaleInvoicePdf {
-  static Future<void> generate(Sale sale, Party party) async {
+  // Signature change: Ab yeh active shop profile lega
+  static Future<void> generate(Sale sale, Party party, CompanyProfile shop) async {
     final pdf = pw.Document();
-    final prefs = await SharedPreferences.getInstance();
 
-    // Settings load kar rahe hain
-    String compName = (prefs.getString('compName') ?? "").toUpperCase();
-    String compAddr = prefs.getString('compAddr') ?? "";
-    String compPh = prefs.getString('compPh') ?? "";
-    String compGST = prefs.getString('compGST') ?? "";
-    String compDL = prefs.getString('compDL') ?? "";
+    // NAYA: Ab details Registry se aa rahi hain (Prefs se nahi)
+    String compName = shop.name.toUpperCase();
+    String compAddr = shop.address;
+    String compPh = shop.phone;
+    String compGST = shop.gstin;
+    String compDL = shop.dlNo;
 
-    // Data calculations
+    // Data calculations (ORIGINAL LOGIC)
     double totalGross = sale.items.fold(0, (sum, i) => sum + (i.qty * i.rate));
     double totalSGST = sale.items.fold(0, (sum, i) => sum + i.sgst);
     double totalCGST = sale.items.fold(0, (sum, i) => sum + i.cgst);
     int roundedGrandTotal = sale.totalAmount.round();
 
-    // Items per page limit
     const int itemsPerPage = 22; 
     int totalPages = (sale.items.length / itemsPerPage).ceil();
 
-    // Helper to format decimals (5.0 -> 5, 5.5 -> 5.5)
     String formatQty(double val) {
-      if (val == val.toInt()) {
-        return val.toInt().toString();
-      }
+      if (val == val.toInt()) return val.toInt().toString();
       return val.toStringAsFixed(1);
     }
 
@@ -50,7 +46,7 @@ class SaleInvoicePdf {
               decoration: pw.BoxDecoration(border: pw.Border.all(width: 1)),
               child: pw.Column(
                 children: [
-                  // --- 1. HEADER ---
+                  // --- 1. HEADER (Original Layout) ---
                   pw.Row(
                     children: [
                       _headerBox(width: 280, height: 80, child: pw.Column(
@@ -84,50 +80,33 @@ class SaleInvoicePdf {
                     ],
                   ),
 
-                  // --- 2. TABLE HEADER ---
+                  // --- 2. TABLE HEADER (Original Layout) ---
                   pw.Container(
                     color: PdfColors.grey100,
                     child: pw.Row(
                       children: [
-                        _tableCol("S.N", 25), 
-                        _tableCol("Qty + Free", 50), // Increased width for the new format
-                        _tableCol("Pack", 40),
+                        _tableCol("S.N", 25), _tableCol("Qty + Free", 50), _tableCol("Pack", 40),
                         _tableCol("Product Name", 185, align: pw.Alignment.centerLeft),
-                        _tableCol("Batch", 75), 
-                        _tableCol("Exp", 45), 
-                        _tableCol("HSN", 50),
-                        _tableCol("MRP", 55), 
-                        _tableCol("Rate", 55), 
-                        _tableCol("DIS%", 30),
-                        _tableCol("SGST%", 40), 
-                        _tableCol("CGST%", 40), 
-                        _tableCol("Net Amt", 80),
+                        _tableCol("Batch", 75), _tableCol("Exp", 45), _tableCol("HSN", 50),
+                        _tableCol("MRP", 55), _tableCol("Rate", 55), _tableCol("DIS%", 30),
+                        _tableCol("SGST%", 40), _tableCol("CGST%", 40), _tableCol("Net Amt", 80),
                       ],
                     ),
                   ),
 
-                  // --- 3. DYNAMIC ROWS ---
+                  // --- 3. DYNAMIC ROWS (Original Layout) ---
                   pw.Expanded(
                     child: pw.Column(
                       children: pageItems.map((i) {
-                        // QTY + FREE Logic for Display
-                        String displayQty = i.freeQty > 0 
-                            ? "${formatQty(i.qty)} + ${formatQty(i.freeQty)}" 
-                            : formatQty(i.qty);
-
+                        String displayQty = i.freeQty > 0 ? "${formatQty(i.qty)} + ${formatQty(i.freeQty)}" : formatQty(i.qty);
                         return pw.Container(
                           decoration: const pw.BoxDecoration(border: pw.Border(bottom: pw.BorderSide(width: 0.1, color: PdfColors.grey400))),
                           child: pw.Row(
                             children: [
-                              _tableCell("${i.srNo}", 25), 
-                              _tableCell(displayQty, 50), // Matches header width
-                              _tableCell(i.packing, 40), 
+                              _tableCell("${i.srNo}", 25), _tableCell(displayQty, 50), _tableCell(i.packing, 40), 
                               _tableCell(i.name, 185, align: pw.Alignment.centerLeft),
-                              _tableCell(i.batch, 75), 
-                              _tableCell(i.exp, 45), 
-                              _tableCell(i.hsn, 50),
-                              _tableCell(i.mrp.toStringAsFixed(2), 55), 
-                              _tableCell(i.rate.toStringAsFixed(2), 55),
+                              _tableCell(i.batch, 75), _tableCell(i.exp, 45), _tableCell(i.hsn, 50),
+                              _tableCell(i.mrp.toStringAsFixed(2), 55), _tableCell(i.rate.toStringAsFixed(2), 55),
                               _tableCell(i.discountRupees.toStringAsFixed(1), 30),
                               _tableCell("${(i.gstRate / 2).toStringAsFixed(1)}%", 40), 
                               _tableCell("${(i.gstRate / 2).toStringAsFixed(1)}%", 40),
@@ -139,7 +118,7 @@ class SaleInvoicePdf {
                     ),
                   ),
 
-                  // --- 4. FOOTER ---
+                  // --- 4. FOOTER (Original Layout) ---
                   if (isLastPage) _buildFullFooter(compName, sale, totalGross, totalSGST, totalCGST, roundedGrandTotal)
                   else pw.Padding(padding: const pw.EdgeInsets.all(5), child: pw.Text("Continued to next page...", style: pw.TextStyle(fontStyle: pw.FontStyle.italic, fontSize: 10))),
                 ],
@@ -150,26 +129,13 @@ class SaleInvoicePdf {
       );
     }
 
-    await Printing.layoutPdf(
-      onLayout: (format) async => pdf.save(), 
-      name: 'Bill_${sale.billNo}',
-      format: PdfPageFormat.a4.landscape,
-      dynamicLayout: false,
-    );
+    await Printing.layoutPdf(onLayout: (format) async => pdf.save(), name: 'Bill_${sale.billNo}', format: PdfPageFormat.a4.landscape, dynamicLayout: false);
   }
 
-  // --- HELPERS ---
-  static pw.Widget _headerBox({required double width, required double height, required pw.Widget child}) {
-    return pw.Container(width: width, height: height, padding: const pw.EdgeInsets.all(4), decoration: pw.BoxDecoration(border: pw.Border.all(width: 0.5)), child: child);
-  }
-
-  static pw.Widget _tableCol(String text, double width, {pw.Alignment align = pw.Alignment.center}) {
-    return pw.Container(width: width, height: 18, alignment: align, decoration: pw.BoxDecoration(border: pw.Border.all(width: 0.5)), child: pw.Text(text, style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold)));
-  }
-
-  static pw.Widget _tableCell(String text, double width, {pw.Alignment align = pw.Alignment.center}) {
-    return pw.Container(width: width, padding: const pw.EdgeInsets.symmetric(vertical: 2), alignment: align, child: pw.Text(text, style: const pw.TextStyle(fontSize: 7.5)));
-  }
+  // ORIGINAL HELPERS
+  static pw.Widget _headerBox({required double width, required double height, required pw.Widget child}) => pw.Container(width: width, height: height, padding: const pw.EdgeInsets.all(4), decoration: pw.BoxDecoration(border: pw.Border.all(width: 0.5)), child: child);
+  static pw.Widget _tableCol(String text, double width, {pw.Alignment align = pw.Alignment.center}) => pw.Container(width: width, height: 18, alignment: align, decoration: pw.BoxDecoration(border: pw.Border.all(width: 0.5)), child: pw.Text(text, style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold)));
+  static pw.Widget _tableCell(String text, double width, {pw.Alignment align = pw.Alignment.center}) => pw.Container(width: width, padding: const pw.EdgeInsets.symmetric(vertical: 2), alignment: align, child: pw.Text(text, style: const pw.TextStyle(fontSize: 7.5)));
 
   static pw.Widget _buildFullFooter(String compName, Sale sale, double gross, double sgst, double cgst, int total) {
     return pw.Row(
@@ -187,9 +153,7 @@ class SaleInvoicePdf {
         )),
         pw.Container(width: 250, padding: const pw.EdgeInsets.all(5), decoration: pw.BoxDecoration(border: pw.Border.all(width: 0.5)), child: pw.Column(
           children: [
-            _finalRow("GROSS TOTAL", gross),
-            _finalRow("TOTAL SGST", sgst),
-            _finalRow("TOTAL CGST", cgst),
+            _finalRow("GROSS TOTAL", gross), _finalRow("TOTAL SGST", sgst), _finalRow("TOTAL CGST", cgst),
             pw.Divider(thickness: 0.5),
             pw.Row(mainAxisAlignment: pw.MainAxisAlignment.spaceBetween, children: [
               pw.Text("NET AMOUNT", style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold)),
