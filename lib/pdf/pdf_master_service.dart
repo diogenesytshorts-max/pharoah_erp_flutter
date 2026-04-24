@@ -1,70 +1,31 @@
 // FILE: lib/pdf/pdf_master_service.dart
-
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
-import 'package:intl/intl.dart';
-import '../gateway/company_registry_model.dart';
 
 class PdfMasterService {
-  
-  // --- 1. GLOBAL SHOP HEADER (Change here once, updates everywhere) ---
-  static pw.Widget buildShopHeader(CompanyProfile shop, String docTitle, String billNo, DateTime date, {String? internalNo}) {
-    return pw.Row(
-      children: [
-        // LEFT: Shop Identity
-        _headerBox(width: 280, child: pw.Column(
-          crossAxisAlignment: pw.CrossAxisAlignment.start,
-          children: [
-            pw.Text(shop.name.toUpperCase(), style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold, color: PdfColors.blue900)),
-            pw.Text(shop.address, style: const pw.TextStyle(fontSize: 8)),
-            pw.Text("Phone: ${shop.phone} | GSTIN: ${shop.gstin}", style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold)),
-            if (shop.dlNo != "N/A") pw.Text("D.L.No.: ${shop.dlNo}", style: const pw.TextStyle(fontSize: 7.5)),
-          ],
-        )),
-
-        // CENTER: Document Info
-        _headerBox(width: 170, child: pw.Column(
-          children: [
-            pw.Text(docTitle.toUpperCase(), style: pw.TextStyle(fontSize: 13, fontWeight: pw.FontWeight.bold)),
-            pw.Divider(thickness: 0.5),
-            pw.Text("No: $billNo", style: pw.TextStyle(fontSize: 8.5, fontWeight: pw.FontWeight.bold)),
-            if (internalNo != null) pw.Text("ID: $internalNo", style: const pw.TextStyle(fontSize: 7.5)),
-            pw.Text("Date: ${DateFormat('dd/MM/yyyy').format(date)}", style: pw.TextStyle(fontSize: 8.5)),
-          ],
-        )),
-      ],
-    );
-  }
-
-  // --- 2. COMMON UI HELPERS ---
-  static pw.Widget _headerBox({required double width, required pw.Widget child}) {
+  // Common Box Style (Aapke original format ke hisab se)
+  static pw.Widget headerBox({required double width, required double height, required pw.Widget child}) {
     return pw.Container(
       width: width, 
-      height: 80, 
+      height: height, 
       padding: const pw.EdgeInsets.all(4), 
       decoration: pw.BoxDecoration(border: pw.Border.all(width: 0.5)), 
       child: child
     );
   }
 
-  static pw.Widget tableHeaderCol(String text, double width, {pw.Alignment align = pw.Alignment.center}) {
+  // Common Table Column Style
+  static pw.Widget tableCol(String text, double width, {pw.Alignment align = pw.Alignment.center}) {
     return pw.Container(
-      width: width, height: 18, alignment: align, 
-      decoration: pw.BoxDecoration(border: pw.Border.all(width: 0.5), color: PdfColors.grey100), 
+      width: width, 
+      height: 18, 
+      alignment: align, 
+      decoration: pw.BoxDecoration(border: pw.Border.all(width: 0.5)), 
       child: pw.Text(text, style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold))
     );
   }
 
-  static pw.Widget tableCell(String text, double width, {pw.Alignment align = pw.Alignment.center}) {
-    return pw.Container(
-      width: width, 
-      padding: const pw.EdgeInsets.symmetric(vertical: 2), 
-      alignment: align, 
-      child: pw.Text(text, style: const pw.TextStyle(fontSize: 7.5))
-    );
-  }
-
-  // --- 3. LOGIC HELPERS ---
+  // Asli Number to Words Formula (Jo dono files mein common hai)
   static String numberToWords(int amount) {
     if (amount == 0) return "ZERO";
     var units = ["", "ONE", "TWO", "THREE", "FOUR", "FIVE", "SIX", "SEVEN", "EIGHT", "NINE", "TEN", "ELEVEN", "TWELVE", "THIRTEEN", "FOURTEEN", "FIFTEEN", "SIXTEEN", "SEVENTEEN", "EIGHTEEN", "NINETEEN"];
