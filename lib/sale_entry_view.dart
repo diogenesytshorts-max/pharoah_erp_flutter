@@ -1,11 +1,13 @@
+// FILE: lib/sale_entry_view.dart
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'pharoah_manager.dart';
 import 'models.dart';
-import 'sale_bill_number.dart';
+import 'pharoah_smart_logic.dart'; // NAYA: Logic Master Connection
 import 'billing_view.dart';
 import 'party_master.dart';
-import 'pharoah_date_controller.dart'; // NAYA: Master Lock Connection
+import 'pharoah_date_controller.dart'; 
 import 'package:intl/intl.dart';
 
 class SaleEntryView extends StatefulWidget {
@@ -34,6 +36,7 @@ class _SaleEntryViewState extends State<SaleEntryView> {
       final ph = Provider.of<PharoahManager>(context, listen: false);
       
       if (widget.existingSale != null) {
+        // CASE: Modifying existing bill
         setState(() {
           selectedDate = widget.existingSale!.date;
           paymentMode = widget.existingSale!.paymentMode;
@@ -44,13 +47,15 @@ class _SaleEntryViewState extends State<SaleEntryView> {
           );
         });
       } else {
-        // NAYA: Smart Bill Number & Initial Date based on FY
-        String nextNo = await SaleBillNumber.getNextNumber(ph.sales);
-        setState(() { 
-          billNoC.text = nextNo;
-          // Bill ki default date ab Master decide karega
-          selectedDate = PharoahDateController.getInitialBillDate(ph.currentFY);
-        });
+        // CASE: New Bill Generation
+        if (ph.activeCompany != null) {
+          // NAYA: Smart Logic se Company-Specific number mangna
+          String nextNo = await PharoahSmartLogic.getNextSaleNumber(ph.sales, ph.activeCompany!.id);
+          setState(() { 
+            billNoC.text = nextNo;
+            selectedDate = PharoahDateController.getInitialBillDate(ph.currentFY);
+          });
+        }
       }
     });
   }
@@ -60,7 +65,9 @@ class _SaleEntryViewState extends State<SaleEntryView> {
       context,
       MaterialPageRoute(builder: (c) => const PartyMasterView(isSelectionMode: true)),
     );
-    if (result != null && result is Party) { setState(() { selectedParty = result; }); }
+    if (result != null && result is Party) {
+      setState(() { selectedParty = result; });
+    }
   }
 
   @override Widget build(BuildContext context) {
@@ -80,12 +87,14 @@ class _SaleEntryViewState extends State<SaleEntryView> {
             padding: const EdgeInsets.all(20), 
             color: Colors.white, 
             child: Row(children: [
-              // BILL NO - Now Editable but Auto-generated
-              Expanded(child: TextField(controller: billNoC, decoration: const InputDecoration(labelText: "BILL NO", border: OutlineInputBorder(), filled: true, fillColor: Color(0xFFF5F5F5)))),
+              // BILL NO - Auto-filled from Smart Logic
+              Expanded(child: TextField(
+                controller: billNoC, 
+                decoration: const InputDecoration(labelText: "BILL NO", border: OutlineInputBorder(), filled: true, fillColor: Color(0xFFF5F5F5))
+              )),
               const SizedBox(width: 15),
               Expanded(child: InkWell(
                 onTap: () async { 
-                  // NAYA: Global PickDate Call (Financial Year Lock Applied)
                   DateTime? p = await PharoahDateController.pickDate(
                     context: context, 
                     currentFY: ph.currentFY, 
