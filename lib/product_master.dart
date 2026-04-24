@@ -1,7 +1,10 @@
+// FILE: lib/product_master.dart
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'pharoah_manager.dart';
 import 'models.dart';
+import 'pharoah_smart_logic.dart'; // NAYA: Logic Master Connection
 
 class ProductMasterView extends StatefulWidget {
   final bool isSelectionMode; 
@@ -25,7 +28,7 @@ class _ProductMasterViewState extends State<ProductMasterView> {
     }
   }
 
-  // --- SEARCHABLE PICKER FOR COMPANY/SALT ---
+  // --- SEARCHABLE PICKERS ---
   void _showSearchablePicker({
     required String title,
     required List<dynamic> items,
@@ -38,7 +41,6 @@ class _ProductMasterViewState extends State<ProductMasterView> {
         String localSearch = "";
         return StatefulBuilder(builder: (context, setPickerState) {
           final filtered = items.where((item) => item.name.toLowerCase().contains(localSearch.toLowerCase())).toList();
-
           return AlertDialog(
             title: Text("Select $title"),
             content: SizedBox(
@@ -48,11 +50,7 @@ class _ProductMasterViewState extends State<ProductMasterView> {
                 children: [
                   TextField(
                     autofocus: true,
-                    decoration: InputDecoration(
-                      hintText: "Search $title...",
-                      prefixIcon: const Icon(Icons.search),
-                      border: const OutlineInputBorder(),
-                    ),
+                    decoration: InputDecoration(hintText: "Search $title...", prefixIcon: const Icon(Icons.search), border: const OutlineInputBorder()),
                     onChanged: (v) => setPickerState(() => localSearch = v),
                   ),
                   const SizedBox(height: 10),
@@ -69,11 +67,7 @@ class _ProductMasterViewState extends State<ProductMasterView> {
                         ),
                   ),
                   const Divider(),
-                  TextButton.icon(
-                    onPressed: () { Navigator.pop(context); onQuickAdd(); },
-                    icon: const Icon(Icons.add),
-                    label: Text("ADD NEW ${title.toUpperCase()}"),
-                  )
+                  TextButton.icon(onPressed: () { Navigator.pop(context); onQuickAdd(); }, icon: const Icon(Icons.add), label: Text("ADD NEW ${title.toUpperCase()}"))
                 ],
               ),
             ),
@@ -83,11 +77,12 @@ class _ProductMasterViewState extends State<ProductMasterView> {
     );
   }
 
-  // --- PRODUCT FORM (WITH ID LOCKING) ---
+  // --- PRODUCT FORM (WITH SMART ID) ---
   void _showProductForm({Medicine? med}) async {
     final ph = Provider.of<PharoahManager>(context, listen: false);
+    if (ph.activeCompany == null) return;
 
-    // Initializing Controllers
+    // Controllers
     final nameC = TextEditingController(text: med?.name);
     final packC = TextEditingController(text: med?.packing);
     final rackC = TextEditingController(text: med?.rackNo);
@@ -95,10 +90,10 @@ class _ProductMasterViewState extends State<ProductMasterView> {
     final reorderC = TextEditingController(text: med?.reorderLevel.toString() ?? "0");
     final gstC = TextEditingController(text: med?.gst.toString() ?? "12");
     
-    // NAYA: ID Handling
+    // NAYA: ID Handling using Smart Logic
     String systemId = med?.systemId ?? "";
     if (systemId.isEmpty) {
-      systemId = await ph.generateNewMedicineId(); // Auto-generate for new items
+      systemId = await PharoahSmartLogic.getNextMedicineSystemID(ph.activeCompany!.id);
     }
 
     String selForm = med?.drugForm ?? "TAB";
@@ -129,18 +124,14 @@ class _ProductMasterViewState extends State<ProductMasterView> {
             child: SingleChildScrollView(
               child: Column(
                 children: [
-                  // NAYA: LOCKED ID DISPLAY
+                  // LOCKED ID DISPLAY
                   Container(
-                    padding: const EdgeInsets.all(10),
-                    margin: const EdgeInsets.only(bottom: 15),
+                    padding: const EdgeInsets.all(10), margin: const EdgeInsets.only(bottom: 15),
                     decoration: BoxDecoration(color: Colors.grey.shade100, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.grey.shade300)),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
+                    child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
                         const Text("SYSTEM ID (LOCKED):", style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.blueGrey)),
                         Text(systemId, style: const TextStyle(fontWeight: FontWeight.w900, color: Colors.indigo)),
-                      ],
-                    ),
+                    ]),
                   ),
 
                   _section("PRIMARY DETAILS"),
@@ -157,40 +148,26 @@ class _ProductMasterViewState extends State<ProductMasterView> {
                   ]),
                   const SizedBox(height: 15),
                   _searchableField(
-                    label: "Company",
-                    value: companyName,
-                    icon: Icons.business,
+                    label: "Company", value: companyName, icon: Icons.business,
                     onTap: () => _showSearchablePicker(
-                      title: "Company",
-                      items: ph.companies,
+                      title: "Company", items: ph.companies,
                       onSelected: (val) => setDialogState(() { companyId = val.id; companyName = val.name; }),
                       onQuickAdd: () => _quickAddCompany(ph),
                     ),
                   ),
                   const SizedBox(height: 15),
                   _searchableField(
-                    label: "Salt / Composition",
-                    value: saltName,
-                    icon: Icons.science,
+                    label: "Salt / Composition", value: saltName, icon: Icons.science,
                     onTap: () => _showSearchablePicker(
-                      title: "Salt",
-                      items: ph.salts,
+                      title: "Salt", items: ph.salts,
                       onSelected: (val) => setDialogState(() { saltId = val.id; saltName = val.name; }),
                       onQuickAdd: () => _quickAddSalt(ph),
                     ),
                   ),
                   _section("LEGAL & STORAGE"),
                   Row(children: [
-                    Expanded(child: SwitchListTile(
-                      contentPadding: EdgeInsets.zero,
-                      title: const Text("Narcotic", style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-                      value: naco, onChanged: (v) => setDialogState(() => naco = v)
-                    )),
-                    Expanded(child: SwitchListTile(
-                      contentPadding: EdgeInsets.zero,
-                      title: const Text("Sch. H1", style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-                      value: schH1, onChanged: (v) => setDialogState(() => schH1 = v)
-                    )),
+                    Expanded(child: SwitchListTile(contentPadding: EdgeInsets.zero, title: const Text("Narcotic", style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)), value: naco, onChanged: (v) => setDialogState(() => naco = v))),
+                    Expanded(child: SwitchListTile(contentPadding: EdgeInsets.zero, title: const Text("Sch. H1", style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)), value: schH1, onChanged: (v) => setDialogState(() => schH1 = v))),
                   ]),
                   const SizedBox(height: 10),
                   DropdownButtonFormField<String>(
@@ -218,12 +195,12 @@ class _ProductMasterViewState extends State<ProductMasterView> {
             TextButton(onPressed: () => Navigator.pop(c), child: const Text("CANCEL")),
             ElevatedButton(
               style: ElevatedButton.styleFrom(backgroundColor: Colors.purple, foregroundColor: Colors.white),
-              onPressed: () {
+              onPressed: () async {
                 if(nameC.text.isEmpty || packC.text.isEmpty) return;
 
                 final newItem = Medicine(
                   id: med?.id ?? DateTime.now().toString(),
-                  systemId: systemId, // LOCKED ID SAVED
+                  systemId: systemId, // LOCKED ID
                   name: nameC.text.toUpperCase(),
                   packing: packC.text.toUpperCase(),
                   companyId: companyId ?? "",
@@ -240,17 +217,19 @@ class _ProductMasterViewState extends State<ProductMasterView> {
                   mrp: med?.mrp ?? 0, purRate: med?.purRate ?? 0, rateA: med?.rateA ?? 0, rateB: med?.rateB ?? 0, rateC: med?.rateC ?? 0,
                 );
 
-                if(med == null) ph.medicines.add(newItem);
-                else { int i = ph.medicines.indexWhere((x)=>x.id==med.id); ph.medicines[i] = newItem; }
+                if(med == null) {
+                  ph.medicines.add(newItem);
+                  // NAYA: Update Smart Counter after successful save
+                  await PharoahSmartLogic.updateCountersAfterSave(type: "MED", usedID: systemId, companyID: ph.activeCompany!.id);
+                }
+                else { 
+                  int i = ph.medicines.indexWhere((x)=>x.id==med.id); 
+                  ph.medicines[i] = newItem; 
+                }
                 
                 ph.save(); 
-
-                if (widget.isSelectionMode) {
-                  Navigator.pop(c); // dialog
-                  Navigator.pop(context, newItem); // return to billing
-                } else {
-                  Navigator.pop(c);
-                }
+                if (widget.isSelectionMode) { Navigator.pop(c); Navigator.pop(context, newItem); } 
+                else { Navigator.pop(c); }
               }, 
               child: const Text("SAVE PRODUCT")
             )
@@ -269,10 +248,7 @@ class _ProductMasterViewState extends State<ProductMasterView> {
       appBar: AppBar(title: const Text("Inventory / Item Master"), backgroundColor: Colors.purple, foregroundColor: Colors.white),
       body: Column(children: [
         Container(padding: const EdgeInsets.all(15), color: Colors.purple.shade50, child: TextField(
-          decoration: InputDecoration(
-            hintText: "Search Product Name...", prefixIcon: const Icon(Icons.search, color: Colors.purple), 
-            filled: true, fillColor: Colors.white, border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none)
-          ), 
+          decoration: InputDecoration(hintText: "Search Product...", prefixIcon: const Icon(Icons.search, color: Colors.purple), filled: true, fillColor: Colors.white, border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none)), 
           onChanged: (v) => setState(() => searchQuery = v)
         )),
         Expanded(child: ListView.builder(
@@ -282,10 +258,7 @@ class _ProductMasterViewState extends State<ProductMasterView> {
             return Card(
               elevation: 2, margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6), 
               child: ListTile(
-                leading: CircleAvatar(
-                  backgroundColor: Colors.purple.shade50,
-                  child: Text(m.systemId.replaceAll("PH-", ""), style: const TextStyle(fontSize: 8, fontWeight: FontWeight.bold, color: Colors.purple)),
-                ),
+                leading: CircleAvatar(backgroundColor: Colors.purple.shade50, child: Text(m.systemId.replaceAll("PH-", ""), style: const TextStyle(fontSize: 8, fontWeight: FontWeight.bold, color: Colors.purple))),
                 title: Text("${m.name} (${m.packing})", style: const TextStyle(fontWeight: FontWeight.bold)),
                 subtitle: Text("ID: ${m.systemId} | Stock: ${m.stock} | Rack: ${m.rackNo}"),
                 trailing: const Icon(Icons.edit, size: 18, color: Colors.grey),
@@ -299,55 +272,17 @@ class _ProductMasterViewState extends State<ProductMasterView> {
     );
   }
 
-  // --- UI HELPERS ---
   Widget _section(String t) => Padding(padding: const EdgeInsets.symmetric(vertical: 12), child: Align(alignment: Alignment.centerLeft, child: Text(t, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.blueGrey, letterSpacing: 1))));
-  
-  Widget _input(TextEditingController ctrl, String label, IconData icon, {bool isNum = false}) => Padding(
-    padding: const EdgeInsets.only(bottom: 12), 
-    child: TextField(
-      controller: ctrl, keyboardType: isNum ? const TextInputType.numberWithOptions(decimal: true) : TextInputType.text, 
-      textCapitalization: TextCapitalization.characters,
-      decoration: InputDecoration(labelText: label, prefixIcon: Icon(icon, size: 18), border: const OutlineInputBorder())
-    )
-  );
-
+  Widget _input(TextEditingController ctrl, String label, IconData icon, {bool isNum = false}) => Padding(padding: const EdgeInsets.only(bottom: 12), child: TextField(controller: ctrl, keyboardType: isNum ? const TextInputType.numberWithOptions(decimal: true) : TextInputType.text, textCapitalization: TextCapitalization.characters, decoration: InputDecoration(labelText: label, prefixIcon: Icon(icon, size: 18), border: const OutlineInputBorder())));
   Widget _searchableField({required String label, required String value, required IconData icon, required VoidCallback onTap}) {
-    return InkWell(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 15),
-        decoration: BoxDecoration(border: Border.all(color: Colors.grey), borderRadius: BorderRadius.circular(5)),
-        child: Row(children: [
-            Icon(icon, color: Colors.grey, size: 20),
-            const SizedBox(width: 10),
-            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(label, style: const TextStyle(fontSize: 10, color: Colors.grey)), Text(value, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold))])),
-            const Icon(Icons.arrow_drop_down, color: Colors.grey),
-        ]),
-      ),
-    );
+    return InkWell(onTap: onTap, child: Container(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 15), decoration: BoxDecoration(border: Border.all(color: Colors.grey), borderRadius: BorderRadius.circular(5)), child: Row(children: [Icon(icon, color: Colors.grey, size: 20), const SizedBox(width: 10), Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(label, style: const TextStyle(fontSize: 10, color: Colors.grey)), Text(value, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold))])), const Icon(Icons.arrow_drop_down, color: Colors.grey)])));
   }
-
   void _quickAddCompany(PharoahManager ph) {
     final cC = TextEditingController();
-    showDialog(context: context, builder: (c) => AlertDialog(
-      title: const Text("Quick Add Company"),
-      content: TextField(controller: cC, decoration: const InputDecoration(labelText: "Company Name"), textCapitalization: TextCapitalization.characters),
-      actions: [
-        TextButton(onPressed: () => Navigator.pop(c), child: const Text("CANCEL")),
-        ElevatedButton(onPressed: () { if(cC.text.isNotEmpty) { ph.addCompany(Company(id: DateTime.now().toString(), name: cC.text.toUpperCase())); Navigator.pop(c); } }, child: const Text("ADD"))
-      ],
-    ));
+    showDialog(context: context, builder: (c) => AlertDialog(title: const Text("Quick Add Company"), content: TextField(controller: cC, decoration: const InputDecoration(labelText: "Company Name"), textCapitalization: TextCapitalization.characters), actions: [TextButton(onPressed: () => Navigator.pop(c), child: const Text("CANCEL")), ElevatedButton(onPressed: () { if(cC.text.isNotEmpty) { ph.addCompany(Company(id: DateTime.now().toString(), name: cC.text.toUpperCase())); Navigator.pop(c); } }, child: const Text("ADD"))]));
   }
-
   void _quickAddSalt(PharoahManager ph) {
     final sC = TextEditingController();
-    showDialog(context: context, builder: (c) => AlertDialog(
-      title: const Text("Quick Add Salt"),
-      content: TextField(controller: sC, decoration: const InputDecoration(labelText: "Salt Name"), textCapitalization: TextCapitalization.characters),
-      actions: [
-        TextButton(onPressed: () => Navigator.pop(c), child: const Text("CANCEL")),
-        ElevatedButton(onPressed: () { if(sC.text.isNotEmpty) { ph.addSalt(Salt(id: DateTime.now().toString(), name: sC.text.toUpperCase())); Navigator.pop(c); } }, child: const Text("ADD"))
-      ],
-    ));
+    showDialog(context: context, builder: (c) => AlertDialog(title: const Text("Quick Add Salt"), content: TextField(controller: sC, decoration: const InputDecoration(labelText: "Salt Name"), textCapitalization: TextCapitalization.characters), actions: [TextButton(onPressed: () => Navigator.pop(c), child: const Text("CANCEL")), ElevatedButton(onPressed: () { if(sC.text.isNotEmpty) { ph.addSalt(Salt(id: DateTime.now().toString(), name: sC.text.toUpperCase())); Navigator.pop(c); } }, child: const Text("ADD"))]));
   }
 }
