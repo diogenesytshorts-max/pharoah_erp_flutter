@@ -1,9 +1,11 @@
+// FILE: lib/gst_report_detail_view.dart
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import 'pharoah_manager.dart';
 import 'models.dart';
-import 'gst_report_service.dart'; // Is line ko compiler ko har haal me dekhna chahiye
+import 'gst_report_service.dart';
 
 class GSTReportDetailView extends StatefulWidget {
   final String reportType;
@@ -20,6 +22,7 @@ class _GSTReportDetailViewState extends State<GSTReportDetailView> {
   @override
   void initState() {
     super.initState();
+    // Default: Current Month 1st to Today
     final now = DateTime.now();
     fromDate = DateTime(now.year, now.month, 1);
     toDate = now;
@@ -28,8 +31,9 @@ class _GSTReportDetailViewState extends State<GSTReportDetailView> {
   @override
   Widget build(BuildContext context) {
     final ph = Provider.of<PharoahManager>(context);
+    final activeShop = ph.activeCompany;
 
-    // Filtering logic
+    // --- FILTERING LOGIC (ORIGINAL) ---
     List<Sale> allSales = ph.sales.where((s) =>
       s.date.isAfter(fromDate.subtract(const Duration(days: 1))) && 
       s.date.isBefore(toDate.add(const Duration(days: 1)))
@@ -50,20 +54,20 @@ class _GSTReportDetailViewState extends State<GSTReportDetailView> {
         foregroundColor: Colors.white,
         actions: [
           IconButton(
-            icon: const Icon(Icons.picture_as_pdf),
-            onPressed: () {
+            icon: const Icon(Icons.picture_as_pdf_rounded),
+            tooltip: "Download PDF Report",
+            onPressed: (activeShop == null) ? null : () {
               String rangeLabel = "${DateFormat('dd/MM/yy').format(fromDate)} to ${DateFormat('dd/MM/yy').format(toDate)}";
               
-              // CALLING STATIC METHODS OF GstReportService
+              // NAYA: Passing 'activeShop' to all PDF calls
               if (widget.reportType.contains("GSTR-1")) {
-                GstReportService.generateGstr1Pdf(allSales, rangeLabel);
+                GstReportService.generateGstr1Pdf(allSales, rangeLabel, activeShop);
               } 
               else if (widget.reportType.contains("GSTR-3B")) {
-                GstReportService.generateGstr3bPdf(activeSales, monthlyPurchases, rangeLabel);
+                GstReportService.generateGstr3bPdf(activeSales, monthlyPurchases, rangeLabel, activeShop);
               }
               else if (widget.reportType.contains("GSTR-2")) {
-                // Now passing monthlyPurchases, vouchers, parties, and label
-                GstReportService.generateGstr2Pdf(monthlyPurchases, ph.vouchers, ph.parties, rangeLabel);
+                GstReportService.generateGstr2Pdf(monthlyPurchases, ph.vouchers, ph.parties, rangeLabel, activeShop);
               }
             },
           ),
@@ -82,6 +86,8 @@ class _GSTReportDetailViewState extends State<GSTReportDetailView> {
       ),
     );
   }
+
+  // --- UI COMPONENTS (ORIGINAL) ---
 
   Widget _buildDateRangePicker() {
     return Container(
