@@ -1,17 +1,21 @@
+// FILE: lib/pdf/sale_report_pdf.dart
+
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import 'package:intl/intl.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import '../models.dart';
+import '../gateway/company_registry_model.dart'; // NAYA SOURCE
 
 class SaleReportPdf {
-  static Future<void> generate(List<Sale> sales, DateTime fDate, DateTime tDate, Party? selectedParty) async {
+  // NAYA: Ab yeh active shop profile lega
+  static Future<void> generate(List<Sale> sales, DateTime fDate, DateTime tDate, Party? selectedParty, CompanyProfile shop) async {
     final pdf = pw.Document();
-    final prefs = await SharedPreferences.getInstance();
-    String shopName = (prefs.getString('compName') ?? "PHAROAH ERP").toUpperCase();
+    
+    // NAYA: Dukan ka naam registry se
+    String shopName = shop.name.toUpperCase();
 
-    // Summary Calculations
+    // Summary Calculations (ORIGINAL LOGIC)
     double totalTaxable = 0; double totalGst = 0; double netTotal = 0;
     double cashTotal = 0; double creditTotal = 0;
 
@@ -49,14 +53,22 @@ class SaleReportPdf {
           data: sales.map((s) {
             double tax = s.items.fold(0.0, (sum, it) => sum + (it.cgst + it.sgst + it.igst));
             return [
-              DateFormat('dd/MM/yy').format(s.date), s.billNo, s.partyName, s.partyGstin, s.paymentMode,
-              (s.totalAmount - tax).toStringAsFixed(2), tax.toStringAsFixed(2), s.totalAmount.toStringAsFixed(2)
+              DateFormat('dd/MM/yy').format(s.date), 
+              s.billNo, 
+              s.partyName, 
+              s.partyGstin, 
+              s.paymentMode,
+              (s.totalAmount - tax).toStringAsFixed(2), 
+              tax.toStringAsFixed(2), 
+              s.totalAmount.toStringAsFixed(2)
             ];
           }).toList(),
         ),
         pw.SizedBox(height: 20),
         pw.Row(mainAxisAlignment: pw.MainAxisAlignment.spaceBetween, children: [
-           _sumBox("CASH SALE", cashTotal), _sumBox("CREDIT SALE", creditTotal), _sumBox("NET TOTAL", netTotal, isBold: true)
+           _sumBox("CASH SALE", cashTotal), 
+           _sumBox("CREDIT SALE", creditTotal), 
+           _sumBox("NET TOTAL", netTotal, isBold: true)
         ]),
       ],
     ));
