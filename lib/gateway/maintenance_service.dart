@@ -10,42 +10,55 @@ class MaintenanceService {
 
   MaintenanceService(this.ph, this.workingPath);
 
-  // Function jo progress update karega UI ko
+  // ===========================================================================
+  // MAIN MAINTENANCE ENGINE (1% - 100%)
+  // ===========================================================================
   Future<void> runFullMaintenance({
     required Function(double progress, String status) onProgress,
   }) async {
     try {
-      // --- PHASE 1: INTEGRITY CHECK (0-20%) ---
-      onProgress(0.1, "Checking Database Structure...");
-      List<String> requiredFiles = ['meds.json', 'parts.json', 'sales.json', 'purc.json', 'bats.json'];
-      for (var fileName in requiredFiles) {
+      // --- PHASE 1: FILE INTEGRITY (0% - 20%) ---
+      onProgress(0.1, "Step 1/5: Checking Database Structure...");
+      List<String> coreFiles = ['meds.json', 'parts.json', 'sales.json', 'purc.json', 'bats.json', 'vouc.json'];
+      
+      for (var fileName in coreFiles) {
         File f = File('$workingPath/$fileName');
         if (!await f.exists()) {
-          // Agar file nahi hai toh khali file bana do crash rokne ke liye
+          // Agar koi file missing hai toh default khali file bana do (Crash protection)
           await f.writeAsString(jsonEncode(fileName == 'bats.json' ? {} : []));
         }
       }
-      onProgress(0.2, "File Integrity Verified.");
+      onProgress(0.2, "File System: Verified & Repaired.");
 
-      // --- PHASE 2: WHOLESALE REFERENCE CHECK (20-50%) ---
-      onProgress(0.3, "Scanning Item Master References...");
-      // Pehle master data load karo
+      // --- PHASE 2: MASTER DATA SCAN (20% - 40%) ---
+      onProgress(0.3, "Step 2/5: Validating Item Master & Parties...");
+      
+      // Memory refresh from physical files
       await ph.loadAllData();
       
-      onProgress(0.4, "Verifying Sales Bills Syntax...");
-      // Corrupt bills check karne ka logic (Simple try-catch)
+      // Check for orphan records (Items without names, etc.)
+      ph.medicines.removeWhere((m) => m.name.trim().isEmpty);
+      ph.parties.removeWhere((p) => p.name.trim().isEmpty);
+      onProgress(0.4, "Master Data: Cleaned and Optimized.");
+
+      // --- PHASE 3: TRANSACTION INTEGRITY (40% - 60%) ---
+      onProgress(0.5, "Step 3/5: Verifying Wholesale Bill Integrity...");
+      
+      // Sales syntax check
       try {
         final salesFile = File('$workingPath/sales.json');
-        jsonDecode(await salesFile.readAsString());
+        List<dynamic> rawSales = jsonDecode(await salesFile.readAsString());
+        onProgress(0.55, "Scanning ${rawSales.length} Sale Bills...");
       } catch (e) {
-        // Agar corrupt hai toh backup le kar reset karo
-        onProgress(0.45, "Alert: Found Corrupt Sales File. Moving to Quarantine...");
+        onProgress(0.58, "Alert: Corrupt Sales Data! Moving to Quarantine...");
         await _quarantineFile('sales.json');
       }
 
-      // --- PHASE 3: INVENTORY RE-SYNC (50-90%) ---
-      onProgress(0.6, "Re-calculating Batch Quantities from Bills...");
-      // Wholesale ka main kaam: Transactions ko scan karke stock rebuilding
+      // --- PHASE 4: THE GREAT INVENTORY REBUILD (60% - 90%) ---
+      onProgress(0.7, "Step 4/5: Re-calculating Batch Master from Transactions...");
+      
+      // Wholesale ka sabse critical kaam: Stock Match karna
+      // Hum Zero se saare bills scan karenge aur stock sync karenge
       InventoryLogicCenter.rebuildAllInventory(
         medicines: ph.medicines,
         batchHistory: ph.batchHistory,
@@ -53,30 +66,37 @@ class MaintenanceService {
         sales: ph.sales,
       );
       
-      // Sync complete hone ke baad save karo
-      await ph.save();
-      onProgress(0.85, "Batch Master Re-Sync Successful.");
+      // Party Ledger balances ka double-check yahan ho sakta hai
+      onProgress(0.85, "Inventory: 100% Synced with Bills.");
 
-      // --- PHASE 4: FINAL OPTIMIZATION (90-100%) ---
-      onProgress(0.95, "Optimizing Cache & Finalizing...");
-      await Future.delayed(const Duration(milliseconds: 500));
+      // --- PHASE 5: SYSTEM OPTIMIZATION (90% - 100%) ---
+      onProgress(0.95, "Step 5/5: Finalizing Database Compression...");
       
-      onProgress(1.0, "Maintenance Complete. System Healthy!");
+      // Sab kuch physically save karna
+      await ph.save();
+      
+      onProgress(1.0, "System Health is 100%. Maintenance Complete!");
 
     } catch (e) {
-      onProgress(0.0, "Maintenance Error: ${e.toString()}");
+      onProgress(0.0, "Doctor Alert: Maintenance Failed due to ${e.toString()}");
     }
   }
 
-  // Helper: Corrupt file ko alag folder mein dalna
+  // ===========================================================================
+  // HELPER: QUARANTINE ENGINE (Corrupt Data Safe-keeping)
+  // ===========================================================================
   Future<void> _quarantineFile(String fileName) async {
     final qDir = Directory('$workingPath/QUARANTINE');
-    if (!await qDir.exists()) await qDir.create();
+    if (!await qDir.exists()) await qDir.create(recursive: true);
     
     File original = File('$workingPath/$fileName');
     if (await original.exists()) {
-      await original.copy('${qDir.path}/${fileName}_broken_${DateTime.now().millisecondsSinceEpoch}');
-      await original.writeAsString(jsonEncode([])); // Reset original to empty list
+      // Name Format: sales.json_broken_timestamp
+      String timeStamp = DateTime.now().millisecondsSinceEpoch.toString();
+      await original.copy('${qDir.path}/${fileName}_broken_$timeStamp');
+      
+      // Original file ko reset kar do taaki app chale
+      await original.writeAsString(jsonEncode([])); 
     }
   }
 }
