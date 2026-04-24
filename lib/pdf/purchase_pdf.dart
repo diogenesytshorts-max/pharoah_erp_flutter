@@ -1,27 +1,25 @@
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:intl/intl.dart';
 import '../models.dart';
+import '../gateway/company_registry_model.dart'; // NAYA SOURCE
 
 class PurchasePdf {
-  static Future<void> generate(Purchase pur, Party supplier) async {
+  static Future<void> generate(Purchase pur, Party supplier, CompanyProfile shop) async {
     final pdf = pw.Document();
-    final prefs = await SharedPreferences.getInstance();
 
-    // Company Settings load kar rahe hain
-    String compName = (prefs.getString('compName') ?? "").toUpperCase();
-    String compAddr = prefs.getString('compAddr') ?? "";
-    String compPh = prefs.getString('compPh') ?? "";
-    String compGST = prefs.getString('compGST') ?? "";
+    // NAYA: Details from Shop Profile
+    String compName = shop.name.toUpperCase();
+    String compAddr = shop.address;
+    String compPh = shop.phone;
+    String compGST = shop.gstin;
 
-    // Calculation (Purchase mein GST item-wise total mein already ho sakta hai)
+    // Calculation (Original Logic)
     double totalTaxable = pur.items.fold(0, (sum, i) => sum + (i.purchaseRate * i.qty));
     double totalGst = pur.totalAmount - totalTaxable;
     int roundedGrandTotal = pur.totalAmount.round();
 
-    // Pagination: 12 items per page
     const int itemsPerPage = 12;
     int totalPages = (pur.items.length / itemsPerPage).ceil();
 
@@ -40,7 +38,7 @@ class PurchasePdf {
               decoration: pw.BoxDecoration(border: pw.Border.all(width: 1)),
               child: pw.Column(
                 children: [
-                  // --- 1. HEADER (Same as Sale) ---
+                  // --- HEADER (Original Layout) ---
                   pw.Row(
                     children: [
                       _headerBox(width: 280, child: pw.Column(
@@ -75,7 +73,7 @@ class PurchasePdf {
                     ],
                   ),
 
-                  // --- 2. TABLE HEADER ---
+                  // --- TABLE HEADER ---
                   pw.Container(
                     color: PdfColors.grey200,
                     child: pw.Row(
@@ -88,7 +86,7 @@ class PurchasePdf {
                     ),
                   ),
 
-                  // --- 3. DYNAMIC ROWS ---
+                  // --- DYNAMIC ROWS ---
                   pw.Expanded(
                     child: pw.Column(
                       children: pageItems.map((i) {
@@ -109,7 +107,7 @@ class PurchasePdf {
                     ),
                   ),
 
-                  // --- 4. FOOTER ---
+                  // --- FOOTER ---
                   if (isLastPage) _buildFullFooter(compName, pur, totalTaxable, totalGst, roundedGrandTotal)
                   else pw.Padding(padding: const pw.EdgeInsets.all(5), child: pw.Text("Continued...", style: pw.TextStyle(fontStyle: pw.FontStyle.italic, fontSize: 10))),
                 ],
@@ -120,27 +118,13 @@ class PurchasePdf {
       );
     }
 
-    // LANDSCAPE ROTATION FIX
-    await Printing.layoutPdf(
-      onLayout: (format) async => pdf.save(), 
-      name: 'Purchase_${pur.billNo}',
-      format: PdfPageFormat.a4.landscape,
-      dynamicLayout: false,
-    );
+    await Printing.layoutPdf(onLayout: (format) async => pdf.save(), name: 'Purchase_${pur.billNo}', format: PdfPageFormat.a4.landscape, dynamicLayout: false);
   }
 
-  // --- HELPERS (Same Logic as Sale) ---
-  static pw.Widget _headerBox({required double width, required pw.Widget child}) {
-    return pw.Container(width: width, height: 90, padding: const pw.EdgeInsets.all(5), decoration: pw.BoxDecoration(border: pw.Border.all(width: 0.5)), child: child);
-  }
-
-  static pw.Widget _tableCol(String text, double width, {pw.Alignment align = pw.Alignment.center}) {
-    return pw.Container(width: width, height: 20, alignment: align, decoration: pw.BoxDecoration(border: pw.Border.all(width: 0.5)), child: pw.Text(text, style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold)));
-  }
-
-  static pw.Widget _tableCell(String text, double width, {pw.Alignment align = pw.Alignment.center}) {
-    return pw.Container(width: width, padding: const pw.EdgeInsets.symmetric(vertical: 3), alignment: align, child: pw.Text(text, style: const pw.TextStyle(fontSize: 7.5)));
-  }
+  // ORIGINAL HELPERS
+  static pw.Widget _headerBox({required double width, required pw.Widget child}) => pw.Container(width: width, height: 90, padding: const pw.EdgeInsets.all(5), decoration: pw.BoxDecoration(border: pw.Border.all(width: 0.5)), child: child);
+  static pw.Widget _tableCol(String text, double width, {pw.Alignment align = pw.Alignment.center}) => pw.Container(width: width, height: 20, alignment: align, decoration: pw.BoxDecoration(border: pw.Border.all(width: 0.5)), child: pw.Text(text, style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold)));
+  static pw.Widget _tableCell(String text, double width, {pw.Alignment align = pw.Alignment.center}) => pw.Container(width: width, padding: const pw.EdgeInsets.symmetric(vertical: 3), alignment: align, child: pw.Text(text, style: const pw.TextStyle(fontSize: 7.5)));
 
   static pw.Widget _buildFullFooter(String compName, Purchase pur, double taxable, double gst, int total) {
     return pw.Row(
@@ -157,8 +141,7 @@ class PurchasePdf {
         )),
         pw.Container(width: 250, padding: const pw.EdgeInsets.all(5), decoration: pw.BoxDecoration(border: pw.Border.all(width: 0.5)), child: pw.Column(
           children: [
-            _finalRow("TAXABLE AMOUNT", taxable),
-            _finalRow("GST AMOUNT", gst),
+            _finalRow("TAXABLE AMOUNT", taxable), _finalRow("GST AMOUNT", gst),
             pw.Divider(thickness: 0.5),
             pw.Row(mainAxisAlignment: pw.MainAxisAlignment.spaceBetween, children: [
               pw.Text("TOTAL PURCHASE", style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold)),
