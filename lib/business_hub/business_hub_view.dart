@@ -2,7 +2,8 @@
 
 import 'package:flutter/material.dart';
 import '../challans/challan_dashboard.dart';
-import '../modifications/modify_hub_view.dart'; // NAYA IMPORT
+import '../modifications/modify_hub_view.dart';
+import '../finance/finance_dashboard.dart'; // NAYA IMPORT
 
 class BusinessHubView extends StatelessWidget {
   const BusinessHubView({super.key});
@@ -55,7 +56,6 @@ class BusinessHubView extends StatelessWidget {
                   Icons.edit_note_rounded,
                   Colors.blue.shade800,
                   () {
-                    // UPDATED NAVIGATION
                     Navigator.push(context, MaterialPageRoute(builder: (c) => const ModifyHubView()));
                   },
                 ),
@@ -65,7 +65,10 @@ class BusinessHubView extends StatelessWidget {
                   "Outstanding & PDC Tracker",
                   Icons.account_balance_rounded,
                   Colors.green.shade800,
-                  () {},
+                  () {
+                    // UPDATED NAVIGATION
+                    Navigator.push(context, MaterialPageRoute(builder: (c) => const FinanceDashboard()));
+                  },
                 ),
                 _hubCard(
                   context,
@@ -117,8 +120,8 @@ class BusinessHubView extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text("Business Control Room", style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
-                Text("Manage advanced operations from here.", style: TextStyle(color: Colors.white70, fontSize: 12)),
+                const Text("Business Control Room", style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+                const Text("Manage advanced operations from here.", style: TextStyle(color: Colors.white70, fontSize: 12)),
               ],
             ),
           )
