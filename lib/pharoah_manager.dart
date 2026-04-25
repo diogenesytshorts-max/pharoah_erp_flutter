@@ -1,3 +1,5 @@
+// FILE: lib/pharoah_manager.dart
+
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
@@ -11,12 +13,14 @@ import 'inventory_logic_center.dart';
 import 'fy_transfer_engine.dart';
 import 'app_date_logic.dart';
 import 'gateway/company_registry_model.dart';
+import 'logic/pharoah_numbering_engine.dart'; // NAYA ENGINE
 
 class PharoahManager with ChangeNotifier {
   List<Medicine> medicines = [];
   List<Party> parties = [];
   List<Sale> sales = [];
   List<Purchase> purchases = [];
+  List<SaleChallan> saleChallans = []; // NAYI LIST
   List<RouteArea> routes = [];
   List<Company> companies = [];
   List<Salt> salts = [];
@@ -60,7 +64,7 @@ class PharoahManager with ChangeNotifier {
   void clearSession() {
     activeCompany = null; currentFY = ""; isAdminAuthenticated = false;
     medicines.clear(); parties.clear(); sales.clear(); purchases.clear();
-    vouchers.clear(); batchHistory.clear(); notifyListeners();
+    saleChallans.clear(); vouchers.clear(); batchHistory.clear(); notifyListeners();
   }
 
   Future<String> getWorkingPath() async {
@@ -78,6 +82,7 @@ class PharoahManager with ChangeNotifier {
     await File('$dir/parts.json').writeAsString(jsonEncode(parties.map((e) => e.toMap()).toList()));
     await File('$dir/sales.json').writeAsString(jsonEncode(sales.map((e) => e.toMap()).toList()));
     await File('$dir/purc.json').writeAsString(jsonEncode(purchases.map((e) => e.toMap()).toList()));
+    await File('$dir/challans.json').writeAsString(jsonEncode(saleChallans.map((e) => e.toMap()).toList())); // SAVE CHALLANS
     await File('$dir/routs.json').writeAsString(jsonEncode(routes.map((e) => e.toMap()).toList()));
     await File('$dir/comps.json').writeAsString(jsonEncode(companies.map((e) => e.toMap()).toList()));
     await File('$dir/salts.json').writeAsString(jsonEncode(salts.map((e) => e.toMap()).toList()));
@@ -95,21 +100,19 @@ class PharoahManager with ChangeNotifier {
       final f = File('$dir/$name');
       return f.existsSync() ? jsonDecode(f.readAsStringSync()) : null;
     }
-    if (File('$dir/meds.json').existsSync()) {
-      medicines = (loadJson('meds.json') as List).map((e) => Medicine.fromMap(e)).toList();
-    } else {
-      medicines = DemoData.getMedicines(); 
-    }
-    parties = (loadJson('parts.json') as List?)?.map((e) => Party.fromMap(e)).toList() ?? 
-              [DemoData.getDemoParty(), Party(id: 'cash', name: "CASH", group: "Cash in Hand")];
+    
+    medicines = (loadJson('meds.json') as List?)?.map((e) => Medicine.fromMap(e)).toList() ?? DemoData.getMedicines();
+    parties = (loadJson('parts.json') as List?)?.map((e) => Party.fromMap(e)).toList() ?? [DemoData.getDemoParty(), Party(id: 'cash', name: "CASH", group: "Cash in Hand")];
     sales = (loadJson('sales.json') as List?)?.map((e) => Sale.fromMap(e)).toList() ?? [];
     purchases = (loadJson('purc.json') as List?)?.map((e) => Purchase.fromMap(e)).toList() ?? [];
+    saleChallans = (loadJson('challans.json') as List?)?.map((e) => SaleChallan.fromMap(e)).toList() ?? []; // LOAD CHALLANS
     vouchers = (loadJson('vouc.json') as List?)?.map((e) => Voucher.fromMap(e)).toList() ?? [];
     logs = (loadJson('logs.json') as List?)?.map((e) => LogEntry.fromMap(e)).toList() ?? [];
     companies = (loadJson('comps.json') as List?)?.map((e) => Company.fromMap(e)).toList() ?? MasterDataLibrary.topCompanies.map((n) => Company(id: n, name: n)).toList();
     salts = (loadJson('salts.json') as List?)?.map((e) => Salt.fromMap(e)).toList() ?? MasterDataLibrary.topSalts.map((s) => Salt(id: s['name']!, name: s['name']!, type: s['type']!)).toList();
     drugTypes = (loadJson('dtypes.json') as List?)?.map((e) => DrugType.fromMap(e)).toList() ?? MasterDataLibrary.drugTypes.map((n) => DrugType(id: n, name: n)).toList();
     routes = (loadJson('routs.json') as List?)?.map((e) => RouteArea.fromMap(e)).toList() ?? [RouteArea(id: '1', name: "LOCAL AREA")];
+    
     var bD = loadJson('bats.json');
     if (bD != null) {
       batchHistory.clear();
@@ -121,6 +124,8 @@ class PharoahManager with ChangeNotifier {
 
   void _rebuildInventoryRegistry() {
     batchHistory.forEach((medId, list) { for (var b in list) { b.qty = b.openingQty + b.adjustmentQty; } });
+    
+    // 1. Stock IN from Purchases
     for (var pur in purchases) {
       for (var item in pur.items) {
         String key = _getMedIdentityKey(item.medicineID, item.name);
@@ -129,6 +134,7 @@ class PharoahManager with ChangeNotifier {
         b.qty += (item.qty + item.freeQty); b.isShell = false;
       }
     }
+    // 2. Stock OUT from Active Sale Bills
     for (var sale in sales.where((s) => s.status == "Active")) {
       for (var item in sale.items) {
         String key = _getMedIdentityKey(item.medicineID, item.name);
@@ -137,6 +143,17 @@ class PharoahManager with ChangeNotifier {
         b.qty -= (item.qty + item.freeQty);
       }
     }
+    // 3. Stock OUT from Pending Challans (NAYA LOGIC)
+    for (var challan in saleChallans.where((c) => c.status == "Pending")) {
+      for (var item in challan.items) {
+        String key = _getMedIdentityKey(item.medicineID, item.name);
+        _ensureBatchExists(key, item.batch, item.exp, item.packing, item.mrp, item.rate);
+        var b = batchHistory[key]!.firstWhere((x) => x.batch == item.batch);
+        b.qty -= (item.qty + item.freeQty);
+      }
+    }
+
+    // Final medicine stock sync
     for (var med in medicines) {
       double total = 0;
       if (batchHistory.containsKey(med.identityKey)) {
@@ -157,9 +174,15 @@ class PharoahManager with ChangeNotifier {
     }
   }
 
-  // --- RE-ADDED MISSING METHODS ---
-  Future<void> switchYear(String year) async { currentFY = year; await loadAllData(); notifyListeners(); }
+  // --- ACTIONS ---
+  void finalizeSaleChallan({required String challanNo, required DateTime date, required Party party, required List<BillItem> items, required double total}) {
+    saleChallans.add(SaleChallan(id: DateTime.now().toString(), billNo: challanNo, date: date, partyName: party.name, partyGstin: party.gst, partyState: party.state, items: items, totalAmount: total, status: "Pending"));
+    if (activeCompany != null) PharoahNumberingEngine.updateCounter(type: "SALE_CHALLAN", usedNumber: challanNo, companyID: activeCompany!.id);
+    save().then((_) => loadAllData());
+  }
 
+  // (Baki methods as it is rahenge: finalizeSale, finalizePurchase, etc.)
+  Future<void> switchYear(String year) async { currentFY = year; await loadAllData(); notifyListeners(); }
   void adjustBatchStock({required String medId, required String batchNo, required double adjQty, required String reason}) {
     if (batchHistory.containsKey(medId)) {
       try {
@@ -170,7 +193,6 @@ class PharoahManager with ChangeNotifier {
       } catch (e) {}
     }
   }
-
   void updateBatchMetadata({required String medId, required String batchNo, required String newExp, required double newMrp, required double newRate}) {
     if (batchHistory.containsKey(medId)) {
       try {
@@ -180,7 +202,6 @@ class PharoahManager with ChangeNotifier {
       } catch (e) {}
     }
   }
-
   Future<bool> startNewFinancialYear(String nextFY) async {
     if (activeCompany == null) return false;
     await save();
@@ -191,25 +212,20 @@ class PharoahManager with ChangeNotifier {
       if (idx != -1 && !companiesRegistry[idx].fYears.contains(nextFY)) {
         companiesRegistry[idx].fYears.add(nextFY); await saveRegistry();
       }
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setInt('lastBillID_${activeCompany!.id}', 0);
       await loadAllData();
     }
     return success;
   }
-
   void finalizeSale({required String billNo, required DateTime date, required Party party, required List<BillItem> items, required double total, required String mode}) {
     sales.add(Sale(id: DateTime.now().toString(), billNo: billNo, date: date, partyName: party.name, partyGstin: party.gst, partyState: party.state, items: items, totalAmount: total, paymentMode: mode));
-    if (activeCompany != null) PharoahSmartLogic.updateCountersAfterSave(type: "SALE", usedID: billNo, companyID: activeCompany!.id);
+    if (activeCompany != null) PharoahNumberingEngine.updateCounter(type: "SALE_BILL", usedNumber: billNo, companyID: activeCompany!.id);
     save().then((_) => loadAllData()); 
   }
-
   void finalizePurchase({required String internalNo, required String billNo, required DateTime date, DateTime? entryDate, required Party party, required List<PurchaseItem> items, required double total, required String mode}) {
     purchases.add(Purchase(id: DateTime.now().toString(), internalNo: internalNo, billNo: billNo, date: date, entryDate: entryDate ?? DateTime.now(), distributorName: party.name, items: items, totalAmount: total, paymentMode: mode));
-    if (activeCompany != null) PharoahSmartLogic.updateCountersAfterSave(type: "PURCHASE", usedID: internalNo, companyID: activeCompany!.id);
+    if (activeCompany != null) PharoahNumberingEngine.updateCounter(type: "PUR_BILL", usedNumber: internalNo, companyID: activeCompany!.id);
     save().then((_) => loadAllData()); 
   }
-
   void addVoucher(Voucher v) { vouchers.add(v); save(); }
   void addCompany(Company c) { companies.add(c); save(); }
   void addSalt(Salt s) { salts.add(s); save(); }
