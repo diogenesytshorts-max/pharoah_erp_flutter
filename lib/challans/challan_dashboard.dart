@@ -1,4 +1,4 @@
-// FILE: lib/challans/challan_dashboard.dart (Replace Full)
+// FILE: lib/challans/challan_dashboard.dart (Poora replace karein)
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -6,7 +6,8 @@ import '../pharoah_manager.dart';
 import '../models.dart';
 import 'sale_challan_view.dart';
 import 'challan_to_bill_converter.dart';
-import '../returns/sale_return_view.dart'; // NAYA IMPORT
+import '../returns/sale_return_view.dart';
+import '../returns/expiry_breakage_return_view.dart'; // NAYA IMPORT
 
 class ChallanDashboard extends StatefulWidget {
   const ChallanDashboard({super.key});
@@ -46,14 +47,13 @@ class _ChallanDashboardState extends State<ChallanDashboard> {
                 _actionCard("PUR. CHALLAN", "Inward Entry", Icons.inventory_2, Colors.amber.shade800, () {
                   // Future
                 }),
-                
-                // UPDATED: SALE RETURN BUTTON CONNECTED
                 _actionCard("SALE RETURN", "Credit Note (Sellable)", Icons.assignment_return, Colors.red.shade700, () {
                   Navigator.push(context, MaterialPageRoute(builder: (c) => const SaleReturnView()));
                 }),
                 
-                _actionCard("BRK/EXP RET", "Breakage Entry", Icons.remove_shopping_cart, Colors.deepOrange, () {
-                  // Future: Expiry/Breakage specific button as requested
+                // UPDATED: BREAKAGE BUTTON CONNECTED
+                _actionCard("BRK/EXP RET", "Breakage Entry", Icons.delete_sweep_rounded, Colors.red.shade900, () {
+                  Navigator.push(context, MaterialPageRoute(builder: (c) => const ExpiryBreakageReturnView()));
                 }),
               ],
             ),
@@ -98,7 +98,7 @@ class _ChallanDashboardState extends State<ChallanDashboard> {
             ),
           ),
           
-          _buildSummaryBar(pendingChallans),
+          _buildSummaryBar(pendingChallans, ph.saleReturns),
         ],
       ),
     );
@@ -155,8 +155,10 @@ class _ChallanDashboardState extends State<ChallanDashboard> {
     );
   }
 
-  Widget _buildSummaryBar(List<SaleChallan> list) {
-    double total = list.fold(0, (sum, item) => sum + item.totalAmount);
+  Widget _buildSummaryBar(List<SaleChallan> list, List<SaleReturn> returns) {
+    double totalCh = list.fold(0, (sum, item) => sum + item.totalAmount);
+    double totalBrk = returns.where((r) => r.returnType == "Breakage").fold(0, (sum, item) => sum + item.totalAmount);
+
     return Container(
       padding: const EdgeInsets.all(15),
       decoration: BoxDecoration(
@@ -166,8 +168,8 @@ class _ChallanDashboardState extends State<ChallanDashboard> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceAround,
         children: [
-          _sumItem("Total Unbilled", "₹${total.toStringAsFixed(2)}", Colors.blueGrey),
-          _sumItem("Pending Count", "${list.length}", Colors.orange.shade900),
+          _sumItem("Unbilled", "₹${totalCh.toStringAsFixed(0)}", Colors.blueGrey),
+          _sumItem("Breakage", "₹${totalBrk.toStringAsFixed(0)}", Colors.red.shade900),
         ],
       ),
     );
