@@ -1,3 +1,5 @@
+// FILE: lib/dashboard_view.dart
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'pharoah_manager.dart';
@@ -10,8 +12,8 @@ import 'master_hub_view.dart';
 import 'sale_summary_view.dart';
 import 'purchase/purchase_summary_view.dart';
 import 'data_exchange_view.dart';
-import 'more_features_view.dart';
-import 'app_date_logic.dart'; // Aapka purana logic connection
+import 'app_date_logic.dart';
+import 'business_hub/business_hub_view.dart'; // NAYA IMPORT
 
 class DashboardView extends StatelessWidget {
   final VoidCallback onLogout;
@@ -20,14 +22,10 @@ class DashboardView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final ph = Provider.of<PharoahManager>(context);
-    
-    // --- NAYA: MULTI-COMPANY INFO ---
     final compName = ph.activeCompany?.name ?? "PHAROAH ERP";
     final compID = ph.activeCompany?.id ?? "N/A";
     final businessType = ph.activeCompany?.businessType ?? "WHOLESALE";
 
-    // --- PURANA SMART DATE LOGIC ---
-    // Agar user purane saal mein hai (Audit Mode), toh 'today' us saal ki 31st March hogi.
     DateTime workingDate = AppDateLogic.getSmartDate(ph.currentFY);
 
     double todaySales = ph.sales
@@ -43,18 +41,15 @@ class DashboardView extends StatelessWidget {
       medicines: ph.medicines
     );
 
-    // --- PURANA AUDIT MODE CHECK ---
     bool isPastYear = !AppDateLogic.isValidInFY(DateTime.now(), ph.currentFY);
 
     return Scaffold(
       backgroundColor: const Color(0xFFF8F9FD),
       body: Column(
         children: [
-          // --- HEADER SECTION (MERGED LOGIC) ---
           Container(
             padding: const EdgeInsets.only(top: 60, left: 25, right: 25, bottom: 25),
             decoration: BoxDecoration(
-              // NAYA: Color change based on Audit Mode (Purple) or Normal (Blue)
               color: isPastYear ? Colors.purple.shade900 : const Color(0xFF0D47A1),
               borderRadius: const BorderRadius.only(bottomLeft: Radius.circular(30), bottomRight: Radius.circular(30))
             ),
@@ -80,11 +75,9 @@ class DashboardView extends StatelessWidget {
                   ],
                 ),
                 const Spacer(),
-                // --- SWITCH COMPANY ICON (Updated from Power Icon) ---
                 IconButton(
                   icon: const Icon(Icons.swap_horizontal_circle_outlined, color: Colors.white, size: 32), 
-                  onPressed: onLogout, // Session clear karke dukan selection par le jayega
-                  tooltip: "Switch Company",
+                  onPressed: onLogout,
                 )
               ],
             ),
@@ -96,7 +89,6 @@ class DashboardView extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // --- PURANA DATE INDICATOR ---
                   Padding(
                     padding: const EdgeInsets.only(bottom: 10, left: 5),
                     child: Row(
@@ -111,7 +103,6 @@ class DashboardView extends StatelessWidget {
                     ),
                   ),
 
-                  // --- STATS WITH DYNAMIC TITLES ---
                   Row(children: [
                     Expanded(child: StatWidget(
                       title: isPastYear ? "LAST DAY SALE" : "TODAY SALE", 
@@ -162,7 +153,14 @@ class DashboardView extends StatelessWidget {
                       ActionIconBtn(title: "Sale Reg", icon: Icons.description_outlined, color: Colors.blue, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => const SaleSummaryView()))),
                       ActionIconBtn(title: "Pur Reg", icon: Icons.history_rounded, color: Colors.brown, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => const PurchaseSummaryView()))),
                       ActionIconBtn(title: "Data Hub", icon: Icons.cloud_sync_rounded, color: Colors.teal, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => const DataExchangeView()))),
-                      ActionIconBtn(title: "Settings", icon: Icons.settings_rounded, color: Colors.grey, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => MoreFeaturesView(onLogout: onLogout)))),
+                      
+                      // UPDATED BUTTON: Ab ye Business Hub pe bhejega
+                      ActionIconBtn(
+                        title: "Adv. Hub", 
+                        icon: Icons.rocket_launch_rounded, 
+                        color: Colors.indigo.shade900, 
+                        onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => const BusinessHubView()))
+                      ),
                     ],
                   ),
                 ],
