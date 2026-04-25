@@ -1,7 +1,10 @@
 // FILE: lib/challans/challan_dashboard.dart
 
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
+import '../pharoah_manager.dart';
+import '../models.dart';
+import 'sale_challan_view.dart'; // NAYA IMPORT
 
 class ChallanDashboard extends StatefulWidget {
   const ChallanDashboard({super.key});
@@ -13,6 +16,11 @@ class ChallanDashboard extends StatefulWidget {
 class _ChallanDashboardState extends State<ChallanDashboard> {
   @override
   Widget build(BuildContext context) {
+    final ph = Provider.of<PharoahManager>(context);
+    
+    // Sirf 'Pending' wale challans ki list nikalna
+    List<SaleChallan> pendingChallans = ph.saleChallans.where((c) => c.status == "Pending").toList();
+
     return Scaffold(
       backgroundColor: const Color(0xFFF8F9FD),
       appBar: AppBar(
@@ -33,17 +41,29 @@ class _ChallanDashboardState extends State<ChallanDashboard> {
               mainAxisSpacing: 15,
               childAspectRatio: 1.4,
               children: [
-                _actionCard("SALE CHALLAN", "Outward Entry", Icons.local_shipping, Colors.blueGrey, () {}),
-                _actionCard("PUR. CHALLAN", "Inward Entry", Icons.inventory_2, Colors.amber.shade800, () {}),
-                _actionCard("SALE RETURN", "Credit Note", Icons.assignment_return, Colors.red.shade700, () {}),
-                _actionCard("PUR. RETURN", "Debit Note", Icons.remove_shopping_cart, Colors.deepOrange, () {}),
+                // UPDATED BUTTON: Ab ye entry screen par bhejega
+                _actionCard("SALE CHALLAN", "Outward Entry", Icons.local_shipping, Colors.blueGrey, () {
+                  Navigator.push(context, MaterialPageRoute(builder: (c) => const SaleChallanView()));
+                }),
+                
+                _actionCard("PUR. CHALLAN", "Inward Entry", Icons.inventory_2, Colors.amber.shade800, () {
+                  // Future: Purchase Challan Screen
+                }),
+                
+                _actionCard("SALE RETURN", "Credit Note", Icons.assignment_return, Colors.red.shade700, () {
+                  // Future: Sale Return Screen
+                }),
+                
+                _actionCard("PUR. RETURN", "Debit Note", Icons.remove_shopping_cart, Colors.deepOrange, () {
+                  // Future: Purchase Return Screen
+                }),
               ],
             ),
           ),
 
           const SizedBox(height: 10),
 
-          // --- PENDING CHALLANS SECTION ---
+          // --- PENDING CHALLANS SECTION (REAL DATA) ---
           Expanded(
             child: Container(
               width: double.infinity,
@@ -54,27 +74,35 @@ class _ChallanDashboardState extends State<ChallanDashboard> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      const Text(
-                        "PENDING FOR BILLING",
-                        style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.blueGrey, letterSpacing: 1),
+                      Text(
+                        "PENDING FOR BILLING (${pendingChallans.length})",
+                        style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.blueGrey, letterSpacing: 1),
                       ),
-                      TextButton.icon(
-                        onPressed: () {}, 
-                        icon: const Icon(Icons.bolt, size: 16),
-                        label: const Text("CONVERT ALL", style: TextStyle(fontSize: 11)),
-                      )
+                      if (pendingChallans.isNotEmpty)
+                        TextButton.icon(
+                          onPressed: () {
+                            // Future: Convert Tool
+                          }, 
+                          icon: const Icon(Icons.bolt, size: 16),
+                          label: const Text("CONVERT TO BILL", style: TextStyle(fontSize: 11)),
+                        )
                     ],
                   ),
                   Expanded(
-                    child: _buildPlaceholderList(), // Abhi ke liye empty list UI
+                    child: pendingChallans.isEmpty 
+                      ? _buildEmptyState()
+                      : ListView.builder(
+                          itemCount: pendingChallans.length,
+                          itemBuilder: (c, i) => _challanTile(pendingChallans[i]),
+                        ),
                   ),
                 ],
               ),
             ),
           ),
           
-          // --- BOTTOM INFO ---
-          _buildSummaryBar(),
+          // --- BOTTOM SUMMARY ---
+          _buildSummaryBar(pendingChallans),
         ],
       ),
     );
@@ -103,24 +131,38 @@ class _ChallanDashboardState extends State<ChallanDashboard> {
     );
   }
 
-  Widget _buildPlaceholderList() {
-    return ListView.builder(
-      itemCount: 3,
-      itemBuilder: (c, i) => Card(
-        elevation: 0,
-        margin: const EdgeInsets.only(bottom: 10),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: BorderSide(color: Colors.grey.shade200)),
-        child: ListTile(
-          leading: const CircleAvatar(backgroundColor: Colors.blueGrey, child: Icon(Icons.document_scanner, color: Colors.white, size: 18)),
-          title: Text("Sample Challan #${i+101}", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-          subtitle: const Text("Party: Demo Medical Store | Date: 24/04/2026", style: TextStyle(fontSize: 11)),
-          trailing: const Icon(Icons.arrow_forward_ios, size: 12),
-        ),
+  Widget _challanTile(SaleChallan ch) {
+    return Card(
+      elevation: 0,
+      margin: const EdgeInsets.only(bottom: 10),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: BorderSide(color: Colors.grey.shade200)),
+      child: ListTile(
+        leading: const CircleAvatar(backgroundColor: Colors.blueGrey, child: Icon(Icons.document_scanner, color: Colors.white, size: 18)),
+        title: Text(ch.billNo, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+        subtitle: Text("Party: ${ch.partyName}\nAmount: ₹${ch.totalAmount.toStringAsFixed(2)}", style: const TextStyle(fontSize: 11)),
+        trailing: const Icon(Icons.arrow_forward_ios, size: 12),
+        onTap: () {
+          // Future: Edit logic
+        },
       ),
     );
   }
 
-  Widget _buildSummaryBar() {
+  Widget _buildEmptyState() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.inventory_off_outlined, size: 50, color: Colors.grey.shade300),
+          const SizedBox(height: 10),
+          const Text("No pending challans found.", style: TextStyle(color: Colors.grey, fontSize: 12)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSummaryBar(List<SaleChallan> list) {
+    double total = list.fold(0, (sum, item) => sum + item.totalAmount);
     return Container(
       padding: const EdgeInsets.all(15),
       decoration: BoxDecoration(
@@ -130,8 +172,8 @@ class _ChallanDashboardState extends State<ChallanDashboard> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceAround,
         children: [
-          _sumItem("Unbilled", "₹0.00", Colors.blueGrey),
-          _sumItem("Returns", "₹0.00", Colors.red),
+          _sumItem("Total Unbilled", "₹${total.toStringAsFixed(2)}", Colors.blueGrey),
+          _sumItem("Count", "${list.length}", Colors.orange.shade900),
         ],
       ),
     );
