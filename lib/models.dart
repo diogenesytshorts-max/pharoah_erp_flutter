@@ -1,4 +1,4 @@
-// FILE: lib/models.dart
+// FILE: lib/models.dart (Poora code replace karein)
 
 import 'dart:convert';
 
@@ -86,7 +86,7 @@ class Party {
 
 // 7. TRANSACTION MODELS
 class BillItem {
-  String id, medicineID, name, packing, batch, exp, hsn, sourceChallanNo; // UPGRADED
+  String id, medicineID, name, packing, batch, exp, hsn, sourceChallanNo; 
   int srNo; 
   double mrp, qty, freeQty, rate, gstRate, cgst, sgst, igst, total, discountRupees;
 
@@ -98,9 +98,9 @@ class BillItem {
   factory BillItem.fromMap(Map<String, dynamic> map) => BillItem(id: map['id'] ?? "", srNo: map['srNo'] ?? 0, medicineID: map['medicineID'] ?? "", name: map['name'] ?? "", packing: map['packing'] ?? "", batch: map['batch'] ?? "", exp: map['exp'] ?? "", hsn: map['hsn'] ?? "", mrp: (map['mrp'] ?? 0.0).toDouble(), qty: (map['qty'] ?? 0.0).toDouble(), freeQty: (map['freeQty'] ?? 0.0).toDouble(), rate: (map['rate'] ?? 0.0).toDouble(), gstRate: (map['gstRate'] ?? 0.0).toDouble(), cgst: (map['cgst'] ?? 0.0).toDouble(), sgst: (map['sgst'] ?? 0.0).toDouble(), igst: (map['igst'] ?? 0.0).toDouble(), total: (map['total'] ?? 0.0).toDouble(), discountRupees: (map['discountRupees'] ?? 0.0).toDouble(), sourceChallanNo: map['sourceChallanNo'] ?? "");
 }
 
-// 8. SALE CHALLAN MODEL (NAYA MODULE)
+// 8. SALE CHALLAN MODEL
 class SaleChallan {
-  String id, billNo, partyName, partyGstin, partyState, status; // status: Pending, Billed, Cancelled
+  String id, billNo, partyName, partyGstin, partyState, status; 
   DateTime date; 
   List<BillItem> items; 
   double totalAmount;
@@ -111,7 +111,20 @@ class SaleChallan {
   factory SaleChallan.fromMap(Map<String, dynamic> map) => SaleChallan(id: map['id'], billNo: map['billNo'], date: DateTime.parse(map['date']), partyName: map['partyName'], partyGstin: map['partyGstin'] ?? "", partyState: map['partyState'] ?? "Rajasthan", totalAmount: (map['totalAmount'] ?? 0.0).toDouble(), status: map['status'] ?? "Pending", items: (map['items'] as List).map((i) => BillItem.fromMap(i)).toList());
 }
 
-// Baki models unchanged (Purchase, Log, Batch, Voucher)
+// 9. SALE RETURN MODEL (NAYA MODULE)
+class SaleReturn {
+  String id, billNo, partyName, status, returnType; // returnType: "Sellable" or "Breakage"
+  DateTime date;
+  List<BillItem> items;
+  double totalAmount;
+
+  SaleReturn({required this.id, required this.billNo, required this.date, required this.partyName, required this.items, required this.totalAmount, this.status = "Active", this.returnType = "Sellable"});
+
+  Map<String, dynamic> toMap() => {'id': id, 'billNo': billNo, 'date': date.toIso8601String(), 'partyName': partyName, 'totalAmount': totalAmount, 'status': status, 'returnType': returnType, 'items': items.map((i) => i.toMap()).toList()};
+  factory SaleReturn.fromMap(Map<String, dynamic> map) => SaleReturn(id: map['id'], billNo: map['billNo'], date: DateTime.parse(map['date']), partyName: map['partyName'], totalAmount: (map['totalAmount'] ?? 0.0).toDouble(), status: map['status'] ?? "Active", returnType: map['returnType'] ?? "Sellable", items: (map['items'] as List).map((i) => BillItem.fromMap(i)).toList());
+}
+
+// Baki models unchanged
 class Purchase {
   String id, internalNo, billNo, distributorName, paymentMode, gstStatus; DateTime date, entryDate; List<PurchaseItem> items; double totalAmount;
   Purchase({required this.id, required this.internalNo, required this.billNo, required this.date, required this.entryDate, required this.distributorName, required this.items, required this.totalAmount, required this.paymentMode, this.gstStatus = "Pending"});
@@ -142,10 +155,14 @@ class LogEntry {
 }
 
 class BatchInfo {
-  String batch, exp, packing, adjReason; double mrp, rate, qty, openingQty, adjustmentQty; bool isShell;
-  BatchInfo({required this.batch, required this.exp, required this.packing, required this.mrp, required this.rate, this.qty = 0.0, this.openingQty = 0.0, this.adjustmentQty = 0.0, this.adjReason = "", this.isShell = false});
-  Map<String, dynamic> toMap() => {'batch': batch, 'exp': exp, 'packing': packing, 'mrp': mrp, 'rate': rate, 'qty': qty, 'openingQty': openingQty, 'adjustmentQty': adjustmentQty, 'adjReason': adjReason, 'isShell': isShell};
-  factory BatchInfo.fromMap(Map<String, dynamic> map) => BatchInfo(batch: map['batch'] ?? "", exp: map['exp'] ?? "", packing: map['packing'] ?? "", mrp: (map['mrp'] ?? 0.0).toDouble(), rate: (map['rate'] ?? 0.0).toDouble(), qty: (map['qty'] ?? 0.0).toDouble(), openingQty: (map['openingQty'] ?? 0.0).toDouble(), adjustmentQty: (map['adjustmentQty'] ?? 0.0).toDouble(), adjReason: map['adjReason'] ?? "", isShell: map['isShell'] ?? false);
+  String batch, exp, packing, adjReason; 
+  double mrp, rate, qty, openingQty, adjustmentQty, breakageQty; // UPGRADED
+  bool isShell;
+
+  BatchInfo({required this.batch, required this.exp, required this.packing, required this.mrp, required this.rate, this.qty = 0.0, this.openingQty = 0.0, this.adjustmentQty = 0.0, this.breakageQty = 0.0, this.adjReason = "", this.isShell = false});
+
+  Map<String, dynamic> toMap() => {'batch': batch, 'exp': exp, 'packing': packing, 'mrp': mrp, 'rate': rate, 'qty': qty, 'openingQty': openingQty, 'adjustmentQty': adjustmentQty, 'breakageQty': breakageQty, 'adjReason': adjReason, 'isShell': isShell};
+  factory BatchInfo.fromMap(Map<String, dynamic> map) => BatchInfo(batch: map['batch'] ?? "", exp: map['exp'] ?? "", packing: map['packing'] ?? "", mrp: (map['mrp'] ?? 0.0).toDouble(), rate: (map['rate'] ?? 0.0).toDouble(), qty: (map['qty'] ?? 0.0).toDouble(), openingQty: (map['openingQty'] ?? 0.0).toDouble(), adjustmentQty: (map['adjustmentQty'] ?? 0.0).toDouble(), breakageQty: (map['breakageQty'] ?? 0.0).toDouble(), adjReason: map['adjReason'] ?? "", isShell: map['isShell'] ?? false);
 }
 
 class Voucher {
