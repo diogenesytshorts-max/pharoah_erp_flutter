@@ -1,7 +1,7 @@
 // FILE: lib/business_hub/business_hub_view.dart
 
 import 'package:flutter/material.dart';
-import '../widgets.dart';
+import '../challans/challan_dashboard.dart'; // NAYA IMPORT
 
 class BusinessHubView extends StatelessWidget {
   const BusinessHubView({super.key});
@@ -21,9 +21,7 @@ class BusinessHubView extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // --- WELCOME SECTION ---
             _buildHeader(),
-
             const SizedBox(height: 30),
             const Text(
               "BUSINESS MANAGEMENT MODULES",
@@ -31,7 +29,6 @@ class BusinessHubView extends StatelessWidget {
             ),
             const SizedBox(height: 15),
 
-            // --- THE 2x3 GRID OF MODULES ---
             GridView.count(
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
@@ -46,7 +43,10 @@ class BusinessHubView extends StatelessWidget {
                   "Notes, Returns & Conversion",
                   Icons.receipt_long_rounded,
                   Colors.orange.shade800,
-                  () { /* Hum agle step mein iski screen banayenge */ },
+                  () {
+                    // UPDATED NAVIGATION
+                    Navigator.push(context, MaterialPageRoute(builder: (c) => const ChallanDashboard()));
+                  },
                 ),
                 _hubCard(
                   context,
@@ -54,7 +54,7 @@ class BusinessHubView extends StatelessWidget {
                   "Universal Search & Edit",
                   Icons.edit_note_rounded,
                   Colors.blue.shade800,
-                  () { /* Module 2: Modification Hub */ },
+                  () {},
                 ),
                 _hubCard(
                   context,
@@ -62,7 +62,7 @@ class BusinessHubView extends StatelessWidget {
                   "Outstanding & PDC Tracker",
                   Icons.account_balance_rounded,
                   Colors.green.shade800,
-                  () { /* Module 3: Finance */ },
+                  () {},
                 ),
                 _hubCard(
                   context,
@@ -70,7 +70,7 @@ class BusinessHubView extends StatelessWidget {
                   "Shortage, PO & Dumping",
                   Icons.analytics_rounded,
                   Colors.purple.shade700,
-                  () { /* Module 4: Inventory Intel */ },
+                  () {},
                 ),
                 _hubCard(
                   context,
@@ -78,7 +78,7 @@ class BusinessHubView extends StatelessWidget {
                   "User Rights & Permissions",
                   Icons.admin_panel_settings_rounded,
                   Colors.red.shade800,
-                  () { /* Module 5: Admin */ },
+                  () {},
                 ),
                 _hubCard(
                   context,
@@ -86,14 +86,11 @@ class BusinessHubView extends StatelessWidget {
                   "H1, Narcotic & DL Status",
                   Icons.verified_user_rounded,
                   Colors.teal.shade700,
-                  () { /* Module 6: Registers */ },
+                  () {},
                 ),
               ],
             ),
-            
             const SizedBox(height: 30),
-            
-            // --- SYSTEM INFO CARD ---
             _buildInfoCard(),
           ],
         ),
@@ -101,6 +98,7 @@ class BusinessHubView extends StatelessWidget {
     );
   }
 
+  // --- UI HELPERS (Same as before) ---
   Widget _buildHeader() {
     return Container(
       padding: const EdgeInsets.all(20),
