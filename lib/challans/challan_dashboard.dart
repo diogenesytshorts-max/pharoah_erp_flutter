@@ -188,3 +188,11 @@ class _ChallanDashboardState extends State<ChallanDashboard> {
     );
   }
 }
+if (pendingChallans.isNotEmpty)
+  TextButton.icon(
+    onPressed: () {
+      Navigator.push(context, MaterialPageRoute(builder: (c) => const ChallanToBillConverter()));
+    }, 
+    icon: const Icon(Icons.bolt, size: 16),
+    label: const Text("CONVERT TO BILL", style: TextStyle(fontSize: 11)),
+  )
