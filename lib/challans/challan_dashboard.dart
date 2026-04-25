@@ -1,14 +1,16 @@
-// FILE: lib/challans/challan_dashboard.dart (Poora replace karein)
+// FILE: lib/challans/challan_dashboard.dart (Replace Full)
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../pharoah_manager.dart';
 import '../models.dart';
 import 'sale_challan_view.dart';
-import 'purchase_challan_view.dart'; // NAYA
+import 'purchase_challan_view.dart';
 import 'challan_to_bill_converter.dart';
 import '../returns/sale_return_view.dart';
 import '../returns/expiry_breakage_return_view.dart';
+import '../returns/purchase_return_view.dart';
+import '../returns/purchase_breakage_return_view.dart'; // NAYA IMPORT
 
 class ChallanDashboard extends StatefulWidget {
   const ChallanDashboard({super.key});
@@ -46,17 +48,16 @@ class _ChallanDashboardState extends State<ChallanDashboard> {
                 _actionCard("SALE CHALLAN", "Outward Entry", Icons.local_shipping, Colors.blueGrey, () {
                   Navigator.push(context, MaterialPageRoute(builder: (c) => const SaleChallanView()));
                 }),
-                
-                // UPDATED: PURCHASE CHALLAN BUTTON CONNECTED
                 _actionCard("PUR. CHALLAN", "Inward Entry", Icons.inventory_2, Colors.amber.shade800, () {
                   Navigator.push(context, MaterialPageRoute(builder: (c) => const PurchaseChallanView()));
                 }),
-                
-                _actionCard("SALE RETURN", "Credit Note (Sellable)", Icons.assignment_return, Colors.red.shade700, () {
-                  Navigator.push(context, MaterialPageRoute(builder: (c) => const SaleReturnView()));
+                _actionCard("SALE RETURN", "Credit Note", Icons.assignment_return, Colors.red.shade700, () {
+                   Navigator.push(context, MaterialPageRoute(builder: (c) => const SaleReturnView()));
                 }),
-                _actionCard("BRK/EXP RET", "Breakage Entry", Icons.delete_sweep_rounded, Colors.red.shade900, () {
-                  Navigator.push(context, MaterialPageRoute(builder: (c) => const ExpiryBreakageReturnView()));
+                
+                // UPDATED: POPUP MENU FOR PURCHASE RETURNS
+                _actionCard("PUR. RETURN", "Debit Note Options", Icons.remove_shopping_cart, Colors.brown.shade800, () {
+                  _showPurchaseReturnOptions(context);
                 }),
               ],
             ),
@@ -75,7 +76,7 @@ class _ChallanDashboardState extends State<ChallanDashboard> {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Text(
-                        "PENDING CHALLANS (S:${pendingSales.length} | P:${pendingPurc.length})",
+                        "PENDING CHALLANS (${pendingSales.length + pendingPurc.length})",
                         style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.blueGrey, letterSpacing: 1),
                       ),
                       if (pendingSales.isNotEmpty)
@@ -102,24 +103,47 @@ class _ChallanDashboardState extends State<ChallanDashboard> {
     );
   }
 
+  void _showPurchaseReturnOptions(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (c) => Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const ListTile(title: Text("Select Return Category", style: TextStyle(fontWeight: FontWeight.bold))),
+          ListTile(
+            leading: const Icon(Icons.check_circle, color: Colors.green),
+            title: const Text("Sellable Return (Good Stock)"),
+            onTap: () { Navigator.pop(c); Navigator.push(context, MaterialPageRoute(builder: (c) => const PurchaseReturnView())); },
+          ),
+          ListTile(
+            leading: const Icon(Icons.delete_sweep, color: Colors.brown),
+            title: const Text("Expiry / Breakage Return (Dead Stock)"),
+            onTap: () { Navigator.pop(c); Navigator.push(context, MaterialPageRoute(builder: (c) => const PurchaseBreakageReturnView())); },
+          ),
+          const SizedBox(height: 20),
+        ],
+      ),
+    );
+  }
+
   Widget _buildChallanList(List<SaleChallan> sales, List<PurchaseChallan> purc) {
     if (sales.isEmpty && purc.isEmpty) return _buildEmptyState();
-
     return ListView(
       children: [
-        ...sales.map((ch) => _challanTile(ch.billNo, ch.partyName, ch.totalAmount, Colors.blueGrey)),
-        ...purc.map((ch) => _challanTile(ch.internalNo, ch.distributorName, ch.totalAmount, Colors.amber.shade800)),
+        ...sales.map((ch) => _challanTile(ch.billNo, ch.partyName, ch.totalAmount, Colors.blueGrey, "S")),
+        ...purc.map((ch) => _challanTile(ch.billNo, ch.distributorName, ch.totalAmount, Colors.amber.shade800, "P")),
       ],
     );
   }
 
-  Widget _challanTile(String no, String party, double amt, Color c) {
+  Widget _challanTile(String no, String party, double amt, Color c, String tag) {
     return Card(
       elevation: 0,
       margin: const EdgeInsets.only(bottom: 10),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: BorderSide(color: c.withOpacity(0.2))),
       child: ListTile(
-        leading: CircleAvatar(backgroundColor: c.withOpacity(0.1), child: Icon(Icons.description, color: c, size: 18)),
+        leading: CircleAvatar(backgroundColor: c.withOpacity(0.1), child: Text(tag, style: TextStyle(color: c, fontWeight: FontWeight.bold))),
         title: Text(no, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
         subtitle: Text("Party: $party\nAmount: ₹${amt.toStringAsFixed(2)}", style: const TextStyle(fontSize: 11)),
         trailing: const Icon(Icons.arrow_forward_ios, size: 12),
@@ -127,7 +151,6 @@ class _ChallanDashboardState extends State<ChallanDashboard> {
     );
   }
 
-  // --- UI HELPERS (Same as before) ---
   Widget _actionCard(String title, String sub, IconData icon, Color color, VoidCallback onTap) {
     return InkWell(
       onTap: onTap,
@@ -146,7 +169,6 @@ class _ChallanDashboardState extends State<ChallanDashboard> {
   Widget _buildSummaryBar(List<SaleChallan> sales, List<PurchaseChallan> purc) {
     double totalS = sales.fold(0, (sum, item) => sum + item.totalAmount);
     double totalP = purc.fold(0, (sum, item) => sum + item.totalAmount);
-
     return Container(
       padding: const EdgeInsets.all(15),
       decoration: BoxDecoration(color: Colors.white, boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, -5))]),
