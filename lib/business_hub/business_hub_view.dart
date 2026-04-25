@@ -1,7 +1,8 @@
 // FILE: lib/business_hub/business_hub_view.dart
 
 import 'package:flutter/material.dart';
-import '../challans/challan_dashboard.dart'; // NAYA IMPORT
+import '../challans/challan_dashboard.dart';
+import '../modifications/modify_hub_view.dart'; // NAYA IMPORT
 
 class BusinessHubView extends StatelessWidget {
   const BusinessHubView({super.key});
@@ -44,7 +45,6 @@ class BusinessHubView extends StatelessWidget {
                   Icons.receipt_long_rounded,
                   Colors.orange.shade800,
                   () {
-                    // UPDATED NAVIGATION
                     Navigator.push(context, MaterialPageRoute(builder: (c) => const ChallanDashboard()));
                   },
                 ),
@@ -54,7 +54,10 @@ class BusinessHubView extends StatelessWidget {
                   "Universal Search & Edit",
                   Icons.edit_note_rounded,
                   Colors.blue.shade800,
-                  () {},
+                  () {
+                    // UPDATED NAVIGATION
+                    Navigator.push(context, MaterialPageRoute(builder: (c) => const ModifyHubView()));
+                  },
                 ),
                 _hubCard(
                   context,
@@ -98,7 +101,7 @@ class BusinessHubView extends StatelessWidget {
     );
   }
 
-  // --- UI HELPERS (Same as before) ---
+  // --- UI HELPERS (Header, HubCard, InfoCard same as before) ---
   Widget _buildHeader() {
     return Container(
       padding: const EdgeInsets.all(20),
