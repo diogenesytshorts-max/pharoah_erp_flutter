@@ -3,7 +3,10 @@
 import 'package:flutter/material.dart';
 import '../challans/challan_dashboard.dart';
 import '../modifications/modify_hub_view.dart';
-import '../finance/finance_dashboard.dart'; // NAYA IMPORT
+import '../finance/finance_dashboard.dart';
+import '../inventory_intel/inventory_intel_view.dart';
+import '../administration/staff_management_view.dart';
+import '../compliance/compliance_hub.dart';
 
 class BusinessHubView extends StatelessWidget {
   const BusinessHubView({super.key});
@@ -31,6 +34,7 @@ class BusinessHubView extends StatelessWidget {
             ),
             const SizedBox(height: 15),
 
+            // GRID WITH ALL 6 MODULES CONNECTED
             GridView.count(
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
@@ -39,61 +43,12 @@ class BusinessHubView extends StatelessWidget {
               mainAxisSpacing: 15,
               childAspectRatio: 1.1,
               children: [
-                _hubCard(
-                  context,
-                  "CHALLANS & RETURNS",
-                  "Notes, Returns & Conversion",
-                  Icons.receipt_long_rounded,
-                  Colors.orange.shade800,
-                  () {
-                    Navigator.push(context, MaterialPageRoute(builder: (c) => const ChallanDashboard()));
-                  },
-                ),
-                _hubCard(
-                  context,
-                  "MODIFICATION CENTER",
-                  "Universal Search & Edit",
-                  Icons.edit_note_rounded,
-                  Colors.blue.shade800,
-                  () {
-                    Navigator.push(context, MaterialPageRoute(builder: (c) => const ModifyHubView()));
-                  },
-                ),
-                _hubCard(
-                  context,
-                  "FINANCE & RECOVERY",
-                  "Outstanding & PDC Tracker",
-                  Icons.account_balance_rounded,
-                  Colors.green.shade800,
-                  () {
-                    // UPDATED NAVIGATION
-                    Navigator.push(context, MaterialPageRoute(builder: (c) => const FinanceDashboard()));
-                  },
-                ),
-                _hubCard(
-                  context,
-                  "STOCK ANALYTICS",
-                  "Shortage, PO & Dumping",
-                  Icons.analytics_rounded,
-                  Colors.purple.shade700,
-                  () {},
-                ),
-                _hubCard(
-                  context,
-                  "SECURITY & STAFF",
-                  "User Rights & Permissions",
-                  Icons.admin_panel_settings_rounded,
-                  Colors.red.shade800,
-                  () {},
-                ),
-                _hubCard(
-                  context,
-                  "COMPLIANCE HUB",
-                  "H1, Narcotic & DL Status",
-                  Icons.verified_user_rounded,
-                  Colors.teal.shade700,
-                  () {},
-                ),
+                _hubCard(context, "CHALLANS & RETURNS", "Notes & Conversion", Icons.receipt_long_rounded, Colors.orange.shade800, const ChallanDashboard()),
+                _hubCard(context, "MODIFICATION CENTER", "Universal Search & Edit", Icons.edit_note_rounded, Colors.blue.shade800, const ModifyHubView()),
+                _hubCard(context, "FINANCE & RECOVERY", "Outstanding & PDC", Icons.account_balance_rounded, Colors.green.shade800, const FinanceDashboard()),
+                _hubCard(context, "STOCK ANALYTICS", "Shortage & PO Builder", Icons.analytics_rounded, Colors.purple.shade700, const InventoryIntelView()),
+                _hubCard(context, "SECURITY & STAFF", "User Permissions", Icons.admin_panel_settings_rounded, Colors.red.shade800, const StaffManagementView()),
+                _hubCard(context, "COMPLIANCE HUB", "H1, Narcotic & DL", Icons.verified_user_rounded, Colors.teal.shade700, const ComplianceHub()),
               ],
             ),
             const SizedBox(height: 30),
@@ -104,7 +59,6 @@ class BusinessHubView extends StatelessWidget {
     );
   }
 
-  // --- UI HELPERS (Header, HubCard, InfoCard same as before) ---
   Widget _buildHeader() {
     return Container(
       padding: const EdgeInsets.all(20),
@@ -120,8 +74,8 @@ class BusinessHubView extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text("Business Control Room", style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
-                const Text("Manage advanced operations from here.", style: TextStyle(color: Colors.white70, fontSize: 12)),
+                Text("Business Control Room", style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+                Text("All advanced tools in one place.", style: TextStyle(color: Colors.white70, fontSize: 12)),
               ],
             ),
           )
@@ -130,9 +84,9 @@ class BusinessHubView extends StatelessWidget {
     );
   }
 
-  Widget _hubCard(BuildContext context, String title, String sub, IconData icon, Color color, VoidCallback onTap) {
+  Widget _hubCard(BuildContext context, String title, String sub, IconData icon, Color color, Widget target) {
     return InkWell(
-      onTap: onTap,
+      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => target)),
       borderRadius: BorderRadius.circular(20),
       child: Container(
         padding: const EdgeInsets.all(15),
@@ -151,7 +105,7 @@ class BusinessHubView extends StatelessWidget {
               child: Icon(icon, color: color, size: 30),
             ),
             const SizedBox(height: 12),
-            Text(title, textAlign: TextAlign.center, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+            Text(title, textAlign: TextAlign.center, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11)),
             const SizedBox(height: 4),
             Text(sub, textAlign: TextAlign.center, style: const TextStyle(fontSize: 8, color: Colors.grey, fontWeight: FontWeight.bold)),
           ],
@@ -163,21 +117,12 @@ class BusinessHubView extends StatelessWidget {
   Widget _buildInfoCard() {
     return Container(
       padding: const EdgeInsets.all(15),
-      decoration: BoxDecoration(
-        color: Colors.blueGrey.shade50,
-        borderRadius: BorderRadius.circular(15),
-        border: Border.all(color: Colors.blueGrey.shade100),
-      ),
+      decoration: BoxDecoration(color: Colors.blueGrey.shade50, borderRadius: BorderRadius.circular(15)),
       child: const Row(
         children: [
           Icon(Icons.info_outline, color: Colors.blueGrey, size: 20),
           SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              "These modules handle specialized operations. For daily Sale/Purchase, use the main dashboard.",
-              style: TextStyle(fontSize: 10, color: Colors.blueGrey, fontStyle: FontStyle.italic),
-            ),
-          ),
+          Expanded(child: Text("These modules handle specialized operations. For daily work, use main dashboard.", style: TextStyle(fontSize: 10, color: Colors.blueGrey, fontStyle: FontStyle.italic))),
         ],
       ),
     );
