@@ -21,9 +21,9 @@ class PharoahManager with ChangeNotifier {
   List<Sale> sales = [];
   List<Purchase> purchases = [];
   List<SaleChallan> saleChallans = [];
-  List<PurchaseChallan> purchaseChallans = []; // NAYA
+  List<PurchaseChallan> purchaseChallans = [];
   List<SaleReturn> saleReturns = [];
-  List<PurchaseReturn> purchaseReturns = []; // NAYA
+  List<PurchaseReturn> purchaseReturns = []; // List Ready
   List<RouteArea> routes = [];
   List<Company> companies = [];
   List<Salt> salts = [];
@@ -39,6 +39,7 @@ class PharoahManager with ChangeNotifier {
 
   PharoahManager() { initRegistry(); }
 
+  // --- REGISTRY & SESSION ---
   Future<void> initRegistry() async {
     final root = await getApplicationDocumentsDirectory();
     final file = File('${root.path}/pharoah_registry.json');
@@ -79,6 +80,7 @@ class PharoahManager with ChangeNotifier {
     return dir.path;
   }
 
+  // --- DATA PERSISTENCE (SAVE & LOAD) ---
   Future<void> save() async {
     final dir = await getWorkingPath();
     if (dir.isEmpty) return;
@@ -132,12 +134,13 @@ class PharoahManager with ChangeNotifier {
     notifyListeners();
   }
 
+  // --- CORE INVENTORY ENGINE ---
   void _rebuildInventoryRegistry() {
     batchHistory.forEach((medId, list) { 
       for (var b in list) { b.qty = b.openingQty + b.adjustmentQty; b.breakageQty = 0; } 
     });
     
-    // 1. Stock IN: Purchase Bills
+    // 1. Stock IN: Purchases & Purchase Challans
     for (var pur in purchases) {
       for (var item in pur.items) {
         String key = _getMedIdentityKey(item.medicineID, item.name);
@@ -146,7 +149,6 @@ class PharoahManager with ChangeNotifier {
         b.qty += (item.qty + item.freeQty); b.isShell = false;
       }
     }
-    // 2. Stock IN: Pending Purchase Challans (NAYA)
     for (var pch in purchaseChallans.where((c) => c.status == "Pending")) {
       for (var item in pch.items) {
         String key = _getMedIdentityKey(item.medicineID, item.name);
@@ -155,7 +157,8 @@ class PharoahManager with ChangeNotifier {
         b.qty += (item.qty + item.freeQty);
       }
     }
-    // 3. Stock OUT: Active Sale Bills
+
+    // 2. Stock OUT: Sales & Sale Challans
     for (var sale in sales.where((s) => s.status == "Active")) {
       for (var item in sale.items) {
         String key = _getMedIdentityKey(item.medicineID, item.name);
@@ -164,7 +167,6 @@ class PharoahManager with ChangeNotifier {
         b.qty -= (item.qty + item.freeQty);
       }
     }
-    // 4. Stock OUT: Pending Sale Challans
     for (var challan in saleChallans.where((c) => c.status == "Pending")) {
       for (var item in challan.items) {
         String key = _getMedIdentityKey(item.medicineID, item.name);
@@ -173,7 +175,8 @@ class PharoahManager with ChangeNotifier {
         b.qty -= (item.qty + item.freeQty);
       }
     }
-    // 5. Stock IN/OUT: Returns
+
+    // 3. Stock ADJUST: Returns (Sale & Purchase)
     for (var ret in saleReturns.where((r) => r.status == "Active")) {
       for (var item in ret.items) {
         String key = _getMedIdentityKey(item.medicineID, item.name);
@@ -183,15 +186,17 @@ class PharoahManager with ChangeNotifier {
         else b.breakageQty += (item.qty + item.freeQty);
       }
     }
-    for (var pret in purchaseReturns.where((r) => r.status == "Active")) { // NAYA
+    for (var pret in purchaseReturns.where((r) => r.status == "Active")) {
       for (var item in pret.items) {
         String key = _getMedIdentityKey(item.medicineID, item.name);
         _ensureBatchExists(key, item.batch, item.exp, item.packing, item.mrp, item.purchaseRate);
         var b = batchHistory[key]!.firstWhere((x) => x.batch == item.batch);
-        b.qty -= (item.qty + item.freeQty);
+        if (pret.returnType == "Sellable") b.qty -= (item.qty + item.freeQty);
+        else b.breakageQty -= (item.qty + item.freeQty);
       }
     }
 
+    // Update Medicine Master Total
     for (var med in medicines) {
       double total = 0;
       if (batchHistory.containsKey(med.identityKey)) {
@@ -212,74 +217,41 @@ class PharoahManager with ChangeNotifier {
     }
   }
 
-  // --- NEW ACTIONS ---
-  void finalizePurchaseChallan({required String challanNo, required String internalNo, required DateTime date, required Party party, required List<PurchaseItem> items, required double total}) {
-    purchaseChallans.add(PurchaseChallan(id: DateTime.now().toString(), internalNo: internalNo, billNo: challanNo, date: date, distributorName: party.name, items: items, totalAmount: total, status: "Pending"));
-    if (activeCompany != null) PharoahNumberingEngine.updateCounter(type: "PUR_CHALLAN", usedNumber: internalNo, companyID: activeCompany!.id);
-    save().then((_) => loadAllData());
-  }
-
-  void finalizePurchaseReturn({required String billNo, required DateTime date, required Party party, required List<PurchaseItem> items, required double total}) {
-    purchaseReturns.add(PurchaseReturn(id: DateTime.now().toString(), billNo: billNo, distributorName: party.name, date: date, items: items, totalAmount: total, status: "Active"));
-    if (activeCompany != null) PharoahNumberingEngine.updateCounter(type: "PUR_RETURN", usedNumber: billNo, companyID: activeCompany!.id);
-    save().then((_) => loadAllData());
-  }
-
-  // Baki methods same... (finalizeSale, finalizeSaleChallan, finalizeSaleReturn etc.)
-  void finalizeSaleReturn({required String billNo, required DateTime date, required Party party, required List<BillItem> items, required double total, required String type}) {
-    saleReturns.add(SaleReturn(id: DateTime.now().toString(), billNo: billNo, date: date, partyName: party.name, items: items, totalAmount: total, returnType: type));
-    if (activeCompany != null) PharoahNumberingEngine.updateCounter(type: "SALE_RETURN", usedNumber: billNo, companyID: activeCompany!.id);
-    save().then((_) => loadAllData());
+  // --- ACTIONS: SALE HUB ---
+  void finalizeSale({required String billNo, required DateTime date, required Party party, required List<BillItem> items, required double total, required String mode}) {
+    sales.add(Sale(id: DateTime.now().toString(), billNo: billNo, date: date, partyName: party.name, partyGstin: party.gst, partyState: party.state, items: items, totalAmount: total, paymentMode: mode));
+    if (activeCompany != null) PharoahNumberingEngine.updateCounter(type: "SALE_BILL", usedNumber: billNo, companyID: activeCompany!.id);
+    save().then((_) => loadAllData()); 
   }
   void finalizeSaleChallan({required String challanNo, required DateTime date, required Party party, required List<BillItem> items, required double total}) {
     saleChallans.add(SaleChallan(id: DateTime.now().toString(), billNo: challanNo, date: date, partyName: party.name, partyGstin: party.gst, partyState: party.state, items: items, totalAmount: total, status: "Pending"));
     if (activeCompany != null) PharoahNumberingEngine.updateCounter(type: "SALE_CHALLAN", usedNumber: challanNo, companyID: activeCompany!.id);
     save().then((_) => loadAllData());
   }
-  Future<void> switchYear(String year) async { currentFY = year; await loadAllData(); notifyListeners(); }
-  void adjustBatchStock({required String medId, required String batchNo, required double adjQty, required String reason}) {
-    if (batchHistory.containsKey(medId)) {
-      try {
-        var b = batchHistory[medId]!.firstWhere((x) => x.batch == batchNo);
-        b.adjustmentQty += adjQty;
-        addLog("STOCK ADJUST", "Item: $medId, Batch: $batchNo, Qty: $adjQty");
-        save().then((_) => loadAllData());
-      } catch (e) {}
-    }
+  void finalizeSaleReturn({required String billNo, required DateTime date, required Party party, required List<BillItem> items, required double total, required String type}) {
+    saleReturns.add(SaleReturn(id: DateTime.now().toString(), billNo: billNo, date: date, partyName: party.name, items: items, totalAmount: total, returnType: type));
+    if (activeCompany != null) PharoahNumberingEngine.updateCounter(type: "SALE_RETURN", usedNumber: billNo, companyID: activeCompany!.id);
+    save().then((_) => loadAllData());
   }
-  void updateBatchMetadata({required String medId, required String batchNo, required String newExp, required double newMrp, required double newRate}) {
-    if (batchHistory.containsKey(medId)) {
-      try {
-        var b = batchHistory[medId]!.firstWhere((x) => x.batch == batchNo);
-        b.exp = newExp; b.mrp = newMrp; b.rate = newRate;
-        save().then((_) => loadAllData());
-      } catch (e) {}
-    }
-  }
-  Future<bool> startNewFinancialYear(String nextFY) async {
-    if (activeCompany == null) return false;
-    await save();
-    bool success = await FYTransferEngine.transferData(companyID: activeCompany!.id, businessType: activeCompany!.businessType, sourceFY: currentFY, targetFY: nextFY);
-    if (success) {
-      currentFY = nextFY;
-      int idx = companiesRegistry.indexWhere((c) => c.id == activeCompany!.id);
-      if (idx != -1 && !companiesRegistry[idx].fYears.contains(nextFY)) {
-        companiesRegistry[idx].fYears.add(nextFY); await saveRegistry();
-      }
-      await loadAllData();
-    }
-    return success;
-  }
-  void finalizeSale({required String billNo, required DateTime date, required Party party, required List<BillItem> items, required double total, required String mode}) {
-    sales.add(Sale(id: DateTime.now().toString(), billNo: billNo, date: date, partyName: party.name, partyGstin: party.gst, partyState: party.state, items: items, totalAmount: total, paymentMode: mode));
-    if (activeCompany != null) PharoahNumberingEngine.updateCounter(type: "SALE_BILL", usedNumber: billNo, companyID: activeCompany!.id);
-    save().then((_) => loadAllData()); 
-  }
+
+  // --- ACTIONS: PURCHASE HUB ---
   void finalizePurchase({required String internalNo, required String billNo, required DateTime date, DateTime? entryDate, required Party party, required List<PurchaseItem> items, required double total, required String mode}) {
     purchases.add(Purchase(id: DateTime.now().toString(), internalNo: internalNo, billNo: billNo, date: date, entryDate: entryDate ?? DateTime.now(), distributorName: party.name, items: items, totalAmount: total, paymentMode: mode));
     if (activeCompany != null) PharoahNumberingEngine.updateCounter(type: "PUR_BILL", usedNumber: internalNo, companyID: activeCompany!.id);
     save().then((_) => loadAllData()); 
   }
+  void finalizePurchaseChallan({required String challanNo, required String internalNo, required DateTime date, required Party party, required List<PurchaseItem> items, required double total}) {
+    purchaseChallans.add(PurchaseChallan(id: DateTime.now().toString(), internalNo: internalNo, billNo: challanNo, date: date, distributorName: party.name, items: items, totalAmount: total, status: "Pending"));
+    if (activeCompany != null) PharoahNumberingEngine.updateCounter(type: "PUR_CHALLAN", usedNumber: internalNo, companyID: activeCompany!.id);
+    save().then((_) => loadAllData());
+  }
+  void finalizePurchaseReturn({required String billNo, required DateTime date, required Party party, required List<PurchaseItem> items, required double total, String type = "Sellable"}) {
+    purchaseReturns.add(PurchaseReturn(id: DateTime.now().toString(), billNo: billNo, distributorName: party.name, date: date, items: items, totalAmount: total, returnType: type));
+    if (activeCompany != null) PharoahNumberingEngine.updateCounter(type: "PUR_RETURN", usedNumber: billNo, companyID: activeCompany!.id);
+    save().then((_) => loadAllData());
+  }
+
+  // --- SYSTEM METHODS ---
   void addVoucher(Voucher v) { vouchers.add(v); save(); }
   void addCompany(Company c) { companies.add(c); save(); }
   void addSalt(Salt s) { salts.add(s); save(); }
@@ -291,6 +263,7 @@ class PharoahManager with ChangeNotifier {
   void cancelBill(String id) { int i = sales.indexWhere((s) => s.id == id); if(i != -1) { sales[i].status = "Cancelled"; loadAllData().then((_) => save()); } }
   void deletePurchase(String id) { purchases.removeWhere((p) => p.id == id); loadAllData().then((_) => save()); }
   void deleteParty(String id) { parties.removeWhere((p) => p.id == id); save(); }
+  
   Future<void> runAutoBackup() async { await save(); }
   Future<void> masterReset() async { final dir = await getWorkingPath(); final d = Directory(dir); if(d.existsSync()) d.deleteSync(recursive: true); await loadAllData(); }
 }
