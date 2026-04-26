@@ -5,7 +5,6 @@ import 'package:provider/provider.dart';
 import '../pharoah_manager.dart';
 import '../models.dart';
 import '../product_master.dart'; 
-import '../pdf/purchase_pdf.dart'; // NAYA: Print ke liye
 import 'package:intl/intl.dart';
 
 class PurchaseBillingView extends StatefulWidget {
@@ -183,50 +182,108 @@ class _PurchaseBillingViewState extends State<PurchaseBillingView> {
         ],
       ),
       body: Column(children: [
+        _buildHeader(),
+        
+        // --- NAYA: Search Bar Trigger (Replaced FAB) ---
+        _buildSearchBarTrigger(ph),
+
         Expanded(
           child: items.isEmpty
               ? const Center(child: Text("No items added yet"))
               : ListView.builder(
-                  padding: const EdgeInsets.all(10),
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                   itemCount: items.length,
                   itemBuilder: (c, i) => _buildItemCard(items[i], i, ph),
                 ),
         ),
-        Container(
-          padding: const EdgeInsets.all(15),
-          color: widget.isReadOnly ? Colors.purple.shade50 : Colors.orange.shade100,
-          child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-            Text("TOTAL ITEMS: ${items.length}", style: const TextStyle(fontWeight: FontWeight.bold)),
-            Text("NET TOTAL: ₹${totalAmt.toStringAsFixed(2)}", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: widget.isReadOnly ? Colors.purple.shade900 : Colors.deepOrange.shade900))
-          ]),
-        )
+        
+        _buildFooter(),
       ]),
-      floatingActionButton: widget.isReadOnly ? null : FloatingActionButton.extended(
-        backgroundColor: Colors.orange.shade800,
-        onPressed: () => _showItemSearchSheet(ph),
-        icon: const Icon(Icons.add, color: Colors.white),
-        label: const Text("ADD ITEM", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+    );
+  }
+
+  // --- UI COMPONENTS ---
+  
+  Widget _buildHeader() => Container(
+    padding: const EdgeInsets.all(15), margin: const EdgeInsets.fromLTRB(10, 10, 10, 5),
+    decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12)),
+    child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+      Text(widget.distributor.name, style: TextStyle(fontWeight: FontWeight.bold, color: Colors.orange.shade900)),
+      Text(DateFormat('dd/MM/yyyy').format(widget.billDate), style: const TextStyle(fontWeight: FontWeight.bold)),
+    ]),
+  );
+
+  Widget _buildSearchBarTrigger(PharoahManager ph) {
+    if (widget.isReadOnly) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      child: InkWell(
+        onTap: () => _showItemSearchSheet(ph),
+        borderRadius: BorderRadius.circular(10),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 15),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: Colors.orange.shade300, width: 1.5),
+          ),
+          child: Row(
+            children: [
+              Icon(Icons.search, color: Colors.orange.shade700),
+              const SizedBox(width: 10),
+              Text("Tap here to search inward stock...", style: TextStyle(color: Colors.grey.shade600, fontSize: 14)),
+              const Spacer(),
+              Icon(Icons.add_circle, color: Colors.orange.shade700),
+            ],
+          ),
+        ),
       ),
     );
   }
 
-  Widget _buildItemCard(PurchaseItem it, int index, PharoahManager ph) => Card(
-    elevation: 2, margin: const EdgeInsets.symmetric(vertical: 5),
-    child: ListTile(
-      // NAYA: Visual SR Number
-      leading: CircleAvatar(
-        backgroundColor: Colors.orange.shade50, 
-        child: Text("${it.srNo}", style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.deepOrange))
+  // NAYA: Swipe to Delete Card for Purchase
+  Widget _buildItemCard(PurchaseItem it, int index, PharoahManager ph) {
+    final card = Card(
+      elevation: 2, margin: const EdgeInsets.symmetric(vertical: 4),
+      child: ListTile(
+        leading: CircleAvatar(
+          backgroundColor: Colors.orange.shade50, 
+          child: Text("${it.srNo}", style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.deepOrange))
+        ),
+        title: Text(it.name, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.deepOrange)),
+        subtitle: Text("Batch: ${it.batch} | Qty: ${it.qty.toInt()} | Pur.Rate: ₹${it.purchaseRate.toStringAsFixed(2)}"),
+        trailing: Text("₹${it.total.toStringAsFixed(2)}", style: const TextStyle(fontWeight: FontWeight.bold)),
+        onTap: widget.isReadOnly ? null : () => _showItemSearchSheet(ph, itemToEdit: it),
       ),
-      title: Text(it.name, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.deepOrange)),
-      subtitle: Text("Batch: ${it.batch} | Qty: ${it.qty.toInt()} | Pur.Rate: ₹${it.purchaseRate.toStringAsFixed(2)}"),
-      trailing: Text("₹${it.total.toStringAsFixed(2)}", style: const TextStyle(fontWeight: FontWeight.bold)),
-      onTap: widget.isReadOnly ? null : () => _showItemSearchSheet(ph, itemToEdit: it),
-      onLongPress: widget.isReadOnly ? null : () {
+    );
+
+    if (widget.isReadOnly) return card;
+
+    return Dismissible(
+      key: Key(it.id),
+      direction: DismissDirection.endToStart,
+      background: Container(
+        margin: const EdgeInsets.symmetric(vertical: 4),
+        decoration: BoxDecoration(color: Colors.red, borderRadius: BorderRadius.circular(12)),
+        alignment: Alignment.centerRight,
+        padding: const EdgeInsets.only(right: 20),
+        child: const Icon(Icons.delete, color: Colors.white, size: 28),
+      ),
+      onDismissed: (direction) {
         setState(() { items.removeAt(index); });
-        _recalculateSR(); // SR auto-fix after delete
+        _recalculateSR(); 
       },
-    ),
+      child: card,
+    );
+  }
+
+  Widget _buildFooter() => Container(
+    padding: const EdgeInsets.all(15),
+    color: widget.isReadOnly ? Colors.purple.shade50 : Colors.orange.shade100,
+    child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+      Text("TOTAL ITEMS: ${items.length}", style: const TextStyle(fontWeight: FontWeight.bold)),
+      Text("NET TOTAL: ₹${totalAmt.toStringAsFixed(2)}", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: widget.isReadOnly ? Colors.purple.shade900 : Colors.deepOrange.shade900))
+    ]),
   );
 
   void _handleSave(PharoahManager ph) {
@@ -237,7 +294,7 @@ class _PurchaseBillingViewState extends State<PurchaseBillingView> {
 }
 
 // =============================================================================
-// PURCHASE ITEM ENTRY CARD
+// PURCHASE ITEM ENTRY CARD (UNCHANGED LOGIC)
 // =============================================================================
 class PurchaseItemEntryCard extends StatefulWidget {
   final Medicine med;
