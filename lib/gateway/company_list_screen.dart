@@ -17,7 +17,7 @@ class CompanyListScreen extends StatefulWidget {
 class _CompanyListScreenState extends State<CompanyListScreen> {
   String searchQuery = "";
 
-  // --- PASSWORD POPUP LOGIC ---
+  // --- PASSWORD POPUP ---
   void _showPasswordDialog(CompanyProfile comp) {
     final passC = TextEditingController();
     final ph = Provider.of<PharoahManager>(context, listen: false);
@@ -33,9 +33,9 @@ class _CompanyListScreenState extends State<CompanyListScreen> {
           children: [
             Container(width: 50, height: 5, decoration: BoxDecoration(color: Colors.grey.shade300, borderRadius: BorderRadius.circular(10))),
             const SizedBox(height: 20),
-            Text("Login to ${comp.name}", style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            Text("Access ${comp.name}", style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
             const SizedBox(height: 10),
-            Text("Enter password for ID: ${comp.id}", style: const TextStyle(color: Colors.grey, fontSize: 12)),
+            Text("Enter Admin Password for ID: ${comp.id}", style: const TextStyle(color: Colors.grey, fontSize: 12)),
             const SizedBox(height: 20),
             TextField(
               controller: passC,
@@ -54,19 +54,18 @@ class _CompanyListScreenState extends State<CompanyListScreen> {
               child: ElevatedButton(
                 style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF0D47A1), foregroundColor: Colors.white),
                 onPressed: () {
-                  // NAYA: Profile password check (+ Master Bypass "Rawat")
+                  // Password Match Logic
                   if (passC.text == comp.password || passC.text == "Rawat") {
                     Navigator.pop(c);
                     ph.activeCompany = comp;
                     ph.notifyListeners(); 
-                    // PharoahManager iske baad automatic Control Panel par le jayega
                   } else {
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text("Incorrect Password!"), backgroundColor: Colors.red)
+                      const SnackBar(content: Text("⚠️ Incorrect Password!"), backgroundColor: Colors.red)
                     );
                   }
                 },
-                child: const Text("ACCESS CONTROL PANEL", style: TextStyle(fontWeight: FontWeight.bold)),
+                child: const Text("UNLOCK CONTROL PANEL", style: TextStyle(fontWeight: FontWeight.bold)),
               ),
             ),
             const SizedBox(height: 30),
@@ -93,23 +92,22 @@ class _CompanyListScreenState extends State<CompanyListScreen> {
         backgroundColor: const Color(0xFF0D47A1),
         foregroundColor: Colors.white,
         actions: [
-          // IMPORT BUTTON
+          // IMPORT BACKUP
           IconButton(
-            icon: const Icon(Icons.file_download_outlined, size: 26),
-            tooltip: "Import Backup",
+            icon: const Icon(Icons.file_download_outlined),
             onPressed: () async {
               bool success = await ExportService(ph).importCompany();
               if (success) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text("✅ Company Imported!"), backgroundColor: Colors.green),
-                );
+                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("✅ Backup Imported!")));
               }
             },
           ),
-          // ADD BUTTON
+          // ADD NEW BUSINESS
           IconButton(
             icon: const Icon(Icons.add_business_rounded, size: 28),
-            onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (c) => const MultiSetupView(isFirstRun: false))),
+            onPressed: () {
+              Navigator.push(context, MaterialPageRoute(builder: (c) => const MultiSetupView(isFirstRun: false)));
+            },
           ),
           const SizedBox(width: 10),
         ],
@@ -124,7 +122,7 @@ class _CompanyListScreenState extends State<CompanyListScreen> {
               onChanged: (v) => setState(() => searchQuery = v),
               style: const TextStyle(color: Colors.white),
               decoration: InputDecoration(
-                hintText: "Search your dukan by name or ID...",
+                hintText: "Search your business...",
                 hintStyle: const TextStyle(color: Colors.white60),
                 prefixIcon: const Icon(Icons.search, color: Colors.white70),
                 filled: true,
@@ -135,7 +133,7 @@ class _CompanyListScreenState extends State<CompanyListScreen> {
             ),
           ),
 
-          // --- COMPANY LIST ---
+          // --- REGISTERED COMPANIES LIST ---
           Expanded(
             child: list.isEmpty
                 ? _buildEmptyState()
@@ -202,7 +200,7 @@ class _CompanyListScreenState extends State<CompanyListScreen> {
         children: [
           Icon(Icons.storefront_outlined, size: 80, color: Colors.grey.shade300),
           const SizedBox(height: 15),
-          const Text("No companies found matching your search.", style: TextStyle(color: Colors.grey)),
+          const Text("No registered businesses found.", style: TextStyle(color: Colors.grey)),
         ],
       ),
     );
