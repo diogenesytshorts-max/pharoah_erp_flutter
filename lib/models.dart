@@ -13,6 +13,7 @@ class NumberingSeries {
   String prefix;      // e.g., "CUSA-", "INV/"
   int startNumber;    // e.g., 1 or 1001
   bool isDefault;     // Is it the primary series for this type?
+  bool isActive;      // NAYA: To STOP a series without deleting history
 
   NumberingSeries({
     required this.id,
@@ -21,6 +22,7 @@ class NumberingSeries {
     required this.prefix,
     this.startNumber = 1,
     this.isDefault = false,
+    this.isActive = true, // Default active rehti hai
   });
 
   Map<String, dynamic> toMap() {
@@ -31,6 +33,7 @@ class NumberingSeries {
       'prefix': prefix,
       'startNumber': startNumber,
       'isDefault': isDefault,
+      'isActive': isActive,
     };
   }
 
@@ -42,6 +45,7 @@ class NumberingSeries {
       prefix: map['prefix'] ?? '',
       startNumber: map['startNumber'] ?? 1,
       isDefault: map['isDefault'] ?? false,
+      isActive: map['isActive'] ?? true,
     );
   }
 }
@@ -86,6 +90,13 @@ class Bank {
   factory Bank.fromMap(Map<String, dynamic> map) => Bank(id: map['id'] ?? "", name: map['name'] ?? "", branch: map['branch'] ?? "", accountNo: map['accountNo'] ?? "", openingBalance: (map['openingBalance'] ?? 0.0).toDouble());
 }
 
+class Salesman { 
+  String id, name, phone, route; 
+  Salesman({required this.id, required this.name, this.phone = "", this.route = ""});
+  Map<String, dynamic> toMap() => {'id': id, 'name': name, 'phone': phone, 'route': route};
+  factory Salesman.fromMap(Map<String, dynamic> map) => Salesman(id: map['id'] ?? "", name: map['name'] ?? "", phone: map['phone'] ?? "", route: map['route'] ?? "");
+}
+
 // ===========================================================================
 // 3. CORE BUSINESS MODELS (Medicine & Party)
 // ===========================================================================
@@ -105,7 +116,7 @@ class Medicine {
 
 class Party {
   String id, name, group, phone, email, address, city, state, route, gst, dl, dlExp, pan, transport, priceLevel; 
-  String defaultSeriesId; // NAYA: Linked Numbering Series ID
+  String defaultSeriesId; 
   double opBal, creditLimit; int creditDays;
 
   Party({
