@@ -1,4 +1,4 @@
-// FILE: lib/finance/collection_sheet_view.dart
+// FILE: lib/finance/collection_sheet_view.dart (Replacement Code - FIXED)
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -38,16 +38,6 @@ class _CollectionSheetViewState extends State<CollectionSheetView> {
         title: const Text("Collection / Recovery List"),
         backgroundColor: Colors.indigo.shade900,
         foregroundColor: Colors.white,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.picture_as_pdf_rounded),
-            tooltip: "Export PDF",
-            onPressed: () {
-              // Future: PDF Service Call
-              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Generating Collection PDF...")));
-            },
-          )
-        ],
       ),
       body: Column(
         children: [
@@ -154,9 +144,6 @@ class _CollectionSheetViewState extends State<CollectionSheetView> {
             const Text("OUTSTANDING", style: TextStyle(fontSize: 8, fontWeight: FontWeight.bold, color: Colors.grey)),
           ],
         ),
-        onTap: () {
-          // Future: Party Ledger Detail or Call shortcut
-        },
       ),
     );
   }
@@ -178,23 +165,31 @@ class _CollectionSheetViewState extends State<CollectionSheetView> {
             const Text("TOTAL RECOVERY DUE", style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.grey)),
             Text("₹${total.toStringAsFixed(2)}", style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: Colors.indigo.shade900)),
           ]),
-          ElevatedButton.icon(
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.green.shade700, foregroundColor: Colors.white),
-            onPressed: () {}, 
-            icon: const Icon(Icons.share),
-            label: const Text("SHARE LIST"),
-          )
+          const Icon(Icons.share_rounded, color: Colors.green),
         ],
       ),
     );
   }
 
-  // Helper Calculation (Sales - Returns - Receipts)
+  // --- LOGIC: CALCULATION (FIXED) ---
   double _calcOutstanding(PharoahManager ph, Party p) {
     double bal = p.opBal;
-    for (var s in ph.sales.where((x) => x.partyName == p.name && x.status == "Active")) bal += s.totalAmount;
-    for (var r in ph.saleReturns.where((x) => x.partyName == p.name)) bal -= r.totalAmount;
-    for (var v in ph.vouchers.where((x) => x.partyName == p.name && x.type == "Receipt")) bal -= v.amount;
+    
+    // 1. Add Active Sales
+    for (var s in ph.sales.where((x) => x.partyName == p.name && x.status == "Active")) {
+      bal += s.totalAmount;
+    }
+    
+    // 2. Subtract Receipts
+    for (var v in ph.vouchers.where((x) => x.partyName == p.name && x.type == "Receipt")) {
+      bal -= v.amount;
+    }
+    
+    // 3. Subtract Sales Returns (FIXED TYPE CASTING)
+    for (var r in ph.saleReturns.where((x) => x.partyName == p.name)) {
+      bal -= r.totalAmount;
+    }
+    
     return bal;
   }
 
