@@ -3,10 +3,10 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
-import 'pharoah_manager.dart';
-import 'models.dart';
+import '../pharoah_manager.dart';
+import '../models.dart';
 import 'pdf/sale_invoice_pdf.dart';
-import 'pdf/thermal_invoice_pdf.dart'; // NAYA IMPORT
+import 'pdf/thermal_invoice_pdf.dart'; 
 import 'item_entry_card.dart';
 import 'product_master.dart'; 
 
@@ -44,7 +44,6 @@ class _BillingViewState extends State<BillingView> {
     if (widget.existingItems != null) items = List.from(widget.existingItems!);
   }
 
-  // logic: Serial Number auto-fixer
   void _recalculateSR() {
     setState(() {
       for (int i = 0; i < items.length; i++) {
@@ -112,11 +111,13 @@ class _BillingViewState extends State<BillingView> {
                                 MaterialPageRoute(builder: (c) => const ProductMasterView(isSelectionMode: true)),
                               );
                               if (result != null && result is Medicine) {
-                                setSheetState(() => selectedMed = result);
+                                setSheetState(() {
+                                  selectedMed = result;
+                                });
                               }
                             },
                             icon: const Icon(Icons.add_box_rounded),
-                            style: IconButton.styleFrom(backgroundColor: Colors.teal.shade800),
+                            style: IconButton.styleFrom(backgroundColor: Colors.teal.shade800, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
                           )
                         ],
                       ),
@@ -188,28 +189,26 @@ class _BillingViewState extends State<BillingView> {
       ),
       body: Column(children: [
         _buildHeader(),
+        
+        // --- NAYA: Search Bar Trigger (Replaced FAB) ---
+        _buildSearchBarTrigger(ph),
+
         Expanded(
           child: items.isEmpty 
           ? const Center(child: Text("Bill is empty"))
           : ListView.builder(
-            padding: const EdgeInsets.all(10),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
             itemCount: items.length,
             itemBuilder: (c, i) => _buildItemCard(items[i], i, ph),
           ),
         ),
         _buildFooter(),
       ]),
-      floatingActionButton: widget.isReadOnly ? null : FloatingActionButton.extended(
-        backgroundColor: Colors.teal.shade700,
-        onPressed: () => _showItemSearchSheet(ph),
-        icon: const Icon(Icons.add, color: Colors.white),
-        label: const Text("ADD ITEM", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-      ),
     );
   }
 
   Widget _buildHeader() => Container(
-    padding: const EdgeInsets.all(15), margin: const EdgeInsets.all(10),
+    padding: const EdgeInsets.all(15), margin: const EdgeInsets.fromLTRB(10, 10, 10, 5),
     decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12)),
     child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
       Text(widget.party.name, style: TextStyle(fontWeight: FontWeight.bold, color: Colors.teal.shade800)),
@@ -217,20 +216,69 @@ class _BillingViewState extends State<BillingView> {
     ]),
   );
 
-  Widget _buildItemCard(BillItem it, int index, PharoahManager ph) => Card(
-    elevation: 2, margin: const EdgeInsets.symmetric(vertical: 5),
-    child: ListTile(
-      leading: CircleAvatar(backgroundColor: Colors.teal.shade50, child: Text("${it.srNo}", style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold))),
-      title: Text(it.name, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.teal)),
-      subtitle: Text("Batch: ${it.batch} | Qty: ${it.qty.toInt()} | Rate: ₹${it.rate.toStringAsFixed(2)}"),
-      trailing: Text("₹${it.total.toStringAsFixed(2)}", style: const TextStyle(fontWeight: FontWeight.bold)),
-      onTap: widget.isReadOnly ? null : () => _showItemSearchSheet(ph, itemToEdit: it),
-      onLongPress: widget.isReadOnly ? null : () {
+  // NAYA: Search Bar Widget
+  Widget _buildSearchBarTrigger(PharoahManager ph) {
+    if (widget.isReadOnly) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      child: InkWell(
+        onTap: () => _showItemSearchSheet(ph),
+        borderRadius: BorderRadius.circular(10),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 15),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: Colors.teal.shade300, width: 1.5),
+          ),
+          child: Row(
+            children: [
+              Icon(Icons.search, color: Colors.teal.shade700),
+              const SizedBox(width: 10),
+              Text("Tap here to search & add product...", style: TextStyle(color: Colors.grey.shade600, fontSize: 14)),
+              const Spacer(),
+              Icon(Icons.add_circle, color: Colors.teal.shade700),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // NAYA: Swipe to Delete Card
+  Widget _buildItemCard(BillItem it, int index, PharoahManager ph) {
+    final card = Card(
+      elevation: 2, margin: const EdgeInsets.symmetric(vertical: 4),
+      child: ListTile(
+        leading: CircleAvatar(backgroundColor: Colors.teal.shade50, child: Text("${it.srNo}", style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold))),
+        title: Text(it.name, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.teal)),
+        subtitle: Text("Batch: ${it.batch} | Qty: ${it.qty.toInt()} | Rate: ₹${it.rate.toStringAsFixed(2)}"),
+        trailing: Text("₹${it.total.toStringAsFixed(2)}", style: const TextStyle(fontWeight: FontWeight.bold)),
+        onTap: widget.isReadOnly ? null : () => _showItemSearchSheet(ph, itemToEdit: it),
+      ),
+    );
+
+    // Agar View Only mode hai toh Swipe band rahega
+    if (widget.isReadOnly) return card;
+
+    // NAYA: Swipe Widget
+    return Dismissible(
+      key: Key(it.id),
+      direction: DismissDirection.endToStart, // Sirf right se left swipe allowed
+      background: Container(
+        margin: const EdgeInsets.symmetric(vertical: 4),
+        decoration: BoxDecoration(color: Colors.red, borderRadius: BorderRadius.circular(12)),
+        alignment: Alignment.centerRight,
+        padding: const EdgeInsets.only(right: 20),
+        child: const Icon(Icons.delete, color: Colors.white, size: 28),
+      ),
+      onDismissed: (direction) {
         setState(() { items.removeAt(index); });
         _recalculateSR(); 
       },
-    ),
-  );
+      child: card,
+    );
+  }
 
   Widget _buildFooter() => Container(
     padding: const EdgeInsets.all(20), color: Colors.white,
@@ -257,9 +305,6 @@ class _BillingViewState extends State<BillingView> {
     Navigator.of(context).popUntil((route) => route.isFirst);
   }
 
-  // ===========================================================================
-  // UPDATED PRINT LOGIC (SMART SWITCH)
-  // ===========================================================================
   void _printBill(PharoahManager ph) async {
     if (ph.activeCompany == null) return;
     
@@ -275,12 +320,9 @@ class _BillingViewState extends State<BillingView> {
       paymentMode: widget.mode
     );
 
-    // logic: Check user preference from Global Config
     if (ph.config.printFormat == "Thermal") {
-      // Launch the 3-inch receipt generator
       await ThermalInvoicePdf.generate(sale, widget.party, ph.activeCompany!, ph.config);
     } else {
-      // Launch the professional A4 generator
       await SaleInvoicePdf.generate(sale, widget.party, ph.activeCompany!);
     }
   }
