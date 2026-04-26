@@ -9,6 +9,7 @@ import 'administration/system_user_model.dart';
 import 'finance/bank_transaction_model.dart';
 import 'demo_data.dart';
 import 'inventory_logic_center.dart';
+import 'fy_transfer_engine.dart';
 import 'gateway/company_registry_model.dart';
 import 'logic/app_settings_model.dart';
 
@@ -42,7 +43,7 @@ class PharoahManager with ChangeNotifier {
 
   PharoahManager() { initRegistry(); }
 
-  // --- DATA REGISTRY ---
+  // --- SYSTEM REGISTRY ---
   Future<void> initRegistry() async {
     final root = await getApplicationDocumentsDirectory();
     final file = File('${root.path}/pharoah_registry.json');
@@ -104,6 +105,13 @@ class PharoahManager with ChangeNotifier {
     sales = (loadJson('sales.json') as List?)?.map((e) => Sale.fromMap(e)).toList() ?? [];
     purchases = (loadJson('purc.json') as List?)?.map((e) => Purchase.fromMap(e)).toList() ?? [];
     vouchers = (loadJson('vouc.json') as List?)?.map((e) => Voucher.fromMap(e)).toList() ?? [];
+    
+    var users = loadJson('sys_users.json');
+    if (users != null) systemUsers = (users as List).map((e) => SystemUser.fromMap(e)).toList();
+
+    var bats = loadJson('bats.json');
+    if (bats != null) { (bats as Map).forEach((k, v) => batchHistory[k] = (v as List).map((b) => BatchInfo.fromMap(b)).toList()); }
+
     InventoryLogicCenter.rebuildAllInventory(medicines: medicines, batchHistory: batchHistory, purchases: purchases, sales: sales);
     notifyListeners();
   }
@@ -137,7 +145,7 @@ class PharoahManager with ChangeNotifier {
   }
 
   void finalizeSaleChallan({required String challanNo, required DateTime date, required Party party, required List<BillItem> items, required double total}) {
-    saleChallans.add(SaleChallan(id: DateTime.now().toString(), billNo: challanNo, date: date, partyName: party.name, items: items, totalAmount: total));
+    saleChallans.add(SaleChallan(id: DateTime.now().toString(), billNo: challanNo, date: date, partyName: party.name, partyGstin: party.gst, items: items, totalAmount: total));
     save();
   }
 
@@ -168,6 +176,12 @@ class PharoahManager with ChangeNotifier {
       var b = batchHistory[medId]!.firstWhere((x) => x.batch == batchNo);
       b.exp = newExp; b.mrp = newMrp; b.rate = newRate; save().then((_) => loadAllData());
     }
+  }
+
+  Future<bool> startNewFinancialYear(String nextFY) async {
+    bool success = await FYTransferEngine.transferData(companyID: activeCompany!.id, businessType: activeCompany!.businessType, sourceFY: currentFY, targetFY: nextFY);
+    if (success) { currentFY = nextFY; await loadAllData(); }
+    return success;
   }
 
   List<BankTransaction> getBankStatement(String bankName, DateTime from, DateTime to) {
