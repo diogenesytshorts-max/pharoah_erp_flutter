@@ -11,6 +11,7 @@ import 'gateway/company_control_panel.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  
   runApp(
     ChangeNotifierProvider(
       create: (_) => PharoahManager(),
@@ -25,7 +26,7 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      key: UniqueKey(), // Force refresh on major changes
+      key: UniqueKey(), 
       title: 'Pharoah ERP',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
@@ -55,27 +56,27 @@ class AppGateway extends StatelessWidget {
   Widget build(BuildContext context) {
     final ph = Provider.of<PharoahManager>(context);
 
-    // STEP 1: No companies in phone? Show Force Setup.
+    // STEP 1: Agar ek bhi company register nahi hai -> Naya Detailed Setup dikhao
     if (ph.companiesRegistry.isEmpty) {
       return const MultiSetupView(isFirstRun: true);
     }
 
-    // STEP 2: No active company selected? Show List.
+    // STEP 2: Agar company select nahi hui -> Company Selection List dikhao
     if (ph.activeCompany == null) {
       return const CompanyListScreen();
     }
 
-    // STEP 3: Company selected but no year selected? Show Login/Panel.
-    if (ph.currentFY.isEmpty) {
-      return const CompanyControlPanelView();
-    }
-
-    // STEP 4: Admin password verification check.
+    // STEP 3: Company select ho gayi, ab Login zaroori hai (Pehle Login aayega)
     if (!ph.isAdminAuthenticated) {
       return const LoginView();
     }
 
-    // STEP 5: All checks pass -> Dashboard.
+    // STEP 4: Login ho gaya par saal (FY) select nahi hua -> Control Panel dikhao
+    if (ph.currentFY.isEmpty) {
+      return const CompanyControlPanelView();
+    }
+
+    // STEP 5: Sab kuch sahi hai -> Seedha Dashboard kholo
     return DashboardView(onLogout: () {
       ph.clearSession(); 
     });
