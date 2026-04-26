@@ -17,64 +17,6 @@ class CompanyListScreen extends StatefulWidget {
 class _CompanyListScreenState extends State<CompanyListScreen> {
   String searchQuery = "";
 
-  // --- PASSWORD POPUP ---
-  void _showPasswordDialog(CompanyProfile comp) {
-    final passC = TextEditingController();
-    final ph = Provider.of<PharoahManager>(context, listen: false);
-
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(25))),
-      builder: (c) => Padding(
-        padding: EdgeInsets.only(bottom: MediaQuery.of(c).viewInsets.bottom, left: 25, right: 25, top: 25),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(width: 50, height: 5, decoration: BoxDecoration(color: Colors.grey.shade300, borderRadius: BorderRadius.circular(10))),
-            const SizedBox(height: 20),
-            Text("Access ${comp.name}", style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 10),
-            Text("Enter Admin Password for ID: ${comp.id}", style: const TextStyle(color: Colors.grey, fontSize: 12)),
-            const SizedBox(height: 20),
-            TextField(
-              controller: passC,
-              obscureText: true,
-              autofocus: true,
-              decoration: const InputDecoration(
-                labelText: "Security Password", 
-                border: OutlineInputBorder(), 
-                prefixIcon: Icon(Icons.lock_person_rounded)
-              ),
-            ),
-            const SizedBox(height: 25),
-            SizedBox(
-              width: double.infinity,
-              height: 55,
-              child: ElevatedButton(
-                style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF0D47A1), foregroundColor: Colors.white),
-                onPressed: () {
-                  // Password Match Logic
-                  if (passC.text == comp.password || passC.text == "Rawat") {
-                    Navigator.pop(c);
-                    ph.activeCompany = comp;
-                    ph.notifyListeners(); 
-                  } else {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text("⚠️ Incorrect Password!"), backgroundColor: Colors.red)
-                    );
-                  }
-                },
-                child: const Text("UNLOCK CONTROL PANEL", style: TextStyle(fontWeight: FontWeight.bold)),
-              ),
-            ),
-            const SizedBox(height: 30),
-          ],
-        ),
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final ph = Provider.of<PharoahManager>(context);
@@ -171,7 +113,11 @@ class _CompanyListScreenState extends State<CompanyListScreen> {
                             ],
                           ),
                           trailing: const Icon(Icons.arrow_forward_ios, size: 14, color: Colors.grey),
-                          onTap: () => _showPasswordDialog(comp),
+                          onTap: () {
+                            // Seedha active company set karo, password LoginView me puchenge
+                            ph.activeCompany = comp;
+                            ph.notifyListeners();
+                          },
                         ),
                       );
                     },
