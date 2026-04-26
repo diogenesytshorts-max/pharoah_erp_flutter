@@ -22,11 +22,12 @@ class _SystemUserMasterViewState extends State<SystemUserMasterView> {
     final userC = TextEditingController(text: user?.username);
     final passC = TextEditingController(text: user?.password);
     
-    // Permission States
-    bool canDelete = user?.canDeleteBill ?? false;
-    bool canSeePurRate = user?.canViewPurchaseRate ?? false;
-    bool canSeeFinance = user?.canViewFinance ?? false;
-    bool canExport = user?.canExportData ?? false;
+    // Permission States (Logic Sync)
+    bool pDelete = user?.canDeleteBill ?? false;
+    bool pEdit = user?.canEditBill ?? false;         // NAYA TOGGLE
+    bool pRate = user?.canViewPurchaseRate ?? false;
+    bool pFinance = user?.canViewFinance ?? false;
+    bool pExport = user?.canExportData ?? false;
 
     showDialog(
       context: context,
@@ -34,7 +35,7 @@ class _SystemUserMasterViewState extends State<SystemUserMasterView> {
       builder: (c) => StatefulBuilder(builder: (context, setDialogState) {
         return AlertDialog(
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-          title: Text(user == null ? "Create Staff Access" : "Edit Permissions", 
+          title: Text(user == null ? "Create Staff Access" : "Edit Staff Rights", 
             style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.indigo)),
           content: SingleChildScrollView(
             child: SizedBox(
@@ -51,10 +52,11 @@ class _SystemUserMasterViewState extends State<SystemUserMasterView> {
                     child: Text("CONTROL PERMISSIONS", style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.grey, letterSpacing: 1)),
                   ),
                   const SizedBox(height: 10),
-                  _buildToggle("Can Delete / Cancel Bills", canDelete, (v) => setDialogState(() => canDelete = v)),
-                  _buildToggle("Can View Purchase Rate", canSeePurRate, (v) => setDialogState(() => canSeePurRate = v)),
-                  _buildToggle("Can View Finance Reports", canSeeFinance, (v) => setDialogState(() => canSeeFinance = v)),
-                  _buildToggle("Can Export Data (PDF/CSV)", canExport, (v) => setDialogState(() => canExport = v)),
+                  _buildToggle("Can Delete Bills", pDelete, (v) => setDialogState(() => pDelete = v)),
+                  _buildToggle("Can Edit / Modify Bills", pEdit, (v) => setDialogState(() => pEdit = v)), // NAYA
+                  _buildToggle("Can View Purchase Rate", pRate, (v) => setDialogState(() => pRate = v)),
+                  _buildToggle("Can View Finance Hub", pFinance, (v) => setDialogState(() => pFinance = v)),
+                  _buildToggle("Can Export Data", pExport, (v) => setDialogState(() => pExport = v)),
                 ],
               ),
             ),
@@ -71,10 +73,11 @@ class _SystemUserMasterViewState extends State<SystemUserMasterView> {
                   name: nameC.text.toUpperCase(),
                   username: userC.text.trim().toLowerCase(),
                   password: passC.text,
-                  canDeleteBill: canDelete,
-                  canViewPurchaseRate: canSeePurRate,
-                  canViewFinance: canSeeFinance,
-                  canExportData: canExport,
+                  canDeleteBill: pDelete,
+                  canEditBill: pEdit,
+                  canViewPurchaseRate: pRate,
+                  canViewFinance: pFinance,
+                  canExportData: pExport,
                 );
 
                 if (user == null) ph.addSystemUser(newUser);
@@ -82,7 +85,7 @@ class _SystemUserMasterViewState extends State<SystemUserMasterView> {
 
                 Navigator.pop(c);
               },
-              child: const Text("SAVE USER RIGHTS"),
+              child: const Text("SAVE STAFF LOGIN"),
             )
           ],
         );
@@ -94,29 +97,15 @@ class _SystemUserMasterViewState extends State<SystemUserMasterView> {
   Widget build(BuildContext context) {
     final ph = Provider.of<PharoahManager>(context);
 
-    // SECURITY GUARD: Only Admin (loggedInStaff == null) can manage users
+    // Only Admin can access this
     if (ph.loggedInStaff != null) {
-      return Scaffold(
-        body: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(Icons.lock_person, size: 80, color: Colors.red),
-              const SizedBox(height: 20),
-              const Text("ACCESS DENIED", style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.red)),
-              const Text("Only Admin/Owner can manage staff permissions.", style: TextStyle(color: Colors.grey)),
-              const SizedBox(height: 20),
-              ElevatedButton(onPressed: () => Navigator.pop(context), child: const Text("GO BACK")),
-            ],
-          ),
-        ),
-      );
+      return const Scaffold(body: Center(child: Text("ACCESS DENIED: ADMIN ONLY")));
     }
 
     return Scaffold(
       backgroundColor: const Color(0xFFF5F7FA),
       appBar: AppBar(
-        title: const Text("Staff Management & Rights"),
+        title: const Text("Staff Management & Security"),
         backgroundColor: Colors.indigo.shade900,
         foregroundColor: Colors.white,
       ),
@@ -133,18 +122,18 @@ class _SystemUserMasterViewState extends State<SystemUserMasterView> {
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
                   child: ExpansionTile(
                     leading: const CircleAvatar(backgroundColor: Colors.indigo, child: Icon(Icons.person, color: Colors.white)),
-                    title: Text(u.name, style: const TextStyle(fontWeight: FontWeight.bold)),
-                    subtitle: Text("Username: ${u.username}"),
-                    trailing: const Icon(Icons.settings, size: 18),
+                    title: Text(u.name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                    subtitle: Text("User ID: ${u.username}"),
                     children: [
                       Padding(
                         padding: const EdgeInsets.all(15),
                         child: Column(
                           children: [
-                            _permissionRow("Delete Permission", u.canDeleteBill),
-                            _permissionRow("Purchase Rate View", u.canViewPurchaseRate),
-                            _permissionRow("Finance Access", u.canViewFinance),
-                            _permissionRow("Data Export", u.canExportData),
+                            _permissionRow("Delete Bill", u.canDeleteBill),
+                            _permissionRow("Edit Bill", u.canEditBill), // NAYA
+                            _permissionRow("Purchase Rate", u.canViewPurchaseRate),
+                            _permissionRow("Finance Hub", u.canViewFinance),
+                            _permissionRow("Export Tool", u.canExportData),
                             const Divider(),
                             Row(
                               mainAxisAlignment: MainAxisAlignment.end,
@@ -164,8 +153,8 @@ class _SystemUserMasterViewState extends State<SystemUserMasterView> {
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _showUserForm(),
         backgroundColor: Colors.indigo.shade900,
-        icon: const Icon(Icons.person_add_alt_1, color: Colors.white),
-        label: const Text("ADD NEW STAFF LOGIN", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        icon: const Icon(Icons.person_add, color: Colors.white),
+        label: const Text("ADD STAFF LOGIN", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
       ),
     );
   }
