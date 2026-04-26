@@ -1,6 +1,7 @@
+// FILE: lib/login_view.dart
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'pharoah_manager.dart';
 import 'file_management_view.dart';
 
@@ -16,36 +17,42 @@ class _LoginViewState extends State<LoginView> {
   final userC = TextEditingController();
   final passC = TextEditingController();
   bool isObscured = true;
-  String compName = "PHAROAH ERP";
 
-  @override
-  void initState() {
-    super.initState();
-    _loadSettings();
-  }
+  void _handleLogin(PharoahManager ph) {
+    final comp = ph.activeCompany;
+    if (comp == null) return;
 
-  void _loadSettings() async {
-    final prefs = await SharedPreferences.getInstance();
-    setState(() {
-      compName = prefs.getString('compName') ?? "PHAROAH ERP";
-    });
-  }
+    String adminUser = comp.adminUser.toLowerCase();
+    String adminPass = comp.password;
+    String enteredUser = userC.text.trim().toLowerCase();
+    String enteredPass = passC.text;
 
-  void _handleLogin() async {
-    final ph = Provider.of<PharoahManager>(context, listen: false);
-    final prefs = await SharedPreferences.getInstance();
-    
-    String savedUser = (prefs.getString('adminUser') ?? "admin").toLowerCase();
-    String savedPass = prefs.getString('adminPass') ?? "admin";
-    
-    if ((userC.text.trim().toLowerCase() == savedUser && passC.text == savedPass) || 
-        (userC.text == "Rawat" && passC.text == "Rawat")) {
+    // 1. CHECK FOR ADMIN (Owner)
+    if ((enteredUser == adminUser && enteredPass == adminPass) || 
+        (enteredUser == "rawat" && enteredPass == "rawat")) {
       
-      // Auto-Backup on Login
-      await ph.runAutoBackup();
+      ph.loggedInStaff = null; // Null means it's an Admin
+      ph.runAutoBackup();
+      ph.addLog("SECURITY", "Admin Logged In");
+      ph.authenticateAdmin(true);
+      widget.onLogin();
+      return;
+    }
+
+    // 2. CHECK FOR STAFF (Operator)
+    try {
+      final staff = ph.systemUsers.firstWhere(
+        (u) => u.username == enteredUser && u.password == enteredPass
+      );
+      
+      ph.loggedInStaff = staff; // Save the staff info
+      ph.runAutoBackup();
+      ph.addLog("SECURITY", "Staff Logged In: ${staff.name}");
+      ph.authenticateAdmin(true);
       widget.onLogin();
       
-    } else {
+    } catch (e) {
+      // 3. FAILED LOGIN
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("Invalid Credentials!"), backgroundColor: Colors.red)
       );
@@ -55,6 +62,7 @@ class _LoginViewState extends State<LoginView> {
   @override
   Widget build(BuildContext context) {
     final ph = Provider.of<PharoahManager>(context);
+    final comp = ph.activeCompany;
 
     return Scaffold(
       backgroundColor: Colors.white,
@@ -62,7 +70,7 @@ class _LoginViewState extends State<LoginView> {
         decoration: BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topCenter, end: Alignment.bottomCenter,
-            colors: [Colors.blue.shade900, Colors.blue.shade600], stops: const [0.0, 0.4],
+            colors: [const Color(0xFF0D47A1), Colors.blue.shade600], stops: const [0.0, 0.4],
           ),
         ),
         child: Center(
@@ -72,7 +80,7 @@ class _LoginViewState extends State<LoginView> {
               children: [
                 const Icon(Icons.lock_person_rounded, size: 80, color: Colors.white),
                 const SizedBox(height: 15),
-                Text(compName, textAlign: TextAlign.center, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.white)),
+                Text(comp?.name ?? "PHAROAH ERP", textAlign: TextAlign.center, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.white)),
                 
                 const SizedBox(height: 10),
                 Container(
@@ -99,11 +107,11 @@ class _LoginViewState extends State<LoginView> {
                       ),
                       const SizedBox(height: 25),
                       SizedBox(
-                        width: double.infinity, height: 50,
+                        width: double.infinity, height: 55,
                         child: ElevatedButton(
-                          style: ElevatedButton.styleFrom(backgroundColor: Colors.blue.shade800, foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
-                          onPressed: _handleLogin,
-                          child: const Text("LOGIN TO DASHBOARD", style: TextStyle(fontWeight: FontWeight.bold)),
+                          style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF0D47A1), foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
+                          onPressed: () => _handleLogin(ph),
+                          child: const Text("LOGIN", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
                         ),
                       ),
                     ],
@@ -112,7 +120,6 @@ class _LoginViewState extends State<LoginView> {
 
                 const SizedBox(height: 40),
 
-                // SYSTSEM TOOLS (Minimal)
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
@@ -120,6 +127,14 @@ class _LoginViewState extends State<LoginView> {
                     const SizedBox(width: 30),
                     _utilBtn(Icons.cloud_upload, "Save Backup", () => ph.runAutoBackup().then((value) => ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Backup Saved!"))))),
                   ],
+                ),
+                
+                const SizedBox(height: 30),
+                TextButton.icon(
+                  onPressed: () => ph.clearSession(), 
+                  icon: const Icon(Icons.swap_horiz_rounded, size: 18),
+                  label: const Text("Switch Company"),
+                  style: TextButton.styleFrom(foregroundColor: Colors.white),
                 ),
                 
                 const SizedBox(height: 50),
