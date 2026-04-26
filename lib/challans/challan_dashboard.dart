@@ -1,4 +1,4 @@
-// FILE: lib/challans/challan_dashboard.dart
+// FILE: lib/challans/challan_dashboard.dart (Replacement Code)
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -21,6 +21,8 @@ class _ChallanDashboardState extends State<ChallanDashboard> {
   @override
   Widget build(BuildContext context) {
     final ph = Provider.of<PharoahManager>(context);
+    
+    // Filtering pending records from properly typed lists
     List<SaleChallan> pendingSales = ph.saleChallans.where((c) => c.status == "Pending").toList();
     List<PurchaseChallan> pendingPurc = ph.purchaseChallans.where((c) => c.status == "Pending").toList();
 
@@ -104,7 +106,6 @@ class _ChallanDashboardState extends State<ChallanDashboard> {
   Widget _buildChallanList(List<SaleChallan> sales, List<PurchaseChallan> purc) {
     return ListView(
       children: [
-        // FIXED: Added navigation on Tap
         ...sales.map((ch) => _challanTile(ch.billNo, ch.partyName, ch.totalAmount, Colors.blueGrey, "S", () {
           Navigator.push(context, MaterialPageRoute(builder: (c) => SaleChallanView(existingRecord: ch)));
         })),
@@ -121,7 +122,7 @@ class _ChallanDashboardState extends State<ChallanDashboard> {
       margin: const EdgeInsets.only(bottom: 10),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: BorderSide(color: c.withOpacity(0.2))),
       child: ListTile(
-        onTap: onTap, // NOW WORKS
+        onTap: onTap,
         leading: CircleAvatar(backgroundColor: c.withOpacity(0.1), child: Text(tag, style: TextStyle(color: c, fontWeight: FontWeight.bold))),
         title: Text(no, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
         subtitle: Text("Party: $party\nAmount: ₹${amt.toStringAsFixed(2)}", style: const TextStyle(fontSize: 11)),
