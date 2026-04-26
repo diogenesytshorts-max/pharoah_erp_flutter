@@ -1,10 +1,10 @@
-// FILE: lib/modifications/sub_views/modify_challan_list.dart
+// FILE: lib/modifications/sub_views/modify_challan_list.dart (Replacement Code - FIXED)
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../pharoah_manager.dart';
 import '../../../models.dart';
-import '../../../challans/sale_challan_view.dart'; // NAYA IMPORT
+import '../../../challans/sale_challan_view.dart'; 
 
 class ModifyChallanList extends StatelessWidget {
   final String searchQuery;
@@ -14,7 +14,7 @@ class ModifyChallanList extends StatelessWidget {
   Widget build(BuildContext context) {
     final ph = Provider.of<PharoahManager>(context);
     
-    // Combine both Sale and Purchase Challans for the list
+    // Combine both Sale and Purchase Challans for the universal list
     List<dynamic> allChallans = [...ph.saleChallans, ...ph.purchaseChallans];
     
     final filtered = allChallans.where((c) {
@@ -44,7 +44,7 @@ class ModifyChallanList extends StatelessWidget {
               child: Text(isSale ? "SC" : "PC", style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold)),
             ),
             title: Text(ch.billNo, style: const TextStyle(fontWeight: FontWeight.bold)),
-            subtitle: Text(isSale ? ch.partyName : (ch as PurchaseChallan).distributorName),
+            subtitle: Text(isSale ? (ch as SaleChallan).partyName : (ch as PurchaseChallan).distributorName),
             trailing: const Icon(Icons.more_vert),
             onTap: () => _showActionMenu(context, ph, ch),
           ),
@@ -53,9 +53,10 @@ class ModifyChallanList extends StatelessWidget {
     );
   }
 
-  // --- ACTION MENU: VIEW / EDIT / DELETE ---
+  // --- ACTION MENU ---
   void _showActionMenu(BuildContext context, PharoahManager ph, dynamic challan) {
     bool isSale = challan is SaleChallan;
+    // Check permissions from loggedInStaff
     bool canEdit = ph.loggedInStaff == null || ph.loggedInStaff!.canEditBill;
     bool canDelete = ph.loggedInStaff == null || ph.loggedInStaff!.canDeleteBill;
 
@@ -71,7 +72,6 @@ class ModifyChallanList extends StatelessWidget {
           ),
           const Divider(),
           
-          // 1. EDIT ACTION (Connected to SaleChallanView)
           if (canEdit && isSale)
             ListTile(
               leading: const Icon(Icons.edit, color: Colors.blue),
@@ -84,7 +84,6 @@ class ModifyChallanList extends StatelessWidget {
               },
             ),
 
-          // 2. DELETE ACTION
           if (canDelete)
             ListTile(
               leading: const Icon(Icons.delete_forever, color: Colors.red),
