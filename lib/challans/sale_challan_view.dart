@@ -8,7 +8,7 @@ import '../models.dart';
 import '../logic/pharoah_numbering_engine.dart';
 import '../item_entry_card.dart';
 import '../pharoah_date_controller.dart';
-import '../product_master.dart'; // NAYA: For quick product addition
+import '../product_master.dart'; 
 
 class SaleChallanView extends StatefulWidget {
   final SaleChallan? existingRecord; 
@@ -33,10 +33,14 @@ class _SaleChallanViewState extends State<SaleChallanView> {
     _initChallanFlow();
   }
 
+  // ===========================================================================
+  // INITIALIZE FLOW (Smart Numbering & Context)
+  // ===========================================================================
   void _initChallanFlow() async {
     final ph = Provider.of<PharoahManager>(context, listen: false);
     
     if (widget.existingRecord != null) {
+      // CASE: Modifying Existing
       final ex = widget.existingRecord!;
       challanNoC.text = ex.billNo;
       selectedDate = ex.date;
@@ -48,15 +52,18 @@ class _SaleChallanViewState extends State<SaleChallanView> {
       }
       setState(() => isLoading = false);
     } else {
+      // CASE: New Challan (Fetch from Numbering Engine)
       if (ph.activeCompany != null) {
-        // NAYA: Get next number using Universal Engine
+        var series = ph.getDefaultSeries("CHALLAN");
+        
         String nextNo = await PharoahNumberingEngine.getNextNumber(
           type: "CHALLAN",
           companyID: ph.activeCompany!.id,
-          prefix: ph.getDefaultSeries("CHALLAN").prefix,
-          startFrom: ph.getDefaultSeries("CHALLAN").startNumber,
+          prefix: series.prefix,
+          startFrom: series.startNumber,
           currentList: ph.saleChallans,
         );
+        
         setState(() {
           challanNoC.text = nextNo;
           selectedDate = PharoahDateController.getInitialBillDate(ph.currentFY);
@@ -68,7 +75,6 @@ class _SaleChallanViewState extends State<SaleChallanView> {
 
   double get totalAmt => items.fold(0, (sum, it) => sum + it.total);
 
-  // NAYA: Serial Number auto-fixer
   void _recalculateSR() {
     setState(() {
       for (int i = 0; i < items.length; i++) {
@@ -77,6 +83,9 @@ class _SaleChallanViewState extends State<SaleChallanView> {
     });
   }
 
+  // ===========================================================================
+  // ITEM SEARCH & ENTRY
+  // ===========================================================================
   void _showItemSearch(PharoahManager ph, {BillItem? itemToEdit}) {
     String localSearch = "";
     Medicine? selectedMed;
@@ -96,9 +105,9 @@ class _SaleChallanViewState extends State<SaleChallanView> {
           return Container(
             height: MediaQuery.of(context).size.height * 0.85,
             padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
-            decoration: BoxDecoration(
-              color: Colors.blueGrey.shade50,
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+            decoration: const BoxDecoration(
+              color: Color(0xFFECEFF1),
+              borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
             ),
             child: Column(
               children: [
@@ -115,9 +124,9 @@ class _SaleChallanViewState extends State<SaleChallanView> {
                         Expanded(
                           child: TextField(
                             autofocus: true,
-                            decoration: InputDecoration(
+                            decoration: const InputDecoration(
                               hintText: "Search Product...",
-                              prefixIcon: const Icon(Icons.search),
+                              prefixIcon: Icon(Icons.search),
                               filled: true, fillColor: Colors.white,
                               border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
                             ),
@@ -127,16 +136,11 @@ class _SaleChallanViewState extends State<SaleChallanView> {
                         const SizedBox(width: 10),
                         IconButton.filled(
                           onPressed: () async {
-                            final result = await Navigator.push(
-                              context,
-                              MaterialPageRoute(builder: (c) => const ProductMasterView(isSelectionMode: true)),
-                            );
-                            if (result != null && result is Medicine) {
-                              setSheetState(() => selectedMed = result);
-                            }
+                            final result = await Navigator.push(context, MaterialPageRoute(builder: (c) => const ProductMasterView(isSelectionMode: true)));
+                            if (result != null && result is Medicine) setSheetState(() => selectedMed = result);
                           },
                           icon: const Icon(Icons.add_box_rounded),
-                          style: IconButton.styleFrom(backgroundColor: Colors.blueGrey.shade800, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
+                          style: IconButton.styleFrom(backgroundColor: Colors.blueGrey.shade800),
                         )
                       ],
                     ),
@@ -192,7 +196,7 @@ class _SaleChallanViewState extends State<SaleChallanView> {
     return Scaffold(
       backgroundColor: const Color(0xFFECEFF1),
       appBar: AppBar(
-        title: Text(widget.existingRecord != null ? "Modify Sale Challan" : "New Sale Challan"),
+        title: Text(widget.existingRecord != null ? "Modify Sale Challan" : "New Outward Challan"),
         backgroundColor: Colors.blueGrey.shade800,
         foregroundColor: Colors.white,
         actions: [
@@ -226,12 +230,12 @@ class _SaleChallanViewState extends State<SaleChallanView> {
           Expanded(
             child: TextField(
               controller: challanNoC,
-              readOnly: widget.existingRecord != null, 
+              readOnly: true, 
               decoration: InputDecoration(
                 labelText: "CHALLAN NO", 
                 border: const OutlineInputBorder(), 
                 isDense: true,
-                filled: widget.existingRecord != null,
+                filled: true,
                 fillColor: Colors.grey.shade100
               ),
             ),
@@ -249,7 +253,7 @@ class _SaleChallanViewState extends State<SaleChallanView> {
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text(DateFormat('dd/MM/yyyy').format(selectedDate), style: const TextStyle(fontWeight: FontWeight.bold)),
+                    Text(DateFormat('dd/MM/yyyy').format(selectedDate), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
                     const Icon(Icons.calendar_month, color: Colors.blueGrey, size: 18),
                   ],
                 ),
@@ -267,7 +271,7 @@ class _SaleChallanViewState extends State<SaleChallanView> {
         Padding(
           padding: const EdgeInsets.all(15),
           child: TextField(
-            decoration: const InputDecoration(hintText: "Search Customer Name...", prefixIcon: Icon(Icons.search), border: OutlineInputBorder()),
+            decoration: const InputDecoration(hintText: "Search Customer Name...", prefixIcon: Icon(Icons.search), border: OutlineInputBorder(), filled: true, fillColor: Colors.white),
             onChanged: (v) => setState(() => searchQuery = v),
           ),
         ),
@@ -303,8 +307,31 @@ class _SaleChallanViewState extends State<SaleChallanView> {
           ),
         ),
 
-        // --- NAYA: Search Bar Trigger (Replaced FAB) ---
-        _buildSearchBarTrigger(ph),
+        // --- SEARCH BAR TRIGGER ---
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+          child: InkWell(
+            onTap: () => _showItemSearch(ph),
+            borderRadius: BorderRadius.circular(10),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 15),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: Colors.blueGrey.shade300, width: 1.5),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.search, color: Colors.blueGrey.shade700),
+                  const SizedBox(width: 10),
+                  Text("Tap to search & add product...", style: TextStyle(color: Colors.grey.shade600, fontSize: 14)),
+                  const Spacer(),
+                  Icon(Icons.add_circle, color: Colors.blueGrey.shade700),
+                ],
+              ),
+            ),
+          ),
+        ),
 
         Expanded(
           child: items.isEmpty 
@@ -319,42 +346,13 @@ class _SaleChallanViewState extends State<SaleChallanView> {
     );
   }
 
-  // NAYA: Search Bar Widget
-  Widget _buildSearchBarTrigger(PharoahManager ph) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-      child: InkWell(
-        onTap: () => _showItemSearch(ph),
-        borderRadius: BorderRadius.circular(10),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 15),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: Colors.blueGrey.shade300, width: 1.5),
-          ),
-          child: Row(
-            children: [
-              Icon(Icons.search, color: Colors.blueGrey.shade700),
-              const SizedBox(width: 10),
-              Text("Tap here to search & add product...", style: TextStyle(color: Colors.grey.shade600, fontSize: 14)),
-              const Spacer(),
-              Icon(Icons.add_circle, color: Colors.blueGrey.shade700),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  // NAYA: Swipe to Delete Card
   Widget _itemRow(BillItem it, int index, PharoahManager ph) {
     final card = Card(
       elevation: 2, margin: const EdgeInsets.symmetric(vertical: 4),
       child: ListTile(
         leading: CircleAvatar(backgroundColor: Colors.blueGrey.shade50, child: Text("${it.srNo}", style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.blueGrey))),
         title: Text(it.name, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.blueGrey)),
-        subtitle: Text("Batch: ${it.batch} | Exp: ${it.exp} | Qty: ${it.qty.toInt()}"),
+        subtitle: Text("Batch: ${it.batch} | Qty: ${it.qty.toInt()}"),
         trailing: Text("₹${it.total.toStringAsFixed(2)}", style: const TextStyle(fontWeight: FontWeight.bold)),
         onTap: () => _showItemSearch(ph, itemToEdit: it),
       ),
@@ -404,17 +402,7 @@ class _SaleChallanViewState extends State<SaleChallanView> {
       total: totalAmt,
     );
     
-    // NAYA: Counter update logic if not editing
-    if (widget.existingRecord == null && ph.activeCompany != null) {
-      PharoahNumberingEngine.updateSeriesCounter(
-        type: "CHALLAN", 
-        companyID: ph.activeCompany!.id, 
-        usedNumber: challanNoC.text, 
-        prefix: ph.getDefaultSeries("CHALLAN").prefix
-      );
-    }
-
     Navigator.pop(context);
-    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("✅ Challan Saved & Stock Synced!"), backgroundColor: Colors.green));
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("✅ Challan Saved Successfully!"), backgroundColor: Colors.green));
   }
 }
