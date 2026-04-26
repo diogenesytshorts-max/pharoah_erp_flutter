@@ -35,14 +35,10 @@ class _ChallanToBillConverterState extends State<ChallanToBillConverter> {
       ),
       body: Column(
         children: [
-          // --- 1. PARTY SELECTOR ---
           _buildPartyHeader(ph),
 
           if (selectedParty != null) ...[
-            // --- 2. PENDING CHALLANS LIST ---
             _buildChallanSelectionList(ph),
-
-            // --- 3. CONVERSION ACTION BAR ---
             if (selectedChallanIds.isNotEmpty) _buildActionBar(ph),
           ] else
             Expanded(child: _buildEmptyState("Please select a party to see pending challans")),
@@ -71,7 +67,6 @@ class _ChallanToBillConverterState extends State<ChallanToBillConverter> {
   }
 
   Widget _buildChallanSelectionList(PharoahManager ph) {
-    // Filter pending challans for the selected party
     List<SaleChallan> partyChallans = ph.saleChallans.where((c) => c.partyName == selectedParty!.name && c.status == "Pending").toList();
 
     if (partyChallans.isEmpty) return Expanded(child: _buildEmptyState("No pending challans for this party."));
@@ -84,7 +79,7 @@ class _ChallanToBillConverterState extends State<ChallanToBillConverter> {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text("SELECT CHALLANS TO MERGE", style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.blueGrey)),
+                const Text("SELECT CHALLANS TO MERGE", style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.blueGrey, letterSpacing: 1)),
                 TextButton(
                   onPressed: () {
                     setState(() {
@@ -153,14 +148,11 @@ class _ChallanToBillConverterState extends State<ChallanToBillConverter> {
     );
   }
 
-  // --- POPUP: COMBINED PREVIEW & FINAL OPTIONS ---
   void _showPreviewAndOptions(PharoahManager ph) {
-    // Collect all items from selected challans
     List<BillItem> combinedItems = [];
     for (var cid in selectedChallanIds) {
       var ch = ph.saleChallans.firstWhere((x) => x.id == cid);
       for (var item in ch.items) {
-        // Tagging the source challan number as per your request
         combinedItems.add(item.copyWith(sourceChallanNo: ch.billNo));
       }
     }
@@ -178,8 +170,6 @@ class _ChallanToBillConverterState extends State<ChallanToBillConverter> {
             children: [
               const Text("FINAL BILL PREVIEW", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
               const Divider(),
-              
-              // 1. Bill Settings (Date & Mode)
               Row(
                 children: [
                   Expanded(child: ListTile(
@@ -199,11 +189,7 @@ class _ChallanToBillConverterState extends State<ChallanToBillConverter> {
                   )),
                 ],
               ),
-
               const SizedBox(height: 15),
-              const Text("COMBINED ITEMS LIST", style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.blueGrey)),
-              
-              // 2. Combined Item List
               Expanded(
                 child: ListView.builder(
                   itemCount: combinedItems.length,
@@ -212,14 +198,12 @@ class _ChallanToBillConverterState extends State<ChallanToBillConverter> {
                     return ListTile(
                       dense: true,
                       title: Text(it.name, style: const TextStyle(fontWeight: FontWeight.bold)),
-                      subtitle: Text("Qty: ${it.qty.toInt()} | Ref: ${it.sourceChallanNo}", style: const TextStyle(color: Colors.blue, fontWeight: FontWeight.bold)),
+                      subtitle: Text("Qty: ${it.qty.toInt()} | Ref: ${it.sourceChallanNo}"),
                       trailing: Text("₹${it.total.toStringAsFixed(2)}"),
                     );
                   },
                 ),
               ),
-
-              // 3. Final Save Button
               ElevatedButton(
                 style: ElevatedButton.styleFrom(backgroundColor: Colors.green.shade700, foregroundColor: Colors.white, minimumSize: const Size(double.infinity, 55)),
                 onPressed: () => _finalizeConversion(ph, combinedItems),
@@ -233,33 +217,28 @@ class _ChallanToBillConverterState extends State<ChallanToBillConverter> {
   }
 
   void _finalizeConversion(PharoahManager ph, List<BillItem> items) async {
-    // 1. Generate Bill Number
-    String nextBillNo = await PharoahNumberingEngine.getNextNumber(type: "SALE_BILL", companyID: ph.activeCompany!.id, currentList: ph.sales);
+    // NAYA: Corrected Numbering Engine Call
+    var series = ph.getDefaultSeries("SALE");
+    String nextBillNo = await PharoahNumberingEngine.getNextNumber(
+      type: "SALE",
+      companyID: ph.activeCompany!.id,
+      prefix: series.prefix,
+      startFrom: series.startNumber,
+      currentList: ph.sales,
+    );
 
-    // 2. Mark Challans as BILLED
     for (var id in selectedChallanIds) {
       int idx = ph.saleChallans.indexWhere((c) => c.id == id);
       if (idx != -1) ph.saleChallans[idx].status = "Billed";
     }
 
-    // 3. Save Final Sale Bill
-    ph.finalizeSale(
-      billNo: nextBillNo,
-      date: billDate,
-      party: selectedParty!,
-      items: items,
-      total: items.fold(0, (sum, it) => sum + it.total),
-      mode: payMode,
-    );
+    ph.finalizeSale(billNo: nextBillNo, date: billDate, party: selectedParty!, items: items, total: items.fold(0, (sum, it) => sum + it.total), mode: payMode);
 
     if (mounted) {
-      Navigator.pop(context); // Close Preview
-      Navigator.pop(context); // Back to Dashboard
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("✅ Bill $nextBillNo Created from Challans!"), backgroundColor: Colors.green));
+      Navigator.pop(context); Navigator.pop(context);
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("✅ Bill $nextBillNo Created!"), backgroundColor: Colors.green));
     }
   }
 
-  Widget _buildEmptyState(String msg) {
-    return Center(child: Text(msg, style: const TextStyle(color: Colors.grey, fontStyle: FontStyle.italic)));
-  }
+  Widget _buildEmptyState(String msg) => Center(child: Text(msg, style: const TextStyle(color: Colors.grey, fontStyle: FontStyle.italic)));
 }
