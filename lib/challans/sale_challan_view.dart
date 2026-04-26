@@ -1,4 +1,4 @@
-// FILE: lib/challans/sale_challan_view.dart
+// FILE: lib/challans/sale_challan_view.dart (Replacement Code - FIXED)
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -33,14 +33,10 @@ class _SaleChallanViewState extends State<SaleChallanView> {
     _initChallanFlow();
   }
 
-  // ===========================================================================
-  // INITIALIZE FLOW (Smart Numbering & Context)
-  // ===========================================================================
   void _initChallanFlow() async {
     final ph = Provider.of<PharoahManager>(context, listen: false);
     
     if (widget.existingRecord != null) {
-      // CASE: Modifying Existing
       final ex = widget.existingRecord!;
       challanNoC.text = ex.billNo;
       selectedDate = ex.date;
@@ -52,7 +48,6 @@ class _SaleChallanViewState extends State<SaleChallanView> {
       }
       setState(() => isLoading = false);
     } else {
-      // CASE: New Challan (Fetch from Numbering Engine)
       if (ph.activeCompany != null) {
         var series = ph.getDefaultSeries("CHALLAN");
         
@@ -83,9 +78,6 @@ class _SaleChallanViewState extends State<SaleChallanView> {
     });
   }
 
-  // ===========================================================================
-  // ITEM SEARCH & ENTRY
-  // ===========================================================================
   void _showItemSearch(PharoahManager ph, {BillItem? itemToEdit}) {
     String localSearch = "";
     Medicine? selectedMed;
@@ -128,7 +120,7 @@ class _SaleChallanViewState extends State<SaleChallanView> {
                               hintText: "Search Product...",
                               prefixIcon: Icon(Icons.search),
                               filled: true, fillColor: Colors.white,
-                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                              border: OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(10))),
                             ),
                             onChanged: (v) => setSheetState(() => localSearch = v),
                           ),
@@ -307,7 +299,6 @@ class _SaleChallanViewState extends State<SaleChallanView> {
           ),
         ),
 
-        // --- SEARCH BAR TRIGGER ---
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
           child: InkWell(
@@ -322,11 +313,11 @@ class _SaleChallanViewState extends State<SaleChallanView> {
               ),
               child: Row(
                 children: [
-                  Icon(Icons.search, color: Colors.blueGrey.shade700),
+                  const Icon(Icons.search, color: Colors.blueGrey),
                   const SizedBox(width: 10),
                   Text("Tap to search & add product...", style: TextStyle(color: Colors.grey.shade600, fontSize: 14)),
                   const Spacer(),
-                  Icon(Icons.add_circle, color: Colors.blueGrey.shade700),
+                  const Icon(Icons.add_circle, color: Colors.blueGrey),
                 ],
               ),
             ),
