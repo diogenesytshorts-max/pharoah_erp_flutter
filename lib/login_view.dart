@@ -3,7 +3,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'pharoah_manager.dart';
-import 'file_management_view.dart';
 
 class LoginView extends StatefulWidget {
   const LoginView({super.key});
@@ -21,7 +20,6 @@ class _LoginViewState extends State<LoginView> {
     final comp = ph.activeCompany;
     if (comp == null) return;
 
-    // NAYA: Data Registry se selected company ke credentials check karna
     String savedUser = comp.adminUser.toLowerCase();
     String savedPass = comp.password;
     String enteredUser = userC.text.trim().toLowerCase();
@@ -31,15 +29,11 @@ class _LoginViewState extends State<LoginView> {
     if ((enteredUser == savedUser && enteredPass == savedPass) || 
         (enteredUser == "rawat" && enteredPass == "rawat")) {
       
-      // Clear any staff session first
-      ph.loggedInStaff = null; 
-      
-      // Auto-Backup & Auth
-      ph.runAutoBackup();
-      ph.authenticateAdmin(true);
+      ph.loggedInStaff = null; // Clear staff session if admin logs in
+      ph.authenticateAdmin(true); // Isse main.dart ko pata chalega ki login ho gaya
       
     } else {
-      // 2. Check for Staff Logins (if any registered in this company)
+      // 2. Check for Staff Logins
       try {
         final staff = ph.systemUsers.firstWhere(
           (u) => u.username == enteredUser && u.password == enteredPass
@@ -83,17 +77,7 @@ class _LoginViewState extends State<LoginView> {
                   style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.white)
                 ),
                 
-                const SizedBox(height: 10),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 5),
-                  decoration: BoxDecoration(color: Colors.orange, borderRadius: BorderRadius.circular(20)),
-                  child: Text(
-                    "FY: ${ph.currentFY}", 
-                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12)
-                  ),
-                ),
-
-                const SizedBox(height: 30),
+                const SizedBox(height: 40),
 
                 Container(
                   padding: const EdgeInsets.all(25),
@@ -104,6 +88,8 @@ class _LoginViewState extends State<LoginView> {
                   ),
                   child: Column(
                     children: [
+                      const Text("ACCOUNT LOGIN", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.blueGrey, letterSpacing: 1.5)),
+                      const SizedBox(height: 20),
                       TextField(
                         controller: userC, 
                         decoration: const InputDecoration(labelText: "Username", prefixIcon: Icon(Icons.person_outline))
@@ -131,29 +117,19 @@ class _LoginViewState extends State<LoginView> {
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))
                           ),
                           onPressed: () => _handleLogin(ph),
-                          child: const Text("LOGIN TO DASHBOARD", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                          child: const Text("LOGIN SECURELY", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
                         ),
                       ),
                     ],
                   ),
                 ),
 
-                const SizedBox(height: 40),
-
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    _utilBtn(Icons.calendar_month, "Change Year", () => Navigator.push(context, MaterialPageRoute(builder: (c) => const FileManagementView()))),
-                    const SizedBox(width: 30),
-                    _utilBtn(Icons.cloud_upload, "Backup", () => ph.runAutoBackup().then((value) => ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Manual Backup Saved!"))))),
-                  ],
-                ),
-                
                 const SizedBox(height: 30),
+
                 TextButton.icon(
                   onPressed: () => ph.clearSession(), 
-                  icon: const Icon(Icons.swap_horiz_rounded, size: 18),
-                  label: const Text("Switch Company"),
+                  icon: const Icon(Icons.arrow_back_rounded, size: 18),
+                  label: const Text("Back to Company List"),
                   style: TextButton.styleFrom(foregroundColor: Colors.white),
                 ),
                 
@@ -164,23 +140,6 @@ class _LoginViewState extends State<LoginView> {
           ),
         ),
       ),
-    );
-  }
-
-  Widget _utilBtn(IconData icon, String label, VoidCallback onTap) {
-    return Column(
-      children: [
-        GestureDetector(
-          onTap: onTap,
-          child: Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(color: Colors.white.withOpacity(0.2), shape: BoxShape.circle),
-            child: Icon(icon, color: Colors.white, size: 24),
-          ),
-        ),
-        const SizedBox(height: 5),
-        Text(label, style: const TextStyle(color: Colors.white, fontSize: 10)),
-      ],
     );
   }
 }
