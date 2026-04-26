@@ -22,12 +22,13 @@ class _SystemUserMasterViewState extends State<SystemUserMasterView> {
     final userC = TextEditingController(text: user?.username);
     final passC = TextEditingController(text: user?.password);
     
-    // Permission States (Logic Sync)
+    // Permission States
     bool pDelete = user?.canDeleteBill ?? false;
-    bool pEdit = user?.canEditBill ?? false;         // NAYA TOGGLE
+    bool pEdit = user?.canEditBill ?? false;         
     bool pRate = user?.canViewPurchaseRate ?? false;
     bool pFinance = user?.canViewFinance ?? false;
     bool pExport = user?.canExportData ?? false;
+    bool pMaintenance = user?.canRunMaintenance ?? false; // NAYA
 
     showDialog(
       context: context,
@@ -53,10 +54,11 @@ class _SystemUserMasterViewState extends State<SystemUserMasterView> {
                   ),
                   const SizedBox(height: 10),
                   _buildToggle("Can Delete Bills", pDelete, (v) => setDialogState(() => pDelete = v)),
-                  _buildToggle("Can Edit / Modify Bills", pEdit, (v) => setDialogState(() => pEdit = v)), // NAYA
+                  _buildToggle("Can Edit / Modify Bills", pEdit, (v) => setDialogState(() => pEdit = v)),
                   _buildToggle("Can View Purchase Rate", pRate, (v) => setDialogState(() => pRate = v)),
                   _buildToggle("Can View Finance Hub", pFinance, (v) => setDialogState(() => pFinance = v)),
-                  _buildToggle("Can Export Data", pExport, (v) => setDialogState(() => pExport = v)),
+                  _buildToggle("Can Export/Backup Data", pExport, (v) => setDialogState(() => pExport = v)),
+                  _buildToggle("Can Run Maintenance", pMaintenance, (v) => setDialogState(() => pMaintenance = v)), // NAYA
                 ],
               ),
             ),
@@ -78,6 +80,7 @@ class _SystemUserMasterViewState extends State<SystemUserMasterView> {
                   canViewPurchaseRate: pRate,
                   canViewFinance: pFinance,
                   canExportData: pExport,
+                  canRunMaintenance: pMaintenance, // NAYA
                 );
 
                 if (user == null) ph.addSystemUser(newUser);
@@ -130,10 +133,11 @@ class _SystemUserMasterViewState extends State<SystemUserMasterView> {
                         child: Column(
                           children: [
                             _permissionRow("Delete Bill", u.canDeleteBill),
-                            _permissionRow("Edit Bill", u.canEditBill), // NAYA
+                            _permissionRow("Edit Bill", u.canEditBill),
                             _permissionRow("Purchase Rate", u.canViewPurchaseRate),
                             _permissionRow("Finance Hub", u.canViewFinance),
                             _permissionRow("Export Tool", u.canExportData),
+                            _permissionRow("Maintenance", u.canRunMaintenance), // NAYA
                             const Divider(),
                             Row(
                               mainAxisAlignment: MainAxisAlignment.end,
