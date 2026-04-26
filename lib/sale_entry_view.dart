@@ -5,9 +5,9 @@ import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import 'pharoah_manager.dart';
 import 'models.dart';
-import 'pharoah_smart_logic.dart'; 
-import 'billing_view.dart'; // Admin View
-import 'staff_modules/staff_billing_view.dart'; // Staff View
+import 'logic/pharoah_numbering_engine.dart'; // NAYA
+import 'billing_view.dart';
+import 'staff_modules/staff_billing_view.dart';
 import 'party_master.dart';
 import 'pharoah_date_controller.dart'; 
 
@@ -27,16 +27,23 @@ class _SaleEntryViewState extends State<SaleEntryView> {
   String searchQuery = "";
   final billNoC = TextEditingController();
 
+  // NAYA: Multi-Series State
+  NumberingSeries? selectedSeries;
+
   @override void initState() {
     super.initState();
     _initSession();
   }
 
+  // ===========================================================================
+  // INITIALIZATION & NUMBERING LOGIC
+  // ===========================================================================
   void _initSession() {
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       final ph = Provider.of<PharoahManager>(context, listen: false);
       
       if (widget.existingSale != null) {
+        // --- CASE: MODIFYING BILL ---
         setState(() {
           selectedDate = widget.existingSale!.date;
           paymentMode = widget.existingSale!.paymentMode;
@@ -47,54 +54,57 @@ class _SaleEntryViewState extends State<SaleEntryView> {
           );
         });
       } else {
-        if (ph.activeCompany != null) {
-          String nextNo = await PharoahSmartLogic.getNextSaleNumber(ph.sales, ph.activeCompany!.id);
-          setState(() { 
-            billNoC.text = nextNo;
-            selectedDate = PharoahDateController.getInitialBillDate(ph.currentFY);
-          });
-        }
+        // --- CASE: NEW BILL ---
+        // 1. Get Default Series for this Company
+        selectedSeries = ph.getDefaultSeries("SALE");
+        
+        // 2. Fetch Next Number from Engine
+        _refreshBillNumber(ph);
+
+        setState(() { 
+          selectedDate = PharoahDateController.getInitialBillDate(ph.currentFY);
+        });
       }
     });
   }
 
-  Future<void> _handleQuickAddParty() async {
-    final result = await Navigator.push(context, MaterialPageRoute(builder: (c) => const PartyMasterView(isSelectionMode: true)));
-    if (result != null && result is Party) setState(() { selectedParty = result; });
+  // Function to calculate next number based on selected series
+  Future<void> _refreshBillNumber(PharoahManager ph) async {
+    if (selectedSeries == null) return;
+
+    String nextNo = await PharoahNumberingEngine.getNextNumber(
+      type: "SALE",
+      companyID: ph.activeCompany!.id,
+      prefix: selectedSeries!.prefix,
+      startFrom: selectedSeries!.startNumber,
+      currentList: ph.sales,
+    );
+
+    setState(() {
+      billNoC.text = nextNo;
+    });
   }
 
-  // ===========================================================================
-  // SMART ROUTING LOGIC (The Security Guard)
-  // ===========================================================================
-  void _proceedToBilling(PharoahManager ph) {
-    if (selectedParty == null) return;
-
-    bool isStaff = ph.loggedInStaff != null;
-
-    if (isStaff) {
-      // IF STAFF: Open the Restricted View (Staff Module)
-      Navigator.push(context, MaterialPageRoute(builder: (c) => StaffBillingView(
-        party: selectedParty!,
-        billNo: billNoC.text,
-        billDate: selectedDate,
-        mode: paymentMode,
-      )));
-    } else {
-      // IF ADMIN: Open the Full View (Original Module)
-      Navigator.push(context, MaterialPageRoute(builder: (c) => BillingView(
-        party: selectedParty!, 
-        billNo: billNoC.text, 
-        billDate: selectedDate, 
-        mode: paymentMode, 
-        existingItems: widget.existingSale?.items, 
-        modifySaleId: widget.existingSale?.id,
-        isReadOnly: widget.isReadOnly,
-      )));
-    }
+  // logic: Jab party select ho, toh uski mapped series check karein
+  void _handlePartySelection(PharoahManager ph, Party party) {
+    setState(() {
+      selectedParty = party;
+      
+      // Agar is party ke liye koi special series set hai, toh switch karein
+      if (party.defaultSeriesId.isNotEmpty) {
+        try {
+          selectedSeries = ph.numberingSeries.firstWhere((s) => s.id == party.defaultSeriesId);
+        } catch (e) {
+          // If series deleted, keep current
+        }
+      }
+    });
+    _refreshBillNumber(ph);
   }
 
   @override Widget build(BuildContext context) {
     final ph = Provider.of<PharoahManager>(context);
+    final activeSeriesList = ph.getSeriesByType("SALE").where((s) => s.isActive).toList();
 
     return Scaffold(
       backgroundColor: const Color(0xFFF8F9FD),
@@ -106,27 +116,62 @@ class _SaleEntryViewState extends State<SaleEntryView> {
       body: IgnorePointer(
         ignoring: widget.isReadOnly,
         child: Column(children: [
+          // --- TOP SECTION: SERIES & BILL INFO ---
           Container(
             padding: const EdgeInsets.all(20), 
             color: Colors.white, 
-            child: Row(children: [
-              Expanded(child: TextField(controller: billNoC, decoration: const InputDecoration(labelText: "BILL NO", border: OutlineInputBorder(), filled: true, fillColor: Color(0xFFF5F5F5)))),
-              const SizedBox(width: 15),
-              Expanded(child: InkWell(
-                onTap: () async { 
-                  DateTime? p = await PharoahDateController.pickDate(context: context, currentFY: ph.currentFY, initialDate: selectedDate); 
-                  if(p != null) setState(() => selectedDate = p); 
-                }, 
-                child: Container(
-                  padding: const EdgeInsets.all(12), 
-                  decoration: BoxDecoration(border: Border.all(color: Colors.grey), borderRadius: BorderRadius.circular(5)), 
-                  child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-                    Text(DateFormat('dd/MM/yyyy').format(selectedDate), style: const TextStyle(fontWeight: FontWeight.bold)),
-                    const Icon(Icons.calendar_month, size: 18, color: Colors.indigo),
-                  ])
-                )
-              )),
-            ]),
+            child: Column(
+              children: [
+                // Series Selector Row
+                if (widget.existingSale == null)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 15),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.layers_outlined, size: 16, color: Colors.blueGrey),
+                      const SizedBox(width: 10),
+                      const Text("BILLING SERIES:", style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.blueGrey)),
+                      const SizedBox(width: 15),
+                      Expanded(
+                        child: DropdownButtonHideUnderline(
+                          child: DropdownButton<NumberingSeries>(
+                            value: selectedSeries,
+                            isDense: true,
+                            items: activeSeriesList.map((s) => DropdownMenuItem(
+                              value: s, 
+                              child: Text(s.name, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold))
+                            )).toList(),
+                            onChanged: (v) {
+                              setState(() => selectedSeries = v);
+                              _refreshBillNumber(ph);
+                            },
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+                Row(children: [
+                  Expanded(child: TextField(controller: billNoC, decoration: const InputDecoration(labelText: "BILL NO", border: OutlineInputBorder(), filled: true, fillColor: Color(0xFFF5F5F5)))),
+                  const SizedBox(width: 15),
+                  Expanded(child: InkWell(
+                    onTap: () async { 
+                      DateTime? p = await PharoahDateController.pickDate(context: context, currentFY: ph.currentFY, initialDate: selectedDate); 
+                      if(p != null) setState(() => selectedDate = p); 
+                    }, 
+                    child: Container(
+                      padding: const EdgeInsets.all(12), 
+                      decoration: BoxDecoration(border: Border.all(color: Colors.grey), borderRadius: BorderRadius.circular(5)), 
+                      child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+                        Text(DateFormat('dd/MM/yyyy').format(selectedDate), style: const TextStyle(fontWeight: FontWeight.bold)),
+                        const Icon(Icons.calendar_month, size: 18, color: Colors.indigo),
+                      ])
+                    )
+                  )),
+                ]),
+              ],
+            ),
           ),
           
           Padding(
@@ -141,7 +186,7 @@ class _SaleEntryViewState extends State<SaleEntryView> {
             )
           ),
 
-          Expanded(child: selectedParty != null ? _buildPartyCard() : _buildPartyList(ph)),
+          Expanded(child: selectedParty != null ? _buildPartyCard(ph) : _buildPartyList(ph)),
           
           if(selectedParty != null) Padding(
             padding: const EdgeInsets.all(20), 
@@ -151,7 +196,7 @@ class _SaleEntryViewState extends State<SaleEntryView> {
                 backgroundColor: widget.isReadOnly ? Colors.purple : Colors.blue.shade700,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15))
               ),
-              onPressed: () => _proceedToBilling(ph), // SMART ROUTE CALL
+              onPressed: () => _proceedToBilling(ph), 
               child: Text(widget.isReadOnly ? "VIEW ITEMS LIST" : "PROCEED TO BILLING", style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
             )
           )
@@ -160,7 +205,7 @@ class _SaleEntryViewState extends State<SaleEntryView> {
     );
   }
 
-  Widget _buildPartyCard() => Card(
+  Widget _buildPartyCard(PharoahManager ph) => Card(
     elevation: 4, margin: const EdgeInsets.all(15), 
     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15), side: BorderSide(color: Colors.blue.shade100, width: 1)),
     child: ListTile(
@@ -176,8 +221,20 @@ class _SaleEntryViewState extends State<SaleEntryView> {
     Padding(padding: const EdgeInsets.all(15), child: Row(children: [
       Expanded(child: TextField(decoration: InputDecoration(hintText: "Search Party...", prefixIcon: const Icon(Icons.search), border: OutlineInputBorder(borderRadius: BorderRadius.circular(10))), onChanged: (v) => setState(() => searchQuery = v))),
       const SizedBox(width: 10),
-      IconButton.filled(onPressed: _handleQuickAddParty, icon: const Icon(Icons.person_add_alt_1), style: IconButton.styleFrom(backgroundColor: Colors.blue.shade900, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)))),
+      IconButton.filled(onPressed: () async {
+         final res = await Navigator.push(context, MaterialPageRoute(builder: (c) => const PartyMasterView(isSelectionMode: true)));
+         if (res != null && res is Party) _handlePartySelection(ph, res);
+      }, icon: const Icon(Icons.person_add_alt_1), style: IconButton.styleFrom(backgroundColor: Colors.blue.shade900, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)))),
     ])),
-    Expanded(child: ListView(children: ph.parties.where((p) => p.name.toLowerCase().contains(searchQuery.toLowerCase())).map((p) => ListTile(title: Text(p.name, style: const TextStyle(fontWeight: FontWeight.bold)), subtitle: Text(p.city), onTap: () => setState(() => selectedParty = p))).toList()))
+    Expanded(child: ListView(children: ph.parties.where((p) => p.name.toLowerCase().contains(searchQuery.toLowerCase())).map((p) => ListTile(title: Text(p.name, style: const TextStyle(fontWeight: FontWeight.bold)), subtitle: Text(p.city), onTap: () => _handlePartySelection(ph, p))).toList()))
   ]);
+
+  void _proceedToBilling(PharoahManager ph) {
+    bool isStaff = ph.loggedInStaff != null;
+    if (isStaff) {
+      Navigator.push(context, MaterialPageRoute(builder: (c) => StaffBillingView(party: selectedParty!, billNo: billNoC.text, billDate: selectedDate, mode: paymentMode)));
+    } else {
+      Navigator.push(context, MaterialPageRoute(builder: (c) => BillingView(party: selectedParty!, billNo: billNoC.text, billDate: selectedDate, mode: paymentMode, existingItems: widget.existingSale?.items, modifySaleId: widget.existingSale?.id, isReadOnly: widget.isReadOnly)));
+    }
+  }
 }
