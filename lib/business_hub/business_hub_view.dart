@@ -5,8 +5,9 @@ import '../challans/challan_dashboard.dart';
 import '../modifications/modify_hub_view.dart';
 import '../finance/finance_dashboard.dart';
 import '../inventory_intel/inventory_intel_view.dart';
-import '../administration/system_user_master_view.dart'; // NAYA IMPORT (Security Screen)
+import '../administration/system_user_master_view.dart';
 import '../compliance/compliance_hub.dart';
+import '../administration/series_master_view.dart'; // NAYA
 
 class BusinessHubView extends StatelessWidget {
   const BusinessHubView({super.key});
@@ -28,37 +29,61 @@ class BusinessHubView extends StatelessWidget {
           children: [
             _buildHeader(),
             const SizedBox(height: 30),
-            const Text(
-              "BUSINESS MANAGEMENT MODULES",
-              style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.blueGrey, letterSpacing: 1.5),
-            ),
+            
+            // --- SECTION 1: DAILY BUSINESS OPERATIONS ---
+            _sectionLabel("BUSINESS MANAGEMENT MODULES"),
             const SizedBox(height: 15),
-
-            // GRID WITH ALL 6 MODULES CONNECTED
             GridView.count(
-              shrinkWrap: true,
+              shrinkWrap: true, 
               physics: const NeverScrollableScrollPhysics(),
-              crossAxisCount: 2,
-              crossAxisSpacing: 15,
-              mainAxisSpacing: 15,
+              crossAxisCount: 2, 
+              crossAxisSpacing: 15, 
+              mainAxisSpacing: 15, 
               childAspectRatio: 1.1,
               children: [
                 _hubCard(context, "CHALLANS & RETURNS", "Notes & Conversion", Icons.receipt_long_rounded, Colors.orange.shade800, const ChallanDashboard()),
                 _hubCard(context, "MODIFICATION CENTER", "Universal Search & Edit", Icons.edit_note_rounded, Colors.blue.shade800, const ModifyHubView()),
                 _hubCard(context, "FINANCE & RECOVERY", "Outstanding & PDC", Icons.account_balance_rounded, Colors.green.shade800, const FinanceDashboard()),
                 _hubCard(context, "STOCK ANALYTICS", "Shortage & PO Builder", Icons.analytics_rounded, Colors.purple.shade700, const InventoryIntelView()),
+              ],
+            ),
+
+            const SizedBox(height: 35),
+
+            // --- SECTION 2: ADMIN, SECURITY & COMPLIANCE ---
+            _sectionLabel("SYSTEM & COMPLIANCE HUB"),
+            const SizedBox(height: 15),
+            GridView.count(
+              shrinkWrap: true, 
+              physics: const NeverScrollableScrollPhysics(),
+              crossAxisCount: 2, 
+              crossAxisSpacing: 15, 
+              mainAxisSpacing: 15, 
+              childAspectRatio: 1.1,
+              children: [
+                // NAYA CARD ADDED HERE
+                _hubCard(context, "SERIES MASTER", "Parallel Numbering", Icons.format_list_numbered_rounded, Colors.indigo, const SeriesMasterView()),
                 
-                // UPDATED: SECURITY & STAFF MODULE LINKED
                 _hubCard(context, "SECURITY & STAFF", "User Permissions", Icons.admin_panel_settings_rounded, Colors.red.shade800, const SystemUserMasterView()),
                 
                 _hubCard(context, "COMPLIANCE HUB", "H1, Narcotic & DL", Icons.verified_user_rounded, Colors.teal.shade700, const ComplianceHub()),
               ],
             ),
-            const SizedBox(height: 30),
+            
+            const SizedBox(height: 40),
             _buildInfoCard(),
           ],
         ),
       ),
+    );
+  }
+
+  // --- UI COMPONENTS ---
+
+  Widget _sectionLabel(String text) {
+    return Text(
+      text,
+      style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.blueGrey, letterSpacing: 1.5),
     );
   }
 
@@ -125,7 +150,7 @@ class BusinessHubView extends StatelessWidget {
         children: [
           Icon(Icons.info_outline, color: Colors.blueGrey, size: 20),
           SizedBox(width: 10),
-          Expanded(child: Text("These modules handle specialized operations. For daily work, use main dashboard.", style: TextStyle(fontSize: 10, color: Colors.blueGrey, fontStyle: FontStyle.italic))),
+          Expanded(child: Text("These modules handle specialized operations. Use main dashboard for daily billing.", style: TextStyle(fontSize: 10, color: Colors.blueGrey, fontStyle: FontStyle.italic))),
         ],
       ),
     );
