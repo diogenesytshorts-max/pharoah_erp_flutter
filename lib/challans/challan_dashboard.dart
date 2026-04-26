@@ -8,9 +8,7 @@ import 'sale_challan_view.dart';
 import 'purchase_challan_view.dart';
 import 'challan_to_bill_converter.dart';
 import '../returns/sale_return_view.dart';
-import '../returns/expiry_breakage_return_view.dart';
-import '../returns/purchase_return_view.dart'; // Ensure this file exists
-import '../returns/purchase_breakage_return_view.dart'; // Ensure this file exists
+import '../returns/purchase_return_view.dart'; // Ab hum sirf is ek file ko use karenge
 
 class ChallanDashboard extends StatefulWidget {
   const ChallanDashboard({super.key});
@@ -54,8 +52,9 @@ class _ChallanDashboardState extends State<ChallanDashboard> {
                 _actionCard("SALE RETURN", "Credit Note", Icons.assignment_return, Colors.red.shade700, () {
                    Navigator.push(context, MaterialPageRoute(builder: (c) => const SaleReturnView()));
                 }),
-                _actionCard("PUR. RETURN", "Debit Note Options", Icons.remove_shopping_cart, Colors.brown.shade800, () {
-                  _showPurchaseReturnOptions(context);
+                // UPGRADED: Ab popup nahi khulega, seedha Debit Note screen khulegi
+                _actionCard("DEBIT NOTE", "Purchase Return", Icons.remove_shopping_cart, Colors.brown.shade800, () {
+                  Navigator.push(context, MaterialPageRoute(builder: (c) => const PurchaseReturnView()));
                 }),
               ],
             ),
@@ -63,6 +62,7 @@ class _ChallanDashboardState extends State<ChallanDashboard> {
 
           const SizedBox(height: 10),
 
+          // --- PENDING LIST (Same as your old code) ---
           Expanded(
             child: Container(
               width: double.infinity,
@@ -103,30 +103,7 @@ class _ChallanDashboardState extends State<ChallanDashboard> {
     );
   }
 
-  // --- RE-ADDED: PURCHASE RETURN MODAL ---
-  void _showPurchaseReturnOptions(BuildContext context) {
-    showModalBottomSheet(
-      context: context,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
-      builder: (c) => Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const ListTile(title: Text("Select Return Category", style: TextStyle(fontWeight: FontWeight.bold))),
-          ListTile(
-            leading: const Icon(Icons.check_circle, color: Colors.green),
-            title: const Text("Sellable Return (Good Stock)"),
-            onTap: () { Navigator.pop(c); Navigator.push(context, MaterialPageRoute(builder: (c) => const PurchaseReturnView())); },
-          ),
-          ListTile(
-            leading: const Icon(Icons.delete_sweep, color: Colors.brown),
-            title: const Text("Expiry / Breakage Return (Dead Stock)"),
-            onTap: () { Navigator.pop(c); Navigator.push(context, MaterialPageRoute(builder: (c) => const PurchaseBreakageReturnView())); },
-          ),
-          const SizedBox(height: 20),
-        ],
-      ),
-    );
-  }
+  // NOTE: Humne _showPurchaseReturnOptions popup yahan se hata diya hai (Standard Approach)
 
   Widget _buildChallanList(List<SaleChallan> sales, List<PurchaseChallan> purc) {
     return ListView(
