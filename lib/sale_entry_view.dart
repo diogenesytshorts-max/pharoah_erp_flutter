@@ -35,15 +35,11 @@ class _SaleEntryViewState extends State<SaleEntryView> {
     _initSession();
   }
 
-  // ===========================================================================
-  // INITIALIZATION & NUMBERING LOGIC
-  // ===========================================================================
   void _initSession() {
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       final ph = Provider.of<PharoahManager>(context, listen: false);
       
       if (widget.existingSale != null) {
-        // --- CASE: MODIFYING BILL ---
         setState(() {
           selectedDate = widget.existingSale!.date;
           paymentMode = widget.existingSale!.paymentMode;
@@ -54,13 +50,9 @@ class _SaleEntryViewState extends State<SaleEntryView> {
           );
         });
       } else {
-        // --- CASE: NEW BILL ---
-        // 1. Get Default Series for this Company
+        // NAYA: Default Series Load karna
         selectedSeries = ph.getDefaultSeries("SALE");
-        
-        // 2. Fetch Next Number from Engine
         _refreshBillNumber(ph);
-
         setState(() { 
           selectedDate = PharoahDateController.getInitialBillDate(ph.currentFY);
         });
@@ -68,10 +60,8 @@ class _SaleEntryViewState extends State<SaleEntryView> {
     });
   }
 
-  // Function to calculate next number based on selected series
   Future<void> _refreshBillNumber(PharoahManager ph) async {
     if (selectedSeries == null) return;
-
     String nextNo = await PharoahNumberingEngine.getNextNumber(
       type: "SALE",
       companyID: ph.activeCompany!.id,
@@ -79,24 +69,17 @@ class _SaleEntryViewState extends State<SaleEntryView> {
       startFrom: selectedSeries!.startNumber,
       currentList: ph.sales,
     );
-
-    setState(() {
-      billNoC.text = nextNo;
-    });
+    setState(() => billNoC.text = nextNo);
   }
 
-  // logic: Jab party select ho, toh uski mapped series check karein
   void _handlePartySelection(PharoahManager ph, Party party) {
     setState(() {
       selectedParty = party;
-      
-      // Agar is party ke liye koi special series set hai, toh switch karein
+      // NAYA: Agar party ki apni series linked hai toh auto-switch
       if (party.defaultSeriesId.isNotEmpty) {
         try {
           selectedSeries = ph.numberingSeries.firstWhere((s) => s.id == party.defaultSeriesId);
-        } catch (e) {
-          // If series deleted, keep current
-        }
+        } catch (e) {}
       }
     });
     _refreshBillNumber(ph);
@@ -116,42 +99,27 @@ class _SaleEntryViewState extends State<SaleEntryView> {
       body: IgnorePointer(
         ignoring: widget.isReadOnly,
         child: Column(children: [
-          // --- TOP SECTION: SERIES & BILL INFO ---
           Container(
             padding: const EdgeInsets.all(20), 
             color: Colors.white, 
             child: Column(
               children: [
-                // Series Selector Row
+                // NAYA: Series Selector
                 if (widget.existingSale == null)
                 Padding(
                   padding: const EdgeInsets.only(bottom: 15),
-                  child: Row(
-                    children: [
-                      const Icon(Icons.layers_outlined, size: 16, color: Colors.blueGrey),
-                      const SizedBox(width: 10),
-                      const Text("BILLING SERIES:", style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.blueGrey)),
-                      const SizedBox(width: 15),
-                      Expanded(
-                        child: DropdownButtonHideUnderline(
-                          child: DropdownButton<NumberingSeries>(
-                            value: selectedSeries,
-                            isDense: true,
-                            items: activeSeriesList.map((s) => DropdownMenuItem(
-                              value: s, 
-                              child: Text(s.name, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold))
-                            )).toList(),
-                            onChanged: (v) {
-                              setState(() => selectedSeries = v);
-                              _refreshBillNumber(ph);
-                            },
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
+                  child: Row(children: [
+                    const Icon(Icons.layers_outlined, size: 16, color: Colors.blueGrey),
+                    const SizedBox(width: 10),
+                    Expanded(child: DropdownButtonHideUnderline(child: DropdownButton<NumberingSeries>(
+                      value: selectedSeries,
+                      isDense: true,
+                      items: activeSeriesList.map((s) => DropdownMenuItem(value: s, child: Text(s.name, style: const TextStyle(fontWeight: FontWeight.bold)))).toList(),
+                      onChanged: (v) { setState(() => selectedSeries = v); _refreshBillNumber(ph); },
+                    ))),
+                  ]),
                 ),
-
+                
                 Row(children: [
                   Expanded(child: TextField(controller: billNoC, decoration: const InputDecoration(labelText: "BILL NO", border: OutlineInputBorder(), filled: true, fillColor: Color(0xFFF5F5F5)))),
                   const SizedBox(width: 15),
@@ -164,7 +132,7 @@ class _SaleEntryViewState extends State<SaleEntryView> {
                       padding: const EdgeInsets.all(12), 
                       decoration: BoxDecoration(border: Border.all(color: Colors.grey), borderRadius: BorderRadius.circular(5)), 
                       child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-                        Text(DateFormat('dd/MM/yyyy').format(selectedDate), style: const TextStyle(fontWeight: FontWeight.bold)),
+                        Text(DateFormat('dd/MM/yy').format(selectedDate), style: const TextStyle(fontWeight: FontWeight.bold)),
                         const Icon(Icons.calendar_month, size: 18, color: Colors.indigo),
                       ])
                     )
@@ -186,7 +154,7 @@ class _SaleEntryViewState extends State<SaleEntryView> {
             )
           ),
 
-          Expanded(child: selectedParty != null ? _buildPartyCard(ph) : _buildPartyList(ph)),
+          Expanded(child: selectedParty != null ? _buildPartyCard() : _buildPartyList(ph)),
           
           if(selectedParty != null) Padding(
             padding: const EdgeInsets.all(20), 
@@ -196,7 +164,7 @@ class _SaleEntryViewState extends State<SaleEntryView> {
                 backgroundColor: widget.isReadOnly ? Colors.purple : Colors.blue.shade700,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15))
               ),
-              onPressed: () => _proceedToBilling(ph), 
+              onPressed: () => _proceedToBilling(ph),
               child: Text(widget.isReadOnly ? "VIEW ITEMS LIST" : "PROCEED TO BILLING", style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
             )
           )
@@ -205,7 +173,7 @@ class _SaleEntryViewState extends State<SaleEntryView> {
     );
   }
 
-  Widget _buildPartyCard(PharoahManager ph) => Card(
+  Widget _buildPartyCard() => Card(
     elevation: 4, margin: const EdgeInsets.all(15), 
     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15), side: BorderSide(color: Colors.blue.shade100, width: 1)),
     child: ListTile(
