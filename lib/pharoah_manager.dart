@@ -1,4 +1,4 @@
-// FILE: lib/pharoah_manager.dart (Replace Full)
+// lib/pharoah_manager.dart
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
@@ -6,7 +6,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'models.dart';
 import 'administration/system_user_model.dart';
-import 'finance/bank_transaction_model.dart'; // Ensure this file exists
+import 'finance/bank_transaction_model.dart';
 import 'master_data_library.dart';
 import 'demo_data.dart';
 import 'pharoah_smart_logic.dart';
@@ -85,6 +85,7 @@ class PharoahManager with ChangeNotifier {
     await File('$dir/sales.json').writeAsString(jsonEncode(sales.map((e) => e.toMap()).toList()));
     await File('$dir/purc.json').writeAsString(jsonEncode(purchases.map((e) => e.toMap()).toList()));
     await File('$dir/challans.json').writeAsString(jsonEncode(saleChallans.map((e) => e.toMap()).toList()));
+    await File('$dir/config.json').writeAsString(jsonEncode(config.toMap()));
     await File('$dir/sys_users.json').writeAsString(jsonEncode(systemUsers.map((e) => e.toMap()).toList()));
     await File('$dir/bats.json').writeAsString(jsonEncode(batchHistory.map((k, v) => MapEntry(k, v.map((b) => b.toMap()).toList()))));
     notifyListeners();
@@ -100,6 +101,7 @@ class PharoahManager with ChangeNotifier {
     sales = (loadJson('sales.json') as List?)?.map((e) => Sale.fromMap(e)).toList() ?? [];
     purchases = (loadJson('purc.json') as List?)?.map((e) => Purchase.fromMap(e)).toList() ?? [];
     vouchers = (loadJson('vouc.json') as List?)?.map((e) => Voucher.fromMap(e)).toList() ?? [];
+    var cnf = loadJson('config.json'); if(cnf!=null) config = AppConfig.fromMap(cnf);
     var users = loadJson('sys_users.json'); if(users!=null) systemUsers = (users as List).map((e)=>SystemUser.fromMap(e)).toList();
     _rebuildInventoryRegistry();
     notifyListeners();
@@ -115,7 +117,6 @@ class PharoahManager with ChangeNotifier {
   String _getMedIdentityKey(String id, String name) { try { return medicines.firstWhere((m) => m.id == id || m.name == name).identityKey; } catch (e) { return id; } }
   void _ensureBatchExists(String medKey, String batchNo, String exp, String pack, double mrp, double rate) { if (!batchHistory.containsKey(medKey)) batchHistory[medKey] = []; if (!batchHistory[medKey]!.any((b) => b.batch == batchNo)) { batchHistory[medKey]!.add(BatchInfo(batch: batchNo, exp: exp, packing: pack, mrp: mrp, rate: rate, isShell: true)); } }
 
-  // --- ACTIONS ---
   void deletePurchase(String id) { purchases.removeWhere((p) => p.id == id); save().then((_) => loadAllData()); }
   void deleteBill(String id) { sales.removeWhere((s) => s.id == id); save().then((_) => loadAllData()); }
   void deleteSaleChallan(String id) { saleChallans.removeWhere((c) => c.id == id); save().then((_) => loadAllData()); }
@@ -157,21 +158,25 @@ class PharoahManager with ChangeNotifier {
   void addSalt(Salt s) { salts.add(s); save(); }
   void addRoute(RouteArea r) { routes.add(r); save(); }
   void addDrugType(DrugType d) { drugTypes.add(d); save(); }
-  void addBank(Bank b) { banks.add(b); save(); }
-  void addSalesman(Salesman s) { salesmen.add(s); save(); }
+  void updateAppConfig(AppConfig c) { config = c; save(); }
   void addSystemUser(SystemUser u) { systemUsers.add(u); save(); }
   void updateSystemUser(SystemUser u) { int i = systemUsers.indexWhere((x) => x.id == u.id); if(i != -1) { systemUsers[i] = u; save(); } }
   void deleteSystemUser(String id) { systemUsers.removeWhere((x) => x.id == id); save(); }
-  void addCheque(ChequeEntry c) { cheques.add(c); save(); }
-  void addVoucher(Voucher v) { vouchers.add(v); save(); }
-  void updateAppConfig(AppConfig c) { config = c; save(); }
 
   List<BankTransaction> getBankStatement(String bankName, DateTime from, DateTime to) {
     List<BankTransaction> statement = [];
     for (var v in vouchers.where((x) => x.paymentMode == bankName)) {
       statement.add(BankTransaction(id: v.id, date: v.date, particulars: v.partyName, reference: "VOUCHER", amountIn: v.type == "Receipt" ? v.amount : 0, amountOut: v.type == "Payment" ? v.amount : 0, type: "VOUCHER"));
     }
+    statement.sort((a, b) => a.date.compareTo(b.date));
     return statement;
+  }
+
+  Future<bool> startNewFinancialYear(String nextFY) async {
+    if (activeCompany == null) return false;
+    bool success = await FYTransferEngine.transferData(companyID: activeCompany!.id, businessType: activeCompany!.businessType, sourceFY: currentFY, targetFY: nextFY);
+    if (success) { currentFY = nextFY; await loadAllData(); }
+    return success;
   }
 
   void adjustBatchStock({required String medId, required String batchNo, required double adjQty, required String reason}) {
@@ -198,9 +203,11 @@ class PharoahManager with ChangeNotifier {
   void deleteRoute(String id) {}
   void deleteBank(String id) {}
   void deleteSalesman(String id) {}
+  void addBank(Bank b) {}
+  void addSalesman(Salesman s) {}
+  void addCheque(ChequeEntry c) {}
   void updateChequeStatus(String id, String s, String r) {}
   Future<void> runAutoBackup() async {}
   Future<void> masterReset() async {}
   Future<void> resetCounter(String t) async {}
-  Future<bool> startNewFinancialYear(String fy) async => false;
 }
