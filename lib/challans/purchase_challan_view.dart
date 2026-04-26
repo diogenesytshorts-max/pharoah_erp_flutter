@@ -1,4 +1,4 @@
-// FILE: lib/challans/purchase_challan_view.dart
+// FILE: lib/challans/purchase_challan_view.dart (Replacement Code - FIXED)
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -34,9 +34,6 @@ class _PurchaseChallanViewState extends State<PurchaseChallanView> {
     _initInwardFlow();
   }
 
-  // ===========================================================================
-  // INITIALIZATION (Smart ID & FY Context)
-  // ===========================================================================
   void _initInwardFlow() async {
     final ph = Provider.of<PharoahManager>(context, listen: false);
 
@@ -55,11 +52,10 @@ class _PurchaseChallanViewState extends State<PurchaseChallanView> {
       setState(() => isLoading = false);
     } else {
       if (ph.activeCompany != null) {
-        // NAYA: Fetching unique inward tracking number
         String nextNo = await PharoahNumberingEngine.getNextNumber(
           type: "CHALLAN",
           companyID: ph.activeCompany!.id,
-          prefix: "PCH-", // Internal Sequence for Purchase Inwards
+          prefix: "PCH-", 
           startFrom: 1,
           currentList: ph.purchaseChallans,
         );
@@ -82,9 +78,6 @@ class _PurchaseChallanViewState extends State<PurchaseChallanView> {
     });
   }
 
-  // ===========================================================================
-  // SEARCH & ENTRY LOGIC
-  // ===========================================================================
   void _showItemSearch(PharoahManager ph, {PurchaseItem? itemToEdit}) {
     String localSearch = "";
     Medicine? selectedMed;
@@ -126,11 +119,11 @@ class _PurchaseChallanViewState extends State<PurchaseChallanView> {
                         Expanded(
                           child: TextField(
                             autofocus: true,
-                            decoration: InputDecoration(
+                            decoration: const InputDecoration(
                               hintText: "Search Product for Inward...",
-                              prefixIcon: const Icon(Icons.search, color: Colors.amber),
+                              prefixIcon: Icon(Icons.search, color: Colors.amber),
                               filled: true, fillColor: Colors.white,
-                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                              border: OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(10))),
                             ),
                             onChanged: (v) => setSheetState(() => localSearch = v),
                           ),
@@ -153,7 +146,7 @@ class _PurchaseChallanViewState extends State<PurchaseChallanView> {
                       itemBuilder: (c, i) => ListTile(
                         leading: const Icon(Icons.inventory_2, color: Colors.amber),
                         title: Text(filteredMeds[i].name, style: const TextStyle(fontWeight: FontWeight.bold)),
-                        subtitle: Text("Stock: ${filteredMeds[i].stock} | Pack: ${filteredMeds[i].packing}"),
+                        subtitle: Text("Pack: ${filteredMeds[i].packing}"),
                         onTap: () => setSheetState(() => selectedMed = filteredMeds[i]),
                       ),
                     ),
@@ -233,7 +226,7 @@ class _PurchaseChallanViewState extends State<PurchaseChallanView> {
             children: [
               Expanded(child: TextField(controller: internalNoC, readOnly: true, decoration: const InputDecoration(labelText: "INWARD ID", border: OutlineInputBorder(), filled: true, fillColor: Color(0xFFF5F5F5)))),
               const SizedBox(width: 10),
-              Expanded(child: TextField(controller: supplierChallanNoC, textCapitalization: TextCapitalization.characters, decoration: const InputDecoration(labelText: "SUPPLIER REF NO", border: OutlineInputBorder(), hintText: "Challan #"))),
+              Expanded(child: TextField(controller: supplierChallanNoC, textCapitalization: TextCapitalization.characters, decoration: const InputDecoration(labelText: "SUPPLIER REF NO", border: OutlineInputBorder()))),
             ],
           ),
           const SizedBox(height: 10),
@@ -294,7 +287,6 @@ class _PurchaseChallanViewState extends State<PurchaseChallanView> {
               : null,
         ),
 
-        // --- SEARCH BAR TRIGGER ---
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
           child: InkWell(
@@ -309,11 +301,11 @@ class _PurchaseChallanViewState extends State<PurchaseChallanView> {
               ),
               child: Row(
                 children: [
-                  Icon(Icons.search, color: Colors.amber.shade900),
+                  const Icon(Icons.search, color: Colors.amber),
                   const SizedBox(width: 10),
                   Text("Tap to search & add product...", style: TextStyle(color: Colors.brown.shade600, fontSize: 14)),
                   const Spacer(),
-                  Icon(Icons.add_circle, color: Colors.amber.shade900),
+                  const Icon(Icons.add_circle, color: Colors.amber),
                 ],
               ),
             ),
@@ -370,7 +362,7 @@ class _PurchaseChallanViewState extends State<PurchaseChallanView> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          const Text("TOTAL INWARD VALUE:", style: TextStyle(fontWeight: FontWeight.bold)),
+          const Text("TOTAL INWARD:", style: TextStyle(fontWeight: FontWeight.bold)),
           Text("₹${totalAmt.toStringAsFixed(2)}", style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: Colors.amber.shade900)),
         ],
       ),
@@ -391,6 +383,6 @@ class _PurchaseChallanViewState extends State<PurchaseChallanView> {
     );
     
     Navigator.pop(context);
-    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("✅ Inward Note Saved & Stock Updated!"), backgroundColor: Colors.green));
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("✅ Inward Note Saved Successfully!"), backgroundColor: Colors.green));
   }
 }
