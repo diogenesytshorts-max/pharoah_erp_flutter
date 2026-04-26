@@ -6,11 +6,13 @@ import 'package:intl/intl.dart';
 import '../pharoah_manager.dart';
 import '../models.dart';
 import '../logic/pharoah_numbering_engine.dart';
-import '../purchase/purchase_billing_view.dart'; // Reuse existing item entry card
+import '../purchase/purchase_billing_view.dart'; 
 import '../pharoah_date_controller.dart';
 
 class PurchaseChallanView extends StatefulWidget {
-  const PurchaseChallanView({super.key});
+  final PurchaseChallan? existingRecord; // NAYA: Edit support
+
+  const PurchaseChallanView({super.key, this.existingRecord});
 
   @override
   State<PurchaseChallanView> createState() => _PurchaseChallanViewState();
@@ -28,22 +30,42 @@ class _PurchaseChallanViewState extends State<PurchaseChallanView> {
   @override
   void initState() {
     super.initState();
-    _initChallan();
+    _initPurchaseFlow();
   }
 
-  void _initChallan() async {
+  // --- LOGIC: NEW ENTRY vs MODIFY ---
+  void _initPurchaseFlow() async {
     final ph = Provider.of<PharoahManager>(context, listen: false);
-    if (ph.activeCompany != null) {
-      String nextNo = await PharoahNumberingEngine.getNextNumber(
-        type: "PUR_CHALLAN",
-        companyID: ph.activeCompany!.id,
-        currentList: ph.purchaseChallans,
-      );
-      setState(() {
-        internalNoC.text = nextNo;
-        selectedDate = PharoahDateController.getInitialBillDate(ph.currentFY);
-        isLoading = false;
-      });
+
+    if (widget.existingRecord != null) {
+      // CASE: EDIT MODE (Purana record load karo)
+      final ex = widget.existingRecord!;
+      internalNoC.text = ex.internalNo;
+      supplierChallanNoC.text = ex.billNo;
+      selectedDate = ex.date;
+      items = List.from(ex.items);
+      
+      // Distributor dhoondhna
+      try {
+        selectedDistributor = ph.parties.firstWhere((p) => p.name == ex.distributorName);
+      } catch (e) {
+        selectedDistributor = Party(id: "0", name: ex.distributorName);
+      }
+      setState(() => isLoading = false);
+    } else {
+      // CASE: NEW ENTRY
+      if (ph.activeCompany != null) {
+        String nextNo = await PharoahNumberingEngine.getNextNumber(
+          type: "PUR_CHALLAN",
+          companyID: ph.activeCompany!.id,
+          currentList: ph.purchaseChallans,
+        );
+        setState(() {
+          internalNoC.text = nextNo;
+          selectedDate = PharoahDateController.getInitialBillDate(ph.currentFY);
+          isLoading = false;
+        });
+      }
     }
   }
 
@@ -56,22 +78,23 @@ class _PurchaseChallanViewState extends State<PurchaseChallanView> {
     if (isLoading) return const Scaffold(body: Center(child: CircularProgressIndicator()));
 
     return Scaffold(
-      backgroundColor: const Color(0xFFFFF8E1), // Light Amber
+      backgroundColor: const Color(0xFFFFF8E1),
       appBar: AppBar(
-        title: const Text("Purchase Challan (Stock Inward)"),
+        title: Text(widget.existingRecord != null ? "Modify Inward Challan" : "Purchase Inward Note"),
         backgroundColor: Colors.amber.shade900,
         foregroundColor: Colors.white,
         actions: [
           if (items.isNotEmpty)
             TextButton(
               onPressed: () => _handleSave(ph),
-              child: const Text("SAVE INWARD", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+              child: const Text("SAVE", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
             )
         ],
       ),
       body: Column(
         children: [
           _buildHeader(),
+          _buildAlertBanner(),
           Expanded(
             child: selectedDistributor == null 
               ? _buildSupplierPicker(ph) 
@@ -85,7 +108,7 @@ class _PurchaseChallanViewState extends State<PurchaseChallanView> {
               onPressed: () => _showItemSearch(ph),
               backgroundColor: Colors.amber.shade900,
               icon: const Icon(Icons.add_box_rounded, color: Colors.white),
-              label: const Text("ADD INWARD ITEM", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+              label: const Text("ADD ITEM", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
             )
           : null,
     );
@@ -99,9 +122,21 @@ class _PurchaseChallanViewState extends State<PurchaseChallanView> {
         children: [
           Row(
             children: [
-              Expanded(child: TextField(controller: internalNoC, enabled: false, decoration: const InputDecoration(labelText: "INTERNAL ID", border: OutlineInputBorder(), filled: true, fillColor: Color(0xFFF5F5F5)))),
+              Expanded(
+                child: TextField(
+                  controller: internalNoC, 
+                  readOnly: true, // Internal ID is locked
+                  decoration: const InputDecoration(labelText: "INTERNAL ID", border: OutlineInputBorder(), filled: true, fillColor: Color(0xFFF5F5F5))
+                )
+              ),
               const SizedBox(width: 10),
-              Expanded(child: TextField(controller: supplierChallanNoC, textCapitalization: TextCapitalization.characters, decoration: const InputDecoration(labelText: "SUPPLIER CH. NO", border: OutlineInputBorder()))),
+              Expanded(
+                child: TextField(
+                  controller: supplierChallanNoC, 
+                  textCapitalization: TextCapitalization.characters, 
+                  decoration: const InputDecoration(labelText: "SUPPLIER CH. NO", border: OutlineInputBorder())
+                )
+              ),
             ],
           ),
           const SizedBox(height: 10),
@@ -116,7 +151,7 @@ class _PurchaseChallanViewState extends State<PurchaseChallanView> {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text("CHALLAN DATE: ${DateFormat('dd/MM/yyyy').format(selectedDate)}", style: const TextStyle(fontWeight: FontWeight.bold)),
+                  Text("DATE: ${DateFormat('dd/MM/yyyy').format(selectedDate)}", style: const TextStyle(fontWeight: FontWeight.bold)),
                   const Icon(Icons.calendar_month, color: Colors.amber, size: 18),
                 ],
               ),
@@ -127,13 +162,22 @@ class _PurchaseChallanViewState extends State<PurchaseChallanView> {
     );
   }
 
+  Widget _buildAlertBanner() {
+    return Container(
+      width: double.infinity,
+      color: Colors.amber.shade100,
+      padding: const EdgeInsets.all(8),
+      child: const Text("This entry will update your current stock levels.", textAlign: TextAlign.center, style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.brown)),
+    );
+  }
+
   Widget _buildSupplierPicker(PharoahManager ph) {
     return Column(
       children: [
         Padding(
           padding: const EdgeInsets.all(15),
           child: TextField(
-            decoration: const InputDecoration(hintText: "Search Supplier Name...", prefixIcon: Icon(Icons.search), filled: true, fillColor: Colors.white, border: OutlineInputBorder()),
+            decoration: const InputDecoration(hintText: "Search Supplier Name...", prefixIcon: Icon(Icons.search), border: OutlineInputBorder()),
             onChanged: (v) => setState(() => searchQuery = v),
           ),
         ),
@@ -142,7 +186,6 @@ class _PurchaseChallanViewState extends State<PurchaseChallanView> {
             children: ph.parties.where((p) => p.group == "Sundry Creditors" && p.name.toLowerCase().contains(searchQuery.toLowerCase())).map((p) => ListTile(
               leading: const Icon(Icons.business),
               title: Text(p.name, style: const TextStyle(fontWeight: FontWeight.bold)),
-              subtitle: Text(p.city),
               onTap: () => setState(() => selectedDistributor = p),
             )).toList(),
           ),
@@ -158,11 +201,13 @@ class _PurchaseChallanViewState extends State<PurchaseChallanView> {
           tileColor: Colors.amber.shade100,
           leading: const Icon(Icons.business, color: Colors.brown),
           title: Text(selectedDistributor!.name, style: const TextStyle(fontWeight: FontWeight.bold)),
-          trailing: IconButton(onPressed: () => setState(() => selectedDistributor = null), icon: const Icon(Icons.edit, color: Colors.blue)),
+          trailing: (widget.existingRecord == null) // Supplier change allowed only in new entries
+              ? IconButton(onPressed: () => setState(() => selectedDistributor = null), icon: const Icon(Icons.edit, color: Colors.blue))
+              : null,
         ),
         Expanded(
           child: items.isEmpty 
-            ? const Center(child: Text("Cart is empty. Add items from distributor's challan."))
+            ? const Center(child: Text("No items in this inward note."))
             : ListView.builder(
                 itemCount: items.length,
                 itemBuilder: (c, i) => Card(
@@ -187,7 +232,7 @@ class _PurchaseChallanViewState extends State<PurchaseChallanView> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          const Text("TOTAL INWARD VALUE:", style: TextStyle(fontWeight: FontWeight.bold)),
+          const Text("TOTAL INWARD:", style: TextStyle(fontWeight: FontWeight.bold)),
           Text("₹${totalAmt.toStringAsFixed(2)}", style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: Colors.amber.shade900)),
         ],
       ),
@@ -203,7 +248,7 @@ class _PurchaseChallanViewState extends State<PurchaseChallanView> {
         padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
         child: Column(
           children: [
-             const Padding(padding: EdgeInsets.all(15), child: Text("SELECT ITEM FOR INWARD", style: TextStyle(fontWeight: FontWeight.bold))),
+             const Padding(padding: EdgeInsets.all(15), child: Text("SELECT ITEM", style: TextStyle(fontWeight: FontWeight.bold))),
              Expanded(
                child: ListView.builder(
                  itemCount: ph.medicines.length,
@@ -238,6 +283,12 @@ class _PurchaseChallanViewState extends State<PurchaseChallanView> {
   }
 
   void _handleSave(PharoahManager ph) {
+    // 1. Agar edit mode hai, toh purana record hatao taaki stock double na ho
+    if (widget.existingRecord != null) {
+      ph.deletePurchaseChallan(widget.existingRecord!.id);
+    }
+
+    // 2. Finalize New/Modified Challan
     ph.finalizePurchaseChallan(
       challanNo: supplierChallanNoC.text.trim(),
       internalNo: internalNoC.text,
@@ -246,7 +297,8 @@ class _PurchaseChallanViewState extends State<PurchaseChallanView> {
       items: items,
       total: totalAmt,
     );
+    
     Navigator.pop(context);
-    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("✅ Purchase Inward Saved & Stock Increased!"), backgroundColor: Colors.green));
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("✅ Inward Updated & Stock Synced!"), backgroundColor: Colors.green));
   }
 }
