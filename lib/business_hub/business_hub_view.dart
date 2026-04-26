@@ -5,7 +5,7 @@ import '../challans/challan_dashboard.dart';
 import '../modifications/modify_hub_view.dart';
 import '../finance/finance_dashboard.dart';
 import '../inventory_intel/inventory_intel_view.dart';
-import '../administration/staff_management_view.dart';
+import '../administration/system_user_master_view.dart'; // NAYA IMPORT (Security Screen)
 import '../compliance/compliance_hub.dart';
 
 class BusinessHubView extends StatelessWidget {
@@ -47,7 +47,10 @@ class BusinessHubView extends StatelessWidget {
                 _hubCard(context, "MODIFICATION CENTER", "Universal Search & Edit", Icons.edit_note_rounded, Colors.blue.shade800, const ModifyHubView()),
                 _hubCard(context, "FINANCE & RECOVERY", "Outstanding & PDC", Icons.account_balance_rounded, Colors.green.shade800, const FinanceDashboard()),
                 _hubCard(context, "STOCK ANALYTICS", "Shortage & PO Builder", Icons.analytics_rounded, Colors.purple.shade700, const InventoryIntelView()),
-                _hubCard(context, "SECURITY & STAFF", "User Permissions", Icons.admin_panel_settings_rounded, Colors.red.shade800, const StaffManagementView()),
+                
+                // UPDATED: SECURITY & STAFF MODULE LINKED
+                _hubCard(context, "SECURITY & STAFF", "User Permissions", Icons.admin_panel_settings_rounded, Colors.red.shade800, const SystemUserMasterView()),
+                
                 _hubCard(context, "COMPLIANCE HUB", "H1, Narcotic & DL", Icons.verified_user_rounded, Colors.teal.shade700, const ComplianceHub()),
               ],
             ),
