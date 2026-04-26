@@ -1,11 +1,11 @@
-// FILE: lib/modifications/sub_views/modify_returns_list.dart
+// FILE: lib/modifications/sub_views/modify_returns_list.dart (Replacement Code - FIXED)
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import '../../../pharoah_manager.dart';
 import '../../../models.dart';
-import '../../../returns/sale_return_view.dart'; // NAYA IMPORT
+import '../../../returns/sale_return_view.dart';
 
 class ModifyReturnsList extends StatelessWidget {
   final String searchQuery;
@@ -48,7 +48,7 @@ class ModifyReturnsList extends StatelessWidget {
             subtitle: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(isSaleRet ? ret.partyName : (ret as PurchaseReturn).distributorName),
+                Text(isSaleRet ? (ret as SaleReturn).partyName : (ret as PurchaseReturn).distributorName),
                 Text("Amt: ₹${ret.totalAmount.toStringAsFixed(2)} | Date: ${DateFormat('dd/MM').format(ret.date)}", style: const TextStyle(fontSize: 10)),
               ],
             ),
@@ -60,7 +60,7 @@ class ModifyReturnsList extends StatelessWidget {
     );
   }
 
-  // --- ACTION MENU: VIEW / EDIT / DELETE ---
+  // --- ACTION MENU ---
   void _showActionMenu(BuildContext context, PharoahManager ph, dynamic returnObj) {
     bool isSaleRet = returnObj is SaleReturn;
     bool canEdit = ph.loggedInStaff == null || ph.loggedInStaff!.canEditBill;
@@ -73,12 +73,11 @@ class ModifyReturnsList extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           ListTile(
-            title: Text("Return: ${returnObj.billNo}", style: const TextStyle(fontWeight: FontWeight.bold)),
+            title: Text("Return No: ${returnObj.billNo}", style: const TextStyle(fontWeight: FontWeight.bold)),
             subtitle: Text(isSaleRet ? "Sale Credit Note" : "Purchase Debit Note"),
           ),
           const Divider(),
           
-          // 1. EDIT ACTION (Connected only to SaleReturnView for now)
           if (canEdit && isSaleRet)
             ListTile(
               leading: const Icon(Icons.edit, color: Colors.blue),
@@ -89,14 +88,8 @@ class ModifyReturnsList extends StatelessWidget {
                   builder: (c) => SaleReturnView(existingRecord: returnObj as SaleReturn)
                 ));
               },
-            )
-          else if (canEdit && !isSaleRet)
-            const ListTile(
-              leading: Icon(Icons.lock_clock, color: Colors.grey),
-              title: Text("Purchase Return Edit (Coming Soon)"),
             ),
 
-          // 2. DELETE ACTION
           if (canDelete)
             ListTile(
               leading: const Icon(Icons.delete_forever, color: Colors.red),
