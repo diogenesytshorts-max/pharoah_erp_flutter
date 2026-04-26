@@ -1,9 +1,12 @@
+// FILE: lib/billing_view.dart
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import 'pharoah_manager.dart';
 import 'models.dart';
 import 'pdf/sale_invoice_pdf.dart';
+import 'pdf/thermal_invoice_pdf.dart'; // NAYA IMPORT
 import 'item_entry_card.dart';
 import 'product_master.dart'; 
 
@@ -41,7 +44,7 @@ class _BillingViewState extends State<BillingView> {
     if (widget.existingItems != null) items = List.from(widget.existingItems!);
   }
 
-  // NAYA: Serial Number auto-fixer logic
+  // logic: Serial Number auto-fixer
   void _recalculateSR() {
     setState(() {
       for (int i = 0; i < items.length; i++) {
@@ -172,7 +175,10 @@ class _BillingViewState extends State<BillingView> {
         backgroundColor: widget.isReadOnly ? Colors.purple.shade700 : Colors.teal.shade700,
         foregroundColor: Colors.white,
         actions: [
-          IconButton(icon: const Icon(Icons.print_rounded), onPressed: items.isEmpty ? null : () => _printBill(ph)),
+          IconButton(
+            icon: const Icon(Icons.print_rounded), 
+            onPressed: items.isEmpty ? null : () => _printBill(ph)
+          ),
           if (!widget.isReadOnly) 
             TextButton(
               onPressed: items.isEmpty ? null : () => _handleSave(ph),
@@ -221,7 +227,7 @@ class _BillingViewState extends State<BillingView> {
       onTap: widget.isReadOnly ? null : () => _showItemSearchSheet(ph, itemToEdit: it),
       onLongPress: widget.isReadOnly ? null : () {
         setState(() { items.removeAt(index); });
-        _recalculateSR(); // SR auto-fix after delete
+        _recalculateSR(); 
       },
     ),
   );
@@ -239,13 +245,43 @@ class _BillingViewState extends State<BillingView> {
 
   void _handleSave(PharoahManager ph) {
     if (widget.modifySaleId != null) ph.deleteBill(widget.modifySaleId!);
-    ph.finalizeSale(billNo: widget.billNo, date: widget.billDate, party: widget.party, items: items, total: totalAmt, mode: widget.mode);
+    ph.finalizeSale(
+      billNo: widget.billNo, 
+      date: widget.billDate, 
+      party: widget.party, 
+      items: items, 
+      total: totalAmt, 
+      mode: widget.mode,
+      isEdit: widget.modifySaleId != null
+    );
     Navigator.of(context).popUntil((route) => route.isFirst);
   }
 
+  // ===========================================================================
+  // UPDATED PRINT LOGIC (SMART SWITCH)
+  // ===========================================================================
   void _printBill(PharoahManager ph) async {
     if (ph.activeCompany == null) return;
-    final sale = Sale(id: widget.modifySaleId ?? DateTime.now().toString(), billNo: widget.billNo, date: widget.billDate, partyName: widget.party.name, partyGstin: widget.party.gst, partyState: widget.party.state, items: items, totalAmount: totalAmt, paymentMode: widget.mode);
-    await SaleInvoicePdf.generate(sale, widget.party, ph.activeCompany!);
+    
+    final sale = Sale(
+      id: widget.modifySaleId ?? DateTime.now().toString(), 
+      billNo: widget.billNo, 
+      date: widget.billDate, 
+      partyName: widget.party.name, 
+      partyGstin: widget.party.gst, 
+      partyState: widget.party.state, 
+      items: items, 
+      totalAmount: totalAmt, 
+      paymentMode: widget.mode
+    );
+
+    // logic: Check user preference from Global Config
+    if (ph.config.printFormat == "Thermal") {
+      // Launch the 3-inch receipt generator
+      await ThermalInvoicePdf.generate(sale, widget.party, ph.activeCompany!, ph.config);
+    } else {
+      // Launch the professional A4 generator
+      await SaleInvoicePdf.generate(sale, widget.party, ph.activeCompany!);
+    }
   }
 }
