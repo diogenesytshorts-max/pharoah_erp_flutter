@@ -1,4 +1,4 @@
-// FILE: lib/challans/challan_to_bill_converter.dart
+// FILE: lib/challans/challan_to_bill_converter.dart (Replacement Code - FIXED)
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -53,7 +53,11 @@ class _ChallanToBillConverterState extends State<ChallanToBillConverter> {
       color: Colors.white,
       child: selectedParty == null
           ? TextField(
-              decoration: const InputDecoration(hintText: "Search Party...", prefixIcon: Icon(Icons.search), border: OutlineInputBorder()),
+              decoration: const InputDecoration(
+                hintText: "Search Party...", 
+                prefixIcon: Icon(Icons.search), 
+                border: OutlineInputBorder()
+              ),
               onChanged: (v) => setState(() => searchQuery = v),
             )
           : ListTile(
@@ -67,6 +71,7 @@ class _ChallanToBillConverterState extends State<ChallanToBillConverter> {
   }
 
   Widget _buildChallanSelectionList(PharoahManager ph) {
+    // Properly typed filtering
     List<SaleChallan> partyChallans = ph.saleChallans.where((c) => c.partyName == selectedParty!.name && c.status == "Pending").toList();
 
     if (partyChallans.isEmpty) return Expanded(child: _buildEmptyState("No pending challans for this party."));
@@ -122,7 +127,9 @@ class _ChallanToBillConverterState extends State<ChallanToBillConverter> {
   }
 
   Widget _buildActionBar(PharoahManager ph) {
-    double total = ph.saleChallans.where((c) => selectedChallanIds.contains(c.id)).fold(0, (sum, item) => sum + item.totalAmount);
+    double total = ph.saleChallans
+        .where((c) => selectedChallanIds.contains(c.id))
+        .fold(0, (sum, item) => sum + item.totalAmount);
 
     return Container(
       padding: const EdgeInsets.all(20),
@@ -217,7 +224,7 @@ class _ChallanToBillConverterState extends State<ChallanToBillConverter> {
   }
 
   void _finalizeConversion(PharoahManager ph, List<BillItem> items) async {
-    // NAYA: Corrected Numbering Engine Call
+    // Get next bill number from engine
     var series = ph.getDefaultSeries("SALE");
     String nextBillNo = await PharoahNumberingEngine.getNextNumber(
       type: "SALE",
@@ -227,15 +234,24 @@ class _ChallanToBillConverterState extends State<ChallanToBillConverter> {
       currentList: ph.sales,
     );
 
+    // Update challan status to Billed
     for (var id in selectedChallanIds) {
       int idx = ph.saleChallans.indexWhere((c) => c.id == id);
       if (idx != -1) ph.saleChallans[idx].status = "Billed";
     }
 
-    ph.finalizeSale(billNo: nextBillNo, date: billDate, party: selectedParty!, items: items, total: items.fold(0, (sum, it) => sum + it.total), mode: payMode);
+    ph.finalizeSale(
+      billNo: nextBillNo, 
+      date: billDate, 
+      party: selectedParty!, 
+      items: items, 
+      total: items.fold(0, (sum, it) => sum + it.total), 
+      mode: payMode
+    );
 
     if (mounted) {
-      Navigator.pop(context); Navigator.pop(context);
+      Navigator.pop(context); // Close Preview
+      Navigator.pop(context); // Close Converter
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("✅ Bill $nextBillNo Created!"), backgroundColor: Colors.green));
     }
   }
