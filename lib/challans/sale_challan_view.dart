@@ -6,20 +6,19 @@ import 'package:intl/intl.dart';
 import '../pharoah_manager.dart';
 import '../models.dart';
 import '../logic/pharoah_numbering_engine.dart';
-import '../billing_view.dart'; // Reuse existing logic where possible
 import '../item_entry_card.dart';
-import '../party_master.dart';
 import '../pharoah_date_controller.dart';
 
 class SaleChallanView extends StatefulWidget {
-  const SaleChallanView({super.key});
+  final SaleChallan? existingRecord; // NAYA: Edit support ke liye
+
+  const SaleChallanView({super.key, this.existingRecord});
 
   @override
   State<SaleChallanView> createState() => _SaleChallanViewState();
 }
 
 class _SaleChallanViewState extends State<SaleChallanView> {
-  // --- STATE ---
   final challanNoC = TextEditingController();
   DateTime selectedDate = DateTime.now();
   Party? selectedParty;
@@ -30,23 +29,40 @@ class _SaleChallanViewState extends State<SaleChallanView> {
   @override
   void initState() {
     super.initState();
-    _initChallan();
+    _initChallanFlow();
   }
 
-  // --- INITIALIZE: Generate SCH- Number ---
-  void _initChallan() async {
+  // --- LOGIC: NEW vs EDIT FLOW ---
+  void _initChallanFlow() async {
     final ph = Provider.of<PharoahManager>(context, listen: false);
-    if (ph.activeCompany != null) {
-      String nextNo = await PharoahNumberingEngine.getNextNumber(
-        type: "SALE_CHALLAN",
-        companyID: ph.activeCompany!.id,
-        currentList: ph.saleChallans,
-      );
-      setState(() {
-        challanNoC.text = nextNo;
-        selectedDate = PharoahDateController.getInitialBillDate(ph.currentFY);
-        isLoading = false;
-      });
+    
+    if (widget.existingRecord != null) {
+      // CASE: EDIT MODE (Purana data load karo)
+      final ex = widget.existingRecord!;
+      challanNoC.text = ex.billNo;
+      selectedDate = ex.date;
+      items = List.from(ex.items);
+      // Party object dhoondhna name se
+      try {
+        selectedParty = ph.parties.firstWhere((p) => p.name == ex.partyName);
+      } catch (e) {
+        selectedParty = Party(id: "0", name: ex.partyName);
+      }
+      setState(() => isLoading = false);
+    } else {
+      // CASE: NEW ENTRY MODE
+      if (ph.activeCompany != null) {
+        String nextNo = await PharoahNumberingEngine.getNextNumber(
+          type: "SALE_CHALLAN",
+          companyID: ph.activeCompany!.id,
+          currentList: ph.saleChallans,
+        );
+        setState(() {
+          challanNoC.text = nextNo;
+          selectedDate = PharoahDateController.getInitialBillDate(ph.currentFY);
+          isLoading = false;
+        });
+      }
     }
   }
 
@@ -59,32 +75,27 @@ class _SaleChallanViewState extends State<SaleChallanView> {
     if (isLoading) return const Scaffold(body: Center(child: CircularProgressIndicator()));
 
     return Scaffold(
-      backgroundColor: const Color(0xFFECEFF1), // Light Blue Grey
+      backgroundColor: const Color(0xFFECEFF1),
       appBar: AppBar(
-        title: const Text("Sale Challan (Delivery Note)"),
+        title: Text(widget.existingRecord != null ? "Modify Sale Challan" : "New Sale Challan"),
         backgroundColor: Colors.blueGrey.shade800,
         foregroundColor: Colors.white,
         actions: [
           if (items.isNotEmpty)
             TextButton(
               onPressed: () => _handleSave(ph),
-              child: const Text("SAVE CHALLAN", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+              child: const Text("SAVE", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
             )
         ],
       ),
       body: Column(
         children: [
-          // --- HEADER: Number & Date ---
           _buildHeader(ph),
-
-          // --- PARTY SELECTION ---
           Expanded(
             child: selectedParty == null 
               ? _buildPartyPicker(ph) 
               : _buildItemSection(ph),
           ),
-
-          // --- BOTTOM SUMMARY ---
           if (selectedParty != null) _buildBottomBar(),
         ],
       ),
@@ -108,7 +119,14 @@ class _SaleChallanViewState extends State<SaleChallanView> {
           Expanded(
             child: TextField(
               controller: challanNoC,
-              decoration: const InputDecoration(labelText: "CHALLAN NO", border: OutlineInputBorder(), isDense: true),
+              readOnly: widget.existingRecord != null, // Lock number during edit
+              decoration: InputDecoration(
+                labelText: "CHALLAN NO", 
+                border: const OutlineInputBorder(), 
+                isDense: true,
+                filled: widget.existingRecord != null,
+                fillColor: Colors.grey.shade100
+              ),
             ),
           ),
           const SizedBox(width: 15),
@@ -125,7 +143,7 @@ class _SaleChallanViewState extends State<SaleChallanView> {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Text(DateFormat('dd/MM/yyyy').format(selectedDate), style: const TextStyle(fontWeight: FontWeight.bold)),
-                    const Icon(Icons.calendar_month, color: Colors.blueGrey),
+                    const Icon(Icons.calendar_month, color: Colors.blueGrey, size: 18),
                   ],
                 ),
               ),
@@ -142,7 +160,7 @@ class _SaleChallanViewState extends State<SaleChallanView> {
         Padding(
           padding: const EdgeInsets.all(15),
           child: TextField(
-            decoration: const InputDecoration(hintText: "Search Customer for Challan...", prefixIcon: Icon(Icons.search), border: OutlineInputBorder()),
+            decoration: const InputDecoration(hintText: "Search Customer Name...", prefixIcon: Icon(Icons.search), border: OutlineInputBorder()),
             onChanged: (v) => setState(() => searchQuery = v),
           ),
         ),
@@ -172,13 +190,14 @@ class _SaleChallanViewState extends State<SaleChallanView> {
               const SizedBox(width: 10),
               Text(selectedParty!.name, style: const TextStyle(fontWeight: FontWeight.bold)),
               const Spacer(),
-              IconButton(onPressed: () => setState(() => selectedParty = null), icon: const Icon(Icons.edit, size: 18, color: Colors.blue)),
+              if(widget.existingRecord == null) // Party change allowed only in new entries
+                IconButton(onPressed: () => setState(() => selectedParty = null), icon: const Icon(Icons.edit, size: 18, color: Colors.blue)),
             ],
           ),
         ),
         Expanded(
           child: items.isEmpty 
-            ? const Center(child: Text("No items added. Tap 'Add Item' to start."))
+            ? const Center(child: Text("Cart is empty."))
             : ListView.builder(
                 itemCount: items.length,
                 itemBuilder: (c, i) => _itemRow(items[i], i),
@@ -193,7 +212,7 @@ class _SaleChallanViewState extends State<SaleChallanView> {
       margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       child: ListTile(
         title: Text(it.name, style: const TextStyle(fontWeight: FontWeight.bold)),
-        subtitle: Text("Batch: ${it.batch} | Qty: ${it.qty.toInt()}"),
+        subtitle: Text("Batch: ${it.batch} | Exp: ${it.exp} | Qty: ${it.qty.toInt()}"),
         trailing: Text("₹${it.total.toStringAsFixed(2)}", style: const TextStyle(fontWeight: FontWeight.bold)),
         onLongPress: () => setState(() => items.removeAt(idx)),
       ),
@@ -223,8 +242,7 @@ class _SaleChallanViewState extends State<SaleChallanView> {
         padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
         child: Column(
           children: [
-             // Search and Item Selection logic here (using your existing ItemEntryCard modal flow)
-             const Padding(padding: EdgeInsets.all(15), child: Text("SELECT MEDICINE", style: TextStyle(fontWeight: FontWeight.bold))),
+             const Padding(padding: EdgeInsets.all(15), child: Text("SELECT ITEM", style: TextStyle(fontWeight: FontWeight.bold))),
              Expanded(
                child: ListView.builder(
                  itemCount: ph.medicines.length,
@@ -244,7 +262,6 @@ class _SaleChallanViewState extends State<SaleChallanView> {
   }
 
   void _showQuantityDialog(Medicine med) {
-    // Ise hum simplified rakhenge, aap baad mein pura ItemEntryCard jod sakte hain
     showDialog(
       context: context,
       builder: (c) => ItemEntryCard(
@@ -260,6 +277,12 @@ class _SaleChallanViewState extends State<SaleChallanView> {
   }
 
   void _handleSave(PharoahManager ph) {
+    // 1. Agar edit mode hai, toh purana record hatao taaki stock sync rahe
+    if (widget.existingRecord != null) {
+      ph.deleteSaleChallan(widget.existingRecord!.id);
+    }
+
+    // 2. Save current data
     ph.finalizeSaleChallan(
       challanNo: challanNoC.text,
       date: selectedDate,
@@ -267,6 +290,8 @@ class _SaleChallanViewState extends State<SaleChallanView> {
       items: items,
       total: totalAmt,
     );
+    
     Navigator.pop(context);
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("✅ Challan Saved & Stock Synced!"), backgroundColor: Colors.green));
   }
 }
