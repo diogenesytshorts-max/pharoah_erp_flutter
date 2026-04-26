@@ -1,3 +1,5 @@
+// FILE: lib/master_hub_view.dart (Replace Full)
+
 import 'package:flutter/material.dart';
 import 'widgets.dart';
 import 'party_master.dart';
@@ -6,6 +8,9 @@ import 'route_master_view.dart';
 import 'company_master_view.dart';
 import 'salt_master_view.dart';
 import 'drug_type_master_view.dart';
+import 'batch_master_view.dart';
+import 'administration/bank_master_view.dart'; // NAYA
+import 'administration/staff_management_view.dart'; // NAYA (Salesman)
 
 class MasterHubView extends StatelessWidget {
   const MasterHubView({super.key});
@@ -35,20 +40,36 @@ class MasterHubView extends StatelessWidget {
               children: [
                 ActionIconBtn(title: "Parties / Ledgers", icon: Icons.people_alt_rounded, color: Colors.indigo, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => const PartyMasterView()))),
                 ActionIconBtn(title: "Item Master", icon: Icons.inventory_2_rounded, color: Colors.purple, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => const ProductMasterView()))),
+                ActionIconBtn(title: "Batch Master", icon: Icons.layers_outlined, color: Colors.indigo.shade900, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => const BatchMasterView()))),
+                ActionIconBtn(title: "Route Master", icon: Icons.map_rounded, color: Colors.teal, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => const RouteAreaMasterView()))),
               ],
             ),
 
             const SizedBox(height: 30),
 
-            const Text("PHARMA & LOGISTICS MASTERS", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.blueGrey, letterSpacing: 1.2)),
+            const Text("FINANCE & STAFF MASTERS", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.blueGrey, letterSpacing: 1.2)),
             const SizedBox(height: 15),
 
-            // --- SECTION 2: PHARMA MASTERS ---
+            // --- SECTION 2: NEWLY ADDED MASTERS (From Model Update) ---
             GridView.count(
               shrinkWrap: true, physics: const NeverScrollableScrollPhysics(),
               crossAxisCount: 2, crossAxisSpacing: 15, mainAxisSpacing: 15, childAspectRatio: 1.2,
               children: [
-                ActionIconBtn(title: "Route Master", icon: Icons.map_rounded, color: Colors.teal, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => const RouteMasterView()))),
+                ActionIconBtn(title: "Bank Master", icon: Icons.account_balance_rounded, color: Colors.blue.shade800, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => const BankMasterView()))),
+                ActionIconBtn(title: "Salesman Master", icon: Icons.badge_rounded, color: Colors.red.shade800, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => const StaffManagementView()))),
+              ],
+            ),
+
+            const SizedBox(height: 30),
+
+            const Text("PHARMA LIBRARIES", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.blueGrey, letterSpacing: 1.2)),
+            const SizedBox(height: 15),
+
+            // --- SECTION 3: PHARMA MASTERS ---
+            GridView.count(
+              shrinkWrap: true, physics: const NeverScrollableScrollPhysics(),
+              crossAxisCount: 2, crossAxisSpacing: 15, mainAxisSpacing: 15, childAspectRatio: 1.2,
+              children: [
                 ActionIconBtn(title: "Company Master", icon: Icons.business_rounded, color: Colors.brown, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => const CompanyMasterView()))),
                 ActionIconBtn(title: "Salt Master", icon: Icons.science_rounded, color: Colors.deepOrange, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => const SaltMasterView()))),
                 ActionIconBtn(title: "Drug Categories", icon: Icons.verified_user_rounded, color: Colors.cyan.shade700, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => const DrugTypeMasterView()))),
@@ -56,20 +77,12 @@ class MasterHubView extends StatelessWidget {
             ),
             
             const SizedBox(height: 30),
-            
-            // --- INFO ---
-            Container(
-              padding: const EdgeInsets.all(15),
-              decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(15), border: Border.all(color: Colors.black12)),
-              child: const Row(children: [
-                Icon(Icons.tips_and_updates_outlined, color: Colors.orange, size: 20),
-                SizedBox(width: 10),
-                Expanded(child: Text("Pre-filled libraries (Top 100 Companies/Salts) are active. You can modify them here.", style: TextStyle(fontSize: 11, color: Colors.blueGrey))),
-              ]),
-            ),
           ],
         ),
       ),
     );
   }
 }
+
+// NOTE: Aapke code mein RouteMasterView ka naam shayad alag ho sakta hai, maine yahan standard nomenclature use kiya hai.
+class RouteAreaMasterView extends RouteMasterView { const RouteAreaMasterView({super.key}); }
