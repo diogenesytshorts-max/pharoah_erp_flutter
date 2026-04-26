@@ -42,7 +42,7 @@ class Bank {
 }
 
 class Salesman { 
-  String id, name, phone, route; // Route added
+  String id, name, phone, route; 
   Salesman({required this.id, required this.name, this.phone = "", this.route = ""});
   Map<String, dynamic> toMap() => {'id': id, 'name': name, 'phone': phone, 'route': route};
   factory Salesman.fromMap(Map<String, dynamic> map) => Salesman(id: map['id'] ?? "", name: map['name'] ?? "", phone: map['phone'] ?? "", route: map['route'] ?? "");
@@ -141,12 +141,12 @@ class PurchaseReturn {
 // ===========================================================================
 
 class ChequeEntry { 
-  String id, partyName, chequeNo, partyBank, depositBank, status, remark;
+  String id, partyName, billNo, chequeNo, partyBank, depositBank, status, remark; // billNo Added Here
   DateTime date, chequeDate;
   double amount;
-  ChequeEntry({required this.id, required this.partyName, required this.amount, required this.chequeNo, required this.date, required this.chequeDate, this.partyBank = "", this.depositBank = "", this.status = "Received", this.remark = ""});
-  Map<String, dynamic> toMap() => {'id': id, 'partyName': partyName, 'amount': amount, 'chequeNo': chequeNo, 'date': date.toIso8601String(), 'chequeDate': chequeDate.toIso8601String(), 'partyBank': partyBank, 'depositBank': depositBank, 'status': status, 'remark': remark};
-  factory ChequeEntry.fromMap(Map<String, dynamic> map) => ChequeEntry(id: map['id'], partyName: map['partyName'], amount: (map['amount'] ?? 0.0).toDouble(), chequeNo: map['chequeNo'], date: DateTime.parse(map['date']), chequeDate: DateTime.parse(map['chequeDate']), partyBank: map['partyBank'] ?? "", depositBank: map['depositBank'] ?? "", status: map['status'] ?? "Received", remark: map['remark'] ?? "");
+  ChequeEntry({required this.id, required this.partyName, this.billNo = "", required this.amount, required this.chequeNo, required this.date, required this.chequeDate, this.partyBank = "", this.depositBank = "", this.status = "Received", this.remark = ""});
+  Map<String, dynamic> toMap() => {'id': id, 'partyName': partyName, 'billNo': billNo, 'amount': amount, 'chequeNo': chequeNo, 'date': date.toIso8601String(), 'chequeDate': chequeDate.toIso8601String(), 'partyBank': partyBank, 'depositBank': depositBank, 'status': status, 'remark': remark};
+  factory ChequeEntry.fromMap(Map<String, dynamic> map) => ChequeEntry(id: map['id'], partyName: map['partyName'], billNo: map['billNo'] ?? "", amount: (map['amount'] ?? 0.0).toDouble(), chequeNo: map['chequeNo'], date: DateTime.parse(map['date']), chequeDate: DateTime.parse(map['chequeDate']), partyBank: map['partyBank'] ?? "", depositBank: map['depositBank'] ?? "", status: map['status'] ?? "Received", remark: map['remark'] ?? "");
 }
 
 class LogEntry { String id, action, details; DateTime time; LogEntry({required this.id, required this.action, required this.details, required this.time}); Map<String, dynamic> toMap() => {'id': id, 'action': action, 'details': details, 'time': time.toIso8601String()}; factory LogEntry.fromMap(Map<String, dynamic> map) => LogEntry(id: map['id'], action: map['action'], details: map['details'], time: DateTime.parse(map['time'])); }
