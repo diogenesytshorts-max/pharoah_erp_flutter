@@ -1,11 +1,12 @@
-// FILE: lib/finance/finance_dashboard.dart
+// FILE: lib/finance/finance_dashboard.dart (Replacement Code - FIXED)
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../pharoah_manager.dart';
+import '../models.dart';
 import 'pdc_entry_view.dart';
 import 'outstanding_ageing_view.dart';
-import 'collection_sheet_view.dart'; // Sahi Import
+import 'collection_sheet_view.dart'; 
 import 'bank_book_view.dart';
 
 class FinanceDashboard extends StatelessWidget {
@@ -45,7 +46,6 @@ class FinanceDashboard extends StatelessWidget {
             ),
             const SizedBox(height: 10),
 
-            // --- 2. AGEING BOXES (Visual Representation) ---
             Row(
               children: [
                 _ageingBox("0-30 DAYS", Colors.green),
@@ -94,7 +94,7 @@ class FinanceDashboard extends StatelessWidget {
                   "Recovery Sheet", 
                   Icons.badge_rounded, 
                   Colors.blueGrey, 
-                  const CollectionSheetView() // Link mapped to correct file
+                  const CollectionSheetView() 
                 ),
                 _toolCard(
                   context,
@@ -114,20 +114,24 @@ class FinanceDashboard extends StatelessWidget {
 
   // --- HELPERS ---
 
-  double _calculatePartyOutstanding(PharoahManager ph, dynamic p) {
+  double _calculatePartyOutstanding(PharoahManager ph, Party p) {
     double bal = p.opBal;
-    // Add Sales
+    
+    // 1. Add Active Sales
     for (var s in ph.sales.where((x) => x.partyName == p.name && x.status == "Active")) {
       bal += s.totalAmount;
     }
-    // Subtract Receipts
+    
+    // 2. Subtract Receipts (Vouchers)
     for (var v in ph.vouchers.where((x) => x.partyName == p.name && x.type == "Receipt")) {
       bal -= v.amount;
     }
-    // Subtract Sales Returns
+    
+    // 3. Subtract Sales Returns (Credit Notes)
     for (var r in ph.saleReturns.where((x) => x.partyName == p.name)) {
       bal -= r.totalAmount;
     }
+    
     return bal;
   }
 
@@ -151,8 +155,8 @@ class FinanceDashboard extends StatelessWidget {
           const Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              _MiniStat(label: "Recovered Today", value: "₹0.00", color: Colors.green),
-              _MiniStat(label: "PDC in Hand", value: "₹0.00", color: Colors.blue),
+              _MiniStat(label: "Live Balance", value: "Checked", color: Colors.green),
+              _MiniStat(label: "Recoveries", value: "Pending", color: Colors.blue),
             ],
           )
         ],
