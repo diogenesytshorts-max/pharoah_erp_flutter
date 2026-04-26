@@ -8,9 +8,10 @@ import '../models.dart';
 import '../logic/pharoah_numbering_engine.dart';
 import '../item_entry_card.dart';
 import '../pharoah_date_controller.dart';
+import '../product_master.dart'; // NAYA: For quick product addition
 
 class SaleChallanView extends StatefulWidget {
-  final SaleChallan? existingRecord; // NAYA: Edit support ke liye
+  final SaleChallan? existingRecord; 
 
   const SaleChallanView({super.key, this.existingRecord});
 
@@ -32,17 +33,14 @@ class _SaleChallanViewState extends State<SaleChallanView> {
     _initChallanFlow();
   }
 
-  // --- LOGIC: NEW vs EDIT FLOW ---
   void _initChallanFlow() async {
     final ph = Provider.of<PharoahManager>(context, listen: false);
     
     if (widget.existingRecord != null) {
-      // CASE: EDIT MODE (Purana data load karo)
       final ex = widget.existingRecord!;
       challanNoC.text = ex.billNo;
       selectedDate = ex.date;
       items = List.from(ex.items);
-      // Party object dhoondhna name se
       try {
         selectedParty = ph.parties.firstWhere((p) => p.name == ex.partyName);
       } catch (e) {
@@ -50,11 +48,13 @@ class _SaleChallanViewState extends State<SaleChallanView> {
       }
       setState(() => isLoading = false);
     } else {
-      // CASE: NEW ENTRY MODE
       if (ph.activeCompany != null) {
+        // NAYA: Get next number using Universal Engine
         String nextNo = await PharoahNumberingEngine.getNextNumber(
-          type: "SALE_CHALLAN",
+          type: "CHALLAN",
           companyID: ph.activeCompany!.id,
+          prefix: ph.getDefaultSeries("CHALLAN").prefix,
+          startFrom: ph.getDefaultSeries("CHALLAN").startNumber,
           currentList: ph.saleChallans,
         );
         setState(() {
@@ -67,6 +67,121 @@ class _SaleChallanViewState extends State<SaleChallanView> {
   }
 
   double get totalAmt => items.fold(0, (sum, it) => sum + it.total);
+
+  // NAYA: Serial Number auto-fixer
+  void _recalculateSR() {
+    setState(() {
+      for (int i = 0; i < items.length; i++) {
+        items[i] = items[i].copyWith(srNo: i + 1);
+      }
+    });
+  }
+
+  void _showItemSearch(PharoahManager ph, {BillItem? itemToEdit}) {
+    String localSearch = "";
+    Medicine? selectedMed;
+    if (itemToEdit != null) {
+      selectedMed = ph.medicines.firstWhere((m) => m.id == itemToEdit.medicineID);
+    }
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      builder: (c) => StatefulBuilder(
+        builder: (context, setSheetState) {
+          final filteredMeds = ph.medicines
+              .where((m) => m.name.toLowerCase().contains(localSearch.toLowerCase()))
+              .toList();
+
+          return Container(
+            height: MediaQuery.of(context).size.height * 0.85,
+            padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+            decoration: BoxDecoration(
+              color: Colors.blueGrey.shade50,
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+            ),
+            child: Column(
+              children: [
+                Container(
+                  margin: const EdgeInsets.only(top: 10, bottom: 10),
+                  height: 5, width: 50,
+                  decoration: BoxDecoration(color: Colors.grey.shade400, borderRadius: BorderRadius.circular(10)),
+                ),
+                if (selectedMed == null) ...[
+                  Padding(
+                    padding: const EdgeInsets.all(15),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: TextField(
+                            autofocus: true,
+                            decoration: InputDecoration(
+                              hintText: "Search Product...",
+                              prefixIcon: const Icon(Icons.search),
+                              filled: true, fillColor: Colors.white,
+                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                            ),
+                            onChanged: (v) => setSheetState(() => localSearch = v),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        IconButton.filled(
+                          onPressed: () async {
+                            final result = await Navigator.push(
+                              context,
+                              MaterialPageRoute(builder: (c) => const ProductMasterView(isSelectionMode: true)),
+                            );
+                            if (result != null && result is Medicine) {
+                              setSheetState(() => selectedMed = result);
+                            }
+                          },
+                          icon: const Icon(Icons.add_box_rounded),
+                          style: IconButton.styleFrom(backgroundColor: Colors.blueGrey.shade800, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
+                        )
+                      ],
+                    ),
+                  ),
+                  Expanded(
+                    child: ListView.builder(
+                      itemCount: filteredMeds.length,
+                      itemBuilder: (c, i) => ListTile(
+                        leading: const Icon(Icons.inventory, color: Colors.blueGrey),
+                        title: Text(filteredMeds[i].name, style: const TextStyle(fontWeight: FontWeight.bold)),
+                        subtitle: Text("Pack: ${filteredMeds[i].packing} | Stock: ${filteredMeds[i].stock}"),
+                        onTap: () => setSheetState(() => selectedMed = filteredMeds[i]),
+                      ),
+                    ),
+                  ),
+                ] else ...[
+                  Expanded(
+                    child: SingleChildScrollView(
+                      child: ItemEntryCard(
+                        med: selectedMed!,
+                        srNo: itemToEdit != null ? itemToEdit.srNo : items.length + 1,
+                        existingItem: itemToEdit,
+                        onAdd: (newItem) {
+                          setState(() {
+                            if (itemToEdit != null) {
+                              int idx = items.indexWhere((it) => it.id == itemToEdit.id);
+                              items[idx] = newItem; 
+                            } else {
+                              items.add(newItem); 
+                            }
+                          });
+                          Navigator.pop(context);
+                        },
+                        onCancel: () => itemToEdit != null ? Navigator.pop(context) : setSheetState(() => selectedMed = null),
+                      ),
+                    ),
+                  ),
+                ]
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -99,14 +214,6 @@ class _SaleChallanViewState extends State<SaleChallanView> {
           if (selectedParty != null) _buildBottomBar(),
         ],
       ),
-      floatingActionButton: (selectedParty != null)
-          ? FloatingActionButton.extended(
-              onPressed: () => _showItemSearch(ph),
-              backgroundColor: Colors.blueGrey.shade800,
-              icon: const Icon(Icons.add_shopping_cart, color: Colors.white),
-              label: const Text("ADD ITEM", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-            )
-          : null,
     );
   }
 
@@ -119,7 +226,7 @@ class _SaleChallanViewState extends State<SaleChallanView> {
           Expanded(
             child: TextField(
               controller: challanNoC,
-              readOnly: widget.existingRecord != null, // Lock number during edit
+              readOnly: widget.existingRecord != null, 
               decoration: InputDecoration(
                 labelText: "CHALLAN NO", 
                 border: const OutlineInputBorder(), 
@@ -190,32 +297,84 @@ class _SaleChallanViewState extends State<SaleChallanView> {
               const SizedBox(width: 10),
               Text(selectedParty!.name, style: const TextStyle(fontWeight: FontWeight.bold)),
               const Spacer(),
-              if(widget.existingRecord == null) // Party change allowed only in new entries
+              if(widget.existingRecord == null) 
                 IconButton(onPressed: () => setState(() => selectedParty = null), icon: const Icon(Icons.edit, size: 18, color: Colors.blue)),
             ],
           ),
         ),
+
+        // --- NAYA: Search Bar Trigger (Replaced FAB) ---
+        _buildSearchBarTrigger(ph),
+
         Expanded(
           child: items.isEmpty 
             ? const Center(child: Text("Cart is empty."))
             : ListView.builder(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                 itemCount: items.length,
-                itemBuilder: (c, i) => _itemRow(items[i], i),
+                itemBuilder: (c, i) => _itemRow(items[i], i, ph),
               ),
         ),
       ],
     );
   }
 
-  Widget _itemRow(BillItem it, int idx) {
-    return Card(
-      margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+  // NAYA: Search Bar Widget
+  Widget _buildSearchBarTrigger(PharoahManager ph) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      child: InkWell(
+        onTap: () => _showItemSearch(ph),
+        borderRadius: BorderRadius.circular(10),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 15),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: Colors.blueGrey.shade300, width: 1.5),
+          ),
+          child: Row(
+            children: [
+              Icon(Icons.search, color: Colors.blueGrey.shade700),
+              const SizedBox(width: 10),
+              Text("Tap here to search & add product...", style: TextStyle(color: Colors.grey.shade600, fontSize: 14)),
+              const Spacer(),
+              Icon(Icons.add_circle, color: Colors.blueGrey.shade700),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // NAYA: Swipe to Delete Card
+  Widget _itemRow(BillItem it, int index, PharoahManager ph) {
+    final card = Card(
+      elevation: 2, margin: const EdgeInsets.symmetric(vertical: 4),
       child: ListTile(
-        title: Text(it.name, style: const TextStyle(fontWeight: FontWeight.bold)),
+        leading: CircleAvatar(backgroundColor: Colors.blueGrey.shade50, child: Text("${it.srNo}", style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.blueGrey))),
+        title: Text(it.name, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.blueGrey)),
         subtitle: Text("Batch: ${it.batch} | Exp: ${it.exp} | Qty: ${it.qty.toInt()}"),
         trailing: Text("₹${it.total.toStringAsFixed(2)}", style: const TextStyle(fontWeight: FontWeight.bold)),
-        onLongPress: () => setState(() => items.removeAt(idx)),
+        onTap: () => _showItemSearch(ph, itemToEdit: it),
       ),
+    );
+
+    return Dismissible(
+      key: Key(it.id),
+      direction: DismissDirection.endToStart,
+      background: Container(
+        margin: const EdgeInsets.symmetric(vertical: 4),
+        decoration: BoxDecoration(color: Colors.red, borderRadius: BorderRadius.circular(12)),
+        alignment: Alignment.centerRight,
+        padding: const EdgeInsets.only(right: 20),
+        child: const Icon(Icons.delete, color: Colors.white, size: 28),
+      ),
+      onDismissed: (direction) {
+        setState(() { items.removeAt(index); });
+        _recalculateSR(); 
+      },
+      child: card,
     );
   }
 
@@ -233,56 +392,10 @@ class _SaleChallanViewState extends State<SaleChallanView> {
     );
   }
 
-  void _showItemSearch(PharoahManager ph) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      builder: (c) => Container(
-        height: MediaQuery.of(context).size.height * 0.8,
-        padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
-        child: Column(
-          children: [
-             const Padding(padding: EdgeInsets.all(15), child: Text("SELECT ITEM", style: TextStyle(fontWeight: FontWeight.bold))),
-             Expanded(
-               child: ListView.builder(
-                 itemCount: ph.medicines.length,
-                 itemBuilder: (c, i) => ListTile(
-                   title: Text(ph.medicines[i].name),
-                   onTap: () {
-                     Navigator.pop(context);
-                     _showQuantityDialog(ph.medicines[i]);
-                   },
-                 ),
-               ),
-             )
-          ],
-        ),
-      ),
-    );
-  }
-
-  void _showQuantityDialog(Medicine med) {
-    showDialog(
-      context: context,
-      builder: (c) => ItemEntryCard(
-        med: med,
-        srNo: items.length + 1,
-        onAdd: (newItem) {
-          setState(() { items.add(newItem); });
-          Navigator.pop(context);
-        },
-        onCancel: () => Navigator.pop(context),
-      ),
-    );
-  }
-
   void _handleSave(PharoahManager ph) {
-    // 1. Agar edit mode hai, toh purana record hatao taaki stock sync rahe
     if (widget.existingRecord != null) {
       ph.deleteSaleChallan(widget.existingRecord!.id);
     }
-
-    // 2. Save current data
     ph.finalizeSaleChallan(
       challanNo: challanNoC.text,
       date: selectedDate,
@@ -291,6 +404,16 @@ class _SaleChallanViewState extends State<SaleChallanView> {
       total: totalAmt,
     );
     
+    // NAYA: Counter update logic if not editing
+    if (widget.existingRecord == null && ph.activeCompany != null) {
+      PharoahNumberingEngine.updateSeriesCounter(
+        type: "CHALLAN", 
+        companyID: ph.activeCompany!.id, 
+        usedNumber: challanNoC.text, 
+        prefix: ph.getDefaultSeries("CHALLAN").prefix
+      );
+    }
+
     Navigator.pop(context);
     ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("✅ Challan Saved & Stock Synced!"), backgroundColor: Colors.green));
   }
