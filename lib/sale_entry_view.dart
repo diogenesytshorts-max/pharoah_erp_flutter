@@ -2,13 +2,14 @@
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:intl/intl.dart';
 import 'pharoah_manager.dart';
 import 'models.dart';
-import 'pharoah_smart_logic.dart'; // NAYA: Logic Master Connection
-import 'billing_view.dart';
+import 'pharoah_smart_logic.dart'; 
+import 'billing_view.dart'; // Admin View
+import 'staff_modules/staff_billing_view.dart'; // Staff View
 import 'party_master.dart';
 import 'pharoah_date_controller.dart'; 
-import 'package:intl/intl.dart';
 
 class SaleEntryView extends StatefulWidget {
   final Sale? existingSale;
@@ -36,7 +37,6 @@ class _SaleEntryViewState extends State<SaleEntryView> {
       final ph = Provider.of<PharoahManager>(context, listen: false);
       
       if (widget.existingSale != null) {
-        // CASE: Modifying existing bill
         setState(() {
           selectedDate = widget.existingSale!.date;
           paymentMode = widget.existingSale!.paymentMode;
@@ -47,9 +47,7 @@ class _SaleEntryViewState extends State<SaleEntryView> {
           );
         });
       } else {
-        // CASE: New Bill Generation
         if (ph.activeCompany != null) {
-          // NAYA: Smart Logic se Company-Specific number mangna
           String nextNo = await PharoahSmartLogic.getNextSaleNumber(ph.sales, ph.activeCompany!.id);
           setState(() { 
             billNoC.text = nextNo;
@@ -61,12 +59,37 @@ class _SaleEntryViewState extends State<SaleEntryView> {
   }
 
   Future<void> _handleQuickAddParty() async {
-    final result = await Navigator.push(
-      context,
-      MaterialPageRoute(builder: (c) => const PartyMasterView(isSelectionMode: true)),
-    );
-    if (result != null && result is Party) {
-      setState(() { selectedParty = result; });
+    final result = await Navigator.push(context, MaterialPageRoute(builder: (c) => const PartyMasterView(isSelectionMode: true)));
+    if (result != null && result is Party) setState(() { selectedParty = result; });
+  }
+
+  // ===========================================================================
+  // SMART ROUTING LOGIC (The Security Guard)
+  // ===========================================================================
+  void _proceedToBilling(PharoahManager ph) {
+    if (selectedParty == null) return;
+
+    bool isStaff = ph.loggedInStaff != null;
+
+    if (isStaff) {
+      // IF STAFF: Open the Restricted View (Staff Module)
+      Navigator.push(context, MaterialPageRoute(builder: (c) => StaffBillingView(
+        party: selectedParty!,
+        billNo: billNoC.text,
+        billDate: selectedDate,
+        mode: paymentMode,
+      )));
+    } else {
+      // IF ADMIN: Open the Full View (Original Module)
+      Navigator.push(context, MaterialPageRoute(builder: (c) => BillingView(
+        party: selectedParty!, 
+        billNo: billNoC.text, 
+        billDate: selectedDate, 
+        mode: paymentMode, 
+        existingItems: widget.existingSale?.items, 
+        modifySaleId: widget.existingSale?.id,
+        isReadOnly: widget.isReadOnly,
+      )));
     }
   }
 
@@ -76,7 +99,7 @@ class _SaleEntryViewState extends State<SaleEntryView> {
     return Scaffold(
       backgroundColor: const Color(0xFFF8F9FD),
       appBar: AppBar(
-        title: Text(widget.isReadOnly ? "View Bill (Read Only)" : (widget.existingSale == null ? "New Sale" : "Modify Sale")), 
+        title: Text(widget.isReadOnly ? "View Bill" : (widget.existingSale == null ? "New Sale" : "Modify Sale")), 
         backgroundColor: widget.isReadOnly ? Colors.purple.shade700 : Colors.blue.shade900, 
         foregroundColor: Colors.white
       ),
@@ -87,19 +110,11 @@ class _SaleEntryViewState extends State<SaleEntryView> {
             padding: const EdgeInsets.all(20), 
             color: Colors.white, 
             child: Row(children: [
-              // BILL NO - Auto-filled from Smart Logic
-              Expanded(child: TextField(
-                controller: billNoC, 
-                decoration: const InputDecoration(labelText: "BILL NO", border: OutlineInputBorder(), filled: true, fillColor: Color(0xFFF5F5F5))
-              )),
+              Expanded(child: TextField(controller: billNoC, decoration: const InputDecoration(labelText: "BILL NO", border: OutlineInputBorder(), filled: true, fillColor: Color(0xFFF5F5F5)))),
               const SizedBox(width: 15),
               Expanded(child: InkWell(
                 onTap: () async { 
-                  DateTime? p = await PharoahDateController.pickDate(
-                    context: context, 
-                    currentFY: ph.currentFY, 
-                    initialDate: selectedDate
-                  ); 
+                  DateTime? p = await PharoahDateController.pickDate(context: context, currentFY: ph.currentFY, initialDate: selectedDate); 
                   if(p != null) setState(() => selectedDate = p); 
                 }, 
                 child: Container(
@@ -136,15 +151,7 @@ class _SaleEntryViewState extends State<SaleEntryView> {
                 backgroundColor: widget.isReadOnly ? Colors.purple : Colors.blue.shade700,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15))
               ),
-              onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (c) => BillingView(
-                party: selectedParty!, 
-                billNo: billNoC.text, 
-                billDate: selectedDate, 
-                mode: paymentMode, 
-                existingItems: widget.existingSale?.items, 
-                modifySaleId: widget.existingSale?.id,
-                isReadOnly: widget.isReadOnly,
-              ))),
+              onPressed: () => _proceedToBilling(ph), // SMART ROUTE CALL
               child: Text(widget.isReadOnly ? "VIEW ITEMS LIST" : "PROCEED TO BILLING", style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
             )
           )
