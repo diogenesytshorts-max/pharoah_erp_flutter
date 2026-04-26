@@ -1,4 +1,4 @@
-// FILE: lib/inventory_intel/shortage_register.dart
+// FILE: lib/inventory_intel/shortage_register.dart (Updated with 1.5x Sale Logic)
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -21,7 +21,7 @@ class _ShortageRegisterState extends State<ShortageRegister> {
   Widget build(BuildContext context) {
     final ph = Provider.of<PharoahManager>(context);
 
-    // 1. Filter Shortage List
+    // 1. Logic: Filter Shortage List (Real-time)
     List<ShortageItem> list = ph.shortages.where((s) {
       bool matchesSearch = s.medicineName.toLowerCase().contains(searchQuery.toLowerCase());
       bool matchesCompany = filterCompany == null || s.companyName == filterCompany;
@@ -35,14 +35,14 @@ class _ShortageRegisterState extends State<ShortageRegister> {
         backgroundColor: Colors.red.shade900,
         foregroundColor: Colors.white,
         actions: [
-          // --- AUTO INTELLIGENCE SCAN BUTTON ---
+          // --- SMART AUTO-SCAN BUTTON ---
           IconButton(
             icon: const Icon(Icons.psychology_alt_rounded),
-            tooltip: "Run Smart Scan",
+            tooltip: "Run Smart Scan (Sale * 1.5)",
             onPressed: () {
-              ph.runAutoShortageScan();
+              ph.runAutoShortageScan(); // Calls the 1.5x Logic in Manager
               ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text("Intelligence Scan Complete! Required stocks updated."), backgroundColor: Colors.indigo)
+                const SnackBar(content: Text("Auto-Scan Complete! 45-days stock requirement calculated."), backgroundColor: Colors.indigo)
               );
             },
           )
@@ -73,6 +73,9 @@ class _ShortageRegisterState extends State<ShortageRegister> {
   }
 
   Widget _buildTopFilters(PharoahManager ph) {
+    // Unique list of companies for the filter dropdown
+    final companies = ph.shortages.map((s) => s.companyName).toSet().toList();
+
     return Container(
       padding: const EdgeInsets.all(15),
       color: Colors.red.shade900,
@@ -90,6 +93,26 @@ class _ShortageRegisterState extends State<ShortageRegister> {
               contentPadding: EdgeInsets.zero,
             ),
           ),
+          if (companies.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            DropdownButtonFormField<String>(
+              value: filterCompany,
+              dropdownColor: Colors.red.shade800,
+              style: const TextStyle(color: Colors.white, fontSize: 12),
+              decoration: const InputDecoration(
+                isDense: true,
+                contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                labelText: "Filter by Company / Brand",
+                labelStyle: TextStyle(color: Colors.white70),
+                border: OutlineInputBorder(),
+              ),
+              items: [
+                const DropdownMenuItem(value: null, child: Text("ALL COMPANIES")),
+                ...companies.map((c) => DropdownMenuItem(value: c, child: Text(c.toUpperCase()))),
+              ],
+              onChanged: (v) => setState(() => filterCompany = v),
+            ),
+          ]
         ],
       ),
     );
@@ -104,8 +127,7 @@ class _ShortageRegisterState extends State<ShortageRegister> {
         contentPadding: const EdgeInsets.all(15),
         title: Row(
           children: [
-            Text(item.medicineName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-            const Spacer(),
+            Expanded(child: Text(item.medicineName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16))),
             _sourceBadge(item.source),
           ],
         ),
@@ -113,16 +135,23 @@ class _ShortageRegisterState extends State<ShortageRegister> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const SizedBox(height: 5),
-            Text("Stock: ${item.currentStock.toInt()} | Avg Monthly: ${_calcAvg(ph, item)}", style: const TextStyle(fontSize: 11)),
+            Text("Brand: ${item.companyName}", style: const TextStyle(fontSize: 11, color: Colors.blueGrey, fontWeight: FontWeight.bold)),
+            Text("Stock: ${item.currentStock.toInt()} | Avg Monthly Sale: ${ph.calculateAvgMonthlySale(item.medicineId).toStringAsFixed(1)}", style: const TextStyle(fontSize: 11)),
             if (item.customerName.isNotEmpty) 
-              Text("Demand By: ${item.customerName}", style: const TextStyle(fontSize: 11, color: Colors.indigo, fontWeight: FontWeight.bold)),
+              Container(
+                margin: const EdgeInsets.only(top: 5),
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(color: Colors.indigo.shade50, borderRadius: BorderRadius.circular(4)),
+                child: Text("Customer Demand: ${item.customerName}", style: const TextStyle(fontSize: 10, color: Colors.indigo, fontWeight: FontWeight.bold)),
+              ),
           ],
         ),
         trailing: Container(
-          width: 80,
+          width: 70,
           padding: const EdgeInsets.all(8),
           decoration: BoxDecoration(color: Colors.red.shade50, borderRadius: BorderRadius.circular(8)),
           child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
             children: [
               const Text("ORDER", style: TextStyle(fontSize: 8, fontWeight: FontWeight.bold, color: Colors.red)),
               Text(item.qtyRequired.toInt().toString(), style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: Colors.red)),
@@ -139,13 +168,8 @@ class _ShortageRegisterState extends State<ShortageRegister> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
       decoration: BoxDecoration(color: isAuto ? Colors.blue.shade50 : Colors.orange.shade50, borderRadius: BorderRadius.circular(5)),
-      child: Text(isAuto ? "SYSTEM" : "MANUAL", style: TextStyle(fontSize: 8, fontWeight: FontWeight.bold, color: isAuto ? Colors.blue.shade800 : Colors.orange.shade900)),
+      child: Text(isAuto ? "AUTO" : "MANUAL", style: TextStyle(fontSize: 8, fontWeight: FontWeight.bold, color: isAuto ? Colors.blue.shade800 : Colors.orange.shade900)),
     );
-  }
-
-  String _calcAvg(PharoahManager ph, ShortageItem it) {
-    double avg = ph.calculateAvgMonthlySale(it.medicineId);
-    return avg.toStringAsFixed(1);
   }
 
   void _showManualAddDialog(PharoahManager ph) {
@@ -170,9 +194,11 @@ class _ShortageRegisterState extends State<ShortageRegister> {
                   ),
                   SizedBox(
                     height: 150,
+                    width: double.maxFinite,
                     child: ListView(
                       children: ph.medicines.where((m) => m.name.toLowerCase().contains(medSearch.toLowerCase())).map((m) => ListTile(
                         title: Text(m.name),
+                        subtitle: Text("Stock: ${m.stock}"),
                         onTap: () => setDialogState(() => selectedMed = m),
                       )).toList(),
                     ),
