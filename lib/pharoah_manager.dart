@@ -100,6 +100,7 @@ class PharoahManager with ChangeNotifier {
     await _write('s_return.json', []); await _write('p_return.json', []);
     await _write('cheques.json', []); await _write('shortage.json', []);
     await _write('bats.json', {}); await _write('sys_users.json', []);
+    await _write('logs.json', [LogEntry(id: '1', action: 'SYSTEM', details: 'Setup Complete', time: DateTime.now()).toMap()]);
     if (!companiesRegistry.any((c) => c.id == profile.id)) { companiesRegistry.add(profile); await saveRegistry(); }
     notifyListeners();
   }
@@ -149,6 +150,7 @@ class PharoahManager with ChangeNotifier {
     notifyListeners();
   }
 
+  // --- SERIES & TRANSACTIONS ---
   List<NumberingSeries> getSeriesByType(String type) => numberingSeries.where((s) => s.type == type).toList();
   NumberingSeries getDefaultSeries(String type) => numberingSeries.firstWhere((s) => s.type == type && s.isDefault, orElse: () => numberingSeries.firstWhere((s) => s.type == type, orElse: () => NumberingSeries(id: 'tmp', name: 'Default', type: type, prefix: 'TXN-', isDefault: true)));
   void addNumberingSeries(NumberingSeries ns) { if (ns.isDefault) { for (var s in numberingSeries.where((x) => x.type == ns.type)) s.isDefault = false; } numberingSeries.add(ns); save(); }
@@ -191,6 +193,7 @@ class PharoahManager with ChangeNotifier {
     save();
   }
 
+  // --- ACTIONS ---
   void addVoucher(Voucher v) { vouchers.add(v); save(); }
   void addCompany(Company c) { companies.add(c); save(); }
   void addSalt(Salt s) { salts.add(s); save(); }
@@ -212,6 +215,7 @@ class PharoahManager with ChangeNotifier {
   Future<void> runAutoBackup() async { await save(); }
   Future<void> masterReset() async { final dir = await getWorkingPath(); if(dir.isNotEmpty) { final d = Directory(dir); if(d.existsSync()) d.deleteSync(recursive: true); } await loadAllData(); }
   Future<void> switchYear(String year) async { currentFY = year; await loadAllData(); notifyListeners(); }
+  Future<bool> startNewFinancialYear(String nextFY) async { await save(); bool success = await FYTransferEngine.transferData(companyID: activeCompany!.id, businessType: activeCompany!.businessType, sourceFY: currentFY, targetFY: nextFY); if (success) { currentFY = nextFY; await loadAllData(); } return success; }
   double calculateAvgMonthlySale(String medId) => 10.0;
   List<BankTransaction> getBankStatement(String bankName, DateTime from, DateTime to) => [];
   void adjustBatchStock({required String medId, required String batchNo, required double adjQty, required String reason}) { if (batchHistory.containsKey(medId)) { var b = batchHistory[medId]!.firstWhere((x) => x.batch == batchNo); b.adjustmentQty += adjQty; save().then((_) => loadAllData()); } }
