@@ -1,3 +1,5 @@
+// FILE: lib/modifications/sub_views/modify_sales_list.dart
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
@@ -25,7 +27,7 @@ class ModifySalesList extends StatelessWidget {
         return Card(
           margin: const EdgeInsets.only(bottom: 10),
           child: ListTile(
-            leading: const CircleAvatar(backgroundColor: Colors.green, child: Text("S", style: TextStyle(color: Colors.white))),
+            leading: const CircleAvatar(backgroundColor: Colors.green, child: Text("S", style: TextStyle(color: Colors.white, fontSize: 12))),
             title: Text(s.billNo, style: const TextStyle(fontWeight: FontWeight.bold)),
             subtitle: Text("${s.partyName}\nAmt: ₹${s.totalAmount.toStringAsFixed(2)}"),
             trailing: IconButton(
@@ -39,16 +41,30 @@ class ModifySalesList extends StatelessWidget {
   }
 
   void _showOptions(BuildContext context, PharoahManager ph, Sale s) {
+    // --- SECURITY CHECK ---
+    bool canDelete = ph.loggedInStaff == null || ph.loggedInStaff!.canDeleteBill;
+
     showModalBottomSheet(context: context, builder: (c) => Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        ListTile(leading: const Icon(Icons.edit, color: Colors.blue), title: const Text("Edit Bill"), onTap: () {
+        const ListTile(title: Text("Bill Actions", style: TextStyle(fontWeight: FontWeight.bold))),
+        ListTile(leading: const Icon(Icons.edit, color: Colors.blue), title: const Text("Edit / Modify Bill"), onTap: () {
           Navigator.pop(c);
           Navigator.push(context, MaterialPageRoute(builder: (c) => SaleEntryView(existingSale: s)));
         }),
-        ListTile(leading: const Icon(Icons.delete, color: Colors.red), title: const Text("Delete Bill"), onTap: () {
-          ph.deleteBill(s.id); Navigator.pop(c);
-        }),
+        
+        // Conditional Delete Button
+        if (canDelete)
+          ListTile(leading: const Icon(Icons.delete, color: Colors.red), title: const Text("Delete Bill Permanent"), onTap: () {
+            ph.deleteBill(s.id); Navigator.pop(c);
+          })
+        else
+          const ListTile(
+            leading: Icon(Icons.lock, color: Colors.grey), 
+            title: Text("Delete Restricted", style: TextStyle(color: Colors.grey)),
+            subtitle: Text("Staff does not have delete permission", style: TextStyle(fontSize: 10)),
+          ),
+        const SizedBox(height: 20),
       ],
     ));
   }
