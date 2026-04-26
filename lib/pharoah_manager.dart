@@ -1,5 +1,5 @@
 // FILE: lib/pharoah_manager.dart (Replace Full)
-
+import 'administration/system_user_model.dart';
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
@@ -17,6 +17,8 @@ import 'logic/pharoah_numbering_engine.dart';
 
 class PharoahManager with ChangeNotifier {
   List<Medicine> medicines = [];
+  List<SystemUser> systemUsers = [];
+  SystemUser? loggedInStaff; // Agar ye null hai, matlab Admin chala raha hai
   List<Party> parties = [];
   List<Sale> sales = [];
   List<Purchase> purchases = [];
@@ -59,6 +61,7 @@ class PharoahManager with ChangeNotifier {
     final root = await getApplicationDocumentsDirectory();
     final file = File('${root.path}/pharoah_registry.json');
     await file.writeAsString(jsonEncode(companiesRegistry.map((e) => e.toMap()).toList()));
+    await File('$dir/sys_users.json').writeAsString(jsonEncode(systemUsers.map((e) => e.toMap()).toList()));
     notifyListeners();
   }
 
@@ -130,6 +133,7 @@ class PharoahManager with ChangeNotifier {
     routes = (loadJson('routs.json') as List?)?.map((e) => RouteArea.fromMap(e)).toList() ?? [RouteArea(id: '1', name: "LOCAL AREA")];
     var bD = loadJson('bats.json');
     if (bD != null) { batchHistory.clear(); (bD as Map).forEach((k, v) => batchHistory[k] = (v as List).map((b) => BatchInfo.fromMap(b)).toList()); }
+   systemUsers = (loadJson('sys_users.json') as List?)?.map((e) => SystemUser.fromMap(e)).toList() ?? [];
     _rebuildInventoryRegistry();
     notifyListeners();
   }
@@ -221,4 +225,8 @@ class PharoahManager with ChangeNotifier {
   void deleteParty(String id) { parties.removeWhere((p) => p.id == id); save(); }
   Future<void> runAutoBackup() async { await save(); }
   Future<void> masterReset() async { final dir = await getWorkingPath(); final d = Directory(dir); if(d.existsSync()) d.deleteSync(recursive: true); await loadAllData(); }
+// --- SYSTEM USER ACTIONS ---
+  void addSystemUser(SystemUser u) { systemUsers.add(u); save(); }
+  void updateSystemUser(SystemUser u) { int i = systemUsers.indexWhere((x) => x.id == u.id); if(i != -1) { systemUsers[i] = u; save(); } }
+  void deleteSystemUser(String id) { systemUsers.removeWhere((x) => x.id == id); save(); }
 }
