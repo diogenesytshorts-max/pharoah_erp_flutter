@@ -5,7 +5,7 @@ import 'package:provider/provider.dart';
 import '../pharoah_manager.dart';
 import 'pdc_entry_view.dart';
 import 'outstanding_ageing_view.dart';
-import 'salesman_recovery_view.dart';
+import 'collection_sheet_view.dart';
 import 'bank_book_view.dart'; // NAYA IMPORT
 
 class FinanceDashboard extends StatelessWidget {
