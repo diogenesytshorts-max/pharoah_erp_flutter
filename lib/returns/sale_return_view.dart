@@ -1,4 +1,4 @@
-// FILE: lib/returns/sale_return_view.dart (Replacement Code)
+// FILE: lib/returns/sale_return_view.dart (Replacement Code - FIXED)
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -33,14 +33,10 @@ class _SaleReturnViewState extends State<SaleReturnView> {
     _initReturnFlow();
   }
 
-  // ===========================================================================
-  // INITIALIZATION (Smart Numbering & Context)
-  // ===========================================================================
   void _initReturnFlow() async {
     final ph = Provider.of<PharoahManager>(context, listen: false);
     
     if (widget.existingRecord != null) {
-      // CASE: Modifying Existing Return
       final ex = widget.existingRecord!;
       returnNoC.text = ex.billNo;
       selectedDate = ex.date;
@@ -53,7 +49,6 @@ class _SaleReturnViewState extends State<SaleReturnView> {
       }
       setState(() => isLoading = false);
     } else {
-      // CASE: New Return (Fetch from Engine)
       if (ph.activeCompany != null) {
         var series = ph.getDefaultSeries("RETURN");
         
@@ -84,9 +79,6 @@ class _SaleReturnViewState extends State<SaleReturnView> {
     });
   }
 
-  // ===========================================================================
-  // ITEM SEARCH & SELECTION
-  // ===========================================================================
   void _showItemSearch(PharoahManager ph, {BillItem? itemToEdit}) {
     String localSearch = "";
     Medicine? selectedMed;
@@ -131,7 +123,7 @@ class _SaleReturnViewState extends State<SaleReturnView> {
                               hintText: "Search Product for Return...",
                               prefixIcon: Icon(Icons.search, color: Colors.deepOrange),
                               filled: true, fillColor: Colors.white,
-                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                              border: OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(10))),
                             ),
                             onChanged: (v) => setSheetState(() => localSearch = v),
                           ),
@@ -143,7 +135,7 @@ class _SaleReturnViewState extends State<SaleReturnView> {
                     child: ListView.builder(
                       itemCount: filteredMeds.length,
                       itemBuilder: (c, i) => ListTile(
-                        leading: const Icon(Icons.history, color: Colors.deepOrange),
+                        leading: const Icon(Icons.inventory_2, color: Colors.deepOrange),
                         title: Text(filteredMeds[i].name, style: const TextStyle(fontWeight: FontWeight.bold)),
                         subtitle: Text("Pack: ${filteredMeds[i].packing}"),
                         onTap: () => setSheetState(() => selectedMed = filteredMeds[i]),
@@ -289,7 +281,6 @@ class _SaleReturnViewState extends State<SaleReturnView> {
               : null,
         ),
 
-        // --- SEARCH BAR TRIGGER ---
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
           child: InkWell(
@@ -304,11 +295,11 @@ class _SaleReturnViewState extends State<SaleReturnView> {
               ),
               child: Row(
                 children: [
-                  Icon(Icons.search, color: Colors.deepOrange.shade700),
+                  const Icon(Icons.search, color: Colors.deepOrange),
                   const SizedBox(width: 10),
-                  Text("Tap here to search return items...", style: TextStyle(color: Colors.grey.shade600, fontSize: 14)),
+                  Text("Tap here to search return stock...", style: TextStyle(color: Colors.grey.shade600, fontSize: 14)),
                   const Spacer(),
-                  Icon(Icons.add_circle, color: Colors.deepOrange.shade700),
+                  const Icon(Icons.add_circle, color: Colors.deepOrange),
                 ],
               ),
             ),
@@ -332,7 +323,7 @@ class _SaleReturnViewState extends State<SaleReturnView> {
     final card = Card(
       elevation: 2, margin: const EdgeInsets.symmetric(vertical: 4),
       child: ListTile(
-        leading: CircleAvatar(backgroundColor: Colors.deepOrange.shade50, child: Text("${it.srNo}", style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.deepOrange))),
+        leading: CircleAvatar(backgroundColor: Colors.deepOrange.shade50, child: Text("${it.srNo}", style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.deepOrange.shade900))),
         title: Text(it.name, style: const TextStyle(fontWeight: FontWeight.bold)),
         subtitle: Text("Batch: ${it.batch} | Qty: ${it.qty.toInt()}"),
         trailing: Text("₹${it.total.toStringAsFixed(2)}", style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.red)),
@@ -365,7 +356,7 @@ class _SaleReturnViewState extends State<SaleReturnView> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          const Text("TOTAL CREDIT VALUE:", style: TextStyle(fontWeight: FontWeight.bold)),
+          const Text("TOTAL CREDIT:", style: TextStyle(fontWeight: FontWeight.bold)),
           Text("₹${totalAmt.toStringAsFixed(2)}", style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: Colors.deepOrange.shade900)),
         ],
       ),
