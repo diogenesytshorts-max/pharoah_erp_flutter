@@ -24,13 +24,13 @@ class _BankBookViewState extends State<BankBookView> {
   Widget build(BuildContext context) {
     final ph = Provider.of<PharoahManager>(context);
     
-    // Logic: Load statement only if bank is selected
     List<BankTransaction> txns = [];
-    double runningBalance = 0;
+    double openBal = 0;
     
     if (selectedBank != null) {
+      // NAYA: Logic integrated directly for accurate statement
       txns = ph.getBankStatement(selectedBank!.name, fromDate, toDate);
-      runningBalance = selectedBank!.openingBalance;
+      openBal = selectedBank!.openingBalance;
     }
 
     return Scaffold(
@@ -42,21 +42,14 @@ class _BankBookViewState extends State<BankBookView> {
       ),
       body: Column(
         children: [
-          // --- 1. FILTERS (Bank & Date) ---
           _buildFilters(ph),
-
-          // --- 2. TABLE HEADER ---
           if (selectedBank != null) _buildTableHeader(),
-
-          // --- 3. TRANSACTION LIST ---
           Expanded(
             child: selectedBank == null
-                ? _buildNoBankState()
-                : _buildTransactionList(txns, selectedBank!.openingBalance),
+                ? const Center(child: Text("Select a bank account to view statement", style: TextStyle(color: Colors.grey, fontStyle: FontStyle.italic)))
+                : _buildTransactionList(txns, openBal),
           ),
-          
-          // --- 4. SUMMARY FOOTER ---
-          if (selectedBank != null) _buildFooter(txns, selectedBank!.openingBalance),
+          if (selectedBank != null) _buildFooter(txns, openBal),
         ],
       ),
     );
@@ -77,9 +70,9 @@ class _BankBookViewState extends State<BankBookView> {
           const SizedBox(height: 10),
           Row(
             children: [
-              Expanded(child: _dateTile("FROM", fromDate, (d) => setState(() => fromDate = d), ph)),
+              Expanded(child: _dateTile("FROM", fromDate, (d) => setState(() => fromDate = d), ph.currentFY)),
               const SizedBox(width: 10),
-              Expanded(child: _dateTile("TO", toDate, (d) => setState(() => toDate = d), ph)),
+              Expanded(child: _dateTile("TO", toDate, (d) => setState(() => toDate = d), ph.currentFY)),
             ],
           )
         ],
@@ -104,15 +97,12 @@ class _BankBookViewState extends State<BankBookView> {
 
   Widget _buildTransactionList(List<BankTransaction> list, double openBal) {
     double currentBal = openBal;
-    
     return ListView.builder(
       itemCount: list.length + 1,
       itemBuilder: (c, i) {
         if (i == 0) return _buildOpeningRow(openBal);
-        
         final t = list[i - 1];
         currentBal += (t.amountIn - t.amountOut);
-
         return Container(
           padding: const EdgeInsets.all(10),
           decoration: BoxDecoration(border: Border(bottom: BorderSide(color: Colors.grey.shade100))),
@@ -162,14 +152,11 @@ class _BankBookViewState extends State<BankBookView> {
     );
   }
 
-  // --- HELPERS ---
-  Widget _dateTile(String l, DateTime d, Function(DateTime) onPick, PharoahManager ph) => InkWell(
+  Widget _dateTile(String l, DateTime d, Function(DateTime) onPick, String fy) => InkWell(
     onTap: () async {
-      DateTime? p = await PharoahDateController.pickDate(context: context, currentFY: ph.currentFY, initialDate: d);
+      DateTime? p = await PharoahDateController.pickDate(context: context, currentFY: fy, initialDate: d);
       if (p != null) onPick(p);
     },
     child: Container(padding: const EdgeInsets.all(10), decoration: BoxDecoration(border: Border.all(color: Colors.grey.shade300), borderRadius: BorderRadius.circular(5)), child: Text("$l: ${DateFormat('dd/MM/yy').format(d)}", style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold))),
   );
-
-  Widget _buildNoBankState() => const Center(child: Text("Select a bank account to view statement", style: TextStyle(color: Colors.grey, fontStyle: FontStyle.italic)));
 }
