@@ -10,9 +10,9 @@ class SystemUser {
   
   // --- PERMISSIONS (Toggles) ---
   bool canDeleteBill;
-  bool canViewPurchaseRate; // Margin/Profit dekhna
-  bool canViewFinance;      // Ledger, Outstanding, Bank dekhna
-  bool canExportData;       // PDF, CSV nikalna
+  bool canViewPurchaseRate; 
+  bool canViewFinance;      
+  bool canExportData;       
 
   SystemUser({
     required this.id,
