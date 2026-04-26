@@ -8,7 +8,7 @@ import 'sale_challan_view.dart';
 import 'purchase_challan_view.dart';
 import 'challan_to_bill_converter.dart';
 import '../returns/sale_return_view.dart';
-import '../returns/purchase_return_view.dart'; // Ab hum sirf is ek file ko use karenge
+import '../returns/purchase_return_view.dart'; 
 
 class ChallanDashboard extends StatefulWidget {
   const ChallanDashboard({super.key});
@@ -52,7 +52,6 @@ class _ChallanDashboardState extends State<ChallanDashboard> {
                 _actionCard("SALE RETURN", "Credit Note", Icons.assignment_return, Colors.red.shade700, () {
                    Navigator.push(context, MaterialPageRoute(builder: (c) => const SaleReturnView()));
                 }),
-                // UPGRADED: Ab popup nahi khulega, seedha Debit Note screen khulegi
                 _actionCard("DEBIT NOTE", "Purchase Return", Icons.remove_shopping_cart, Colors.brown.shade800, () {
                   Navigator.push(context, MaterialPageRoute(builder: (c) => const PurchaseReturnView()));
                 }),
@@ -62,7 +61,6 @@ class _ChallanDashboardState extends State<ChallanDashboard> {
 
           const SizedBox(height: 10),
 
-          // --- PENDING LIST (Same as your old code) ---
           Expanded(
             child: Container(
               width: double.infinity,
@@ -103,23 +101,27 @@ class _ChallanDashboardState extends State<ChallanDashboard> {
     );
   }
 
-  // NOTE: Humne _showPurchaseReturnOptions popup yahan se hata diya hai (Standard Approach)
-
   Widget _buildChallanList(List<SaleChallan> sales, List<PurchaseChallan> purc) {
     return ListView(
       children: [
-        ...sales.map((ch) => _challanTile(ch.billNo, ch.partyName, ch.totalAmount, Colors.blueGrey, "S")),
-        ...purc.map((ch) => _challanTile(ch.billNo, ch.distributorName, ch.totalAmount, Colors.amber.shade800, "P")),
+        // FIXED: Added navigation on Tap
+        ...sales.map((ch) => _challanTile(ch.billNo, ch.partyName, ch.totalAmount, Colors.blueGrey, "S", () {
+          Navigator.push(context, MaterialPageRoute(builder: (c) => SaleChallanView(existingRecord: ch)));
+        })),
+        ...purc.map((ch) => _challanTile(ch.billNo, ch.distributorName, ch.totalAmount, Colors.amber.shade800, "P", () {
+          Navigator.push(context, MaterialPageRoute(builder: (c) => PurchaseChallanView(existingRecord: ch)));
+        })),
       ],
     );
   }
 
-  Widget _challanTile(String no, String party, double amt, Color c, String tag) {
+  Widget _challanTile(String no, String party, double amt, Color c, String tag, VoidCallback onTap) {
     return Card(
       elevation: 0,
       margin: const EdgeInsets.only(bottom: 10),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: BorderSide(color: c.withOpacity(0.2))),
       child: ListTile(
+        onTap: onTap, // NOW WORKS
         leading: CircleAvatar(backgroundColor: c.withOpacity(0.1), child: Text(tag, style: TextStyle(color: c, fontWeight: FontWeight.bold))),
         title: Text(no, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
         subtitle: Text("Party: $party\nAmount: ₹${amt.toStringAsFixed(2)}", style: const TextStyle(fontSize: 11)),
