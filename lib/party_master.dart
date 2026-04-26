@@ -1,10 +1,12 @@
+// FILE: lib/party_master.dart
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'pharoah_manager.dart';
 import 'models.dart';
 
 class PartyMasterView extends StatefulWidget {
-  final bool isSelectionMode; // NAYA: Quick add ke liye
+  final bool isSelectionMode; 
   const PartyMasterView({super.key, this.isSelectionMode = false});
 
   @override
@@ -17,7 +19,6 @@ class _PartyMasterViewState extends State<PartyMasterView> {
   @override
   void initState() {
     super.initState();
-    // Agar Quick Add mode hai, toh screen load hote hi form khul jayega
     if (widget.isSelectionMode) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         _showPartyForm();
@@ -25,11 +26,13 @@ class _PartyMasterViewState extends State<PartyMasterView> {
     }
   }
 
-  // --- HIDE/SHOW ADD & EDIT FORM ---
+  // ===========================================================================
+  // ADD / EDIT FORM DIALOG
+  // ===========================================================================
   void _showPartyForm({Party? party}) {
     final ph = Provider.of<PharoahManager>(context, listen: false);
 
-    // Initializing Controllers
+    // --- PRESERVING ALL OLD CONTROLLERS ---
     final nameC = TextEditingController(text: party?.name);
     final phoneC = TextEditingController(text: party?.phone);
     final emailC = TextEditingController(text: party?.email);
@@ -47,8 +50,11 @@ class _PartyMasterViewState extends State<PartyMasterView> {
     String selectedGroup = party?.group ?? "Sundry Debtors";
     String selectedPriceLevel = party?.priceLevel ?? "A";
     String selectedRoute = (party?.route != null && party!.route.isNotEmpty) ? party.route : "";
+    
+    // NAYA FIELD: Selected Series ID
+    String selectedSeriesId = party?.defaultSeriesId ?? "";
 
-    // --- LOGIC: AUTO-EXTRACT PAN FROM GSTIN ---
+    // --- LOGIC: AUTO-EXTRACT PAN FROM GSTIN (Preserved) ---
     gstC.addListener(() {
       if (gstC.text.length >= 12) {
         String extractedPan = gstC.text.substring(2, 12).toUpperCase();
@@ -61,120 +67,148 @@ class _PartyMasterViewState extends State<PartyMasterView> {
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (c) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Text(party == null ? "Create New Party/Ledger" : "Update Party Details"),
-        content: SizedBox(
-          width: 500,
-          child: SingleChildScrollView(
-            child: Column(
-              children: [
-                _sectionTitle("BASIC INFORMATION"),
-                _inputField(nameC, "Party/Firm Name *", Icons.business),
-                _inputField(phoneC, "Mobile Number", Icons.phone, isNum: true),
-                _inputField(emailC, "Email Address (For Invoicing)", Icons.email),
-                _inputField(addressC, "Full Address", Icons.location_on),
-                Row(
-                  children: [
-                    Expanded(child: _inputField(cityC, "City", Icons.location_city)),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: DropdownButtonFormField<String>(
-                        value: selectedGroup,
-                        decoration: const InputDecoration(labelText: "Account Group", border: OutlineInputBorder()),
-                        items: ["Sundry Debtors", "Sundry Creditors"].map((e) => DropdownMenuItem(value: e, child: Text(e, style: const TextStyle(fontSize: 12)))).toList(),
-                        onChanged: (v) => selectedGroup = v!,
+      builder: (c) => StatefulBuilder(builder: (context, setDialogState) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: Text(party == null ? "Create New Party/Ledger" : "Update Party Details"),
+          content: SizedBox(
+            width: 500,
+            child: SingleChildScrollView(
+              child: Column(
+                children: [
+                  _sectionTitle("BASIC INFORMATION"),
+                  _inputField(nameC, "Party/Firm Name *", Icons.business),
+                  _inputField(phoneC, "Mobile Number", Icons.phone, isNum: true),
+                  _inputField(emailC, "Email Address (For Invoicing)", Icons.email),
+                  _inputField(addressC, "Full Address", Icons.location_on),
+                  Row(
+                    children: [
+                      Expanded(child: _inputField(cityC, "City", Icons.location_city)),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: DropdownButtonFormField<String>(
+                          value: selectedGroup,
+                          decoration: const InputDecoration(labelText: "Account Group", border: OutlineInputBorder()),
+                          items: ["Sundry Debtors", "Sundry Creditors"].map((e) => DropdownMenuItem(value: e, child: Text(e, style: const TextStyle(fontSize: 12)))).toList(),
+                          onChanged: (v) => selectedGroup = v!,
+                        ),
                       ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 20),
-                _sectionTitle("TAX & LICENSES"),
-                _inputField(gstC, "GSTIN Number (15-Digit)", Icons.receipt_long),
-                _inputField(panC, "PAN Card (Auto-Extracted)", Icons.badge_outlined),
-                Row(
-                  children: [
-                    Expanded(child: _inputField(dlC, "Drug License (DL)", Icons.medical_services)),
-                    const SizedBox(width: 10),
-                    Expanded(child: _inputField(dlExpC, "DL Expiry (Optional)", Icons.event_busy)),
-                  ],
-                ),
-                const SizedBox(height: 20),
-                _sectionTitle("BILLING & CREDIT CONTROL"),
-                Row(
-                  children: [
-                    Expanded(child: _inputField(creditLimitC, "Credit Limit ₹", Icons.speed, isNum: true)),
-                    const SizedBox(width: 10),
-                    Expanded(child: _inputField(creditDaysC, "Credit Days", Icons.timer, isNum: true)),
-                  ],
-                ),
-                const SizedBox(height: 10),
-                DropdownButtonFormField<String>(
-                  value: selectedPriceLevel,
-                  decoration: const InputDecoration(labelText: "Default Pricing Level", border: OutlineInputBorder()),
-                  items: ["A", "B", "C"].map((e) => DropdownMenuItem(value: e, child: Text("Apply Rate $e"))).toList(),
-                  onChanged: (v) => selectedPriceLevel = v!,
-                ),
-                const SizedBox(height: 10),
-                DropdownButtonFormField<String>(
-                  value: selectedRoute.isEmpty ? null : selectedRoute,
-                  decoration: const InputDecoration(labelText: "Assigned Route / Area", border: OutlineInputBorder()),
-                  items: ph.routes.map((r) => DropdownMenuItem(value: r.name, child: Text(r.name))).toList(),
-                  onChanged: (v) => selectedRoute = v!,
-                ),
-                _inputField(transportC, "Preferred Transport", Icons.local_shipping_outlined),
-              ],
+                    ],
+                  ),
+                  
+                  const SizedBox(height: 20),
+                  _sectionTitle("TAX & LICENSES"),
+                  _inputField(gstC, "GSTIN Number (15-Digit)", Icons.receipt_long),
+                  _inputField(panC, "PAN Card (Auto-Extracted)", Icons.badge_outlined),
+                  Row(
+                    children: [
+                      Expanded(child: _inputField(dlC, "Drug License (DL)", Icons.medical_services)),
+                      const SizedBox(width: 10),
+                      Expanded(child: _inputField(dlExpC, "DL Expiry (Optional)", Icons.event_busy)),
+                    ],
+                  ),
+                  
+                  const SizedBox(height: 20),
+                  _sectionTitle("BILLING & CREDIT CONTROL"),
+                  Row(
+                    children: [
+                      Expanded(child: _inputField(creditLimitC, "Credit Limit ₹", Icons.speed, isNum: true)),
+                      const SizedBox(width: 10),
+                      Expanded(child: _inputField(creditDaysC, "Credit Days", Icons.timer, isNum: true)),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  
+                  // DROPDOWN 1: Price Level (Preserved)
+                  DropdownButtonFormField<String>(
+                    value: selectedPriceLevel,
+                    decoration: const InputDecoration(labelText: "Default Pricing Level", border: OutlineInputBorder()),
+                    items: ["A", "B", "C"].map((e) => DropdownMenuItem(value: e, child: Text("Apply Rate $e"))).toList(),
+                    onChanged: (v) => selectedPriceLevel = v!,
+                  ),
+                  
+                  const SizedBox(height: 10),
+
+                  // DROPDOWN 2: Route Master (Preserved)
+                  DropdownButtonFormField<String>(
+                    value: selectedRoute.isEmpty ? null : selectedRoute,
+                    decoration: const InputDecoration(labelText: "Assigned Route / Area", border: OutlineInputBorder()),
+                    items: ph.routes.map((r) => DropdownMenuItem(value: r.name, child: Text(r.name))).toList(),
+                    onChanged: (v) => selectedRoute = v!,
+                    hint: const Text("Select Route"),
+                  ),
+
+                  const SizedBox(height: 10),
+
+                  // --- NAYA FIELD ADDED: LINK BILLING SERIES ---
+                  _dropdownLabel("Link Billing Series (Automation)"),
+                  DropdownButtonFormField<String>(
+                    value: selectedSeriesId.isEmpty ? null : selectedSeriesId,
+                    decoration: const InputDecoration(border: OutlineInputBorder(), prefixIcon: Icon(Icons.layers_outlined)),
+                    items: ph.getSeriesByType("SALE").where((s) => s.isActive).map((s) => DropdownMenuItem(
+                      value: s.id, 
+                      child: Text("${s.name} (${s.prefix})", style: const TextStyle(fontSize: 13))
+                    )).toList(),
+                    onChanged: (v) => selectedSeriesId = v!,
+                    hint: const Text("No specific series linked"),
+                  ),
+
+                  const SizedBox(height: 10),
+                  _inputField(transportC, "Preferred Transport", Icons.local_shipping_outlined),
+                  _inputField(opBalC, "Opening Balance (₹)", Icons.account_balance_wallet, isNum: true),
+                ],
+              ),
             ),
           ),
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(c), child: const Text("CANCEL", style: TextStyle(color: Colors.grey))),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.indigo, foregroundColor: Colors.white),
-            onPressed: () {
-              if (nameC.text.trim().isEmpty) return;
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(c), child: const Text("CANCEL", style: TextStyle(color: Colors.grey))),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.indigo, foregroundColor: Colors.white),
+              onPressed: () {
+                if (nameC.text.trim().isEmpty) return;
 
-              final newParty = Party(
-                id: party?.id ?? DateTime.now().toString(),
-                name: nameC.text.trim().toUpperCase(),
-                group: selectedGroup,
-                phone: phoneC.text.trim(),
-                email: emailC.text.trim().toLowerCase(),
-                address: addressC.text.trim(),
-                city: cityC.text.trim().toUpperCase(),
-                gst: gstC.text.trim().toUpperCase(),
-                pan: panC.text.trim().toUpperCase(),
-                dl: dlC.text.trim().toUpperCase(),
-                dlExp: dlExpC.text.trim(),
-                creditLimit: double.tryParse(creditLimitC.text) ?? 0.0,
-                creditDays: int.tryParse(creditDaysC.text) ?? 0,
-                priceLevel: selectedPriceLevel,
-                route: selectedRoute,
-                transport: transportC.text.trim(),
-                opBal: double.tryParse(opBalC.text) ?? 0.0,
-              );
+                final newParty = Party(
+                  id: party?.id ?? DateTime.now().toString(),
+                  name: nameC.text.trim().toUpperCase(),
+                  group: selectedGroup,
+                  phone: phoneC.text.trim(),
+                  email: emailC.text.trim().toLowerCase(),
+                  address: addressC.text.trim(),
+                  city: cityC.text.trim().toUpperCase(),
+                  gst: gstC.text.trim().toUpperCase(),
+                  pan: panC.text.trim().toUpperCase(),
+                  dl: dlC.text.trim().toUpperCase(),
+                  dlExp: dlExpC.text.trim(),
+                  creditLimit: double.tryParse(creditLimitC.text) ?? 0.0,
+                  creditDays: int.tryParse(creditDaysC.text) ?? 0,
+                  priceLevel: selectedPriceLevel,
+                  route: selectedRoute,
+                  transport: transportC.text.trim(),
+                  opBal: double.tryParse(opBalC.text) ?? 0.0,
+                  defaultSeriesId: selectedSeriesId, // SAVING THE NEW FIELD
+                );
 
-              if (party == null) {
-                ph.parties.add(newParty);
-              } else {
-                int idx = ph.parties.indexWhere((p) => p.id == party.id);
-                if (idx != -1) ph.parties[idx] = newParty;
-              }
+                if (party == null) {
+                  ph.parties.add(newParty);
+                } else {
+                  int idx = ph.parties.indexWhere((p) => p.id == party.id);
+                  if (idx != -1) ph.parties[idx] = newParty;
+                }
 
-              ph.save();
+                ph.save();
 
-              // NAYA: Agar selection mode hai, toh dialog aur screen dono pop honge
-              if (widget.isSelectionMode) {
-                Navigator.pop(c); // Close Dialog
-                Navigator.pop(context, newParty); // Close Screen and return Party
-              } else {
-                Navigator.pop(c); // Just close dialog
-              }
-            },
-            child: const Text("SAVE PARTY / LEDGER"),
-          ),
-        ],
-      ),
+                if (widget.isSelectionMode) {
+                  Navigator.pop(c);
+                  Navigator.pop(context, newParty); 
+                } else {
+                  Navigator.pop(c);
+                }
+              },
+              child: const Text("SAVE PARTY / LEDGER"),
+            ),
+          ],
+        );
+      }),
     );
   }
 
@@ -258,6 +292,16 @@ class _PartyMasterViewState extends State<PartyMasterView> {
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 10),
         child: Text(title, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.blueGrey, letterSpacing: 1)),
+      ),
+    );
+  }
+
+  Widget _dropdownLabel(String text) {
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Padding(
+        padding: const EdgeInsets.only(bottom: 5, left: 2, top: 10),
+        child: Text(text, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.grey)),
       ),
     );
   }
