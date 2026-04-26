@@ -51,7 +51,7 @@ class _StaffItemEntryCardState extends State<StaffItemEntryCard> {
       gstC.text = i.gstRate.toString();
     } else {
       mrpC.text = widget.med.mrp.toString();
-      rateC.text = widget.med.rateA.toString(); // Default to Rate A for Staff
+      rateC.text = widget.med.rateA.toString(); 
       gstC.text = widget.med.gst.toString();
     }
   }
@@ -77,7 +77,11 @@ class _StaffItemEntryCardState extends State<StaffItemEntryCard> {
     return Container(
       padding: const EdgeInsets.all(15),
       margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(15)),
+      decoration: BoxDecoration(
+        color: Colors.white, 
+        borderRadius: BorderRadius.circular(15),
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10)]
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -85,7 +89,7 @@ class _StaffItemEntryCardState extends State<StaffItemEntryCard> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text("${widget.srNo}. ${widget.med.name}", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-              IconButton(icon: const Icon(Icons.cancel), onPressed: widget.onCancel)
+              IconButton(icon: const Icon(Icons.cancel, color: Colors.grey), onPressed: widget.onCancel)
             ],
           ),
           const Divider(),
@@ -109,7 +113,8 @@ class _StaffItemEntryCardState extends State<StaffItemEntryCard> {
             children: [
               Expanded(child: _input(qtyC, "QTY", Icons.add_box, isNum: true)),
               const SizedBox(width: 8),
-              Expanded(child: _input(freeC, "FREE", Icons.giftcard, isNum: true)),
+              // FIXED: Icons.card_giftcard used instead of giftcard
+              Expanded(child: _input(freeC, "FREE", Icons.card_giftcard, isNum: true)),
               const SizedBox(width: 8),
               Expanded(child: _input(normDiscC, "DISC %", Icons.percent, isNum: true)),
             ],
@@ -129,7 +134,7 @@ class _StaffItemEntryCardState extends State<StaffItemEntryCard> {
           const SizedBox(height: 15),
           SizedBox(
             width: double.infinity,
-            height: 50,
+            height: 55,
             child: ElevatedButton(
               style: ElevatedButton.styleFrom(backgroundColor: Colors.green, foregroundColor: Colors.white),
               onPressed: () {
@@ -164,9 +169,16 @@ class _StaffItemEntryCardState extends State<StaffItemEntryCard> {
     return TextField(
       controller: ctrl,
       readOnly: isReadOnly,
-      keyboardType: isNum ? TextInputType.number : TextInputType.text,
+      keyboardType: isNum ? const TextInputType.numberWithOptions(decimal: true) : TextInputType.text,
       style: TextStyle(fontWeight: FontWeight.bold, color: color, fontSize: 13),
-      decoration: InputDecoration(labelText: label, border: const OutlineInputBorder(), isDense: true),
+      decoration: InputDecoration(
+        labelText: label, 
+        prefixIcon: Icon(icon, size: 16),
+        border: const OutlineInputBorder(), 
+        isDense: true,
+        filled: isReadOnly,
+        fillColor: isReadOnly ? Colors.grey.shade100 : Colors.white,
+      ),
     );
   }
 }
