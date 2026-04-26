@@ -6,6 +6,7 @@ import 'package:intl/intl.dart';
 import '../pharoah_manager.dart';
 import '../models.dart';
 import '../pharoah_date_controller.dart';
+import '../logic/pharoah_numbering_engine.dart'; // NAYA
 
 class PdcEntryView extends StatefulWidget {
   const PdcEntryView({super.key});
@@ -15,14 +16,12 @@ class PdcEntryView extends StatefulWidget {
 }
 
 class _PdcEntryViewState extends State<PdcEntryView> {
-  // --- CONTROLLERS ---
   final amountC = TextEditingController();
   final chequeNoC = TextEditingController();
   final customerBankC = TextEditingController();
   
-  // --- SELECTIONS ---
   Party? selectedParty;
-  String? selectedBillNo; // Link to specific bill
+  String? selectedBillNo;
   Bank? depositBank; 
   DateTime chequeDate = DateTime.now();
   String searchQuery = "";
@@ -43,7 +42,6 @@ class _PdcEntryViewState extends State<PdcEntryView> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // --- 1. SELECT PARTY ---
             _sectionTitle("1. RECEIVE FROM (CUSTOMER)"),
             if (selectedParty == null)
               _buildPartySearch(ph)
@@ -52,16 +50,13 @@ class _PdcEntryViewState extends State<PdcEntryView> {
 
             const SizedBox(height: 20),
 
-            // --- 2. BILL ADJUSTMENT (The Advanced Part) ---
             if (selectedParty != null) ...[
               _sectionTitle("2. ADJUST AGAINST BILL"),
               _buildPendingBillsList(ph),
               const SizedBox(height: 20),
             ],
 
-            // --- 3. CHEQUE DETAILS ---
             _sectionTitle("3. CHEQUE INFORMATION"),
-            const SizedBox(height: 10),
             Row(
               children: [
                 Expanded(child: _input(amountC, "Amount (₹)", Icons.currency_rupee, isNum: true)),
@@ -79,15 +74,12 @@ class _PdcEntryViewState extends State<PdcEntryView> {
             ),
 
             const SizedBox(height: 25),
-
-            // --- 4. OUR DEPOSIT BANK ---
             _sectionTitle("4. DEPOSIT IN (OUR BANK)"),
             const SizedBox(height: 10),
             _buildDepositBankDropdown(ph),
 
             const SizedBox(height: 40),
 
-            // --- SAVE BUTTON ---
             SizedBox(
               width: double.infinity,
               height: 60,
@@ -101,14 +93,11 @@ class _PdcEntryViewState extends State<PdcEntryView> {
                 child: const Text("SAVE & LINK CHEQUE", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
               ),
             ),
-            const SizedBox(height: 50),
           ],
         ),
       ),
     );
   }
-
-  // --- UI COMPONENTS ---
 
   Widget _buildPartySearch(PharoahManager ph) {
     return Column(
@@ -148,15 +137,8 @@ class _PdcEntryViewState extends State<PdcEntryView> {
   }
 
   Widget _buildPendingBillsList(PharoahManager ph) {
-    // Filter active sales bills for this party
     final partyBills = ph.sales.where((s) => s.partyName == selectedParty!.name && s.status == "Active").toList();
-
-    if (partyBills.isEmpty) {
-      return const Padding(
-        padding: EdgeInsets.all(10),
-        child: Text("No pending bills found. Cheque will be saved as Advance.", style: TextStyle(fontSize: 11, fontStyle: FontStyle.italic, color: Colors.blueGrey)),
-      );
-    }
+    if (partyBills.isEmpty) return const Padding(padding: EdgeInsets.all(10), child: Text("No pending bills.", style: TextStyle(fontSize: 11, fontStyle: FontStyle.italic)));
 
     return Container(
       height: 120,
@@ -171,24 +153,13 @@ class _PdcEntryViewState extends State<PdcEntryView> {
           return GestureDetector(
             onTap: () => setState(() => selectedBillNo = b.billNo),
             child: Container(
-              width: 130,
-              margin: const EdgeInsets.only(right: 10),
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: isSelected ? Colors.teal : Colors.grey.shade50,
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: isSelected ? Colors.teal : Colors.grey.shade300),
-              ),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(b.billNo, style: TextStyle(fontWeight: FontWeight.bold, color: isSelected ? Colors.white : Colors.black87, fontSize: 12)),
-                  const SizedBox(height: 5),
-                  Text("₹${b.totalAmount.toInt()}", style: TextStyle(fontWeight: FontWeight.w900, color: isSelected ? Colors.white : Colors.teal.shade900, fontSize: 15)),
-                  const SizedBox(height: 2),
-                  Text(DateFormat('dd/MM').format(b.date), style: TextStyle(fontSize: 9, color: isSelected ? Colors.white70 : Colors.grey)),
-                ],
-              ),
+              width: 130, margin: const EdgeInsets.only(right: 10), padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(color: isSelected ? Colors.teal : Colors.grey.shade50, borderRadius: BorderRadius.circular(10), border: Border.all(color: isSelected ? Colors.teal : Colors.grey.shade300)),
+              child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+                Text(b.billNo, style: TextStyle(fontWeight: FontWeight.bold, color: isSelected ? Colors.white : Colors.black87, fontSize: 12)),
+                const SizedBox(height: 5),
+                Text("₹${b.totalAmount.toInt()}", style: TextStyle(fontWeight: FontWeight.w900, color: isSelected ? Colors.white : Colors.teal.shade900, fontSize: 15)),
+              ]),
             ),
           );
         },
@@ -215,20 +186,17 @@ class _PdcEntryViewState extends State<PdcEntryView> {
       child: Container(
         padding: const EdgeInsets.all(15),
         decoration: BoxDecoration(border: Border.all(color: Colors.grey.shade400), borderRadius: BorderRadius.circular(5), color: Colors.white),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(DateFormat('dd/MM/yy').format(chequeDate), style: const TextStyle(fontWeight: FontWeight.bold)),
-            const Icon(Icons.calendar_today, size: 16, color: Colors.grey),
-          ],
-        ),
+        child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+          Text(DateFormat('dd/MM/yy').format(chequeDate), style: const TextStyle(fontWeight: FontWeight.bold)),
+          const Icon(Icons.calendar_today, size: 16, color: Colors.grey),
+        ]),
       ),
     );
   }
 
   Widget _input(TextEditingController ctrl, String label, IconData icon, {bool isNum = false}) => TextField(
     controller: ctrl,
-    keyboardType: isNum ? TextInputType.number : TextInputType.text,
+    keyboardType: isNum ? const TextInputType.numberWithOptions(decimal: true) : TextInputType.text,
     decoration: InputDecoration(labelText: label, prefixIcon: Icon(icon, size: 20), border: const OutlineInputBorder(), filled: true, fillColor: Colors.white),
   );
 
@@ -239,14 +207,14 @@ class _PdcEntryViewState extends State<PdcEntryView> {
 
   void _handleSave(PharoahManager ph) {
     if (selectedParty == null || amountC.text.isEmpty || depositBank == null) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Please select Party, Amount and Deposit Bank!"), backgroundColor: Colors.red));
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("All fields are mandatory!"), backgroundColor: Colors.red));
       return;
     }
 
     final entry = ChequeEntry(
       id: DateTime.now().millisecondsSinceEpoch.toString(),
       partyName: selectedParty!.name,
-      billNo: selectedBillNo ?? "ADVANCE", // Linked Bill or Advance
+      billNo: selectedBillNo ?? "ADVANCE",
       amount: double.tryParse(amountC.text) ?? 0,
       chequeNo: chequeNoC.text,
       date: DateTime.now(),
@@ -258,6 +226,6 @@ class _PdcEntryViewState extends State<PdcEntryView> {
 
     ph.addCheque(entry);
     Navigator.pop(context);
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("✅ Cheque Linked to ${selectedBillNo ?? 'Advance'} saved!"), backgroundColor: Colors.green));
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("✅ Cheque Saved Successfully!"), backgroundColor: Colors.green));
   }
 }
