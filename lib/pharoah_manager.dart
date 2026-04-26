@@ -24,16 +24,15 @@ class PharoahManager with ChangeNotifier {
   List<PurchaseChallan> purchaseChallans = [];
   List<SaleReturn> saleReturns = [];
   List<PurchaseReturn> purchaseReturns = [];
-  List<ShortageItem> shortages = []; 
-  List<Bank> banks = []; 
-  List<Salesman> salesmen = [];
-  List<ChequeEntry> cheques = []; 
   List<Voucher> vouchers = [];
   List<LogEntry> logs = [];
   List<RouteArea> routes = [];
   List<Company> companies = [];
   List<Salt> salts = [];
   List<DrugType> drugTypes = [];
+  List<Bank> banks = [];
+  List<ChequeEntry> cheques = [];
+  List<ShortageItem> shortages = [];
   
   Map<String, List<BatchInfo>> batchHistory = {};
   AppConfig config = AppConfig();
@@ -84,7 +83,6 @@ class PharoahManager with ChangeNotifier {
   Future<void> save() async {
     final dir = await getWorkingPath();
     if (dir.isEmpty) return;
-    
     await File('$dir/meds.json').writeAsString(jsonEncode(medicines.map((e) => e.toMap()).toList()));
     await File('$dir/parts.json').writeAsString(jsonEncode(parties.map((e) => e.toMap()).toList()));
     await File('$dir/sales.json').writeAsString(jsonEncode(sales.map((e) => e.toMap()).toList()));
@@ -96,7 +94,6 @@ class PharoahManager with ChangeNotifier {
     await File('$dir/salts.json').writeAsString(jsonEncode(salts.map((e) => e.toMap()).toList()));
     await File('$dir/dtypes.json').writeAsString(jsonEncode(drugTypes.map((e) => e.toMap()).toList()));
     await File('$dir/bats.json').writeAsString(jsonEncode(batchHistory.map((k, v) => MapEntry(k, v.map((b) => b.toMap()).toList()))));
-    
     notifyListeners();
   }
 
@@ -124,7 +121,7 @@ class PharoahManager with ChangeNotifier {
     notifyListeners();
   }
 
-  // --- PUBLIC METHODS (UI Connections) ---
+  // --- PUBLIC UI METHODS ---
   void addVoucher(Voucher v) { vouchers.add(v); save(); }
   void addLog(String action, String details) { logs.add(LogEntry(id: DateTime.now().toString(), action: action, details: details, time: DateTime.now())); }
   void addCompany(Company c) { companies.add(c); save(); }
@@ -142,7 +139,6 @@ class PharoahManager with ChangeNotifier {
   void deleteSaleReturn(String id) { saleReturns.removeWhere((r) => r.id == id); save(); }
   void deletePurchaseReturn(String id) { purchaseReturns.removeWhere((r) => r.id == id); save(); }
 
-  // --- FINALIZATIONS ---
   void finalizeSale({required String billNo, required DateTime date, required Party party, required List<BillItem> items, required double total, required String mode, bool isEdit = false}) {
     sales.add(Sale(id: DateTime.now().toString(), billNo: billNo, date: date, partyName: party.name, partyGstin: party.gst, partyState: party.state, items: items, totalAmount: total, paymentMode: mode));
     save().then((_) => loadAllData());
@@ -154,7 +150,7 @@ class PharoahManager with ChangeNotifier {
   }
 
   void finalizeSaleChallan({required String challanNo, required DateTime date, required Party party, required List<BillItem> items, required double total}) {
-    saleChallans.add(SaleChallan(id: DateTime.now().toString(), billNo: challanNo, date: date, partyName: party.name, partyGstin: party.gst, items: items, totalAmount: total));
+    saleChallans.add(SaleChallan(id: DateTime.now().toString(), billNo: challanNo, date: date, partyName: party.name, items: items, totalAmount: total));
     save();
   }
 
@@ -169,11 +165,10 @@ class PharoahManager with ChangeNotifier {
   }
 
   void finalizePurchaseReturn({required String billNo, required DateTime date, required Party party, required List<PurchaseItem> items, required double total, String type = "Sellable"}) {
-    purchaseReturns.add(PurchaseReturn(id: DateTime.now().toString(), billNo: billNo, distributorName: party.name, date: date, items: items, totalAmount: total, status: "Active", returnType: type));
+    purchaseReturns.add(PurchaseReturn(id: DateTime.now().toString(), billNo: billNo, distributorName: party.name, date: date, items: items, totalAmount: total, returnType: type));
     save();
   }
 
-  // --- UTILS & LOGIC ---
   void adjustBatchStock({required String medId, required String batchNo, required double adjQty, required String reason}) {
     if (batchHistory.containsKey(medId)) {
       var b = batchHistory[medId]!.firstWhere((x) => x.batch == batchNo);
