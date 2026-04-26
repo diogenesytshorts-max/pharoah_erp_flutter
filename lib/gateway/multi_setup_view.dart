@@ -1,3 +1,5 @@
+// FILE: lib/gateway/multi_setup_view.dart
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../pharoah_manager.dart';
@@ -13,7 +15,7 @@ class MultiSetupView extends StatefulWidget {
 }
 
 class _MultiSetupViewState extends State<MultiSetupView> {
-  // --- CONTROLLERS ---
+  // --- FORM CONTROLLERS ---
   final nameC = TextEditingController();
   final addressC = TextEditingController();
   final phoneC = TextEditingController();
@@ -23,11 +25,12 @@ class _MultiSetupViewState extends State<MultiSetupView> {
   final usernameC = TextEditingController();
   final passwordC = TextEditingController();
 
-  // --- SELECTIONS ---
+  // --- STATE VARIABLES ---
   String selectedType = "WHOLESALE";
   String selectedState = "Rajasthan";
   String selectedFY = "";
   String generatedID = "";
+  bool isLoading = false; // NAYA: Spam control ke liye
 
   final List<String> states = [
     "Andhra Pradesh", "Arunachal Pradesh", "Assam", "Bihar", "Chhattisgarh", 
@@ -40,15 +43,18 @@ class _MultiSetupViewState extends State<MultiSetupView> {
   @override
   void initState() {
     super.initState();
-    // 1. Generate Unique ID
+    // 1. Generate Unique ID once on screen load
     generatedID = "PH-C-${DateTime.now().millisecondsSinceEpoch.toString().substring(7)}";
     
     // 2. Smart Detect Current Financial Year
     selectedFY = AppDateLogic.getCurrentFYString();
   }
 
-  // --- SAVE LOGIC ---
+  // ===========================================================================
+  // MAIN LOGIC: CREATE & REGISTER
+  // ===========================================================================
   void _handleCreateCompany() async {
+    // A. Validation Check
     if (nameC.text.trim().isEmpty || usernameC.text.trim().isEmpty || passwordC.text.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("Firm Name, Username and Password are mandatory!"), backgroundColor: Colors.red),
@@ -58,7 +64,17 @@ class _MultiSetupViewState extends State<MultiSetupView> {
 
     final ph = Provider.of<PharoahManager>(context, listen: false);
 
-    // Naya Merged Profile Object banana
+    // B. Loading Start (Freeze UI)
+    setState(() => isLoading = true);
+
+    // C. Duplicate Check (Safety)
+    if (ph.companiesRegistry.any((c) => c.id == generatedID)) {
+      setState(() => isLoading = false);
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Error: ID Collision. Please reload screen.")));
+      return;
+    }
+
+    // D. Profile Object Preparation
     final newComp = CompanyProfile(
       id: generatedID,
       name: nameC.text.trim().toUpperCase(),
@@ -72,18 +88,23 @@ class _MultiSetupViewState extends State<MultiSetupView> {
       email: emailC.text.trim().toLowerCase(),
       adminUser: usernameC.text.trim().toLowerCase(),
       password: passwordC.text.trim(),
-      fYears: [selectedFY], // Pehla saal automatic add ho jayega
+      fYears: [selectedFY], 
     );
 
-    // Registry mein save karna
-    ph.companiesRegistry.add(newComp);
-    await ph.saveRegistry();
+    // E. Setup Environment (Clean Memory + Fresh Files + Register)
+    await ph.setupNewCompanyEnvironment(newComp, selectedFY);
 
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("✅ Company Registered Successfully!"), backgroundColor: Colors.green),
+        const SnackBar(content: Text("✅ Company Registered & Fresh Data Loaded!"), backgroundColor: Colors.green),
       );
-      // Setup khatam, AppGateway ise automatic handle kar lega
+
+      // F. SMART NAVIGATION
+      // Agar ye manual add hai (List screen se aaya hai), toh pop karke piche jao.
+      // Agar ye first run hai, toh AppGateway automatically UI change kar dega.
+      if (!widget.isFirstRun) {
+        Navigator.pop(context); 
+      }
     }
   }
 
@@ -117,7 +138,7 @@ class _MultiSetupViewState extends State<MultiSetupView> {
                     value: selectedType,
                     decoration: const InputDecoration(border: OutlineInputBorder(), prefixIcon: Icon(Icons.storefront)),
                     items: ["WHOLESALE", "RETAIL"].map((t) => DropdownMenuItem(value: t, child: Text(t))).toList(),
-                    onChanged: (v) => setState(() => selectedType = v!),
+                    onChanged: isLoading ? null : (v) => setState(() => selectedType = v!),
                   ),
                   const SizedBox(height: 15),
                   _dropdownLabel("Base Financial Year"),
@@ -125,7 +146,7 @@ class _MultiSetupViewState extends State<MultiSetupView> {
                     value: selectedFY,
                     decoration: const InputDecoration(border: OutlineInputBorder(), prefixIcon: Icon(Icons.calendar_today)),
                     items: ["2024-25", "2025-26", "2026-27"].map((y) => DropdownMenuItem(value: y, child: Text(y))).toList(),
-                    onChanged: (v) => setState(() => selectedFY = v!),
+                    onChanged: isLoading ? null : (v) => setState(() => selectedFY = v!),
                   ),
                 ],
               ),
@@ -144,7 +165,7 @@ class _MultiSetupViewState extends State<MultiSetupView> {
                     value: selectedState,
                     decoration: const InputDecoration(border: OutlineInputBorder(), prefixIcon: Icon(Icons.map)),
                     items: states.map((s) => DropdownMenuItem(value: s, child: Text(s, style: const TextStyle(fontSize: 13)))).toList(),
-                    onChanged: (v) => setState(() => selectedState = v!),
+                    onChanged: isLoading ? null : (v) => setState(() => selectedState = v!),
                   ),
                   const SizedBox(height: 15),
                   Row(
@@ -195,8 +216,10 @@ class _MultiSetupViewState extends State<MultiSetupView> {
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
                   elevation: 5,
                 ),
-                onPressed: _handleCreateCompany,
-                child: const Text("CREATE & REGISTER COMPANY", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                onPressed: isLoading ? null : _handleCreateCompany,
+                child: isLoading 
+                  ? const CircularProgressIndicator(color: Colors.white) 
+                  : const Text("CREATE & REGISTER COMPANY", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
               ),
             ),
             const SizedBox(height: 40),
@@ -206,7 +229,7 @@ class _MultiSetupViewState extends State<MultiSetupView> {
     );
   }
 
-  // --- UI COMPONENTS ---
+  // --- UI HELPERS ---
 
   Widget _buildIdentityHeader() {
     return Container(
@@ -267,6 +290,7 @@ class _MultiSetupViewState extends State<MultiSetupView> {
       child: TextField(
         controller: ctrl,
         obscureText: isPass,
+        enabled: !isLoading,
         keyboardType: isNum ? TextInputType.number : TextInputType.text,
         textCapitalization: isCaps ? TextCapitalization.characters : (isPass ? TextCapitalization.none : TextCapitalization.words),
         decoration: InputDecoration(
