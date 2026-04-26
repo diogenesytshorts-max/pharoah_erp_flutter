@@ -5,8 +5,8 @@ import 'package:provider/provider.dart';
 import '../pharoah_manager.dart';
 import 'pdc_entry_view.dart';
 import 'outstanding_ageing_view.dart';
-import 'collection_sheet_view.dart';
-import 'bank_book_view.dart'; // NAYA IMPORT
+import 'collection_sheet_view.dart'; // Sahi Import
+import 'bank_book_view.dart';
 
 class FinanceDashboard extends StatelessWidget {
   const FinanceDashboard({super.key});
@@ -14,6 +14,13 @@ class FinanceDashboard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final ph = Provider.of<PharoahManager>(context);
+
+    // Logic: Calculate Live Market Outstanding
+    double totalOutstanding = 0;
+    for (var p in ph.parties) {
+      if (p.name == "CASH") continue;
+      totalOutstanding += _calculatePartyOutstanding(ph, p);
+    }
 
     return Scaffold(
       backgroundColor: const Color(0xFFF5F7FA),
@@ -29,13 +36,16 @@ class FinanceDashboard extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // --- 1. OVERALL OUTSTANDING SUMMARY ---
-            _buildFinancialSummary(ph),
+            _buildFinancialSummary(totalOutstanding),
 
             const SizedBox(height: 25),
-            _sectionTitle("PAYMENT AGEING ANALYSIS"),
+            const Text(
+              "PAYMENT AGEING ANALYSIS",
+              style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.blueGrey, letterSpacing: 1.2),
+            ),
             const SizedBox(height: 10),
 
-            // --- 2. AGEING BOXES (COLOR CODED) ---
+            // --- 2. AGEING BOXES (Visual Representation) ---
             Row(
               children: [
                 _ageingBox("0-30 DAYS", Colors.green),
@@ -47,17 +57,20 @@ class FinanceDashboard extends StatelessWidget {
             ),
 
             const SizedBox(height: 30),
-            _sectionTitle("FINANCIAL TOOLS & REPORTS"),
+            const Text(
+              "FINANCIAL TOOLS & REPORTS",
+              style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.blueGrey, letterSpacing: 1.2),
+            ),
             const SizedBox(height: 15),
 
-            // --- 3. FINANCE TOOLS GRID (FULLY CONNECTED) ---
+            // --- 3. FINANCE TOOLS GRID ---
             GridView.count(
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
               crossAxisCount: 2,
               crossAxisSpacing: 15,
               mainAxisSpacing: 15,
-              childAspectRatio: 1.3,
+              childAspectRatio: 1.2,
               children: [
                 _toolCard(
                   context,
@@ -77,13 +90,12 @@ class FinanceDashboard extends StatelessWidget {
                 ),
                 _toolCard(
                   context,
-                  "SALESMAN", 
-                  "Recovery Report", 
+                  "COLLECTION", 
+                  "Recovery Sheet", 
                   Icons.badge_rounded, 
                   Colors.blueGrey, 
-                  const SalesmanRecoveryView()
+                  const CollectionSheetView() // Link mapped to correct file
                 ),
-                // UPDATED: BANK BOOK CONNECTED
                 _toolCard(
                   context,
                   "BANK BOOK", 
@@ -100,8 +112,26 @@ class FinanceDashboard extends StatelessWidget {
     );
   }
 
-  Widget _buildFinancialSummary(PharoahManager ph) {
-    // Note: Future mein yahan manager se actual totals calculate hoke aayenge
+  // --- HELPERS ---
+
+  double _calculatePartyOutstanding(PharoahManager ph, dynamic p) {
+    double bal = p.opBal;
+    // Add Sales
+    for (var s in ph.sales.where((x) => x.partyName == p.name && x.status == "Active")) {
+      bal += s.totalAmount;
+    }
+    // Subtract Receipts
+    for (var v in ph.vouchers.where((x) => x.partyName == p.name && x.type == "Receipt")) {
+      bal -= v.amount;
+    }
+    // Subtract Sales Returns
+    for (var r in ph.saleReturns.where((x) => x.partyName == p.name)) {
+      bal -= r.totalAmount;
+    }
+    return bal;
+  }
+
+  Widget _buildFinancialSummary(double outstanding) {
     return Container(
       padding: const EdgeInsets.all(25),
       decoration: BoxDecoration(
@@ -112,28 +142,21 @@ class FinanceDashboard extends StatelessWidget {
       child: Column(
         children: [
           const Text("TOTAL MARKET OUTSTANDING", style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.grey, letterSpacing: 1)),
-          const SizedBox(height: 5),
-          const Text("₹0.00", style: TextStyle(fontSize: 32, fontWeight: FontWeight.w900, color: Colors.indigo)),
+          const SizedBox(height: 8),
+          Text(
+            "₹${outstanding.toStringAsFixed(2)}", 
+            style: const TextStyle(fontSize: 32, fontWeight: FontWeight.w900, color: Colors.indigo)
+          ),
           const Divider(height: 30),
-          Row(
+          const Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              _miniStat("Total Payable", "₹0.00", Colors.red.shade700),
-              Container(width: 1, height: 30, color: Colors.grey.shade200),
-              _miniStat("Net Cash Flow", "₹0.00", Colors.green.shade700),
+              _MiniStat(label: "Recovered Today", value: "₹0.00", color: Colors.green),
+              _MiniStat(label: "PDC in Hand", value: "₹0.00", color: Colors.blue),
             ],
           )
         ],
       ),
-    );
-  }
-
-  Widget _miniStat(String label, String val, Color c) {
-    return Column(
-      children: [
-        Text(label, style: const TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.grey)),
-        Text(val, style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: c)),
-      ],
     );
   }
 
@@ -150,7 +173,7 @@ class FinanceDashboard extends StatelessWidget {
           children: [
             Text(label, style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: c)),
             const SizedBox(height: 5),
-            const Icon(Icons.trending_up, size: 14, color: Colors.grey),
+            Icon(Icons.trending_up, size: 14, color: c),
           ],
         ),
       ),
@@ -180,6 +203,20 @@ class FinanceDashboard extends StatelessWidget {
       ),
     );
   }
+}
 
-  Widget _sectionTitle(String t) => Text(t, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.blueGrey, letterSpacing: 1.2));
+class _MiniStat extends StatelessWidget {
+  final String label, value;
+  final Color color;
+  const _MiniStat({required this.label, required this.value, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Text(label, style: const TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.grey)),
+        Text(value, style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: color)),
+      ],
+    );
+  }
 }
