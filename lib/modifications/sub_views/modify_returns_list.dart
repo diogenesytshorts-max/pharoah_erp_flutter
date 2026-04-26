@@ -1,3 +1,5 @@
+// FILE: lib/modifications/sub_views/modify_returns_list.dart
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../pharoah_manager.dart';
@@ -13,7 +15,7 @@ class ModifyReturnsList extends StatelessWidget {
     List<dynamic> allReturns = [...ph.saleReturns, ...ph.purchaseReturns];
 
     final filtered = allReturns.where((r) {
-      String name = (r is SaleReturn) ? r.partyName : r.distributorName;
+      String name = (r is SaleReturn) ? r.partyName : (r as PurchaseReturn).distributorName;
       return r.billNo.toLowerCase().contains(searchQuery.toLowerCase()) || 
              name.toLowerCase().contains(searchQuery.toLowerCase());
     }).toList();
@@ -24,6 +26,8 @@ class ModifyReturnsList extends StatelessWidget {
       itemBuilder: (context, i) {
         final ret = filtered[i];
         bool isSaleRet = ret is SaleReturn;
+        bool canDelete = ph.loggedInStaff == null || ph.loggedInStaff!.canDeleteBill;
+
         return Card(
           margin: const EdgeInsets.only(bottom: 10),
           child: ListTile(
@@ -33,9 +37,11 @@ class ModifyReturnsList extends StatelessWidget {
             ),
             title: Text(ret.billNo, style: const TextStyle(fontWeight: FontWeight.bold)),
             subtitle: Text("${isSaleRet ? ret.partyName : ret.distributorName}\nType: ${ret.returnType}"),
-            trailing: IconButton(icon: const Icon(Icons.delete_outline, color: Colors.red), onPressed: () {
-              if (isSaleRet) ph.deleteSaleReturn(ret.id); else ph.deletePurchaseReturn(ret.id);
-            }),
+            trailing: canDelete
+              ? IconButton(icon: const Icon(Icons.delete_outline, color: Colors.red), onPressed: () {
+                  if (isSaleRet) ph.deleteSaleReturn(ret.id); else ph.deletePurchaseReturn(ret.id);
+                })
+              : const Icon(Icons.lock_outline, size: 18, color: Colors.grey),
           ),
         );
       },
