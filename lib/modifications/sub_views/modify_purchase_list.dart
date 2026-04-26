@@ -1,3 +1,5 @@
+// FILE: lib/modifications/sub_views/modify_purchase_list.dart
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
@@ -25,7 +27,7 @@ class ModifyPurchaseList extends StatelessWidget {
         return Card(
           margin: const EdgeInsets.only(bottom: 10),
           child: ListTile(
-            leading: const CircleAvatar(backgroundColor: Colors.orange, child: Text("P", style: TextStyle(color: Colors.white))),
+            leading: const CircleAvatar(backgroundColor: Colors.orange, child: Text("P", style: TextStyle(color: Colors.white, fontSize: 12))),
             title: Text(p.billNo, style: const TextStyle(fontWeight: FontWeight.bold)),
             subtitle: Text("${p.distributorName}\nDate: ${DateFormat('dd/MM/yy').format(p.date)}"),
             trailing: IconButton(icon: const Icon(Icons.more_vert), onPressed: () => _showOptions(context, ph, p)),
@@ -36,16 +38,21 @@ class ModifyPurchaseList extends StatelessWidget {
   }
 
   void _showOptions(BuildContext context, PharoahManager ph, Purchase p) {
+    bool canDelete = ph.loggedInStaff == null || ph.loggedInStaff!.canDeleteBill;
+
     showModalBottomSheet(context: context, builder: (c) => Column(
       mainAxisSize: MainAxisSize.min,
       children: [
+        const ListTile(title: Text("Purchase Actions", style: TextStyle(fontWeight: FontWeight.bold))),
         ListTile(leading: const Icon(Icons.edit, color: Colors.blue), title: const Text("Edit Purchase"), onTap: () {
           Navigator.pop(c);
           Navigator.push(context, MaterialPageRoute(builder: (c) => PurchaseEntryView(existingPurchase: p)));
         }),
-        ListTile(leading: const Icon(Icons.delete, color: Colors.red), title: const Text("Delete Purchase"), onTap: () {
-          ph.deletePurchase(p.id); Navigator.pop(c);
-        }),
+        if (canDelete)
+          ListTile(leading: const Icon(Icons.delete, color: Colors.red), title: const Text("Delete Purchase"), onTap: () {
+            ph.deletePurchase(p.id); Navigator.pop(c);
+          }),
+        const SizedBox(height: 20),
       ],
     ));
   }
