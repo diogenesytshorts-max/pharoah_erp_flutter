@@ -1,4 +1,4 @@
-// FILE: lib/dashboard_view.dart
+// FILE: lib/dashboard_view.dart (Replace Full)
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -13,7 +13,7 @@ import 'sale_summary_view.dart';
 import 'purchase/purchase_summary_view.dart';
 import 'data_exchange_view.dart';
 import 'app_date_logic.dart';
-import 'business_hub/business_hub_view.dart'; // NAYA IMPORT
+import 'business_hub/business_hub_view.dart';
 
 class DashboardView extends StatelessWidget {
   final VoidCallback onLogout;
@@ -25,6 +25,10 @@ class DashboardView extends StatelessWidget {
     final compName = ph.activeCompany?.name ?? "PHAROAH ERP";
     final compID = ph.activeCompany?.id ?? "N/A";
     final businessType = ph.activeCompany?.businessType ?? "WHOLESALE";
+
+    // --- SECURITY LOGIC ---
+    bool isStaff = ph.loggedInStaff != null;
+    bool canViewFinance = !isStaff || (isStaff && ph.loggedInStaff!.canViewFinance);
 
     DateTime workingDate = AppDateLogic.getSmartDate(ph.currentFY);
 
@@ -58,8 +62,7 @@ class DashboardView extends StatelessWidget {
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(isPastYear ? "AUDIT: $compName" : compName, 
-                      style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white)),
+                    Text(isPastYear ? "AUDIT: $compName" : compName, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white)),
                     Row(
                       children: [
                         Text("ID: $compID", style: const TextStyle(fontSize: 10, color: Colors.white70)),
@@ -69,16 +72,21 @@ class DashboardView extends StatelessWidget {
                           decoration: BoxDecoration(color: isPastYear ? Colors.orange : Colors.blue.shade300, borderRadius: BorderRadius.circular(4)),
                           child: Text(businessType, style: const TextStyle(fontSize: 7, fontWeight: FontWeight.bold, color: Colors.white)),
                         ),
+                        if (isStaff) ...[
+                           const SizedBox(width: 8),
+                           Container(
+                             padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                             decoration: BoxDecoration(color: Colors.red.shade400, borderRadius: BorderRadius.circular(4)),
+                             child: Text("USER: ${ph.loggedInStaff!.name.toUpperCase()}", style: const TextStyle(fontSize: 7, fontWeight: FontWeight.bold, color: Colors.white)),
+                           ),
+                        ]
                       ],
                     ),
                     Text("Working Year: ${ph.currentFY}", style: const TextStyle(fontSize: 11, color: Colors.white70)),
                   ],
                 ),
                 const Spacer(),
-                IconButton(
-                  icon: const Icon(Icons.swap_horizontal_circle_outlined, color: Colors.white, size: 32), 
-                  onPressed: onLogout,
-                )
+                IconButton(icon: const Icon(Icons.swap_horizontal_circle_outlined, color: Colors.white, size: 32), onPressed: onLogout)
               ],
             ),
           ),
@@ -104,31 +112,15 @@ class DashboardView extends StatelessWidget {
                   ),
 
                   Row(children: [
-                    Expanded(child: StatWidget(
-                      title: isPastYear ? "LAST DAY SALE" : "TODAY SALE", 
-                      value: "₹${todaySales.toStringAsFixed(0)}", 
-                      period: isPastYear ? "FY Final" : "Today", 
-                      icon: "trending_up", 
-                      color: isPastYear ? Colors.purple : Colors.green
-                    )),
+                    Expanded(child: StatWidget(title: isPastYear ? "LAST DAY SALE" : "TODAY SALE", value: "₹${todaySales.toStringAsFixed(0)}", period: isPastYear ? "FY Final" : "Today", icon: "trending_up", color: isPastYear ? Colors.purple : Colors.green)),
                     const SizedBox(width: 12),
-                    Expanded(child: StatWidget(
-                      title: isPastYear ? "LAST DAY PUR" : "TODAY PUR", 
-                      value: "₹${todayPur.toStringAsFixed(0)}", 
-                      period: isPastYear ? "FY Final" : "Today", 
-                      icon: "shopping_cart", 
-                      color: Colors.orange
-                    )),
+                    Expanded(child: StatWidget(title: isPastYear ? "LAST DAY PUR" : "TODAY PUR", value: "₹${todayPur.toStringAsFixed(0)}", period: isPastYear ? "FY Final" : "Today", icon: "shopping_cart", color: Colors.orange)),
                   ]),
                   
                   const SizedBox(height: 12),
-                  StatWidget(
-                    title: isPastYear ? "CLOSING STOCK VALUE" : "TOTAL STOCK VALUE", 
-                    value: "₹${stockVal.toStringAsFixed(0)}", 
-                    period: "Calculated", 
-                    icon: "inventory_2", 
-                    color: isPastYear ? Colors.deepPurple : Colors.indigo
-                  ),
+                  // SECURITY WALL: Hide stock value from unauthorized staff
+                  if (canViewFinance)
+                    StatWidget(title: isPastYear ? "CLOSING STOCK VALUE" : "TOTAL STOCK VALUE", value: "₹${stockVal.toStringAsFixed(0)}", period: "Calculated", icon: "inventory_2", color: isPastYear ? Colors.deepPurple : Colors.indigo),
                   
                   const SizedBox(height: 30),
                   const Text("DAILY TRANSACTIONS", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.blueGrey, letterSpacing: 1)),
@@ -149,18 +141,11 @@ class DashboardView extends StatelessWidget {
                     shrinkWrap: true, physics: const NeverScrollableScrollPhysics(),
                     crossAxisCount: 3, crossAxisSpacing: 10, mainAxisSpacing: 10, childAspectRatio: 0.9,
                     children: [
-                      ActionIconBtn(title: "Accounts", icon: Icons.account_balance_wallet, color: Colors.green.shade700, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => const AccountsMenuView()))),
+                      if (canViewFinance) ActionIconBtn(title: "Accounts", icon: Icons.account_balance_wallet, color: Colors.green.shade700, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => const AccountsMenuView()))),
                       ActionIconBtn(title: "Sale Reg", icon: Icons.description_outlined, color: Colors.blue, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => const SaleSummaryView()))),
-                      ActionIconBtn(title: "Pur Reg", icon: Icons.history_rounded, color: Colors.brown, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => const PurchaseSummaryView()))),
-                      ActionIconBtn(title: "Data Hub", icon: Icons.cloud_sync_rounded, color: Colors.teal, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => const DataExchangeView()))),
-                      
-                      // UPDATED BUTTON: Ab ye Business Hub pe bhejega
-                      ActionIconBtn(
-                        title: "Adv. Hub", 
-                        icon: Icons.rocket_launch_rounded, 
-                        color: Colors.indigo.shade900, 
-                        onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => const BusinessHubView()))
-                      ),
+                      if (canViewFinance) ActionIconBtn(title: "Pur Reg", icon: Icons.history_rounded, color: Colors.brown, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => const PurchaseSummaryView()))),
+                      if (canViewFinance) ActionIconBtn(title: "Data Hub", icon: Icons.cloud_sync_rounded, color: Colors.teal, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => const DataExchangeView()))),
+                      ActionIconBtn(title: "Adv. Hub", icon: Icons.rocket_launch_rounded, color: Colors.indigo.shade900, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => const BusinessHubView()))),
                     ],
                   ),
                 ],
