@@ -1,4 +1,5 @@
-// FILE: lib/returns/purchase_return_view.dart (Standard Smart Screen)
+// FILE: lib/returns/purchase_return_view.dart
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
@@ -6,11 +7,13 @@ import '../pharoah_manager.dart';
 import '../models.dart';
 import '../logic/pharoah_numbering_engine.dart';
 import '../pharoah_date_controller.dart';
-import '../purchase/purchase_billing_view.dart';
+import '../product_master.dart';
 
 class PurchaseReturnView extends StatefulWidget {
   const PurchaseReturnView({super.key});
-  @override State<PurchaseReturnView> createState() => _PurchaseReturnViewState();
+
+  @override
+  State<PurchaseReturnView> createState() => _PurchaseReturnViewState();
 }
 
 class _PurchaseReturnViewState extends State<PurchaseReturnView> {
@@ -18,7 +21,7 @@ class _PurchaseReturnViewState extends State<PurchaseReturnView> {
   DateTime selectedDate = DateTime.now();
   Party? selectedSupplier;
   List<PurchaseItem> items = [];
-  String returnNature = "Sellable"; // DEFAULT: Sellable Maal
+  String returnNature = "Sellable"; 
 
   @override
   void initState() {
@@ -28,8 +31,29 @@ class _PurchaseReturnViewState extends State<PurchaseReturnView> {
 
   void _initDN() async {
     final ph = Provider.of<PharoahManager>(context, listen: false);
-    String nextNo = await PharoahNumberingEngine.getNextNumber(type: "PUR_RETURN", companyID: ph.activeCompany!.id, currentList: ph.purchaseReturns);
-    setState(() { returnNoC.text = nextNo; selectedDate = PharoahDateController.getInitialBillDate(ph.currentFY); });
+    if (ph.activeCompany != null) {
+      // NAYA: Multi-Series aware number generator
+      var series = ph.getDefaultSeries("RETURN");
+      String nextNo = await PharoahNumberingEngine.getNextNumber(
+        type: "RETURN",
+        companyID: ph.activeCompany!.id,
+        prefix: series.prefix,
+        startFrom: series.startNumber,
+        currentList: ph.purchaseReturns,
+      );
+      setState(() {
+        returnNoC.text = nextNo;
+        selectedDate = PharoahDateController.getInitialBillDate(ph.currentFY);
+      });
+    }
+  }
+
+  void _recalculateSR() {
+    setState(() {
+      for (int i = 0; i < items.length; i++) {
+        items[i] = items[i].copyWith(srNo: i + 1);
+      }
+    });
   }
 
   @override
@@ -38,10 +62,10 @@ class _PurchaseReturnViewState extends State<PurchaseReturnView> {
     Color themeColor = returnNature == "Sellable" ? Colors.blue.shade900 : Colors.brown.shade800;
 
     return Scaffold(
-      appBar: AppBar(title: const Text("Purchase Return (Debit Note)"), backgroundColor: themeColor),
+      appBar: AppBar(title: const Text("Purchase Return (Debit Note)"), backgroundColor: themeColor, foregroundColor: Colors.white),
       body: Column(
         children: [
-          // NATURE SWITCHER (Standard ERP Method)
+          // NATURE SWITCHER
           Container(
             padding: const EdgeInsets.all(15), color: themeColor.withOpacity(0.1),
             child: Row(
@@ -59,27 +83,63 @@ class _PurchaseReturnViewState extends State<PurchaseReturnView> {
               ],
             ),
           ),
+          
           ListTile(
             leading: const Icon(Icons.business),
             title: Text(selectedSupplier?.name ?? "Pick Distributor"),
             onTap: () => _pickDistributor(ph),
           ),
-          Expanded(child: ListView.builder(itemCount: items.length, itemBuilder: (c, i) => ListTile(title: Text(items[i].name), subtitle: Text("Qty: ${items[i].qty}")))),
+          
+          // SEARCH BAR (Replaced FAB trigger)
+          if(selectedSupplier != null)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+              child: InkWell(
+                onTap: () => _addItem(ph),
+                child: Container(
+                  padding: const EdgeInsets.all(15),
+                  decoration: BoxDecoration(color: Colors.white, border: Border.all(color: Colors.grey.shade300), borderRadius: BorderRadius.circular(10)),
+                  child: Row(children: [const Icon(Icons.search), const SizedBox(width: 10), const Text("Search & Add Item...")]),
+                ),
+              ),
+            ),
+
+          Expanded(
+            child: ListView.builder(
+              padding: const EdgeInsets.all(10),
+              itemCount: items.length,
+              itemBuilder: (c, i) => Dismissible(
+                key: Key(items[i].id),
+                direction: DismissDirection.endToStart,
+                background: Container(color: Colors.red, alignment: Alignment.centerRight, padding: const EdgeInsets.only(right: 20), child: const Icon(Icons.delete, color: Colors.white)),
+                onDismissed: (d) { setState(() => items.removeAt(i)); _recalculateSR(); },
+                child: Card(child: ListTile(title: Text(items[i].name), subtitle: Text("Qty: ${items[i].qty.toInt()}"))),
+              )
+            )
+          ),
+
           if (items.isNotEmpty)
             Padding(
               padding: const EdgeInsets.all(20),
               child: ElevatedButton(
                 style: ElevatedButton.styleFrom(backgroundColor: themeColor, minimumSize: const Size(double.infinity, 50)),
-                onPressed: () {
+                onPressed: () async {
                   ph.finalizePurchaseReturn(billNo: returnNoC.text, date: selectedDate, party: selectedSupplier!, items: items, total: items.fold(0, (s, it) => s + it.total), type: returnNature);
-                  Navigator.pop(context);
+                  
+                  // Counter Update
+                  if (ph.activeCompany != null) {
+                    await PharoahNumberingEngine.updateSeriesCounter(
+                      type: "RETURN", companyID: ph.activeCompany!.id, usedNumber: returnNoC.text, prefix: ph.getDefaultSeries("RETURN").prefix
+                    );
+                  }
+                  
+                  if(mounted) Navigator.pop(context);
                 },
                 child: Text("FINALIZE $returnNature RETURN", style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
               ),
             )
         ],
       ),
-      floatingActionButton: selectedSupplier != null ? FloatingActionButton(backgroundColor: themeColor, onPressed: () => _addItem(ph), child: const Icon(Icons.add, color: Colors.white)) : null,
     );
   }
 
