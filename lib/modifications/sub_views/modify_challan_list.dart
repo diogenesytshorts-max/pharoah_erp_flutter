@@ -1,3 +1,5 @@
+// FILE: lib/modifications/sub_views/modify_challan_list.dart
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../pharoah_manager.dart';
@@ -10,12 +12,10 @@ class ModifyChallanList extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final ph = Provider.of<PharoahManager>(context);
-    
-    // Combine Sale and Purchase Challans
     List<dynamic> allChallans = [...ph.saleChallans, ...ph.purchaseChallans];
     
     final filtered = allChallans.where((c) {
-      String name = (c is SaleChallan) ? c.partyName : c.distributorName;
+      String name = (c is SaleChallan) ? c.partyName : (c as PurchaseChallan).distributorName;
       return c.billNo.toLowerCase().contains(searchQuery.toLowerCase()) || 
              name.toLowerCase().contains(searchQuery.toLowerCase());
     }).toList();
@@ -26,6 +26,8 @@ class ModifyChallanList extends StatelessWidget {
       itemBuilder: (context, i) {
         final ch = filtered[i];
         bool isSale = ch is SaleChallan;
+        bool canDelete = ph.loggedInStaff == null || ph.loggedInStaff!.canDeleteBill;
+
         return Card(
           margin: const EdgeInsets.only(bottom: 10),
           child: ListTile(
@@ -35,9 +37,11 @@ class ModifyChallanList extends StatelessWidget {
             ),
             title: Text(ch.billNo, style: const TextStyle(fontWeight: FontWeight.bold)),
             subtitle: Text(isSale ? ch.partyName : ch.distributorName),
-            trailing: IconButton(icon: const Icon(Icons.delete_outline, color: Colors.red), onPressed: () {
-              if (isSale) ph.deleteSaleChallan(ch.id); else ph.deletePurchaseChallan(ch.id);
-            }),
+            trailing: canDelete 
+              ? IconButton(icon: const Icon(Icons.delete_outline, color: Colors.red), onPressed: () {
+                  if (isSale) ph.deleteSaleChallan(ch.id); else ph.deletePurchaseChallan(ch.id);
+                })
+              : const Icon(Icons.lock_outline, size: 18, color: Colors.grey),
           ),
         );
       },
