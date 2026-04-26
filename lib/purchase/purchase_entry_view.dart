@@ -7,7 +7,7 @@ import '../pharoah_manager.dart';
 import '../models.dart';
 import '../party_master.dart';
 import '../pharoah_date_controller.dart'; 
-import '../pharoah_smart_logic.dart'; // NAYA: Logic Master Connection
+import '../logic/pharoah_numbering_engine.dart';
 import 'purchase_billing_view.dart';
 
 class PurchaseEntryView extends StatefulWidget {
@@ -27,40 +27,54 @@ class _PurchaseEntryViewState extends State<PurchaseEntryView> {
   String paymentMode = "CREDIT"; 
   Party? selectedDistributor; 
   String distSearchQuery = "";
+  bool isLoading = true;
 
   @override void initState() {
     super.initState();
     _initializePurchaseSession();
   }
 
+  // ===========================================================================
+  // SESSION INITIALIZATION (Smart Numbering & Date)
+  // ===========================================================================
   void _initializePurchaseSession() {
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       final ph = Provider.of<PharoahManager>(context, listen: false);
       
       if (widget.existingPurchase != null) {
-        // CASE: Modifying existing Purchase
+        // CASE: Modification Mode
         setState(() {
           supplierBillNoC.text = widget.existingPurchase!.billNo;
           internalEntryNoC.text = widget.existingPurchase!.internalNo;
           selectedBillDate = widget.existingPurchase!.date;
           selectedEntryDate = widget.existingPurchase!.entryDate;
           paymentMode = widget.existingPurchase!.paymentMode;
-          selectedDistributor = ph.parties.firstWhere(
-            (p) => p.name == widget.existingPurchase!.distributorName, 
-            orElse: () => ph.parties[0]
-          );
+          try {
+            selectedDistributor = ph.parties.firstWhere(
+              (p) => p.name == widget.existingPurchase!.distributorName
+            );
+          } catch(e) {
+            selectedDistributor = Party(id: '0', name: widget.existingPurchase!.distributorName);
+          }
+          isLoading = false;
         });
       } else {
-        // CASE: New Purchase Entry
+        // CASE: New Entry Mode (Get Next Sequential ID)
         if (ph.activeCompany != null) {
-          // NAYA: Smart Logic se Company-Specific Purchase ID mangna
-          String nextPurNo = await PharoahSmartLogic.getNextPurchaseNumber(ph.activeCompany!.id);
-          internalEntryNoC.text = nextPurNo;
+          String nextPurNo = await PharoahNumberingEngine.getNextNumber(
+            type: "PURCHASE",
+            companyID: ph.activeCompany!.id,
+            prefix: "PUR-", // Purchase always uses internal sequence
+            startFrom: 1,
+            currentList: ph.purchases,
+          );
           
           DateTime smartDate = PharoahDateController.getInitialBillDate(ph.currentFY);
           setState(() {
+            internalEntryNoC.text = nextPurNo;
             selectedBillDate = smartDate;
             selectedEntryDate = smartDate;
+            isLoading = false;
           });
         }
       }
@@ -74,22 +88,25 @@ class _PurchaseEntryViewState extends State<PurchaseEntryView> {
 
   @override Widget build(BuildContext context) {
     final ph = Provider.of<PharoahManager>(context);
+
+    if (isLoading) return const Scaffold(body: Center(child: CircularProgressIndicator()));
+
     return Scaffold(
       backgroundColor: const Color(0xFFF5F6F9),
       appBar: AppBar(
-        title: Text(widget.isReadOnly ? "View Purchase (Read Only)" : (widget.existingPurchase != null ? "Modify Purchase" : "Purchase Entry")), 
+        title: Text(widget.isReadOnly ? "View Purchase" : (widget.existingPurchase != null ? "Modify Purchase" : "Purchase Inward Entry")), 
         backgroundColor: widget.isReadOnly ? Colors.purple.shade700 : Colors.orange.shade800, 
         foregroundColor: Colors.white
       ),
       body: IgnorePointer(
         ignoring: widget.isReadOnly,
         child: Column(children: [
+          // --- HEADER SECTION: IDS & DATES ---
           Container(padding: const EdgeInsets.all(20), color: Colors.white, child: Column(children: [
             Row(children: [
-              // INTERNAL ID (e.g. PUR-1) - Managed by Smart Logic
-              Expanded(child: TextField(controller: internalEntryNoC, enabled: false, decoration: const InputDecoration(labelText: "ENTRY ID", border: OutlineInputBorder(), filled: true, fillColor: Color(0xFFF5F5F5)))),
+              Expanded(child: TextField(controller: internalEntryNoC, readOnly: true, decoration: const InputDecoration(labelText: "INTERNAL ID", border: OutlineInputBorder(), filled: true, fillColor: Color(0xFFF5F5F5)))),
               const SizedBox(width: 15),
-              Expanded(child: TextField(controller: supplierBillNoC, textCapitalization: TextCapitalization.characters, decoration: const InputDecoration(labelText: "SUPPLIER BILL NO", border: OutlineInputBorder()))),
+              Expanded(child: TextField(controller: supplierBillNoC, textCapitalization: TextCapitalization.characters, decoration: const InputDecoration(labelText: "SUPPLIER BILL NO", border: OutlineInputBorder(), hintText: "Enter Bill #"))),
             ]),
             const SizedBox(height: 15),
             Row(children: [
@@ -106,34 +123,48 @@ class _PurchaseEntryViewState extends State<PurchaseEntryView> {
                   DateTime? p = await PharoahDateController.pickDate(context: context, currentFY: ph.currentFY, initialDate: selectedEntryDate);
                   if (p != null) setState(() => selectedEntryDate = p); 
                 }, 
-                child: _dateDisplay("ENTRY DATE", selectedEntryDate, Colors.blue)
+                child: _dateDisplay("STOCK ENTRY DATE", selectedEntryDate, Colors.blue)
               )),
             ]),
-            const SizedBox(height: 15),
-            SegmentedButton<String>(
-              segments: const [ButtonSegment(value: 'CASH', label: Text('CASH')), ButtonSegment(value: 'CREDIT', label: Text('CREDIT'))], 
+          ])),
+
+          // --- PAYMENT MODE ---
+          Padding(
+            padding: const EdgeInsets.all(15),
+            child: SegmentedButton<String>(
+              segments: const [
+                ButtonSegment(value: 'CASH', label: Text('CASH'), icon: Icon(Icons.money)), 
+                ButtonSegment(value: 'CREDIT', label: Text('CREDIT'), icon: Icon(Icons.credit_card))
+              ], 
               selected: {paymentMode}, 
               onSelectionChanged: (v) => setState(() => paymentMode = v.first)
             ),
-          ])),
+          ),
 
+          // --- SUPPLIER SELECTION ---
           Expanded(child: selectedDistributor != null ? _buildSupplierCard() : _buildSearchList(ph)),
 
           if (selectedDistributor != null) Padding(
             padding: const EdgeInsets.all(20), 
             child: ElevatedButton(
               style: ElevatedButton.styleFrom(minimumSize: const Size(double.infinity, 60), backgroundColor: widget.isReadOnly ? Colors.purple : Colors.orange.shade800, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15))), 
-              onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (c) => PurchaseBillingView(
-                distributor: selectedDistributor!, 
-                internalNo: internalEntryNoC.text, 
-                distBillNo: supplierBillNoC.text.trim(), 
-                billDate: selectedBillDate, 
-                entryDate: selectedEntryDate, 
-                mode: paymentMode, 
-                existingItems: widget.existingPurchase?.items, 
-                modifyPurchaseId: widget.existingPurchase?.id,
-                isReadOnly: widget.isReadOnly,
-              ))), 
+              onPressed: () {
+                if (supplierBillNoC.text.isEmpty) {
+                   ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Supplier Bill No is required!"), backgroundColor: Colors.red));
+                   return;
+                }
+                Navigator.push(context, MaterialPageRoute(builder: (c) => PurchaseBillingView(
+                  distributor: selectedDistributor!, 
+                  internalNo: internalEntryNoC.text, 
+                  distBillNo: supplierBillNoC.text.trim(), 
+                  billDate: selectedBillDate, 
+                  entryDate: selectedEntryDate, 
+                  mode: paymentMode, 
+                  existingItems: widget.existingPurchase?.items, 
+                  modifyPurchaseId: widget.existingPurchase?.id,
+                  isReadOnly: widget.isReadOnly,
+                )));
+              }, 
               child: Text(widget.isReadOnly ? "VIEW PURCHASED ITEMS" : "PROCEED TO ITEM ENTRY", style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16))
             )
           )
@@ -142,25 +173,25 @@ class _PurchaseEntryViewState extends State<PurchaseEntryView> {
     );
   }
 
-  Widget _dateDisplay(String l, DateTime d, Color c) => Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(border: Border.all(color: Colors.grey.shade300), borderRadius: BorderRadius.circular(5)), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(l, style: TextStyle(fontSize: 9, color: c, fontWeight: FontWeight.bold)), Text(DateFormat('dd/MM/yyyy').format(d), style: const TextStyle(fontWeight: FontWeight.bold))]));
+  Widget _dateDisplay(String l, DateTime d, Color c) => Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(border: Border.all(color: Colors.grey.shade300), borderRadius: BorderRadius.circular(5)), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(l, style: TextStyle(fontSize: 8, color: c, fontWeight: FontWeight.bold)), const SizedBox(height: 2), Text(DateFormat('dd/MM/yyyy').format(d), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13))]));
   
   Widget _buildSupplierCard() => Card(
-    margin: const EdgeInsets.all(15), elevation: 3,
+    margin: const EdgeInsets.symmetric(horizontal: 15), elevation: 3,
     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15), side: BorderSide(color: Colors.orange.shade100, width: 1)),
     child: ListTile(
       leading: const CircleAvatar(backgroundColor: Colors.orange, child: Icon(Icons.business, color: Colors.white)),
-      title: Text(selectedDistributor!.name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 17)), 
+      title: Text(selectedDistributor!.name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)), 
       subtitle: Text("${selectedDistributor!.city} | GST: ${selectedDistributor!.gst}"), 
       trailing: widget.isReadOnly ? null : IconButton(icon: const Icon(Icons.close, color: Colors.red), onPressed: () => setState(() => selectedDistributor = null))
     )
   );
 
   Widget _buildSearchList(PharoahManager ph) => Column(children: [
-    Padding(padding: const EdgeInsets.all(15), child: Row(children: [
+    Padding(padding: const EdgeInsets.symmetric(horizontal: 15), child: Row(children: [
       Expanded(child: TextField(decoration: const InputDecoration(hintText: "Search Supplier...", prefixIcon: Icon(Icons.search), border: OutlineInputBorder()), onChanged: (v) => setState(() => distSearchQuery = v))), 
       const SizedBox(width: 10),
       IconButton.filled(onPressed: _handleQuickAddSupplier, icon: const Icon(Icons.group_add_rounded), style: IconButton.styleFrom(backgroundColor: Colors.orange.shade800, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)))),
     ])), 
-    Expanded(child: ListView(children: ph.parties.where((p) => p.group == "Sundry Creditors" && p.name.toLowerCase().contains(distSearchQuery.toLowerCase())).map((p) => ListTile(title: Text(p.name), subtitle: Text(p.city), onTap: () => setState(() => selectedDistributor = p))).toList()))
+    Expanded(child: ListView(padding: const EdgeInsets.all(5), children: ph.parties.where((p) => p.group == "Sundry Creditors" && p.name.toLowerCase().contains(distSearchQuery.toLowerCase())).map((p) => ListTile(title: Text(p.name, style: const TextStyle(fontWeight: FontWeight.bold)), subtitle: Text(p.city), onTap: () => setState(() => selectedDistributor = p))).toList()))
   ]);
 }
