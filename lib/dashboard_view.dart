@@ -1,4 +1,4 @@
-// FILE: lib/dashboard_view.dart (Replace Full with Security Checks)
+// FILE: lib/dashboard_view.dart
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -26,13 +26,10 @@ class DashboardView extends StatelessWidget {
     final compID = ph.activeCompany?.id ?? "N/A";
     final businessType = ph.activeCompany?.businessType ?? "WHOLESALE";
 
-    // --- SECURITY LOGIC (Permissions Check) ---
-    bool isStaff = ph.loggedInStaff != null;
-    // Agar Admin hai toh true, agar Staff hai toh uski permission check karo
-    bool canViewFinance = !isStaff || (isStaff && ph.loggedInStaff!.canViewFinance);
-
+    // Date calculations for current FY
     DateTime workingDate = AppDateLogic.getSmartDate(ph.currentFY);
 
+    // Filtered Stats (Isolated to current company memory)
     double todaySales = ph.sales
         .where((s) => s.status == "Active" && _isSameDay(s.date, workingDate))
         .fold(0.0, (sum, s) => sum + s.totalAmount);
@@ -46,101 +43,85 @@ class DashboardView extends StatelessWidget {
       medicines: ph.medicines
     );
 
-    bool isPastYear = !AppDateLogic.isValidInFY(DateTime.now(), ph.currentFY);
-
     return Scaffold(
       backgroundColor: const Color(0xFFF8F9FD),
       body: Column(
         children: [
-          // --- HEADER ---
+          // --- DASHBOARD HEADER ---
           Container(
             padding: const EdgeInsets.only(top: 60, left: 25, right: 25, bottom: 25),
-            decoration: BoxDecoration(
-              color: isPastYear ? Colors.purple.shade900 : const Color(0xFF0D47A1),
-              borderRadius: const BorderRadius.only(bottomLeft: Radius.circular(30), bottomRight: Radius.circular(30))
+            decoration: const BoxDecoration(
+              color: Color(0xFF0D47A1),
+              borderRadius: BorderRadius.only(bottomLeft: Radius.circular(30), bottomRight: Radius.circular(30))
             ),
             child: Row(
               children: [
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(isPastYear ? "AUDIT: $compName" : compName, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white)),
+                    Text(compName, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white)),
                     Row(
                       children: [
                         Text("ID: $compID", style: const TextStyle(fontSize: 10, color: Colors.white70)),
                         const SizedBox(width: 8),
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
-                          decoration: BoxDecoration(color: isPastYear ? Colors.orange : Colors.blue.shade300, borderRadius: BorderRadius.circular(4)),
+                          decoration: BoxDecoration(color: Colors.blue.shade300, borderRadius: BorderRadius.circular(4)),
                           child: Text(businessType, style: const TextStyle(fontSize: 7, fontWeight: FontWeight.bold, color: Colors.white)),
                         ),
-                        // NAYA: User Name Badge
-                        if (isStaff) ...[
-                           const SizedBox(width: 8),
-                           Container(
-                             padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
-                             decoration: BoxDecoration(color: Colors.red.shade400, borderRadius: BorderRadius.circular(4)),
-                             child: Text("USER: ${ph.loggedInStaff!.name.toUpperCase()}", style: const TextStyle(fontSize: 7, fontWeight: FontWeight.bold, color: Colors.white)),
-                           ),
-                        ]
                       ],
                     ),
                   ],
                 ),
                 const Spacer(),
-                IconButton(icon: const Icon(Icons.swap_horizontal_circle_outlined, color: Colors.white, size: 32), onPressed: onLogout)
+                IconButton(
+                  icon: const Icon(Icons.swap_horizontal_circle_outlined, color: Colors.white, size: 32), 
+                  onPressed: onLogout
+                )
               ],
             ),
           ),
           
+          // --- STATS & ACTIONS ---
           Expanded(
             child: SingleChildScrollView(
               padding: const EdgeInsets.all(20),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // --- TOP STATS ---
                   Row(children: [
-                    Expanded(child: StatWidget(title: isPastYear ? "LAST DAY SALE" : "TODAY SALE", value: "₹${todaySales.toStringAsFixed(0)}", period: isPastYear ? "FY Final" : "Today", icon: "trending_up", color: isPastYear ? Colors.purple : Colors.green)),
+                    Expanded(child: StatWidget(title: "TODAY SALE", value: "₹${todaySales.toStringAsFixed(0)}", period: "Today", icon: "trending_up", color: Colors.green)),
                     const SizedBox(width: 12),
-                    Expanded(child: StatWidget(title: isPastYear ? "LAST DAY PUR" : "TODAY PUR", value: "₹${todayPur.toStringAsFixed(0)}", period: isPastYear ? "FY Final" : "Today", icon: "shopping_cart", color: Colors.orange)),
+                    Expanded(child: StatWidget(title: "TODAY PURCHASE", value: "₹${todayPur.toStringAsFixed(0)}", period: "Today", icon: "shopping_cart", color: Colors.orange)),
                   ]),
                   
                   const SizedBox(height: 12),
-                  
-                  // --- SECURITY WALL 1: HIDE STOCK VALUE ---
-                  if (canViewFinance)
-                    StatWidget(title: isPastYear ? "CLOSING STOCK VALUE" : "TOTAL STOCK VALUE", value: "₹${stockVal.toStringAsFixed(0)}", period: "Calculated", icon: "inventory_2", color: isPastYear ? Colors.deepPurple : Colors.indigo),
+                  StatWidget(title: "ESTIMATED STOCK VALUE", value: "₹${stockVal.toStringAsFixed(0)}", period: "Real-time", icon: "inventory_2", color: Colors.indigo),
                   
                   const SizedBox(height: 30),
-                  const Text("DAILY TRANSACTIONS", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.blueGrey, letterSpacing: 1)),
+                  const Text("QUICK ENTRIES", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.blueGrey, letterSpacing: 1)),
                   const SizedBox(height: 12),
                   Row(children: [
-                    Expanded(child: _bigEntryButton(context, "NEW SALE", Icons.add_shopping_cart, Colors.blue.shade700, const SaleEntryView())),
+                    Expanded(child: _entryBtn(context, "NEW SALE", Icons.add_shopping_cart, Colors.blue.shade700, const SaleEntryView())),
                     const SizedBox(width: 15),
-                    Expanded(child: _bigEntryButton(context, "PURCHASE ENTRY", Icons.downloading_rounded, Colors.orange.shade800, const PurchaseEntryView())),
+                    Expanded(child: _entryBtn(context, "PURCHASE", Icons.downloading_rounded, Colors.orange.shade800, const PurchaseEntryView())),
                   ]),
                   
                   const SizedBox(height: 30),
-                  _buildMasterHubGateway(context),
+                  _buildMasterHub(context),
                   
                   const SizedBox(height: 30),
-                  const Text("REPORTS & UTILITIES", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.blueGrey, letterSpacing: 1)),
+                  const Text("REPORTS & ADVANCED", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.blueGrey, letterSpacing: 1)),
                   const SizedBox(height: 12),
                   
-                  // --- SECURITY WALL 2: HIDE BUTTONS BASED ON PERMISSION ---
                   GridView.count(
                     shrinkWrap: true, physics: const NeverScrollableScrollPhysics(),
                     crossAxisCount: 3, crossAxisSpacing: 10, mainAxisSpacing: 10, childAspectRatio: 0.9,
                     children: [
-                      if (canViewFinance) ActionIconBtn(title: "Accounts", icon: Icons.account_balance_wallet, color: Colors.green.shade700, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => const AccountsMenuView()))),
-                      
+                      ActionIconBtn(title: "Accounts", icon: Icons.account_balance_wallet, color: Colors.green.shade700, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => const AccountsMenuView()))),
                       ActionIconBtn(title: "Sale Reg", icon: Icons.description_outlined, color: Colors.blue, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => const SaleSummaryView()))),
-                      
-                      if (canViewFinance) ActionIconBtn(title: "Pur Reg", icon: Icons.history_rounded, color: Colors.brown, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => const PurchaseSummaryView()))),
-                      
-                      if (canViewFinance) ActionIconBtn(title: "Data Hub", icon: Icons.cloud_sync_rounded, color: Colors.teal, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => const DataExchangeView()))),
-                      
+                      ActionIconBtn(title: "Pur Reg", icon: Icons.history_rounded, color: Colors.brown, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => const PurchaseSummaryView()))),
+                      ActionIconBtn(title: "Data Hub", icon: Icons.cloud_sync_rounded, color: Colors.teal, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => const DataExchangeView()))),
                       ActionIconBtn(title: "Adv. Hub", icon: Icons.rocket_launch_rounded, color: Colors.indigo.shade900, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => const BusinessHubView()))),
                     ],
                   ),
@@ -153,8 +134,7 @@ class DashboardView extends StatelessWidget {
     );
   }
 
-  // --- UI HELPERS ---
-  Widget _bigEntryButton(BuildContext context, String label, IconData icon, Color color, Widget target) {
+  Widget _entryBtn(BuildContext context, String label, IconData icon, Color color, Widget target) {
     return InkWell(
       onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => target)),
       child: Container(
@@ -165,7 +145,7 @@ class DashboardView extends StatelessWidget {
     );
   }
 
-  Widget _buildMasterHubGateway(BuildContext context) {
+  Widget _buildMasterHub(BuildContext context) {
     return InkWell(
       onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => const MasterHubView())),
       child: Container(
@@ -174,7 +154,7 @@ class DashboardView extends StatelessWidget {
         child: const Row(children: [
           Icon(Icons.stars_rounded, color: Colors.white, size: 42),
           SizedBox(width: 18),
-          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text("MASTER HUB", style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)), Text("Manage Parties, Items, Companies & more", style: TextStyle(color: Colors.white70, fontSize: 11))])),
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text("MASTER HUB", style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)), Text("Items, Parties & Masters", style: TextStyle(color: Colors.white70, fontSize: 11))])),
           Icon(Icons.arrow_forward_ios, color: Colors.white54, size: 18),
         ]),
       ),
