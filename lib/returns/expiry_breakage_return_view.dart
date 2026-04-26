@@ -33,11 +33,18 @@ class _ExpiryBreakageReturnViewState extends State<ExpiryBreakageReturnView> {
   void _initBreakage() async {
     final ph = Provider.of<PharoahManager>(context, listen: false);
     if (ph.activeCompany != null) {
+      
+      // Using RETURN series for Breakage as well, or you can create a specific BRK- series in settings
+      var defaultRetSeries = ph.getDefaultSeries("RETURN");
+      
       String nextNo = await PharoahNumberingEngine.getNextNumber(
-        type: "BREAKAGE_RETURN",
+        type: "RETURN",
         companyID: ph.activeCompany!.id,
+        prefix: defaultRetSeries.prefix,
+        startFrom: defaultRetSeries.startNumber,
         currentList: ph.saleReturns,
       );
+      
       setState(() {
         returnNoC.text = nextNo;
         selectedDate = PharoahDateController.getInitialBillDate(ph.currentFY);
@@ -47,6 +54,91 @@ class _ExpiryBreakageReturnViewState extends State<ExpiryBreakageReturnView> {
   }
 
   double get totalAmt => items.fold(0, (sum, it) => sum + it.total);
+
+  // NAYA: Serial Number Auto-Fixer
+  void _recalculateSR() {
+    setState(() {
+      for (int i = 0; i < items.length; i++) {
+        items[i] = items[i].copyWith(srNo: i + 1);
+      }
+    });
+  }
+
+  void _showItemSearch(PharoahManager ph) {
+    String localSearch = "";
+    
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      builder: (c) => StatefulBuilder(
+        builder: (context, setSheetState) {
+          final filteredMeds = ph.medicines
+              .where((m) => m.name.toLowerCase().contains(localSearch.toLowerCase()))
+              .toList();
+              
+          return Container(
+            height: MediaQuery.of(context).size.height * 0.8,
+            padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+            decoration: BoxDecoration(
+              color: Colors.red.shade50,
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+            ),
+            child: Column(
+              children: [
+                Container(
+                  margin: const EdgeInsets.only(top: 10, bottom: 10),
+                  height: 5, width: 50,
+                  decoration: BoxDecoration(color: Colors.grey.shade400, borderRadius: BorderRadius.circular(10)),
+                ),
+                Padding(
+                  padding: const EdgeInsets.all(15), 
+                  child: TextField(
+                    autofocus: true,
+                    decoration: InputDecoration(
+                      hintText: "Search expired/breakage item...",
+                      prefixIcon: const Icon(Icons.search, color: Colors.red),
+                      filled: true, fillColor: Colors.white,
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                    ),
+                    onChanged: (v) => setSheetState(() => localSearch = v),
+                  ),
+                ),
+                Expanded(
+                  child: ListView.builder(
+                    itemCount: filteredMeds.length,
+                    itemBuilder: (c, i) => ListTile(
+                      leading: const Icon(Icons.delete_sweep, color: Colors.red),
+                      title: Text(filteredMeds[i].name, style: const TextStyle(fontWeight: FontWeight.bold)),
+                      subtitle: Text("Pack: ${filteredMeds[i].packing} | Current Stock: ${filteredMeds[i].stock}"),
+                      onTap: () {
+                        Navigator.pop(context);
+                        _showQuantityEntry(filteredMeds[i]);
+                      },
+                    ),
+                  ),
+                )
+              ],
+            ),
+          );
+        }
+      ),
+    );
+  }
+
+  void _showQuantityEntry(Medicine med) {
+    showDialog(
+      context: context,
+      builder: (c) => ItemEntryCard(
+        med: med,
+        srNo: items.length + 1,
+        onAdd: (newItem) {
+          setState(() { items.add(newItem); });
+          Navigator.pop(context);
+        },
+        onCancel: () => Navigator.pop(context),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -71,7 +163,7 @@ class _ExpiryBreakageReturnViewState extends State<ExpiryBreakageReturnView> {
       body: Column(
         children: [
           _buildHeader(),
-          _buildWarningBanner(), // Special Banner for Breakage
+          _buildWarningBanner(), 
           Expanded(
             child: selectedParty == null 
               ? _buildPartyPicker(ph) 
@@ -80,14 +172,6 @@ class _ExpiryBreakageReturnViewState extends State<ExpiryBreakageReturnView> {
           if (selectedParty != null) _buildSummaryFooter(),
         ],
       ),
-      floatingActionButton: (selectedParty != null)
-          ? FloatingActionButton.extended(
-              onPressed: () => _showItemSearch(ph),
-              backgroundColor: Colors.red.shade900,
-              icon: const Icon(Icons.delete_sweep, color: Colors.white),
-              label: const Text("ADD EXPIRED ITEM", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-            )
-          : null,
     );
   }
 
@@ -170,20 +254,78 @@ class _ExpiryBreakageReturnViewState extends State<ExpiryBreakageReturnView> {
           title: Text(selectedParty!.name, style: const TextStyle(fontWeight: FontWeight.bold)),
           trailing: IconButton(onPressed: () => setState(() => selectedParty = null), icon: const Icon(Icons.close)),
         ),
+        
+        // --- NAYA: Search Bar Trigger ---
+        _buildSearchBarTrigger(ph),
+
         Expanded(
-          child: ListView.builder(
-            itemCount: items.length,
-            itemBuilder: (c, i) => Card(
-              margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-              child: ListTile(
-                title: Text(items[i].name, style: const TextStyle(fontWeight: FontWeight.bold)),
-                subtitle: Text("Batch: ${items[i].batch} | Reason: Expiry/Breakage"),
-                trailing: Text("₹${items[i].total.toStringAsFixed(2)}", style: const TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
+          child: items.isEmpty 
+            ? const Center(child: Text("No items selected for return."))
+            : ListView.builder(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                itemCount: items.length,
+                itemBuilder: (c, i) => _buildItemCard(items[i], i),
               ),
-            ),
-          ),
         ),
       ],
+    );
+  }
+
+  // NAYA: Search Bar Trigger
+  Widget _buildSearchBarTrigger(PharoahManager ph) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      child: InkWell(
+        onTap: () => _showItemSearch(ph),
+        borderRadius: BorderRadius.circular(10),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 15),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: Colors.red.shade300, width: 1.5),
+          ),
+          child: Row(
+            children: [
+              Icon(Icons.search, color: Colors.red.shade700),
+              const SizedBox(width: 10),
+              Text("Tap here to search breakage item...", style: TextStyle(color: Colors.grey.shade600, fontSize: 14)),
+              const Spacer(),
+              Icon(Icons.add_circle, color: Colors.red.shade700),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // NAYA: Swipe to Delete Card
+  Widget _buildItemCard(BillItem it, int index) {
+    final card = Card(
+      elevation: 2, margin: const EdgeInsets.symmetric(vertical: 4),
+      child: ListTile(
+        leading: CircleAvatar(backgroundColor: Colors.red.shade50, child: Text("${it.srNo}", style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.red.shade900))),
+        title: Text(it.name, style: const TextStyle(fontWeight: FontWeight.bold)),
+        subtitle: Text("Batch: ${it.batch} | Reason: Expiry/Breakage"),
+        trailing: Text("₹${it.total.toStringAsFixed(2)}", style: const TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
+      ),
+    );
+
+    return Dismissible(
+      key: Key(it.id),
+      direction: DismissDirection.endToStart,
+      background: Container(
+        margin: const EdgeInsets.symmetric(vertical: 4),
+        decoration: BoxDecoration(color: Colors.red.shade900, borderRadius: BorderRadius.circular(12)),
+        alignment: Alignment.centerRight,
+        padding: const EdgeInsets.only(right: 20),
+        child: const Icon(Icons.delete, color: Colors.white, size: 28),
+      ),
+      onDismissed: (direction) {
+        setState(() { items.removeAt(index); });
+        _recalculateSR(); 
+      },
+      child: card,
     );
   }
 
@@ -201,49 +343,6 @@ class _ExpiryBreakageReturnViewState extends State<ExpiryBreakageReturnView> {
     );
   }
 
-  void _showItemSearch(PharoahManager ph) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      builder: (c) => Container(
-        height: MediaQuery.of(context).size.height * 0.8,
-        padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
-        child: Column(
-          children: [
-             const Padding(padding: EdgeInsets.all(15), child: Text("SELECT ITEM FOR BREAKAGE", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.red))),
-             Expanded(
-               child: ListView.builder(
-                 itemCount: ph.medicines.length,
-                 itemBuilder: (c, i) => ListTile(
-                   title: Text(ph.medicines[i].name),
-                   onTap: () {
-                     Navigator.pop(context);
-                     _showQuantityEntry(ph.medicines[i]);
-                   },
-                 ),
-               ),
-             )
-          ],
-        ),
-      ),
-    );
-  }
-
-  void _showQuantityEntry(Medicine med) {
-    showDialog(
-      context: context,
-      builder: (c) => ItemEntryCard(
-        med: med,
-        srNo: items.length + 1,
-        onAdd: (newItem) {
-          setState(() { items.add(newItem); });
-          Navigator.pop(context);
-        },
-        onCancel: () => Navigator.pop(context),
-      ),
-    );
-  }
-
   void _handleSave(PharoahManager ph) {
     ph.finalizeSaleReturn(
       billNo: returnNoC.text,
@@ -251,8 +350,19 @@ class _ExpiryBreakageReturnViewState extends State<ExpiryBreakageReturnView> {
       party: selectedParty!,
       items: items,
       total: totalAmt,
-      type: "Breakage", // Sahi logic: Breakage stock mein jayega
+      type: "Breakage", 
     );
+    
+    // NAYA: Update Persistent Counter
+    if (ph.activeCompany != null) {
+      PharoahNumberingEngine.updateSeriesCounter(
+        type: "RETURN", 
+        companyID: ph.activeCompany!.id, 
+        usedNumber: returnNoC.text, 
+        prefix: ph.getDefaultSeries("RETURN").prefix
+      );
+    }
+
     Navigator.pop(context);
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
       content: const Text("⚠️ Saved to Breakage/Expiry Stock!"), 
