@@ -13,7 +13,7 @@ import 'inventory_logic_center.dart';
 import 'fy_transfer_engine.dart';
 import 'gateway/company_registry_model.dart';
 import 'logic/app_settings_model.dart';
-import 'logic/pharoah_numbering_engine.dart'; // NAYA ENGINE LINK
+import 'logic/pharoah_numbering_engine.dart'; // NAYA
 
 class PharoahManager with ChangeNotifier {
   // --- MEMORY STORAGE ---
@@ -37,7 +37,7 @@ class PharoahManager with ChangeNotifier {
   List<ChequeEntry> cheques = [];
   List<ShortageItem> shortages = [];
   
-  // NAYA: Series Management
+  // NAYA: Series Storage
   List<NumberingSeries> numberingSeries = [];
   
   Map<String, List<BatchInfo>> batchHistory = {};
@@ -54,7 +54,7 @@ class PharoahManager with ChangeNotifier {
   }
 
   // ===========================================================================
-  // 1. SYSTEM REGISTRY & SESSION MANAGEMENT
+  // 1. REGISTRY & SESSION
   // ===========================================================================
 
   Future<void> initRegistry() async {
@@ -64,9 +64,7 @@ class PharoahManager with ChangeNotifier {
       try {
         List<dynamic> list = jsonDecode(await file.readAsString());
         companiesRegistry = list.map((e) => CompanyProfile.fromMap(e)).toList();
-      } catch (e) {
-        debugPrint("Registry Load Error: $e");
-      }
+      } catch (e) { debugPrint("Registry Load Error: $e"); }
     }
     notifyListeners();
   }
@@ -92,10 +90,7 @@ class PharoahManager with ChangeNotifier {
     notifyListeners(); 
   }
 
-  void authenticateAdmin(bool status) { 
-    isAdminAuthenticated = status; 
-    notifyListeners(); 
-  }
+  void authenticateAdmin(bool status) { isAdminAuthenticated = status; notifyListeners(); }
 
   Future<String> getWorkingPath() async {
     if (activeCompany == null || currentFY.isEmpty) return "";
@@ -106,20 +101,20 @@ class PharoahManager with ChangeNotifier {
   }
 
   // ===========================================================================
-  // 2. NEW COMPANY FRESH SETUP LOGIC (Now with Series)
+  // 2. NEW COMPANY SETUP (With Default Series)
   // ===========================================================================
 
   Future<void> setupNewCompanyEnvironment(CompanyProfile profile, String initialFY) async {
-    // A. Memory Refresh
-    sales = []; purchases = []; numberingSeries = []; vouchers = [];
+    // Memory Reset
+    sales = []; purchases = []; numberingSeries = []; vouchers = []; 
     
-    // B. Create Default Series for New Company
+    // NAYA: Create Default Series for New Company
     numberingSeries = [
       NumberingSeries(id: 's1', name: "Standard Sale", type: "SALE", prefix: "INV-", isDefault: true),
       NumberingSeries(id: 'p1', name: "Standard Purchase", type: "PURCHASE", prefix: "PUR-", isDefault: true),
-      NumberingSeries(id: 'c1', name: "Sale Challan", type: "CHALLAN", prefix: "SCH-", isDefault: true),
-      NumberingSeries(id: 'r1', name: "Credit Note", type: "RETURN", prefix: "SRN-", isDefault: true),
-      NumberingSeries(id: 'v1', name: "Voucher", type: "VOUCHER", prefix: "VOU-", isDefault: true),
+      NumberingSeries(id: 'c1', name: "Standard Challan", type: "CHALLAN", prefix: "SCH-", isDefault: true),
+      NumberingSeries(id: 'r1', name: "Standard Return", type: "RETURN", prefix: "SRN-", isDefault: true),
+      NumberingSeries(id: 'v1', name: "Voucher Series", type: "VOUCHER", prefix: "VOU-", isDefault: true),
     ];
 
     medicines = DemoData.getMedicines();
@@ -133,10 +128,9 @@ class PharoahManager with ChangeNotifier {
       await File('${dir.path}/$name').writeAsString(jsonEncode(data));
     }
 
-    // Save initial masters and default series
     await _write('meds.json', medicines.map((e) => e.toMap()).toList());
     await _write('parts.json', parties.map((e) => e.toMap()).toList());
-    await _write('series.json', numberingSeries.map((e) => e.toMap()).toList());
+    await _write('series.json', numberingSeries.map((e) => e.toMap()).toList()); // Save Series
     await _write('sales.json', []);
     await _write('purc.json', []);
     await _write('vouc.json', []);
@@ -151,7 +145,7 @@ class PharoahManager with ChangeNotifier {
   }
 
   // ===========================================================================
-  // 3. CORE SAVE & LOAD
+  // 3. CORE SAVE & LOAD (With Numbering Persistence)
   // ===========================================================================
 
   Future<void> save() async {
@@ -164,10 +158,8 @@ class PharoahManager with ChangeNotifier {
     await File('$dir/purc.json').writeAsString(jsonEncode(purchases.map((e) => e.toMap()).toList()));
     await File('$dir/vouc.json').writeAsString(jsonEncode(vouchers.map((e) => e.toMap()).toList()));
     await File('$dir/sys_users.json').writeAsString(jsonEncode(systemUsers.map((e) => e.toMap()).toList()));
-    await File('$dir/bats.json').writeAsString(jsonEncode(batchHistory.map((k, v) => MapEntry(k, v.map((b) => b.toMap()).toList()))));
-    
-    // NAYA: Series configurations save karna
     await File('$dir/series.json').writeAsString(jsonEncode(numberingSeries.map((e) => e.toMap()).toList()));
+    await File('$dir/bats.json').writeAsString(jsonEncode(batchHistory.map((k, v) => MapEntry(k, v.map((b) => b.toMap()).toList()))));
     
     notifyListeners();
   }
@@ -187,14 +179,9 @@ class PharoahManager with ChangeNotifier {
     purchases = (loadJson('purc.json') as List?)?.map((e) => Purchase.fromMap(e)).toList() ?? [];
     vouchers = (loadJson('vouc.json') as List?)?.map((e) => Voucher.fromMap(e)).toList() ?? [];
     
-    // Load Series Settings
+    // Load Series
     var sData = loadJson('series.json');
-    if (sData != null) {
-      numberingSeries = (sData as List).map((e) => NumberingSeries.fromMap(e)).toList();
-    } else {
-      // Fallback defaults if file missing
-      numberingSeries = [NumberingSeries(id: 's1', name: "Sale", type: "SALE", prefix: "INV-", isDefault: true)];
-    }
+    if (sData != null) numberingSeries = (sData as List).map((e) => NumberingSeries.fromMap(e)).toList();
 
     var users = loadJson('sys_users.json');
     if (users != null) systemUsers = (users as List).map((e) => SystemUser.fromMap(e)).toList();
@@ -210,61 +197,53 @@ class PharoahManager with ChangeNotifier {
   }
 
   // ===========================================================================
-  // 4. NUMBERING SERIES HELPERS
-  // ===========================================================================
-  
-  List<NumberingSeries> getSeriesByType(String type) {
-    return numberingSeries.where((s) => s.type == type).toList();
-  }
-
-  NumberingSeries getDefaultSeries(String type) {
-    return numberingSeries.firstWhere((s) => s.type == type && s.isDefault, 
-      orElse: () => numberingSeries.firstWhere((s) => s.type == type, 
-      orElse: () => NumberingSeries(id: 'tmp', name: 'Default', type: type, prefix: 'TXN-', isDefault: true)));
-  }
-
-  void addNumberingSeries(NumberingSeries ns) {
-    // Agar ye default set ho rahi hai, toh purani default hatao
-    if (ns.isDefault) {
-      for (var s in numberingSeries.where((x) => x.type == ns.type)) {
-        s.isDefault = false;
-      }
-    }
-    numberingSeries.add(ns);
-    save();
-  }
-
-  // ===========================================================================
-  // 5. TRANSACTIONS
+  // 4. TRANSACTIONS (Persistent Numbering Logic)
   // ===========================================================================
 
   void finalizeSale({required String billNo, required DateTime date, required Party party, required List<BillItem> items, required double total, required String mode, bool isEdit = false}) async {
     sales.add(Sale(id: DateTime.now().toString(), billNo: billNo, date: date, partyName: party.name, partyGstin: party.gst, partyState: party.state, items: items, totalAmount: total, paymentMode: mode));
     
-    // NAYA: Engine ko batana ki counter update karein (Persistence)
-    // Humne prefix dhoondhna hoga jo is billNo se match kare
+    // NAYA: Persistent Counter Update
     for (var s in numberingSeries.where((x) => x.type == "SALE")) {
       if (billNo.startsWith(s.prefix)) {
         await PharoahNumberingEngine.updateSeriesCounter(type: "SALE", companyID: activeCompany!.id, usedNumber: billNo, prefix: s.prefix);
       }
     }
-
     save().then((_) => loadAllData());
   }
 
-  void finalizePurchase({required String internalNo, required String billNo, required DateTime date, DateTime? entryDate, required Party party, required List<PurchaseItem> items, required double total, required String mode}) {
+  void finalizePurchase({required String internalNo, required String billNo, required DateTime date, DateTime? entryDate, required Party party, required List<PurchaseItem> items, required double total, required String mode}) async {
     purchases.add(Purchase(id: DateTime.now().toString(), internalNo: internalNo, billNo: billNo, date: date, entryDate: entryDate ?? DateTime.now(), distributorName: party.name, items: items, totalAmount: total, paymentMode: mode));
+    
+    // NAYA: Purchase Counter Update
+    await PharoahNumberingEngine.updateSeriesCounter(type: "PURCHASE", companyID: activeCompany!.id, usedNumber: internalNo, prefix: "PUR-");
+
     save().then((_) => loadAllData());
   }
 
-  // --- STANDARD ACTIONS ---
+  // ===========================================================================
+  // 5. MASTER HELPERS
+  // ===========================================================================
+  
+  void updateNumberingSeries(NumberingSeries ns) {
+    int idx = numberingSeries.indexWhere((s) => s.id == ns.id);
+    if (idx != -1) { numberingSeries[idx] = ns; save(); }
+  }
+
+  void addNumberingSeries(NumberingSeries ns) {
+    if (ns.isDefault) {
+      for (var s in numberingSeries.where((x) => x.type == ns.type)) { s.isDefault = false; }
+    }
+    numberingSeries.add(ns);
+    save();
+  }
+
+  // --- ACTIONS ---
   void addVoucher(Voucher v) { vouchers.add(v); save(); }
   void deleteBill(String id) { sales.removeWhere((s) => s.id == id); save().then((_) => loadAllData()); }
   void deletePurchase(String id) { purchases.removeWhere((p) => p.id == id); save().then((_) => loadAllData()); }
   void deleteParty(String id) { parties.removeWhere((p) => p.id == id); save(); }
-  
   Future<void> runAutoBackup() async { await save(); }
-
   Future<void> masterReset() async { 
     final dir = await getWorkingPath(); 
     if(dir.isNotEmpty) {
