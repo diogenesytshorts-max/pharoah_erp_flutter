@@ -1,4 +1,4 @@
-// FILE: lib/dashboard_view.dart (Replace Full)
+// FILE: lib/dashboard_view.dart (Replace Full with Security Checks)
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -26,8 +26,9 @@ class DashboardView extends StatelessWidget {
     final compID = ph.activeCompany?.id ?? "N/A";
     final businessType = ph.activeCompany?.businessType ?? "WHOLESALE";
 
-    // --- SECURITY LOGIC ---
+    // --- SECURITY LOGIC (Permissions Check) ---
     bool isStaff = ph.loggedInStaff != null;
+    // Agar Admin hai toh true, agar Staff hai toh uski permission check karo
     bool canViewFinance = !isStaff || (isStaff && ph.loggedInStaff!.canViewFinance);
 
     DateTime workingDate = AppDateLogic.getSmartDate(ph.currentFY);
@@ -51,6 +52,7 @@ class DashboardView extends StatelessWidget {
       backgroundColor: const Color(0xFFF8F9FD),
       body: Column(
         children: [
+          // --- HEADER ---
           Container(
             padding: const EdgeInsets.only(top: 60, left: 25, right: 25, bottom: 25),
             decoration: BoxDecoration(
@@ -72,6 +74,7 @@ class DashboardView extends StatelessWidget {
                           decoration: BoxDecoration(color: isPastYear ? Colors.orange : Colors.blue.shade300, borderRadius: BorderRadius.circular(4)),
                           child: Text(businessType, style: const TextStyle(fontSize: 7, fontWeight: FontWeight.bold, color: Colors.white)),
                         ),
+                        // NAYA: User Name Badge
                         if (isStaff) ...[
                            const SizedBox(width: 8),
                            Container(
@@ -82,7 +85,6 @@ class DashboardView extends StatelessWidget {
                         ]
                       ],
                     ),
-                    Text("Working Year: ${ph.currentFY}", style: const TextStyle(fontSize: 11, color: Colors.white70)),
                   ],
                 ),
                 const Spacer(),
@@ -97,20 +99,7 @@ class DashboardView extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 10, left: 5),
-                    child: Row(
-                      children: [
-                        Icon(isPastYear ? Icons.history_toggle_off : Icons.calendar_today, size: 14, color: Colors.blueGrey),
-                        const SizedBox(width: 5),
-                        Text(
-                          isPastYear ? "Showing data for: ${AppDateLogic.format(workingDate)}" : "Today: ${AppDateLogic.format(workingDate)}",
-                          style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.blueGrey),
-                        ),
-                      ],
-                    ),
-                  ),
-
+                  // --- TOP STATS ---
                   Row(children: [
                     Expanded(child: StatWidget(title: isPastYear ? "LAST DAY SALE" : "TODAY SALE", value: "₹${todaySales.toStringAsFixed(0)}", period: isPastYear ? "FY Final" : "Today", icon: "trending_up", color: isPastYear ? Colors.purple : Colors.green)),
                     const SizedBox(width: 12),
@@ -118,7 +107,8 @@ class DashboardView extends StatelessWidget {
                   ]),
                   
                   const SizedBox(height: 12),
-                  // SECURITY WALL: Hide stock value from unauthorized staff
+                  
+                  // --- SECURITY WALL 1: HIDE STOCK VALUE ---
                   if (canViewFinance)
                     StatWidget(title: isPastYear ? "CLOSING STOCK VALUE" : "TOTAL STOCK VALUE", value: "₹${stockVal.toStringAsFixed(0)}", period: "Calculated", icon: "inventory_2", color: isPastYear ? Colors.deepPurple : Colors.indigo),
                   
@@ -137,14 +127,20 @@ class DashboardView extends StatelessWidget {
                   const SizedBox(height: 30),
                   const Text("REPORTS & UTILITIES", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.blueGrey, letterSpacing: 1)),
                   const SizedBox(height: 12),
+                  
+                  // --- SECURITY WALL 2: HIDE BUTTONS BASED ON PERMISSION ---
                   GridView.count(
                     shrinkWrap: true, physics: const NeverScrollableScrollPhysics(),
                     crossAxisCount: 3, crossAxisSpacing: 10, mainAxisSpacing: 10, childAspectRatio: 0.9,
                     children: [
                       if (canViewFinance) ActionIconBtn(title: "Accounts", icon: Icons.account_balance_wallet, color: Colors.green.shade700, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => const AccountsMenuView()))),
+                      
                       ActionIconBtn(title: "Sale Reg", icon: Icons.description_outlined, color: Colors.blue, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => const SaleSummaryView()))),
+                      
                       if (canViewFinance) ActionIconBtn(title: "Pur Reg", icon: Icons.history_rounded, color: Colors.brown, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => const PurchaseSummaryView()))),
+                      
                       if (canViewFinance) ActionIconBtn(title: "Data Hub", icon: Icons.cloud_sync_rounded, color: Colors.teal, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => const DataExchangeView()))),
+                      
                       ActionIconBtn(title: "Adv. Hub", icon: Icons.rocket_launch_rounded, color: Colors.indigo.shade900, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => const BusinessHubView()))),
                     ],
                   ),
@@ -157,6 +153,7 @@ class DashboardView extends StatelessWidget {
     );
   }
 
+  // --- UI HELPERS ---
   Widget _bigEntryButton(BuildContext context, String label, IconData icon, Color color, Widget target) {
     return InkWell(
       onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => target)),
