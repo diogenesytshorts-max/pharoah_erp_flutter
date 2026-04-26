@@ -18,11 +18,12 @@ class _PdcEntryViewState extends State<PdcEntryView> {
   // --- CONTROLLERS ---
   final amountC = TextEditingController();
   final chequeNoC = TextEditingController();
-  final customerBankC = TextEditingController(); // Kahan ka cheque hai
+  final customerBankC = TextEditingController();
   
   // --- SELECTIONS ---
   Party? selectedParty;
-  Bank? depositBank; // Hamara kaunsa bank account
+  String? selectedBillNo; // Link to specific bill
+  Bank? depositBank; 
   DateTime chequeDate = DateTime.now();
   String searchQuery = "";
 
@@ -43,16 +44,23 @@ class _PdcEntryViewState extends State<PdcEntryView> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // --- 1. SELECT PARTY ---
-            _sectionTitle("PAYMENT RECEIVED FROM (CUSTOMER)"),
+            _sectionTitle("1. RECEIVE FROM (CUSTOMER)"),
             if (selectedParty == null)
               _buildPartySearch(ph)
             else
               _buildSelectedPartyCard(),
 
-            const SizedBox(height: 25),
+            const SizedBox(height: 20),
 
-            // --- 2. CHEQUE DETAILS ---
-            _sectionTitle("CHEQUE INFORMATION"),
+            // --- 2. BILL ADJUSTMENT (The Advanced Part) ---
+            if (selectedParty != null) ...[
+              _sectionTitle("2. ADJUST AGAINST BILL"),
+              _buildPendingBillsList(ph),
+              const SizedBox(height: 20),
+            ],
+
+            // --- 3. CHEQUE DETAILS ---
+            _sectionTitle("3. CHEQUE INFORMATION"),
             const SizedBox(height: 10),
             Row(
               children: [
@@ -64,7 +72,7 @@ class _PdcEntryViewState extends State<PdcEntryView> {
             const SizedBox(height: 15),
             Row(
               children: [
-                Expanded(child: _input(customerBankC, "Customer Bank (e.g. SBI)", Icons.account_balance)),
+                Expanded(child: _input(customerBankC, "Customer Bank", Icons.account_balance)),
                 const SizedBox(width: 10),
                 Expanded(child: _dateTile(ph)),
               ],
@@ -72,8 +80,8 @@ class _PdcEntryViewState extends State<PdcEntryView> {
 
             const SizedBox(height: 25),
 
-            // --- 3. DEPOSIT BANK (OUR BANK) ---
-            _sectionTitle("SELECT OUR BANK (WHERE TO DEPOSIT)"),
+            // --- 4. OUR DEPOSIT BANK ---
+            _sectionTitle("4. DEPOSIT IN (OUR BANK)"),
             const SizedBox(height: 10),
             _buildDepositBankDropdown(ph),
 
@@ -82,28 +90,31 @@ class _PdcEntryViewState extends State<PdcEntryView> {
             // --- SAVE BUTTON ---
             SizedBox(
               width: double.infinity,
-              height: 55,
+              height: 60,
               child: ElevatedButton(
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.teal.shade800,
                   foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
                 ),
                 onPressed: () => _handleSave(ph),
-                child: const Text("SAVE CHEQUE ENTRY", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                child: const Text("SAVE & LINK CHEQUE", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
               ),
             ),
+            const SizedBox(height: 50),
           ],
         ),
       ),
     );
   }
 
+  // --- UI COMPONENTS ---
+
   Widget _buildPartySearch(PharoahManager ph) {
     return Column(
       children: [
         TextField(
-          decoration: const InputDecoration(hintText: "Search Customer Name...", prefixIcon: Icon(Icons.search), border: OutlineInputBorder(), filled: true, fillColor: Colors.white),
+          decoration: const InputDecoration(hintText: "Type Customer Name...", prefixIcon: Icon(Icons.search), border: OutlineInputBorder(), filled: true, fillColor: Colors.white),
           onChanged: (v) => setState(() => searchQuery = v),
         ),
         Container(
@@ -114,7 +125,7 @@ class _PdcEntryViewState extends State<PdcEntryView> {
             children: ph.parties.where((p) => p.group == "Sundry Debtors" && p.name.toLowerCase().contains(searchQuery.toLowerCase())).map((p) => ListTile(
               title: Text(p.name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
               subtitle: Text(p.city, style: const TextStyle(fontSize: 11)),
-              onTap: () => setState(() => selectedParty = p),
+              onTap: () => setState(() { selectedParty = p; searchQuery = ""; }),
             )).toList(),
           ),
         )
@@ -123,13 +134,65 @@ class _PdcEntryViewState extends State<PdcEntryView> {
   }
 
   Widget _buildSelectedPartyCard() {
-    return ListTile(
-      tileColor: Colors.teal.withOpacity(0.05),
+    return Card(
+      color: Colors.teal.shade50,
+      margin: EdgeInsets.zero,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: BorderSide(color: Colors.teal.shade200)),
-      leading: const CircleAvatar(backgroundColor: Colors.teal, child: Icon(Icons.person, color: Colors.white)),
-      title: Text(selectedParty!.name, style: const TextStyle(fontWeight: FontWeight.bold)),
-      subtitle: Text(selectedParty!.city),
-      trailing: IconButton(icon: const Icon(Icons.close, color: Colors.red), onPressed: () => setState(() => selectedParty = null)),
+      child: ListTile(
+        leading: const CircleAvatar(backgroundColor: Colors.teal, child: Icon(Icons.person, color: Colors.white)),
+        title: Text(selectedParty!.name, style: const TextStyle(fontWeight: FontWeight.bold)),
+        subtitle: Text(selectedParty!.city),
+        trailing: IconButton(icon: const Icon(Icons.edit_note, color: Colors.blue), onPressed: () => setState(() { selectedParty = null; selectedBillNo = null; })),
+      ),
+    );
+  }
+
+  Widget _buildPendingBillsList(PharoahManager ph) {
+    // Filter active sales bills for this party
+    final partyBills = ph.sales.where((s) => s.partyName == selectedParty!.name && s.status == "Active").toList();
+
+    if (partyBills.isEmpty) {
+      return const Padding(
+        padding: EdgeInsets.all(10),
+        child: Text("No pending bills found. Cheque will be saved as Advance.", style: TextStyle(fontSize: 11, fontStyle: FontStyle.italic, color: Colors.blueGrey)),
+      );
+    }
+
+    return Container(
+      height: 120,
+      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.grey.shade300)),
+      child: ListView.builder(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.all(10),
+        itemCount: partyBills.length,
+        itemBuilder: (c, i) {
+          final b = partyBills[i];
+          bool isSelected = selectedBillNo == b.billNo;
+          return GestureDetector(
+            onTap: () => setState(() => selectedBillNo = b.billNo),
+            child: Container(
+              width: 130,
+              margin: const EdgeInsets.only(right: 10),
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: isSelected ? Colors.teal : Colors.grey.shade50,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: isSelected ? Colors.teal : Colors.grey.shade300),
+              ),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(b.billNo, style: TextStyle(fontWeight: FontWeight.bold, color: isSelected ? Colors.white : Colors.black87, fontSize: 12)),
+                  const SizedBox(height: 5),
+                  Text("₹${b.totalAmount.toInt()}", style: TextStyle(fontWeight: FontWeight.w900, color: isSelected ? Colors.white : Colors.teal.shade900, fontSize: 15)),
+                  const SizedBox(height: 2),
+                  Text(DateFormat('dd/MM').format(b.date), style: TextStyle(fontSize: 9, color: isSelected ? Colors.white70 : Colors.grey)),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
     );
   }
 
@@ -151,8 +214,14 @@ class _PdcEntryViewState extends State<PdcEntryView> {
       },
       child: Container(
         padding: const EdgeInsets.all(15),
-        decoration: BoxDecoration(border: Border.all(color: Colors.grey), borderRadius: BorderRadius.circular(5), color: Colors.white),
-        child: Text(DateFormat('dd/MM/yyyy').format(chequeDate), style: const TextStyle(fontWeight: FontWeight.bold)),
+        decoration: BoxDecoration(border: Border.all(color: Colors.grey.shade400), borderRadius: BorderRadius.circular(5), color: Colors.white),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(DateFormat('dd/MM/yy').format(chequeDate), style: const TextStyle(fontWeight: FontWeight.bold)),
+            const Icon(Icons.calendar_today, size: 16, color: Colors.grey),
+          ],
+        ),
       ),
     );
   }
@@ -160,7 +229,7 @@ class _PdcEntryViewState extends State<PdcEntryView> {
   Widget _input(TextEditingController ctrl, String label, IconData icon, {bool isNum = false}) => TextField(
     controller: ctrl,
     keyboardType: isNum ? TextInputType.number : TextInputType.text,
-    decoration: InputDecoration(labelText: label, prefixIcon: Icon(icon), border: const OutlineInputBorder(), filled: true, fillColor: Colors.white),
+    decoration: InputDecoration(labelText: label, prefixIcon: Icon(icon, size: 20), border: const OutlineInputBorder(), filled: true, fillColor: Colors.white),
   );
 
   Widget _sectionTitle(String t) => Padding(
@@ -170,13 +239,14 @@ class _PdcEntryViewState extends State<PdcEntryView> {
 
   void _handleSave(PharoahManager ph) {
     if (selectedParty == null || amountC.text.isEmpty || depositBank == null) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Missing Party, Amount or Deposit Bank!")));
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Please select Party, Amount and Deposit Bank!"), backgroundColor: Colors.red));
       return;
     }
 
     final entry = ChequeEntry(
-      id: DateTime.now().toString(),
+      id: DateTime.now().millisecondsSinceEpoch.toString(),
       partyName: selectedParty!.name,
+      billNo: selectedBillNo ?? "ADVANCE", // Linked Bill or Advance
       amount: double.tryParse(amountC.text) ?? 0,
       chequeNo: chequeNoC.text,
       date: DateTime.now(),
@@ -188,6 +258,6 @@ class _PdcEntryViewState extends State<PdcEntryView> {
 
     ph.addCheque(entry);
     Navigator.pop(context);
-    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("✅ Cheque Record Saved!"), backgroundColor: Colors.green));
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("✅ Cheque Linked to ${selectedBillNo ?? 'Advance'} saved!"), backgroundColor: Colors.green));
   }
 }
