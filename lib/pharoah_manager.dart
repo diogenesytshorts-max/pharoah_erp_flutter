@@ -13,6 +13,7 @@ import 'inventory_logic_center.dart';
 import 'fy_transfer_engine.dart';
 import 'gateway/company_registry_model.dart';
 import 'logic/app_settings_model.dart';
+import 'logic/pharoah_numbering_engine.dart'; // NAYA ENGINE LINK
 
 class PharoahManager with ChangeNotifier {
   // --- MEMORY STORAGE ---
@@ -35,6 +36,9 @@ class PharoahManager with ChangeNotifier {
   List<Bank> banks = [];
   List<ChequeEntry> cheques = [];
   List<ShortageItem> shortages = [];
+  
+  // NAYA: Series Management
+  List<NumberingSeries> numberingSeries = [];
   
   Map<String, List<BatchInfo>> batchHistory = {};
   AppConfig config = AppConfig();
@@ -96,67 +100,53 @@ class PharoahManager with ChangeNotifier {
   Future<String> getWorkingPath() async {
     if (activeCompany == null || currentFY.isEmpty) return "";
     final root = await getApplicationDocumentsDirectory();
-    // Path: Documents/Pharoah_Data/COMPANY_ID/BUSINESS_TYPE/FY/
     final dir = Directory('${root.path}/Pharoah_Data/${activeCompany!.id}/${activeCompany!.businessType}/$currentFY');
     if (!await dir.exists()) await dir.create(recursive: true);
     return dir.path;
   }
 
   // ===========================================================================
-  // 2. NEW COMPANY FRESH SETUP LOGIC
+  // 2. NEW COMPANY FRESH SETUP LOGIC (Now with Series)
   // ===========================================================================
 
-  /// Jab user "Create & Register" karega, tab ye call hoga.
-  /// Iska kaam memory saaf karna aur naye folder mein default data bharna hai.
   Future<void> setupNewCompanyEnvironment(CompanyProfile profile, String initialFY) async {
-    // A. Memory Refresh (Saara purana data khatam)
-    sales = [];
-    purchases = [];
-    saleChallans = [];
-    purchaseChallans = [];
-    saleReturns = [];
-    purchaseReturns = [];
-    vouchers = [];
-    logs = [];
-    cheques = [];
-    shortages = [];
-    batchHistory = {};
-    systemUsers = [];
+    // A. Memory Refresh
+    sales = []; purchases = []; numberingSeries = []; vouchers = [];
     
-    // B. Inject Demo Data only (As requested)
-    medicines = DemoData.getMedicines();
-    parties = [
-      DemoData.getDemoParty(), 
-      Party(id: 'cash', name: "CASH", group: "Cash in Hand")
+    // B. Create Default Series for New Company
+    numberingSeries = [
+      NumberingSeries(id: 's1', name: "Standard Sale", type: "SALE", prefix: "INV-", isDefault: true),
+      NumberingSeries(id: 'p1', name: "Standard Purchase", type: "PURCHASE", prefix: "PUR-", isDefault: true),
+      NumberingSeries(id: 'c1', name: "Sale Challan", type: "CHALLAN", prefix: "SCH-", isDefault: true),
+      NumberingSeries(id: 'r1', name: "Credit Note", type: "RETURN", prefix: "SRN-", isDefault: true),
+      NumberingSeries(id: 'v1', name: "Voucher", type: "VOUCHER", prefix: "VOU-", isDefault: true),
     ];
+
+    medicines = DemoData.getMedicines();
+    parties = [DemoData.getDemoParty(), Party(id: 'cash', name: "CASH", group: "Cash in Hand")];
     
-    // C. Physical Directory Prep
     final root = await getApplicationDocumentsDirectory();
     final dirPath = '${root.path}/Pharoah_Data/${profile.id}/${profile.businessType}/$initialFY';
     final dir = await Directory(dirPath).create(recursive: true);
 
-    // D. Initial File Creation (Empty Shells)
     Future _write(String name, dynamic data) async {
       await File('${dir.path}/$name').writeAsString(jsonEncode(data));
     }
 
+    // Save initial masters and default series
     await _write('meds.json', medicines.map((e) => e.toMap()).toList());
     await _write('parts.json', parties.map((e) => e.toMap()).toList());
+    await _write('series.json', numberingSeries.map((e) => e.toMap()).toList());
     await _write('sales.json', []);
     await _write('purc.json', []);
     await _write('vouc.json', []);
     await _write('bats.json', {});
     await _write('sys_users.json', []);
-    await _write('logs.json', [
-      LogEntry(id: '1', action: 'SYSTEM', details: 'Company Registered & Setup Complete', time: DateTime.now()).toMap()
-    ]);
-
-    // E. Registry mein add karke save karein
+    
     if (!companiesRegistry.any((c) => c.id == profile.id)) {
       companiesRegistry.add(profile);
       await saveRegistry();
     }
-
     notifyListeners();
   }
 
@@ -176,6 +166,9 @@ class PharoahManager with ChangeNotifier {
     await File('$dir/sys_users.json').writeAsString(jsonEncode(systemUsers.map((e) => e.toMap()).toList()));
     await File('$dir/bats.json').writeAsString(jsonEncode(batchHistory.map((k, v) => MapEntry(k, v.map((b) => b.toMap()).toList()))));
     
+    // NAYA: Series configurations save karna
+    await File('$dir/series.json').writeAsString(jsonEncode(numberingSeries.map((e) => e.toMap()).toList()));
+    
     notifyListeners();
   }
 
@@ -194,6 +187,15 @@ class PharoahManager with ChangeNotifier {
     purchases = (loadJson('purc.json') as List?)?.map((e) => Purchase.fromMap(e)).toList() ?? [];
     vouchers = (loadJson('vouc.json') as List?)?.map((e) => Voucher.fromMap(e)).toList() ?? [];
     
+    // Load Series Settings
+    var sData = loadJson('series.json');
+    if (sData != null) {
+      numberingSeries = (sData as List).map((e) => NumberingSeries.fromMap(e)).toList();
+    } else {
+      // Fallback defaults if file missing
+      numberingSeries = [NumberingSeries(id: 's1', name: "Sale", type: "SALE", prefix: "INV-", isDefault: true)];
+    }
+
     var users = loadJson('sys_users.json');
     if (users != null) systemUsers = (users as List).map((e) => SystemUser.fromMap(e)).toList();
 
@@ -207,26 +209,46 @@ class PharoahManager with ChangeNotifier {
     notifyListeners();
   }
 
-  // --- ACTIONS ---
-  void addVoucher(Voucher v) { vouchers.add(v); save(); }
-  void addLog(String action, String details) { logs.add(LogEntry(id: DateTime.now().toString(), action: action, details: details, time: DateTime.now())); }
-  void addCompany(Company c) { companies.add(c); save(); }
-  void addSalt(Salt s) { salts.add(s); save(); }
-  void addRoute(RouteArea r) { routes.add(r); save(); }
-  void addDrugType(DrugType d) { drugTypes.add(d); save(); }
-  void addCheque(ChequeEntry c) { cheques.add(c); save(); }
+  // ===========================================================================
+  // 4. NUMBERING SERIES HELPERS
+  // ===========================================================================
+  
+  List<NumberingSeries> getSeriesByType(String type) {
+    return numberingSeries.where((s) => s.type == type).toList();
+  }
 
-  void deleteParty(String id) { parties.removeWhere((p) => p.id == id); save(); }
-  void deleteRoute(String id) { routes.removeWhere((r) => r.id == id); save(); }
-  void deleteBill(String id) { sales.removeWhere((s) => s.id == id); save().then((_) => loadAllData()); }
-  void deletePurchase(String id) { purchases.removeWhere((p) => p.id == id); save().then((_) => loadAllData()); }
-  void deleteSaleChallan(String id) { saleChallans.removeWhere((c) => c.id == id); save(); }
-  void deletePurchaseChallan(String id) { purchaseChallans.removeWhere((c) => c.id == id); save(); }
-  void deleteSaleReturn(String id) { saleReturns.removeWhere((r) => r.id == id); save(); }
-  void deletePurchaseReturn(String id) { purchaseReturns.removeWhere((r) => r.id == id); save(); }
+  NumberingSeries getDefaultSeries(String type) {
+    return numberingSeries.firstWhere((s) => s.type == type && s.isDefault, 
+      orElse: () => numberingSeries.firstWhere((s) => s.type == type, 
+      orElse: () => NumberingSeries(id: 'tmp', name: 'Default', type: type, prefix: 'TXN-', isDefault: true)));
+  }
 
-  void finalizeSale({required String billNo, required DateTime date, required Party party, required List<BillItem> items, required double total, required String mode, bool isEdit = false}) {
+  void addNumberingSeries(NumberingSeries ns) {
+    // Agar ye default set ho rahi hai, toh purani default hatao
+    if (ns.isDefault) {
+      for (var s in numberingSeries.where((x) => x.type == ns.type)) {
+        s.isDefault = false;
+      }
+    }
+    numberingSeries.add(ns);
+    save();
+  }
+
+  // ===========================================================================
+  // 5. TRANSACTIONS
+  // ===========================================================================
+
+  void finalizeSale({required String billNo, required DateTime date, required Party party, required List<BillItem> items, required double total, required String mode, bool isEdit = false}) async {
     sales.add(Sale(id: DateTime.now().toString(), billNo: billNo, date: date, partyName: party.name, partyGstin: party.gst, partyState: party.state, items: items, totalAmount: total, paymentMode: mode));
+    
+    // NAYA: Engine ko batana ki counter update karein (Persistence)
+    // Humne prefix dhoondhna hoga jo is billNo se match kare
+    for (var s in numberingSeries.where((x) => x.type == "SALE")) {
+      if (billNo.startsWith(s.prefix)) {
+        await PharoahNumberingEngine.updateSeriesCounter(type: "SALE", companyID: activeCompany!.id, usedNumber: billNo, prefix: s.prefix);
+      }
+    }
+
     save().then((_) => loadAllData());
   }
 
@@ -235,23 +257,12 @@ class PharoahManager with ChangeNotifier {
     save().then((_) => loadAllData());
   }
 
-  void adjustBatchStock({required String medId, required String batchNo, required double adjQty, required String reason}) {
-    if (batchHistory.containsKey(medId)) {
-      var b = batchHistory[medId]!.firstWhere((x) => x.batch == batchNo);
-      b.adjustmentQty += adjQty; save().then((_) => loadAllData());
-    }
-  }
-
-  Future<bool> startNewFinancialYear(String nextFY) async {
-    bool success = await FYTransferEngine.transferData(companyID: activeCompany!.id, businessType: activeCompany!.businessType, sourceFY: currentFY, targetFY: nextFY);
-    if (success) { currentFY = nextFY; await loadAllData(); }
-    return success;
-  }
-
-  void addSystemUser(SystemUser u) { systemUsers.add(u); save(); }
-  void updateSystemUser(SystemUser u) { int i = systemUsers.indexWhere((x) => x.id == u.id); if(i != -1) { systemUsers[i] = u; save(); } }
-  void deleteSystemUser(String id) { systemUsers.removeWhere((x) => x.id == id); save(); }
-
+  // --- STANDARD ACTIONS ---
+  void addVoucher(Voucher v) { vouchers.add(v); save(); }
+  void deleteBill(String id) { sales.removeWhere((s) => s.id == id); save().then((_) => loadAllData()); }
+  void deletePurchase(String id) { purchases.removeWhere((p) => p.id == id); save().then((_) => loadAllData()); }
+  void deleteParty(String id) { parties.removeWhere((p) => p.id == id); save(); }
+  
   Future<void> runAutoBackup() async { await save(); }
 
   Future<void> masterReset() async { 
@@ -261,11 +272,5 @@ class PharoahManager with ChangeNotifier {
       if(d.existsSync()) d.deleteSync(recursive: true); 
     }
     await loadAllData(); 
-  }
-
-  Future<void> switchYear(String year) async { 
-    currentFY = year; 
-    await loadAllData(); 
-    notifyListeners(); 
   }
 }
