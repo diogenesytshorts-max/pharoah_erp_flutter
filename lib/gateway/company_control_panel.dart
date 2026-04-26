@@ -1,4 +1,5 @@
 // FILE: lib/gateway/company_control_panel.dart
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../pharoah_manager.dart';
@@ -16,58 +17,69 @@ class CompanyControlPanelView extends StatefulWidget {
 
 class _CompanyControlPanelViewState extends State<CompanyControlPanelView> {
   bool isMaintenanceRunning = false;
-  double maintenanceProgress = 0.0;
   String maintenanceStatus = "";
 
-  // --- MAINTENANCE ENGINE ---
-  void _runMaintenance(PharoahManager ph) async {
-    String path = await ph.getWorkingPath();
-    if (path.isEmpty) {
-      final fy = ph.activeCompany?.fYears.first ?? "2025-26";
-      await ph.loginToCompany(ph.activeCompany!, fy);
-      path = await ph.getWorkingPath();
-    }
-    setState(() {
-      isMaintenanceRunning = true;
-      maintenanceProgress = 0.0;
-      maintenanceStatus = "Waking up Pharoah Doctor...";
-    });
-    final engine = MaintenanceService(ph, path);
-    await engine.runFullMaintenance(onProgress: (p, s) {
-      if (mounted) setState(() { maintenanceProgress = p; maintenanceStatus = s; });
-    });
-    if (mounted) setState(() => isMaintenanceRunning = false);
-  }
-
-  // --- NEW YEAR SETUP ---
-  void _showNewYearDialog(PharoahManager ph) {
-    final fyC = TextEditingController();
+  // --- POPUP: FINANCIAL YEAR SELECTOR ---
+  void _showFYSelectionDialog(PharoahManager ph, CompanyProfile comp) {
     showDialog(
       context: context,
       builder: (c) => AlertDialog(
-        title: const Text("Setup New Financial Year"),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text("Enter new year name (e.g. 2026-27).", style: TextStyle(fontSize: 12)),
-            const SizedBox(height: 15),
-            TextField(controller: fyC, decoration: const InputDecoration(labelText: "New FY", border: OutlineInputBorder())),
-          ],
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(c), child: const Text("CANCEL")),
-          ElevatedButton(
-            onPressed: () async {
-              if (fyC.text.isEmpty) return;
-              Navigator.pop(c);
-              bool ok = await ph.startNewFinancialYear(fyC.text.trim());
-              if (ok) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("✅ New Year Created!")));
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text("Select Financial Year", style: TextStyle(fontWeight: FontWeight.bold)),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: ListView.builder(
+            shrinkWrap: true,
+            itemCount: comp.fYears.length,
+            itemBuilder: (context, i) {
+              String fy = comp.fYears[i];
+              return Card(
+                elevation: 0,
+                color: Colors.blue.shade50,
+                margin: const EdgeInsets.only(bottom: 10),
+                child: ListTile(
+                  leading: const Icon(Icons.calendar_today, color: Colors.blue),
+                  title: Text(fy, style: const TextStyle(fontWeight: FontWeight.bold)),
+                  trailing: const Icon(Icons.play_circle_fill, color: Colors.green),
+                  onTap: () {
+                    Navigator.pop(c);
+                    // Manager mein saal set karke login process complete karo
+                    ph.loginToCompany(comp, fy);
+                  },
+                ),
+              );
             },
-            child: const Text("START TRANSFER"),
-          )
-        ],
+          ),
+        ),
       ),
     );
+  }
+
+  // --- MAINTENANCE ENGINE ---
+  void _runMaintenance(PharoahManager ph) async {
+    // Maintenance ke liye humein latest FY ka context chahiye hota hai
+    String latestFY = ph.activeCompany?.fYears.last ?? "";
+    if (latestFY.isEmpty) return;
+
+    setState(() {
+      isMaintenanceRunning = true;
+      maintenanceStatus = "Waking up Pharoah Doctor...";
+    });
+
+    // Pehle data load karo background mein
+    await ph.loginToCompany(ph.activeCompany!, latestFY);
+    String path = await ph.getWorkingPath();
+
+    final engine = MaintenanceService(ph, path);
+    await engine.runFullMaintenance(onProgress: (p, s) {
+      if (mounted) setState(() { maintenanceStatus = s; });
+    });
+
+    // Maintenance khatam hone ke baad FY clear kar do taaki user phir se choice kare
+    ph.currentFY = ""; 
+    ph.notifyListeners();
+
+    if (mounted) setState(() => isMaintenanceRunning = false);
   }
 
   @override
@@ -76,16 +88,22 @@ class _CompanyControlPanelViewState extends State<CompanyControlPanelView> {
     final comp = ph.activeCompany;
     if (comp == null) return const Scaffold(body: Center(child: Text("Error: No active company")));
 
+    // --- PERMISSION LOGIC ---
+    bool isAdmin = ph.loggedInStaff == null;
+    bool canMaintain = isAdmin || (ph.loggedInStaff?.canRunMaintenance ?? false);
+    bool canExport = isAdmin || (ph.loggedInStaff?.canExportData ?? false);
+
     return Scaffold(
       backgroundColor: const Color(0xFFF0F2F5),
       appBar: AppBar(
         title: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text(comp.name, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-          Text("System Control Panel (${comp.id})", style: const TextStyle(fontSize: 10, color: Colors.white70)),
+          Text(isAdmin ? "Admin Control Panel" : "Staff Access: ${ph.loggedInStaff?.name}", 
+               style: const TextStyle(fontSize: 10, color: Colors.white70)),
         ]),
         backgroundColor: const Color(0xFF0D47A1),
         foregroundColor: Colors.white,
-        leading: IconButton(icon: const Icon(Icons.arrow_back), onPressed: () => ph.clearSession()),
+        leading: IconButton(icon: const Icon(Icons.logout), onPressed: () => ph.clearSession()),
       ),
       body: Stack(
         children: [
@@ -93,22 +111,39 @@ class _CompanyControlPanelViewState extends State<CompanyControlPanelView> {
             padding: const EdgeInsets.all(20),
             child: Column(
               children: [
-                _buildHeaderCard(comp),
+                _buildHeaderCard(comp, isAdmin),
                 const SizedBox(height: 25),
-                GridView.count(
+                
+                // GRID OF BUTTONS (With Visibility Logic)
+                GridView(
                   shrinkWrap: true,
                   physics: const NeverScrollableScrollPhysics(),
-                  crossAxisCount: 2,
-                  crossAxisSpacing: 15,
-                  mainAxisSpacing: 15,
-                  childAspectRatio: 1.1,
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 2, crossAxisSpacing: 15, mainAxisSpacing: 15, childAspectRatio: 1.1,
+                  ),
                   children: [
-                    _menuItem("LOGIN TO WORK", Icons.play_circle_fill_rounded, Colors.green, () => ph.loginToCompany(comp, comp.fYears.last)),
-                    _menuItem("FILE MAINTENANCE", Icons.health_and_safety_rounded, Colors.orange.shade800, () => _runMaintenance(ph)),
-                    _menuItem("BACKUP & EXPORT", Icons.cloud_upload_rounded, Colors.blue, () => ExportService(ph).exportEntireCompany(comp)),
-                    _menuItem("NEW YEAR SETUP", Icons.fiber_new_rounded, Colors.purple, () => _showNewYearDialog(ph)),
-                    _menuItem("MODIFY COMPANY", Icons.settings_applications_rounded, Colors.blueGrey, () => Navigator.push(context, MaterialPageRoute(builder: (c) => ModifyCompanyView(comp: comp)))),
-                    _menuItem("DELETE COMPANY", Icons.delete_forever_rounded, Colors.red, () => _confirmDelete(ph)),
+                    // 1. Always Visible: Login
+                    _menuItem("LOGIN TO WORK", Icons.play_circle_fill_rounded, Colors.green, () => _showFYSelectionDialog(ph, comp)),
+                    
+                    // 2. Visible if Admin or permitted Staff: Maintenance
+                    if (canMaintain)
+                      _menuItem("FILE MAINTENANCE", Icons.health_and_safety_rounded, Colors.orange.shade800, () => _runMaintenance(ph)),
+                    
+                    // 3. Visible if Admin or permitted Staff: Backup
+                    if (canExport)
+                      _menuItem("BACKUP & EXPORT", Icons.cloud_upload_rounded, Colors.blue, () => ExportService(ph).exportEntireCompany(comp)),
+                    
+                    // 4. ADMIN ONLY: New Year
+                    if (isAdmin)
+                      _menuItem("NEW YEAR SETUP", Icons.fiber_new_rounded, Colors.purple, () => _showNewYearDialog(ph)),
+                    
+                    // 5. ADMIN ONLY: Modify
+                    if (isAdmin)
+                      _menuItem("MODIFY COMPANY", Icons.settings_applications_rounded, Colors.blueGrey, () => Navigator.push(context, MaterialPageRoute(builder: (c) => ModifyCompanyView(comp: comp)))),
+                    
+                    // 6. ADMIN ONLY: Delete
+                    if (isAdmin)
+                      _menuItem("DELETE COMPANY", Icons.delete_forever_rounded, Colors.red, () => _confirmDelete(ph)),
                   ],
                 ),
               ],
@@ -120,7 +155,7 @@ class _CompanyControlPanelViewState extends State<CompanyControlPanelView> {
     );
   }
 
-  Widget _buildHeaderCard(CompanyProfile comp) {
+  Widget _buildHeaderCard(CompanyProfile comp, bool isAdmin) {
     return Container(
       width: double.infinity, padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10)]),
@@ -128,9 +163,14 @@ class _CompanyControlPanelViewState extends State<CompanyControlPanelView> {
           CircleAvatar(radius: 30, backgroundColor: const Color(0xFF0D47A1).withOpacity(0.1), child: const Icon(Icons.business_rounded, color: Color(0xFF0D47A1), size: 30)),
           const SizedBox(width: 15),
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            const Text("ACTIVE COMPANY", style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.blueGrey, letterSpacing: 1)),
             Text(comp.name, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900)),
-            Text("Nature: ${comp.businessType}", style: const TextStyle(fontSize: 12, color: Colors.grey)),
+            Text("Business Type: ${comp.businessType}", style: const TextStyle(fontSize: 12, color: Colors.grey)),
+            const SizedBox(height: 5),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+              decoration: BoxDecoration(color: isAdmin ? Colors.blue.shade100 : Colors.orange.shade100, borderRadius: BorderRadius.circular(5)),
+              child: Text(isAdmin ? "FULL ADMIN ACCESS" : "RESTRICTED STAFF ACCESS", style: TextStyle(fontSize: 8, fontWeight: FontWeight.bold, color: isAdmin ? Colors.blue.shade900 : Colors.orange.shade900)),
+            )
           ]))
       ]),
     );
@@ -153,13 +193,30 @@ class _CompanyControlPanelViewState extends State<CompanyControlPanelView> {
     );
   }
 
+  void _showNewYearDialog(PharoahManager ph) {
+    final fyC = TextEditingController();
+    showDialog(context: context, builder: (c) => AlertDialog(
+        title: const Text("Setup New Financial Year"),
+        content: TextField(controller: fyC, decoration: const InputDecoration(labelText: "New FY (e.g. 2026-27)", border: OutlineInputBorder())),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(c), child: const Text("CANCEL")),
+          ElevatedButton(onPressed: () async {
+              if (fyC.text.isEmpty) return;
+              Navigator.pop(c);
+              bool ok = await ph.startNewFinancialYear(fyC.text.trim());
+              if (ok) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("✅ New Year Created Successfully!")));
+          }, child: const Text("START TRANSFER"))
+        ],
+    ));
+  }
+
   void _confirmDelete(PharoahManager ph) {
     showDialog(context: context, builder: (c) => AlertDialog(
         title: const Text("Delete Entire Company?"),
-        content: const Text("Isse is company ka sara data hamesha ke liye delete ho jayega."),
+        content: const Text("This action is irreversible. All your data will be permanently wiped."),
         actions: [
           TextButton(onPressed: () => Navigator.pop(c), child: const Text("CANCEL")),
-          ElevatedButton(style: ElevatedButton.styleFrom(backgroundColor: Colors.red), onPressed: () { ph.companiesRegistry.removeWhere((x) => x.id == ph.activeCompany!.id); ph.saveRegistry(); ph.clearSession(); Navigator.pop(c); }, child: const Text("YES, WIPE DATA", style: TextStyle(color: Colors.white))),
+          ElevatedButton(style: ElevatedButton.styleFrom(backgroundColor: Colors.red), onPressed: () { ph.companiesRegistry.removeWhere((x) => x.id == ph.activeCompany!.id); ph.saveRegistry(); ph.clearSession(); Navigator.pop(c); }, child: const Text("YES, DELETE EVERYTHING", style: TextStyle(color: Colors.white))),
         ],
     ));
   }
