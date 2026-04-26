@@ -29,43 +29,92 @@ class _StaffBillingViewState extends State<StaffBillingView> {
   List<BillItem> items = [];
   double get totalAmt => items.fold(0, (sum, it) => sum + it.total);
 
-  void _showItemSearch(PharoahManager ph) {
+  // NAYA: Serial Number Auto-Fixer for Staff
+  void _recalculateSR() {
+    setState(() {
+      for (int i = 0; i < items.length; i++) {
+        items[i] = items[i].copyWith(srNo: i + 1);
+      }
+    });
+  }
+
+  void _showItemSearch(PharoahManager ph, {BillItem? itemToEdit}) {
+    String localSearch = "";
+
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      builder: (c) => Container(
-        height: MediaQuery.of(context).size.height * 0.8,
-        padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
-        child: Column(
-          children: [
-            const Padding(padding: EdgeInsets.all(15), child: Text("SELECT PRODUCT", style: TextStyle(fontWeight: FontWeight.bold))),
-            Expanded(
-              child: ListView.builder(
-                itemCount: ph.medicines.length,
-                itemBuilder: (c, i) => ListTile(
-                  title: Text(ph.medicines[i].name),
-                  subtitle: Text("Pack: ${ph.medicines[i].packing} | Stock: ${ph.medicines[i].stock}"),
-                  onTap: () {
-                    Navigator.pop(context);
-                    _showEntryCard(ph.medicines[i]);
-                  },
+      builder: (context) => StatefulBuilder(
+        builder: (context, setSheetState) {
+          final filteredMeds = ph.medicines
+              .where((m) => m.name.toLowerCase().contains(localSearch.toLowerCase()))
+              .toList();
+
+          return Container(
+            height: MediaQuery.of(context).size.height * 0.85,
+            padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+            decoration: const BoxDecoration(
+              color: Color(0xFFF1F8E9),
+              borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+            ),
+            child: Column(
+              children: [
+                Container(
+                  margin: const EdgeInsets.only(top: 10, bottom: 10),
+                  height: 5, width: 50,
+                  decoration: BoxDecoration(color: Colors.grey.shade400, borderRadius: BorderRadius.circular(10)),
                 ),
-              ),
-            )
-          ],
-        ),
+                Padding(
+                  padding: const EdgeInsets.all(15),
+                  child: TextField(
+                    autofocus: true,
+                    decoration: InputDecoration(
+                      hintText: "Search Product for billing...",
+                      prefixIcon: const Icon(Icons.search),
+                      filled: true, fillColor: Colors.white,
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                    ),
+                    onChanged: (v) => setSheetState(() => localSearch = v),
+                  ),
+                ),
+                Expanded(
+                  child: ListView.builder(
+                    itemCount: filteredMeds.length,
+                    itemBuilder: (c, i) => ListTile(
+                      leading: const Icon(Icons.medication, color: Colors.teal),
+                      title: Text(filteredMeds[i].name, style: const TextStyle(fontWeight: FontWeight.bold)),
+                      subtitle: Text("Pack: ${filteredMeds[i].packing} | Stock: ${filteredMeds[i].stock}"),
+                      onTap: () {
+                        Navigator.pop(context);
+                        _showEntryCard(filteredMeds[i], itemToEdit);
+                      },
+                    ),
+                  ),
+                )
+              ],
+            ),
+          );
+        },
       ),
     );
   }
 
-  void _showEntryCard(Medicine med) {
+  void _showEntryCard(Medicine med, BillItem? itemToEdit) {
     showDialog(
       context: context,
       builder: (c) => StaffItemEntryCard(
         med: med,
-        srNo: items.length + 1,
+        srNo: itemToEdit != null ? itemToEdit.srNo : items.length + 1,
+        existingItem: itemToEdit,
         onAdd: (newItem) {
-          setState(() { items.add(newItem); });
+          setState(() {
+            if (itemToEdit != null) {
+              int idx = items.indexWhere((it) => it.id == itemToEdit.id);
+              items[idx] = newItem;
+            } else {
+              items.add(newItem);
+            }
+          });
           Navigator.pop(context);
         },
         onCancel: () => Navigator.pop(context),
@@ -86,57 +135,112 @@ class _StaffBillingViewState extends State<StaffBillingView> {
         actions: [
           TextButton(
             onPressed: items.isEmpty ? null : () => _handleFinish(ph),
-            child: const Text("FINISH", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+            child: const Text("FINISH & SAVE", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
           )
         ],
       ),
       body: Column(
         children: [
-          Container(
-            padding: const EdgeInsets.all(15),
-            color: Colors.white,
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(widget.party.name, style: const TextStyle(fontWeight: FontWeight.bold)),
-                Text(DateFormat('dd/MM/yy').format(widget.billDate)),
-              ],
-            ),
-          ),
+          _buildHeader(),
+          
+          // --- NAYA: Search Bar Trigger (Replaced FAB) ---
+          _buildSearchBarTrigger(ph),
+
           Expanded(
-            child: ListView.builder(
-              itemCount: items.length,
-              itemBuilder: (c, i) => Card(
-                margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                child: ListTile(
-                  title: Text(items[i].name, style: const TextStyle(fontWeight: FontWeight.bold)),
-                  subtitle: Text("Batch: ${items[i].batch} | Qty: ${items[i].qty.toInt()}"),
-                  trailing: Text("₹${items[i].total.toStringAsFixed(2)}"),
-                ),
-              ),
-            ),
+            child: items.isEmpty
+                ? const Center(child: Text("Cart is empty. Tap above to add items."))
+                : ListView.builder(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                    itemCount: items.length,
+                    itemBuilder: (c, i) => _buildItemCard(items[i], i, ph),
+                  ),
           ),
-          Container(
-            padding: const EdgeInsets.all(20),
-            color: Colors.white,
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Text("GRAND TOTAL", style: TextStyle(fontWeight: FontWeight.bold)),
-                Text("₹${totalAmt.toStringAsFixed(2)}", style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.teal)),
-              ],
-            ),
-          )
+          
+          _buildFooter(),
         ],
-      ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => _showItemSearch(ph),
-        backgroundColor: Colors.teal.shade700,
-        label: const Text("ADD ITEM"),
-        icon: const Icon(Icons.add),
       ),
     );
   }
+
+  // --- UI COMPONENTS ---
+
+  Widget _buildHeader() => Container(
+    padding: const EdgeInsets.all(15), margin: const EdgeInsets.fromLTRB(10, 10, 10, 5),
+    decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12)),
+    child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+      Text(widget.party.name, style: TextStyle(fontWeight: FontWeight.bold, color: Colors.teal.shade800)),
+      Text(DateFormat('dd/MM/yy').format(widget.billDate), style: const TextStyle(fontWeight: FontWeight.bold)),
+    ]),
+  );
+
+  Widget _buildSearchBarTrigger(PharoahManager ph) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      child: InkWell(
+        onTap: () => _showItemSearch(ph),
+        borderRadius: BorderRadius.circular(10),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 15),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: Colors.teal.shade300, width: 1.5),
+          ),
+          child: Row(
+            children: [
+              Icon(Icons.search, color: Colors.teal.shade700),
+              const SizedBox(width: 10),
+              Text("Tap here to search & add product...", style: TextStyle(color: Colors.grey.shade600, fontSize: 14)),
+              const Spacer(),
+              Icon(Icons.add_circle, color: Colors.teal.shade700),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildItemCard(BillItem it, int index, PharoahManager ph) {
+    final card = Card(
+      elevation: 2, margin: const EdgeInsets.symmetric(vertical: 4),
+      child: ListTile(
+        leading: CircleAvatar(backgroundColor: Colors.teal.shade50, child: Text("${it.srNo}", style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold))),
+        title: Text(it.name, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.teal)),
+        subtitle: Text("Batch: ${it.batch} | Qty: ${it.qty.toInt()} | Rate: ₹${it.rate.toStringAsFixed(2)}"),
+        trailing: Text("₹${it.total.toStringAsFixed(2)}", style: const TextStyle(fontWeight: FontWeight.bold)),
+        onTap: () => _showItemSearch(ph, itemToEdit: it),
+      ),
+    );
+
+    // NAYA: Swipe to Delete Widget for Staff
+    return Dismissible(
+      key: Key(it.id),
+      direction: DismissDirection.endToStart, // Only Right to Left swipe
+      background: Container(
+        margin: const EdgeInsets.symmetric(vertical: 4),
+        decoration: BoxDecoration(color: Colors.red, borderRadius: BorderRadius.circular(12)),
+        alignment: Alignment.centerRight,
+        padding: const EdgeInsets.only(right: 20),
+        child: const Icon(Icons.delete, color: Colors.white, size: 28),
+      ),
+      onDismissed: (direction) {
+        setState(() { items.removeAt(index); });
+        _recalculateSR(); 
+      },
+      child: card,
+    );
+  }
+
+  Widget _buildFooter() => Container(
+    padding: const EdgeInsets.all(20), color: Colors.white,
+    child: Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        const Text("GRAND TOTAL", style: TextStyle(fontWeight: FontWeight.bold)),
+        Text("₹${totalAmt.toStringAsFixed(2)}", style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.teal)),
+      ],
+    ),
+  );
 
   void _handleFinish(PharoahManager ph) {
     ph.finalizeSale(
@@ -147,8 +251,8 @@ class _StaffBillingViewState extends State<StaffBillingView> {
       total: totalAmt,
       mode: widget.mode,
     );
-    Navigator.pop(context);
-    Navigator.pop(context);
+    Navigator.pop(context); // Close billing view
+    Navigator.pop(context); // Close entry setup view
     ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("✅ Bill Saved Successfully!"), backgroundColor: Colors.green));
   }
 }
