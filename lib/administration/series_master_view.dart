@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../pharoah_manager.dart';
 import '../../models.dart';
-import '../logic/pharoah_numbering_engine.dart';
+import '../../logic/pharoah_numbering_engine.dart';
 
 class SeriesMasterView extends StatefulWidget {
   const SeriesMasterView({super.key});
@@ -23,7 +23,7 @@ class _SeriesMasterViewState extends State<SeriesMasterView> with SingleTickerPr
     _tabController = TabController(length: types.length, vsync: this);
   }
 
-  // logic: Check if a prefix is already used in transactions
+  // logic: Check if a prefix is already used in transactions (Locking mechanism)
   bool _isSeriesInUse(PharoahManager ph, NumberingSeries series) {
     List<dynamic> targetList;
     switch (series.type) {
@@ -198,11 +198,6 @@ class _SeriesMasterViewState extends State<SeriesMasterView> with SingleTickerPr
               children: [
                 const SizedBox(height: 5),
                 Text("Prefix: ${s.prefix} | Start: ${s.startNumber}", style: const TextStyle(color: Colors.blueGrey, fontWeight: FontWeight.bold)),
-                const SizedBox(height: 5),
-                FutureBuilder<String>(
-                  future: PharoahNumberingEngine.getNextNumber(type: s.type, companyID: ph.activeCompany!.id, prefix: s.prefix, startFrom: s.startNumber, currentList: _getListByType(ph, s.type)),
-                  builder: (context, snap) => Text("Next Bill: ${snap.data ?? '...'}", style: const TextStyle(fontSize: 11, color: Colors.green, fontWeight: FontWeight.bold)),
-                ),
               ],
             ),
             trailing: Row(
@@ -227,14 +222,5 @@ class _SeriesMasterViewState extends State<SeriesMasterView> with SingleTickerPr
       decoration: BoxDecoration(color: active ? Colors.green.shade50 : Colors.red.shade50, borderRadius: BorderRadius.circular(5), border: Border.all(color: active ? Colors.green : Colors.red)),
       child: Text(active ? "ACTIVE" : "STOPPED", style: TextStyle(fontSize: 8, fontWeight: FontWeight.bold, color: active ? Colors.green.shade900 : Colors.red.shade900)),
     );
-  }
-
-  List<dynamic> _getListByType(PharoahManager ph, String type) {
-    if (type == "SALE") return ph.sales;
-    if (type == "PURCHASE") return ph.purchases;
-    if (type == "CHALLAN") return [...ph.saleChallans, ...ph.purchaseChallans];
-    if (type == "RETURN") return [...ph.saleReturns, ...ph.purchaseReturns];
-    if (type == "VOUCHER") return ph.vouchers;
-    return [];
   }
 }
