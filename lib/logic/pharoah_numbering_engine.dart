@@ -1,75 +1,105 @@
-// FILE: lib/logic/pharoah_numbering_engine.dart (Poora replace karein)
+// FILE: lib/logic/pharoah_numbering_engine.dart
 
 import 'package:shared_preferences/shared_preferences.dart';
 
 class PharoahNumberingEngine {
   
+  // ===========================================================================
+  // 1. GET NEXT SMART NUMBER
+  // ===========================================================================
   static Future<String> getNextNumber({
-    required String type,      
-    required String companyID,  
-    required List<dynamic> currentList, 
+    required String type,           // SALE, PURCHASE, CHALLAN, etc.
+    required String companyID,      // To keep it isolated
+    required String prefix,         // e.g. "CUSA-" or "INV/"
+    required int startFrom,         // User defined start number
+    required List<dynamic> currentList, // Full list of transactions from Manager
   }) async {
+    
     final prefs = await SharedPreferences.getInstance();
     
-    String prefix = _getDefaultPrefix(type, companyID, prefs);
-    String key = 'lastID_${type}_$companyID';
-    int lastCounter = prefs.getInt(key) ?? 0;
+    // Unique key for this specific series in this specific company
+    // Key Format: lastID_SALE_CUSA-_PH-C-123
+    String counterKey = 'lastID_${type}_${prefix}_$companyID';
+    int lastPersistedID = prefs.getInt(counterKey) ?? (startFrom - 1);
 
+    // Step A: Filter current list to find numbers only belonging to THIS prefix
     List<int> existingNumbers = [];
     for (var item in currentList) {
       String billNo = "";
-      if (type.contains("SALE") || type.contains("BREAKAGE")) billNo = item.billNo;
-      else if (type.contains("PURCHASE")) billNo = item.internalNo;
-      else billNo = item.id; 
+      
+      // Extracting bill number based on object type
+      // Using 'dynamic' access for flexibility across models
+      try {
+        if (type == "PURCHASE") {
+          billNo = item.internalNo; // Purchase uses internal tracking ID
+        } else {
+          billNo = item.billNo;     // Sales, Challans, Returns use billNo
+        }
+      } catch (e) {
+        billNo = item.id; // Fallback
+      }
 
       if (billNo.startsWith(prefix)) {
-        int? n = int.tryParse(billNo.replaceFirst(prefix, ""));
+        String numPart = billNo.replaceFirst(prefix, "");
+        int? n = int.tryParse(numPart);
         if (n != null) existingNumbers.add(n);
       }
     }
 
+    // Step B: Gap Filling Logic
     if (existingNumbers.isNotEmpty) {
       existingNumbers.sort();
-      for (int i = 1; i <= lastCounter; i++) {
+      
+      // Scan from startNumber to current Max to find missing gaps (Deleted bills)
+      for (int i = startFrom; i <= existingNumbers.last; i++) {
         if (!existingNumbers.contains(i)) {
-          return "$prefix$i"; 
+          return "$prefix$i"; // Found a gap! Return it.
         }
       }
+      
+      // If no gaps, return Max + 1
+      return "$prefix${existingNumbers.last + 1}";
     }
-    return "$prefix${lastCounter + 1}";
+
+    // Step C: If list is empty, start from User's preferred Start Number
+    return "$prefix$startFrom";
   }
 
-  static Future<void> updateCounter({
+  // ===========================================================================
+  // 2. UPDATE PERSISTENT COUNTER (Call this on Save)
+  // ===========================================================================
+  static Future<void> updateSeriesCounter({
     required String type,
     required String companyID,
     required String usedNumber,
+    required String prefix,
   }) async {
-    final prefs = await SharedPreferences.getInstance();
-    String prefix = _getDefaultPrefix(type, companyID, prefs);
-    String key = 'lastID_${type}_$companyID';
+    if (!usedNumber.startsWith(prefix)) return;
 
-    if (usedNumber.startsWith(prefix)) {
-      int? num = int.tryParse(usedNumber.replaceFirst(prefix, ""));
-      int currentMax = prefs.getInt(key) ?? 0;
-      if (num != null && num > currentMax) {
-        await prefs.setInt(key, num);
+    final prefs = await SharedPreferences.getInstance();
+    String counterKey = 'lastID_${type}_${prefix}_$companyID';
+    
+    String numStr = usedNumber.replaceFirst(prefix, "");
+    int? usedInt = int.tryParse(numStr);
+    
+    if (usedInt != null) {
+      int currentSaved = prefs.getInt(counterKey) ?? 0;
+      if (usedInt > currentSaved) {
+        await prefs.setInt(counterKey, usedInt);
       }
     }
   }
 
-  static String _getDefaultPrefix(String type, String companyID, SharedPreferences prefs) {
-    String customKey = 'prefix_${type}_$companyID';
-    
-    switch (type) {
-      case "SALE_BILL": return prefs.getString(customKey) ?? "INV-";
-      case "SALE_CHALLAN": return prefs.getString(customKey) ?? "SCH-";
-      case "SALE_RETURN": return prefs.getString(customKey) ?? "SRN-";
-      case "BREAKAGE_RETURN": return prefs.getString(customKey) ?? "BRK-"; // NAYA
-      case "PUR_BILL": return prefs.getString(customKey) ?? "PUR-";
-      case "PUR_CHALLAN": return prefs.getString(customKey) ?? "PCH-";
-      case "PUR_RETURN": return prefs.getString(customKey) ?? "PRN-";
-      case "VOUCHER": return prefs.getString(customKey) ?? "VOU-";
-      default: return "TXN-";
-    }
+  // ===========================================================================
+  // 3. RESET LOGIC (For Maintenance)
+  // ===========================================================================
+  static Future<void> resetSeries({
+    required String type,
+    required String companyID,
+    required String prefix,
+  }) async {
+    final prefs = await SharedPreferences.getInstance();
+    String counterKey = 'lastID_${type}_${prefix}_$companyID';
+    await prefs.remove(counterKey);
   }
 }
