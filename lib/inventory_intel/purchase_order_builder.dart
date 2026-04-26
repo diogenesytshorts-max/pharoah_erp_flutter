@@ -1,4 +1,4 @@
-// FILE: lib/inventory_intel/purchase_order_builder.dart
+// FILE: lib/inventory_intel/purchase_order_builder.dart (Updated Logic)
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -15,20 +15,24 @@ class PurchaseOrderBuilder extends StatefulWidget {
 
 class _PurchaseOrderBuilderState extends State<PurchaseOrderBuilder> {
   Party? selectedDistributor;
-  List<String> selectedShortageIds = [];
-  Map<String, double> finalOrderQtys = {}; // To store manually adjusted quantities
-  String searchQuery = "";
+  String? filterByCompany; // "All" or specific brand
+  List<Map<String, dynamic>> orderList = []; // Real-time order items
+  String medSearchQuery = "";
 
-  @override
-  void initState() {
-    super.initState();
-    // Initialize qtys from shortage list
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      final ph = Provider.of<PharoahManager>(context, listen: false);
-      for (var s in ph.shortages) {
-        finalOrderQtys[s.id] = s.qtyRequired;
+  // --- LOGIC: INITIALIZE ORDER FROM SHORTAGE ---
+  void _loadFromShortage(PharoahManager ph) {
+    orderList.clear();
+    for (var s in ph.shortages) {
+      if (filterByCompany == null || filterByCompany == "ALL" || s.companyName == filterByCompany) {
+        orderList.add({
+          'id': s.medicineId,
+          'name': s.medicineName,
+          'company': s.companyName,
+          'qty': s.qtyRequired,
+        });
       }
-    });
+    }
+    setState(() {});
   }
 
   @override
@@ -38,52 +42,132 @@ class _PurchaseOrderBuilderState extends State<PurchaseOrderBuilder> {
     return Scaffold(
       backgroundColor: const Color(0xFFF5F7FA),
       appBar: AppBar(
-        title: const Text("Purchase Order Builder"),
+        title: const Text("Create Purchase Order"),
         backgroundColor: Colors.blue.shade900,
         foregroundColor: Colors.white,
+        actions: [
+          if (orderList.isNotEmpty)
+            IconButton(
+              icon: const Icon(Icons.picture_as_pdf),
+              onPressed: () {
+                // Future: PDF Generation Service
+                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Generating PO PDF...")));
+              },
+            )
+        ],
       ),
       body: Column(
         children: [
-          // --- 1. DISTRIBUTOR SELECTOR ---
-          _buildDistributorHeader(ph),
+          // --- 1. SELECTION HEADER ---
+          _buildSelectionHeader(ph),
 
-          if (selectedDistributor != null) ...[
-            // --- 2. SHORTAGE SELECTION LIST ---
-            _buildItemsSelectionList(ph),
-
-            // --- 3. GENERATE ACTION BAR ---
-            if (selectedShortageIds.isNotEmpty) _buildActionBar(),
-          ] else
-            Expanded(child: _buildEmptyState("Please select a Distributor to build an order")),
+          // --- 2. THE ORDER LIST ---
+          Expanded(
+            child: orderList.isEmpty 
+              ? _buildEmptyState() 
+              : ListView.builder(
+                  padding: const EdgeInsets.all(12),
+                  itemCount: orderList.length,
+                  itemBuilder: (c, i) => _buildOrderItemTile(i),
+                ),
+          ),
+          
+          // --- 3. MANUAL ADD BAR ---
+          if (selectedDistributor != null) _buildManualAddBar(ph),
         ],
       ),
     );
   }
 
-  Widget _buildDistributorHeader(PharoahManager ph) {
+  Widget _buildSelectionHeader(PharoahManager ph) {
     return Container(
       padding: const EdgeInsets.all(15),
       color: Colors.white,
-      child: selectedDistributor == null
-          ? TextField(
-              decoration: const InputDecoration(
-                hintText: "Select Distributor to order from...", 
-                prefixIcon: Icon(Icons.business_center), 
-                border: OutlineInputBorder()
+      child: Column(
+        children: [
+          // Distributor Picker
+          InkWell(
+            onTap: () => _showDistributorPicker(ph),
+            child: Container(
+              padding: const EdgeInsets.all(15),
+              decoration: BoxDecoration(border: Border.all(color: Colors.blue.shade200), borderRadius: BorderRadius.circular(10), color: Colors.blue.shade50),
+              child: Row(
+                children: [
+                  const Icon(Icons.business, color: Colors.blue),
+                  const SizedBox(width: 15),
+                  Text(selectedDistributor?.name ?? "TAP TO SELECT SUPPLIER", style: const TextStyle(fontWeight: FontWeight.bold)),
+                  const Spacer(),
+                  const Icon(Icons.arrow_drop_down),
+                ],
               ),
-              onChanged: (v) => setState(() => searchQuery = v),
-              // Simulating a simple search for UI flow
-              onTap: () => _showDistributorPicker(ph),
-              readOnly: true,
-            )
-          : ListTile(
-              tileColor: Colors.blue.shade50,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10), side: BorderSide(color: Colors.blue.shade200)),
-              leading: const Icon(Icons.business, color: Colors.blue),
-              title: Text(selectedDistributor!.name, style: const TextStyle(fontWeight: FontWeight.bold)),
-              subtitle: Text(selectedDistributor!.city),
-              trailing: IconButton(icon: const Icon(Icons.close, color: Colors.red), onPressed: () => setState(() => selectedDistributor = null)),
             ),
+          ),
+          const SizedBox(height: 10),
+          // Company Filter
+          if (selectedDistributor != null)
+            Row(
+              children: [
+                const Text("Order For:", style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                const SizedBox(width: 15),
+                Expanded(
+                  child: DropdownButton<String>(
+                    isExpanded: true,
+                    value: filterByCompany ?? "ALL",
+                    items: ["ALL", ...ph.medicines.map((m) => m.companyId).toSet()]
+                        .map((c) => DropdownMenuItem(value: c, child: Text(c.toUpperCase(), style: const TextStyle(fontSize: 12))))
+                        .toList(),
+                    onChanged: (v) {
+                      setState(() { filterByCompany = v; _loadFromShortage(ph); });
+                    },
+                  ),
+                ),
+              ],
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildOrderItemTile(int index) {
+    final item = orderList[index];
+    return Card(
+      margin: const EdgeInsets.only(bottom: 8),
+      child: ListTile(
+        title: Text(item['name'], style: const TextStyle(fontWeight: FontWeight.bold)),
+        subtitle: Text("Brand: ${item['company']}"),
+        trailing: SizedBox(
+          width: 100,
+          child: Row(
+            children: [
+              IconButton(icon: const Icon(Icons.remove_circle_outline, color: Colors.red), onPressed: () {
+                setState(() { if(orderList[index]['qty'] > 1) orderList[index]['qty']--; });
+              }),
+              Text(item['qty'].toInt().toString(), style: const TextStyle(fontWeight: FontWeight.bold)),
+              IconButton(icon: const Icon(Icons.add_circle_outline, color: Colors.green), onPressed: () {
+                setState(() { orderList[index]['qty']++; });
+              }),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildManualAddBar(PharoahManager ph) {
+    return Container(
+      padding: const EdgeInsets.all(15),
+      color: Colors.white,
+      child: Row(
+        children: [
+          Expanded(
+            child: TextField(
+              decoration: const InputDecoration(hintText: "Add more items manually...", prefixIcon: Icon(Icons.search), border: OutlineInputBorder()),
+              onTap: () => _showManualMedicinePicker(ph),
+              readOnly: true,
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -93,154 +177,39 @@ class _PurchaseOrderBuilderState extends State<PurchaseOrderBuilder> {
       builder: (c) => ListView(
         children: ph.parties.where((p) => p.group == "Sundry Creditors").map((p) => ListTile(
           title: Text(p.name),
-          subtitle: Text(p.city),
-          onTap: () {
-            setState(() => selectedDistributor = p);
-            Navigator.pop(c);
-          },
+          onTap: () { setState(() => selectedDistributor = p); Navigator.pop(c); _loadFromShortage(ph); },
         )).toList(),
       ),
     );
   }
 
-  Widget _buildItemsSelectionList(PharoahManager ph) {
-    if (ph.shortages.isEmpty) return Expanded(child: _buildEmptyState("Shortage list is empty. Nothing to order."));
-
-    return Expanded(
-      child: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Text("SELECT ITEMS & ADJUST QTY", style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.blueGrey)),
-                TextButton(
-                  onPressed: () {
-                    setState(() {
-                      if (selectedShortageIds.length == ph.shortages.length) selectedShortageIds.clear();
-                      else selectedShortageIds = ph.shortages.map((s) => s.id).toList();
-                    });
-                  },
-                  child: Text(selectedShortageIds.length == ph.shortages.length ? "UNSELECT ALL" : "SELECT ALL"),
-                )
-              ],
-            ),
-          ),
-          Expanded(
-            child: ListView.builder(
-              itemCount: ph.shortages.length,
-              padding: const EdgeInsets.symmetric(horizontal: 15),
-              itemBuilder: (c, i) {
-                final s = ph.shortages[i];
-                final isSelected = selectedShortageIds.contains(s.id);
-                
-                return Card(
-                  elevation: 0,
-                  margin: const EdgeInsets.only(bottom: 8),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10), side: BorderSide(color: isSelected ? Colors.blue : Colors.grey.shade200)),
-                  child: Padding(
-                    padding: const EdgeInsets.all(8.0),
-                    child: Row(
-                      children: [
-                        Checkbox(
-                          value: isSelected, 
-                          onChanged: (v) {
-                            setState(() { v! ? selectedShortageIds.add(s.id) : selectedShortageIds.remove(s.id); });
-                          }
-                        ),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(s.medicineName, style: const TextStyle(fontWeight: FontWeight.bold)),
-                              Text("Stock: ${s.currentStock.toInt()} | Avg: ${ph.calculateAvgMonthlySale(s.medicineId).toStringAsFixed(1)}", style: const TextStyle(fontSize: 10, color: Colors.grey)),
-                            ],
-                          ),
-                        ),
-                        // Quantity Editor
-                        Container(
-                          width: 70,
-                          padding: const EdgeInsets.symmetric(horizontal: 8),
-                          decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(5)),
-                          child: TextFormField(
-                            initialValue: s.qtyRequired.toInt().toString(),
-                            keyboardType: TextInputType.number,
-                            textAlign: TextAlign.center,
-                            style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.blue),
-                            onChanged: (v) {
-                              finalOrderQtys[s.id] = double.tryParse(v) ?? 0;
-                            },
-                            decoration: const InputDecoration(border: InputBorder.none, isDense: true),
-                          ),
-                        )
-                      ],
-                    ),
-                  ),
-                );
-              },
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildActionBar() {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: const BoxDecoration(color: Colors.white, boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 10)]),
-      child: ElevatedButton.icon(
-        style: ElevatedButton.styleFrom(backgroundColor: Colors.blue.shade900, foregroundColor: Colors.white, minimumSize: const Size(double.infinity, 55)),
-        onPressed: () => _generateOrderSummary(),
-        icon: const Icon(Icons.send_rounded),
-        label: const Text("GENERATE & SHARE ORDER", style: TextStyle(fontWeight: FontWeight.bold)),
-      ),
-    );
-  }
-
-  void _generateOrderSummary() {
-    final ph = Provider.of<PharoahManager>(context, listen: false);
-    String orderText = "*PURCHASE ORDER*\n";
-    orderText += "Distributor: ${selectedDistributor!.name}\n";
-    orderText += "Date: ${DateFormat('dd/MM/yyyy').format(DateTime.now())}\n";
-    orderText += "--------------------------\n";
-
-    int count = 1;
-    for (var sid in selectedShortageIds) {
-      final item = ph.shortages.firstWhere((x) => x.id == sid);
-      double qty = finalOrderQtys[sid] ?? item.qtyRequired;
-      if (qty > 0) {
-        orderText += "$count. ${item.medicineName} -> Qty: ${qty.toInt()}\n";
-        count++;
-      }
-    }
-    
-    orderText += "--------------------------\n";
-    orderText += "Please supply as soon as possible.\nGenerated via Pharoah ERP.";
-
-    // Show a preview dialog before sharing
-    showDialog(
+  void _showManualMedicinePicker(PharoahManager ph) {
+    showModalBottomSheet(
       context: context,
-      builder: (c) => AlertDialog(
-        title: const Text("Order Preview"),
-        content: SingleChildScrollView(child: Text(orderText, style: const TextStyle(fontFamily: 'monospace', fontSize: 12))),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(c), child: const Text("CLOSE")),
-          ElevatedButton(
-            onPressed: () {
-              // Future: Use share_plus to send to WhatsApp
+      isScrollControlled: true,
+      builder: (c) => Container(
+        height: 400,
+        child: ListView.builder(
+          itemCount: ph.medicines.length,
+          itemBuilder: (c, i) => ListTile(
+            title: Text(ph.medicines[i].name),
+            subtitle: Text(ph.medicines[i].companyId),
+            onTap: () {
+              setState(() {
+                orderList.add({
+                  'id': ph.medicines[i].id,
+                  'name': ph.medicines[i].name,
+                  'company': ph.medicines[i].companyId,
+                  'qty': 1,
+                });
+              });
               Navigator.pop(c);
-              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Copying to clipboard and opening share...")));
             },
-            child: const Text("SHARE ON WHATSAPP"),
-          )
-        ],
+          ),
+        ),
       ),
     );
   }
 
-  Widget _buildEmptyState(String msg) {
-    return Center(child: Text(msg, style: const TextStyle(color: Colors.grey, fontStyle: FontStyle.italic)));
-  }
+  Widget _buildEmptyState() => Center(child: Text("No items in order list. Select a supplier and company."));
 }
