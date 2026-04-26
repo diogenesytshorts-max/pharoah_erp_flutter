@@ -9,7 +9,6 @@ import 'administration/system_user_model.dart';
 import 'finance/bank_transaction_model.dart';
 import 'demo_data.dart';
 import 'inventory_logic_center.dart';
-import 'fy_transfer_engine.dart';
 import 'gateway/company_registry_model.dart';
 import 'logic/app_settings_model.dart';
 
@@ -43,7 +42,7 @@ class PharoahManager with ChangeNotifier {
 
   PharoahManager() { initRegistry(); }
 
-  // --- REGISTRY ENGINE ---
+  // --- DATA REGISTRY ---
   Future<void> initRegistry() async {
     final root = await getApplicationDocumentsDirectory();
     final file = File('${root.path}/pharoah_registry.json');
@@ -79,7 +78,7 @@ class PharoahManager with ChangeNotifier {
     return dir.path;
   }
 
-  // --- SAVE & LOAD ENGINE ---
+  // --- SAVE & LOAD ---
   Future<void> save() async {
     final dir = await getWorkingPath();
     if (dir.isEmpty) return;
@@ -89,10 +88,6 @@ class PharoahManager with ChangeNotifier {
     await File('$dir/purc.json').writeAsString(jsonEncode(purchases.map((e) => e.toMap()).toList()));
     await File('$dir/vouc.json').writeAsString(jsonEncode(vouchers.map((e) => e.toMap()).toList()));
     await File('$dir/sys_users.json').writeAsString(jsonEncode(systemUsers.map((e) => e.toMap()).toList()));
-    await File('$dir/routs.json').writeAsString(jsonEncode(routes.map((e) => e.toMap()).toList()));
-    await File('$dir/comps.json').writeAsString(jsonEncode(companies.map((e) => e.toMap()).toList()));
-    await File('$dir/salts.json').writeAsString(jsonEncode(salts.map((e) => e.toMap()).toList()));
-    await File('$dir/dtypes.json').writeAsString(jsonEncode(drugTypes.map((e) => e.toMap()).toList()));
     await File('$dir/bats.json').writeAsString(jsonEncode(batchHistory.map((k, v) => MapEntry(k, v.map((b) => b.toMap()).toList()))));
     notifyListeners();
   }
@@ -109,19 +104,11 @@ class PharoahManager with ChangeNotifier {
     sales = (loadJson('sales.json') as List?)?.map((e) => Sale.fromMap(e)).toList() ?? [];
     purchases = (loadJson('purc.json') as List?)?.map((e) => Purchase.fromMap(e)).toList() ?? [];
     vouchers = (loadJson('vouc.json') as List?)?.map((e) => Voucher.fromMap(e)).toList() ?? [];
-    routes = (loadJson('routs.json') as List?)?.map((e) => RouteArea.fromMap(e)).toList() ?? [];
-    companies = (loadJson('comps.json') as List?)?.map((e) => Company.fromMap(e)).toList() ?? [];
-    salts = (loadJson('salts.json') as List?)?.map((e) => Salt.fromMap(e)).toList() ?? [];
-    drugTypes = (loadJson('dtypes.json') as List?)?.map((e) => DrugType.fromMap(e)).toList() ?? [];
-    
-    var users = loadJson('sys_users.json');
-    if (users != null) systemUsers = (users as List).map((e) => SystemUser.fromMap(e)).toList();
-
     InventoryLogicCenter.rebuildAllInventory(medicines: medicines, batchHistory: batchHistory, purchases: purchases, sales: sales);
     notifyListeners();
   }
 
-  // --- PUBLIC UI METHODS ---
+  // --- UI ACTIONS ---
   void addVoucher(Voucher v) { vouchers.add(v); save(); }
   void addLog(String action, String details) { logs.add(LogEntry(id: DateTime.now().toString(), action: action, details: details, time: DateTime.now())); }
   void addCompany(Company c) { companies.add(c); save(); }
@@ -165,7 +152,7 @@ class PharoahManager with ChangeNotifier {
   }
 
   void finalizePurchaseReturn({required String billNo, required DateTime date, required Party party, required List<PurchaseItem> items, required double total, String type = "Sellable"}) {
-    purchaseReturns.add(PurchaseReturn(id: DateTime.now().toString(), billNo: billNo, distributorName: party.name, date: date, items: items, totalAmount: total, returnType: type));
+    purchaseReturns.add(PurchaseReturn(id: DateTime.now().toString(), billNo: billNo, distributorName: party.name, date: date, items: items, totalAmount: total, status: "Active", returnType: type));
     save();
   }
 
@@ -181,12 +168,6 @@ class PharoahManager with ChangeNotifier {
       var b = batchHistory[medId]!.firstWhere((x) => x.batch == batchNo);
       b.exp = newExp; b.mrp = newMrp; b.rate = newRate; save().then((_) => loadAllData());
     }
-  }
-
-  Future<bool> startNewFinancialYear(String nextFY) async {
-    bool success = await FYTransferEngine.transferData(companyID: activeCompany!.id, businessType: activeCompany!.businessType, sourceFY: currentFY, targetFY: nextFY);
-    if (success) { currentFY = nextFY; await loadAllData(); }
-    return success;
   }
 
   List<BankTransaction> getBankStatement(String bankName, DateTime from, DateTime to) {
