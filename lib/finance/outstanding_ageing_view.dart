@@ -1,4 +1,4 @@
-// FILE: lib/finance/outstanding_ageing_view.dart
+// FILE: lib/finance/outstanding_ageing_view.dart (Advanced Logic + Null Fixed)
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -15,18 +15,15 @@ class OutstandingAgeingView extends StatefulWidget {
 
 class _OutstandingAgeingViewState extends State<OutstandingAgeingView> {
   String searchQuery = "";
-  String? selectedSalesman;
 
   @override
   Widget build(BuildContext context) {
     final ph = Provider.of<PharoahManager>(context);
 
-    // Filtered list based on Search and Salesman
+    // Filtered list based on Search
     final filteredParties = ph.parties.where((p) {
       if (p.name == "CASH") return false;
-      bool matchesSearch = p.name.toLowerCase().contains(searchQuery.toLowerCase());
-      // Hum future mein party ke saath salesman link karenge toh ye filter aur accurate ho jayega
-      return matchesSearch;
+      return p.name.toLowerCase().contains(searchQuery.toLowerCase());
     }).toList();
 
     return Scaffold(
@@ -38,11 +35,11 @@ class _OutstandingAgeingViewState extends State<OutstandingAgeingView> {
       ),
       body: Column(
         children: [
-          // --- 1. SEARCH & FILTERS ---
-          _buildFilterBar(ph),
+          // --- 1. SEARCH BAR ---
+          _buildFilterBar(),
 
           // --- 2. GLOBAL AGEING INDICATORS ---
-          _buildGlobalSummary(ph),
+          _buildGlobalSummary(),
 
           // --- 3. PARTY LIST ---
           Expanded(
@@ -53,7 +50,8 @@ class _OutstandingAgeingViewState extends State<OutstandingAgeingView> {
                 final party = filteredParties[i];
                 final ageingData = _calculatePartyAgeing(ph, party);
 
-                if (ageingData['total'] <= 0) return const SizedBox();
+                // FIXED: Null check added with '?? 0' to prevent build error
+                if ((ageingData['total'] ?? 0) <= 0) return const SizedBox();
 
                 return _partyAgeingCard(party, ageingData);
               },
@@ -64,7 +62,7 @@ class _OutstandingAgeingViewState extends State<OutstandingAgeingView> {
     );
   }
 
-  Widget _buildFilterBar(PharoahManager ph) {
+  Widget _buildFilterBar() {
     return Container(
       padding: const EdgeInsets.all(15),
       color: Colors.indigo.shade800,
@@ -83,8 +81,7 @@ class _OutstandingAgeingViewState extends State<OutstandingAgeingView> {
     );
   }
 
-  Widget _buildGlobalSummary(PharoahManager ph) {
-    // Ye boxes pure market ka breakdown dikhayenge
+  Widget _buildGlobalSummary() {
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 15, horizontal: 10),
       color: Colors.white,
@@ -110,6 +107,7 @@ class _OutstandingAgeingViewState extends State<OutstandingAgeingView> {
   }
 
   Widget _partyAgeingCard(Party p, Map<String, double> data) {
+    double total = data['total'] ?? 0;
     return Card(
       elevation: 2,
       margin: const EdgeInsets.only(bottom: 12),
@@ -126,28 +124,24 @@ class _OutstandingAgeingViewState extends State<OutstandingAgeingView> {
                   Text(p.name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
                   Text(p.city, style: const TextStyle(fontSize: 11, color: Colors.grey)),
                 ]),
-                Text("₹${data['total']!.toStringAsFixed(0)}", style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: Colors.indigo)),
+                Text("₹${total.toStringAsFixed(0)}", style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: Colors.indigo)),
               ],
             ),
             const Divider(height: 25),
-            // Ageing Visual Bar
             Row(
               children: [
-                _ageingSegment("30", data['b1']!, data['total']!, Colors.green),
-                _ageingSegment("60", data['b2']!, data['total']!, Colors.orange),
-                _ageingSegment("90", data['b3']!, data['total']!, Colors.deepOrange),
-                _ageingSegment("90+", data['b4']!, data['total']!, Colors.red),
+                _ageingSegment("30", data['b1'] ?? 0, total, Colors.green),
+                _ageingSegment("60", data['b2'] ?? 0, total, Colors.orange),
+                _ageingSegment("90", data['b3'] ?? 0, total, Colors.deepOrange),
+                _ageingSegment("90+", data['b4'] ?? 0, total, Colors.red),
               ],
             ),
             const SizedBox(height: 15),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text("Last Pay: 5 days ago", style: TextStyle(fontSize: 10, color: Colors.grey, fontStyle: FontStyle.italic)),
-                IconButton(
-                  onPressed: () { /* Future: Send WhatsApp */ },
-                  icon: const Icon(Icons.share_rounded, color: Colors.green, size: 20),
-                )
+                const Text("Pending Recovery", style: TextStyle(fontSize: 10, color: Colors.grey, fontStyle: FontStyle.italic)),
+                const Icon(Icons.share_rounded, color: Colors.green, size: 20),
               ],
             )
           ],
@@ -157,7 +151,7 @@ class _OutstandingAgeingViewState extends State<OutstandingAgeingView> {
   }
 
   Widget _ageingSegment(String label, double val, double total, Color c) {
-    if (val <= 0) return const SizedBox();
+    if (val <= 0 || total <= 0) return const SizedBox();
     return Expanded(
       flex: (val / total * 100).toInt(),
       child: Container(
@@ -170,9 +164,6 @@ class _OutstandingAgeingViewState extends State<OutstandingAgeingView> {
     );
   }
 
-  // ===========================================================================
-  // CORE CALCULATION ENGINE
-  // ===========================================================================
   Map<String, double> _calculatePartyAgeing(PharoahManager ph, Party p) {
     double b1 = 0; // 0-30
     double b2 = 0; // 31-60
@@ -180,24 +171,19 @@ class _OutstandingAgeingViewState extends State<OutstandingAgeingView> {
     double b4 = 0; // 90+
     double total = p.opBal;
 
-    // Party ke saare sales bills scan karo
     final partyBills = ph.sales.where((s) => s.partyName == p.name && s.status == "Active").toList();
-    
     DateTime now = DateTime.now();
 
     for (var bill in partyBills) {
       int diff = now.difference(bill.date).inDays;
       double amt = bill.totalAmount;
-
       if (diff <= 30) b1 += amt;
       else if (diff <= 60) b2 += amt;
       else if (diff <= 90) b3 += amt;
       else b4 += amt;
-
       total += amt;
     }
 
-    // Vouchers (Receipts) minus karo total se (FIFO logic basically applies here)
     final receipts = ph.vouchers.where((v) => v.partyName == p.name && v.type == "Receipt").fold(0.0, (sum, v) => sum + v.amount);
     total -= receipts;
 
