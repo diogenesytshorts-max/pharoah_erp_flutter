@@ -8,9 +8,10 @@ import '../models.dart';
 import '../logic/pharoah_numbering_engine.dart';
 import '../purchase/purchase_billing_view.dart'; 
 import '../pharoah_date_controller.dart';
+import '../product_master.dart'; // NAYA: For quick add product
 
 class PurchaseChallanView extends StatefulWidget {
-  final PurchaseChallan? existingRecord; // NAYA: Edit support
+  final PurchaseChallan? existingRecord; 
 
   const PurchaseChallanView({super.key, this.existingRecord});
 
@@ -33,19 +34,16 @@ class _PurchaseChallanViewState extends State<PurchaseChallanView> {
     _initPurchaseFlow();
   }
 
-  // --- LOGIC: NEW ENTRY vs MODIFY ---
   void _initPurchaseFlow() async {
     final ph = Provider.of<PharoahManager>(context, listen: false);
 
     if (widget.existingRecord != null) {
-      // CASE: EDIT MODE (Purana record load karo)
       final ex = widget.existingRecord!;
       internalNoC.text = ex.internalNo;
       supplierChallanNoC.text = ex.billNo;
       selectedDate = ex.date;
       items = List.from(ex.items);
       
-      // Distributor dhoondhna
       try {
         selectedDistributor = ph.parties.firstWhere((p) => p.name == ex.distributorName);
       } catch (e) {
@@ -53,11 +51,12 @@ class _PurchaseChallanViewState extends State<PurchaseChallanView> {
       }
       setState(() => isLoading = false);
     } else {
-      // CASE: NEW ENTRY
       if (ph.activeCompany != null) {
         String nextNo = await PharoahNumberingEngine.getNextNumber(
-          type: "PUR_CHALLAN",
+          type: "CHALLAN",
           companyID: ph.activeCompany!.id,
+          prefix: ph.getDefaultSeries("CHALLAN").prefix,
+          startFrom: ph.getDefaultSeries("CHALLAN").startNumber,
           currentList: ph.purchaseChallans,
         );
         setState(() {
@@ -70,6 +69,124 @@ class _PurchaseChallanViewState extends State<PurchaseChallanView> {
   }
 
   double get totalAmt => items.fold(0, (sum, it) => sum + it.total);
+
+  // NAYA: Serial Number auto-fixer logic
+  void _recalculateSR() {
+    setState(() {
+      for (int i = 0; i < items.length; i++) {
+        items[i] = items[i].copyWith(srNo: i + 1);
+      }
+    });
+  }
+
+  void _showItemSearch(PharoahManager ph, {PurchaseItem? itemToEdit}) {
+    String localSearch = "";
+    Medicine? selectedMed;
+
+    if (itemToEdit != null) {
+      try {
+        selectedMed = ph.medicines.firstWhere((m) => m.id == itemToEdit.medicineID);
+      } catch (e) { selectedMed = null; }
+    }
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      builder: (c) => StatefulBuilder(
+        builder: (context, setSheetState) {
+          final filteredMeds = ph.medicines
+              .where((m) => m.name.toLowerCase().contains(localSearch.toLowerCase()))
+              .toList();
+
+          return Container(
+            height: MediaQuery.of(context).size.height * 0.85,
+            padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+            decoration: BoxDecoration(
+              color: Colors.amber.shade50,
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+            ),
+            child: Column(
+              children: [
+                Container(
+                  margin: const EdgeInsets.only(top: 10, bottom: 10),
+                  height: 5, width: 50,
+                  decoration: BoxDecoration(color: Colors.grey.shade400, borderRadius: BorderRadius.circular(10)),
+                ),
+                if (selectedMed == null) ...[
+                  Padding(
+                    padding: const EdgeInsets.all(15),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: TextField(
+                            autofocus: true,
+                            decoration: InputDecoration(
+                              hintText: "Search Product...",
+                              prefixIcon: const Icon(Icons.search, color: Colors.brown),
+                              filled: true, fillColor: Colors.white,
+                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                            ),
+                            onChanged: (v) => setSheetState(() => localSearch = v),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        IconButton.filled(
+                          onPressed: () async {
+                            final result = await Navigator.push(
+                              context,
+                              MaterialPageRoute(builder: (c) => const ProductMasterView(isSelectionMode: true)),
+                            );
+                            if (result != null && result is Medicine) {
+                              setSheetState(() => selectedMed = result);
+                            }
+                          },
+                          icon: const Icon(Icons.library_add_rounded),
+                          style: IconButton.styleFrom(backgroundColor: Colors.amber.shade900, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
+                        )
+                      ],
+                    ),
+                  ),
+                  Expanded(
+                    child: ListView.builder(
+                      itemCount: filteredMeds.length,
+                      itemBuilder: (c, i) => ListTile(
+                        leading: const Icon(Icons.inventory_2, color: Colors.brown),
+                        title: Text(filteredMeds[i].name, style: const TextStyle(fontWeight: FontWeight.bold)),
+                        subtitle: Text("Pack: ${filteredMeds[i].packing} | Stock: ${filteredMeds[i].stock}"),
+                        onTap: () => setSheetState(() => selectedMed = filteredMeds[i]),
+                      ),
+                    ),
+                  ),
+                ] else ...[
+                  Expanded(
+                    child: SingleChildScrollView(
+                      child: PurchaseItemEntryCard(
+                        med: selectedMed!,
+                        srNo: itemToEdit != null ? itemToEdit.srNo : items.length + 1,
+                        existingItem: itemToEdit,
+                        onAdd: (newItem) {
+                          setState(() {
+                            if (itemToEdit != null) {
+                              int idx = items.indexWhere((it) => it.id == itemToEdit.id);
+                              items[idx] = newItem; 
+                            } else {
+                              items.add(newItem); 
+                            }
+                          });
+                          Navigator.pop(context);
+                        },
+                        onCancel: () => itemToEdit != null ? Navigator.pop(context) : setSheetState(() => selectedMed = null),
+                      ),
+                    ),
+                  ),
+                ]
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -103,14 +220,6 @@ class _PurchaseChallanViewState extends State<PurchaseChallanView> {
           if (selectedDistributor != null) _buildSummaryFooter(),
         ],
       ),
-      floatingActionButton: (selectedDistributor != null)
-          ? FloatingActionButton.extended(
-              onPressed: () => _showItemSearch(ph),
-              backgroundColor: Colors.amber.shade900,
-              icon: const Icon(Icons.add_box_rounded, color: Colors.white),
-              label: const Text("ADD ITEM", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-            )
-          : null,
     );
   }
 
@@ -125,7 +234,7 @@ class _PurchaseChallanViewState extends State<PurchaseChallanView> {
               Expanded(
                 child: TextField(
                   controller: internalNoC, 
-                  readOnly: true, // Internal ID is locked
+                  readOnly: true, 
                   decoration: const InputDecoration(labelText: "INTERNAL ID", border: OutlineInputBorder(), filled: true, fillColor: Color(0xFFF5F5F5))
                 )
               ),
@@ -201,27 +310,83 @@ class _PurchaseChallanViewState extends State<PurchaseChallanView> {
           tileColor: Colors.amber.shade100,
           leading: const Icon(Icons.business, color: Colors.brown),
           title: Text(selectedDistributor!.name, style: const TextStyle(fontWeight: FontWeight.bold)),
-          trailing: (widget.existingRecord == null) // Supplier change allowed only in new entries
+          trailing: (widget.existingRecord == null) 
               ? IconButton(onPressed: () => setState(() => selectedDistributor = null), icon: const Icon(Icons.edit, color: Colors.blue))
               : null,
         ),
+
+        // --- NAYA: Search Bar Trigger (Replaced FAB) ---
+        _buildSearchBarTrigger(ph),
+
         Expanded(
           child: items.isEmpty 
             ? const Center(child: Text("No items in this inward note."))
             : ListView.builder(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                 itemCount: items.length,
-                itemBuilder: (c, i) => Card(
-                  margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                  child: ListTile(
-                    title: Text(items[i].name, style: const TextStyle(fontWeight: FontWeight.bold)),
-                    subtitle: Text("Batch: ${items[i].batch} | Qty: ${items[i].qty.toInt()} + ${items[i].freeQty.toInt()}"),
-                    trailing: Text("₹${items[i].total.toStringAsFixed(2)}", style: const TextStyle(fontWeight: FontWeight.bold)),
-                    onLongPress: () => setState(() => items.removeAt(i)),
-                  ),
-                ),
+                itemBuilder: (c, i) => _buildItemCard(items[i], i, ph),
               ),
         ),
       ],
+    );
+  }
+
+  // NAYA: Search Bar Trigger
+  Widget _buildSearchBarTrigger(PharoahManager ph) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      child: InkWell(
+        onTap: () => _showItemSearch(ph),
+        borderRadius: BorderRadius.circular(10),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 15),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: Colors.amber.shade400, width: 1.5),
+          ),
+          child: Row(
+            children: [
+              Icon(Icons.search, color: Colors.amber.shade900),
+              const SizedBox(width: 10),
+              Text("Tap here to search inward stock...", style: TextStyle(color: Colors.brown.shade600, fontSize: 14)),
+              const Spacer(),
+              Icon(Icons.add_circle, color: Colors.amber.shade900),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // NAYA: Swipe to Delete Card
+  Widget _buildItemCard(PurchaseItem it, int index, PharoahManager ph) {
+    final card = Card(
+      elevation: 2, margin: const EdgeInsets.symmetric(vertical: 4),
+      child: ListTile(
+        leading: CircleAvatar(backgroundColor: Colors.amber.shade50, child: Text("${it.srNo}", style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.amber.shade900))),
+        title: Text(it.name, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.brown)),
+        subtitle: Text("Batch: ${it.batch} | Qty: ${it.qty.toInt()} + ${it.freeQty.toInt()}"),
+        trailing: Text("₹${it.total.toStringAsFixed(2)}", style: const TextStyle(fontWeight: FontWeight.bold)),
+        onTap: () => _showItemSearch(ph, itemToEdit: it),
+      ),
+    );
+
+    return Dismissible(
+      key: Key(it.id),
+      direction: DismissDirection.endToStart,
+      background: Container(
+        margin: const EdgeInsets.symmetric(vertical: 4),
+        decoration: BoxDecoration(color: Colors.red, borderRadius: BorderRadius.circular(12)),
+        alignment: Alignment.centerRight,
+        padding: const EdgeInsets.only(right: 20),
+        child: const Icon(Icons.delete, color: Colors.white, size: 28),
+      ),
+      onDismissed: (direction) {
+        setState(() { items.removeAt(index); });
+        _recalculateSR(); 
+      },
+      child: card,
     );
   }
 
@@ -239,56 +404,11 @@ class _PurchaseChallanViewState extends State<PurchaseChallanView> {
     );
   }
 
-  void _showItemSearch(PharoahManager ph) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      builder: (c) => Container(
-        height: MediaQuery.of(context).size.height * 0.8,
-        padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
-        child: Column(
-          children: [
-             const Padding(padding: EdgeInsets.all(15), child: Text("SELECT ITEM", style: TextStyle(fontWeight: FontWeight.bold))),
-             Expanded(
-               child: ListView.builder(
-                 itemCount: ph.medicines.length,
-                 itemBuilder: (c, i) => ListTile(
-                   title: Text(ph.medicines[i].name),
-                   onTap: () {
-                     Navigator.pop(context);
-                     _showPurchaseEntry(ph.medicines[i]);
-                   },
-                 ),
-               ),
-             )
-          ],
-        ),
-      ),
-    );
-  }
-
-  void _showPurchaseEntry(Medicine med) {
-    showDialog(
-      context: context,
-      builder: (c) => PurchaseItemEntryCard(
-        med: med,
-        srNo: items.length + 1,
-        onAdd: (newItem) {
-          setState(() { items.add(newItem); });
-          Navigator.pop(context);
-        },
-        onCancel: () => Navigator.pop(context),
-      ),
-    );
-  }
-
   void _handleSave(PharoahManager ph) {
-    // 1. Agar edit mode hai, toh purana record hatao taaki stock double na ho
     if (widget.existingRecord != null) {
       ph.deletePurchaseChallan(widget.existingRecord!.id);
     }
 
-    // 2. Finalize New/Modified Challan
     ph.finalizePurchaseChallan(
       challanNo: supplierChallanNoC.text.trim(),
       internalNo: internalNoC.text,
@@ -297,6 +417,16 @@ class _PurchaseChallanViewState extends State<PurchaseChallanView> {
       items: items,
       total: totalAmt,
     );
+    
+    // Counter Update
+    if (widget.existingRecord == null && ph.activeCompany != null) {
+      PharoahNumberingEngine.updateSeriesCounter(
+        type: "CHALLAN", 
+        companyID: ph.activeCompany!.id, 
+        usedNumber: internalNoC.text, 
+        prefix: ph.getDefaultSeries("CHALLAN").prefix
+      );
+    }
     
     Navigator.pop(context);
     ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("✅ Inward Updated & Stock Synced!"), backgroundColor: Colors.green));
