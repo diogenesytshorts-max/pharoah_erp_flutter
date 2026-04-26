@@ -217,4 +217,44 @@ class PharoahManager with ChangeNotifier {
   void runAutoShortageScan() { for (var med in medicines) { double avg = calculateAvgMonthlySale(med.id); double required = (avg * 1.5) - med.stock; if (required > 0) { int idx = shortages.indexWhere((s) => s.medicineId == med.id && s.source == "Auto"); if (idx != -1) { shortages[idx].qtyRequired = required; shortages[idx].currentStock = med.stock; } else { shortages.add(ShortageItem(id: DateTime.now().toString() + med.id, medicineId: med.id, medicineName: med.name, companyName: med.companyId, source: "Auto", qtyRequired: required, currentStock: med.stock, date: DateTime.now())); } } } save(); }
   void addManualShortage({required Medicine med, required double qty, String cust = ""}) { shortages.add(ShortageItem(id: DateTime.now().toString(), medicineId: med.id, medicineName: med.name, companyName: med.companyId, source: "Manual", customerName: cust, qtyRequired: qty, currentStock: med.stock, date: DateTime.now())); save(); }
   void deleteShortage(String id) { shortages.removeWhere((s) => s.id == id); save(); }
+  // --- BANK LEDGER GENERATOR (NAYA LOGIC) ---
+  List<BankTransaction> getBankStatement(String bankName, DateTime from, DateTime to) {
+    List<BankTransaction> statement = [];
+
+    // 1. Scan Vouchers (Payments/Receipts via this Bank)
+    // Note: Humne discuss kiya tha ki Voucher mein bankName add karna hai. 
+    // Abhi ke liye hum un vouchers ko filter karenge jinka paymentMode == bankName hai.
+    for (var v in vouchers.where((x) => x.paymentMode == bankName)) {
+      if (v.date.isAfter(from.subtract(const Duration(days:1))) && v.date.isBefore(to.add(const Duration(days:1)))) {
+        statement.add(BankTransaction(
+          id: v.id,
+          date: v.date,
+          particulars: v.partyName,
+          reference: "Voucher",
+          amountIn: v.type == "Receipt" ? v.amount : 0.0,
+          amountOut: v.type == "Payment" ? v.amount : 0.0,
+          type: "VOUCHER",
+        ));
+      }
+    }
+
+    // 2. Scan Cheques (Deposited in this Bank)
+    for (var c in cheques.where((x) => x.depositBank == bankName && x.status != "Bounced")) {
+      if (c.chequeDate.isAfter(from.subtract(const Duration(days:1))) && c.chequeDate.isBefore(to.add(const Duration(days:1)))) {
+        statement.add(BankTransaction(
+          id: c.id,
+          date: c.chequeDate,
+          particulars: c.partyName,
+          reference: "CHQ: ${c.chequeNo}",
+          amountIn: c.amount,
+          amountOut: 0.0,
+          type: "CHEQUE",
+        ));
+      }
+    }
+
+    // Date wise sorting
+    statement.sort((a, b) => a.date.compareTo(b.date));
+    return statement;
+  }
 }
