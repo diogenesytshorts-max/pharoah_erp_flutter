@@ -1,4 +1,4 @@
-// FILE: lib/returns/purchase_return_view.dart (Replacement Code)
+// FILE: lib/returns/purchase_return_view.dart (Replacement Code - FIXED)
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -104,7 +104,7 @@ class _PurchaseReturnViewState extends State<PurchaseReturnView> {
                         hintText: "Search Product for Debit Note...",
                         prefixIcon: Icon(Icons.search),
                         filled: true, fillColor: Colors.white,
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(10))),
                       ),
                       onChanged: (v) => setSheetState(() => localSearch = v),
                     ),
@@ -115,7 +115,7 @@ class _PurchaseReturnViewState extends State<PurchaseReturnView> {
                       itemBuilder: (c, i) => ListTile(
                         leading: const Icon(Icons.assignment_return, color: Colors.brown),
                         title: Text(filteredMeds[i].name, style: const TextStyle(fontWeight: FontWeight.bold)),
-                        subtitle: Text("Current Stock: ${filteredMeds[i].stock}"),
+                        subtitle: Text("Pack: ${filteredMeds[i].packing}"),
                         onTap: () => setSheetState(() => selectedMed = filteredMeds[i]),
                       ),
                     ),
@@ -249,7 +249,6 @@ class _PurchaseReturnViewState extends State<PurchaseReturnView> {
           trailing: TextButton(onPressed: () => setState(() => selectedSupplier = null), child: const Text("CHANGE")),
         ),
 
-        // --- SEARCH BAR TRIGGER ---
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
           child: InkWell(
@@ -266,7 +265,7 @@ class _PurchaseReturnViewState extends State<PurchaseReturnView> {
                 children: [
                   Icon(Icons.search, color: themeColor),
                   const SizedBox(width: 10),
-                  Text("Tap to search items to return...", style: TextStyle(color: Colors.grey.shade600, fontSize: 14)),
+                  Text("Tap here to search return stock...", style: TextStyle(color: Colors.grey.shade600, fontSize: 14)),
                   const Spacer(),
                   Icon(Icons.add_circle, color: themeColor),
                 ],
@@ -297,6 +296,7 @@ class _PurchaseReturnViewState extends State<PurchaseReturnView> {
         title: Text(it.name, style: const TextStyle(fontWeight: FontWeight.bold)),
         subtitle: Text("Batch: ${it.batch} | Qty: ${it.qty.toInt()}"),
         trailing: Text("₹${it.total.toStringAsFixed(2)}", style: TextStyle(fontWeight: FontWeight.bold, color: themeColor)),
+        onTap: () => _showItemSearch(Provider.of<PharoahManager>(context, listen: false)),
       ),
     );
 
