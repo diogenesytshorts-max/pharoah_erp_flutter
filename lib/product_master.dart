@@ -1,10 +1,10 @@
-// FILE: lib/product_master.dart
+// FILE: lib/product_master.dart (Replacement Code)
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'pharoah_manager.dart';
 import 'models.dart';
-import 'pharoah_smart_logic.dart'; // NAYA: Logic Master Connection
+import 'logic/pharoah_numbering_engine.dart';
 
 class ProductMasterView extends StatefulWidget {
   final bool isSelectionMode; 
@@ -28,7 +28,9 @@ class _ProductMasterViewState extends State<ProductMasterView> {
     }
   }
 
-  // --- SEARCHABLE PICKERS ---
+  // ===========================================================================
+  // SEARCHABLE PICKERS (For Company & Salts)
+  // ===========================================================================
   void _showSearchablePicker({
     required String title,
     required List<dynamic> items,
@@ -77,12 +79,13 @@ class _ProductMasterViewState extends State<ProductMasterView> {
     );
   }
 
-  // --- PRODUCT FORM (WITH SMART ID) ---
+  // ===========================================================================
+  // PRODUCT FORM DIALOG (With Smart ID)
+  // ===========================================================================
   void _showProductForm({Medicine? med}) async {
     final ph = Provider.of<PharoahManager>(context, listen: false);
     if (ph.activeCompany == null) return;
 
-    // Controllers
     final nameC = TextEditingController(text: med?.name);
     final packC = TextEditingController(text: med?.packing);
     final rackC = TextEditingController(text: med?.rackNo);
@@ -90,10 +93,17 @@ class _ProductMasterViewState extends State<ProductMasterView> {
     final reorderC = TextEditingController(text: med?.reorderLevel.toString() ?? "0");
     final gstC = TextEditingController(text: med?.gst.toString() ?? "12");
     
-    // NAYA: ID Handling using Smart Logic
-    String systemId = med?.systemId ?? "";
-    if (systemId.isEmpty) {
-      systemId = await PharoahSmartLogic.getNextMedicineSystemID(ph.activeCompany!.id);
+    // NAYA: Smart ID Logic (Counter check)
+    String sysIdDisplay = med?.systemId ?? "Generating...";
+    if (med == null) {
+      String next = await PharoahNumberingEngine.getNextNumber(
+        type: "PRODUCT",
+        companyID: ph.activeCompany!.id,
+        prefix: "PH-",
+        startFrom: 10001,
+        currentList: ph.medicines,
+      );
+      sysIdDisplay = next;
     }
 
     String selForm = med?.drugForm ?? "TAB";
@@ -103,12 +113,14 @@ class _ProductMasterViewState extends State<ProductMasterView> {
     
     String? companyId = med?.companyId;
     String? saltId = med?.saltId;
-    String companyName = companyId != null && companyId.isNotEmpty 
-        ? ph.companies.firstWhere((c) => c.id == companyId, orElse: () => Company(id: "", name: "")).name 
+    String companyName = (companyId != null && companyId.isNotEmpty) 
+        ? companyId // Display as is if no match
         : "Tap to Select Company";
-    String saltName = saltId != null && saltId.isNotEmpty 
-        ? ph.salts.firstWhere((s) => s.id == saltId, orElse: () => Salt(id: "", name: "")).name 
-        : "Tap to Select Salt";
+    
+    // Attempting to match Company ID to its Name for UI
+    try {
+       companyName = ph.companies.firstWhere((c) => c.id == companyId).name;
+    } catch(e) {}
 
     if (!mounted) return;
 
@@ -130,11 +142,11 @@ class _ProductMasterViewState extends State<ProductMasterView> {
                     decoration: BoxDecoration(color: Colors.grey.shade100, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.grey.shade300)),
                     child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
                         const Text("SYSTEM ID (LOCKED):", style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.blueGrey)),
-                        Text(systemId, style: const TextStyle(fontWeight: FontWeight.w900, color: Colors.indigo)),
+                        Text(sysIdDisplay, style: const TextStyle(fontWeight: FontWeight.w900, color: Colors.indigo)),
                     ]),
                   ),
 
-                  _section("PRIMARY DETAILS"),
+                  _sectionHeader("PRIMARY DETAILS"),
                   _input(nameC, "Product Name *", Icons.medication),
                   Row(children: [
                     Expanded(child: _input(packC, "Packing *", Icons.inventory)),
@@ -148,23 +160,15 @@ class _ProductMasterViewState extends State<ProductMasterView> {
                   ]),
                   const SizedBox(height: 15),
                   _searchableField(
-                    label: "Company", value: companyName, icon: Icons.business,
+                    label: "Company / Brand", value: companyName, icon: Icons.business,
                     onTap: () => _showSearchablePicker(
                       title: "Company", items: ph.companies,
                       onSelected: (val) => setDialogState(() { companyId = val.id; companyName = val.name; }),
                       onQuickAdd: () => _quickAddCompany(ph),
                     ),
                   ),
-                  const SizedBox(height: 15),
-                  _searchableField(
-                    label: "Salt / Composition", value: saltName, icon: Icons.science,
-                    onTap: () => _showSearchablePicker(
-                      title: "Salt", items: ph.salts,
-                      onSelected: (val) => setDialogState(() { saltId = val.id; saltName = val.name; }),
-                      onQuickAdd: () => _quickAddSalt(ph),
-                    ),
-                  ),
-                  _section("LEGAL & STORAGE"),
+                  
+                  _sectionHeader("LEGAL & STORAGE"),
                   Row(children: [
                     Expanded(child: SwitchListTile(contentPadding: EdgeInsets.zero, title: const Text("Narcotic", style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)), value: naco, onChanged: (v) => setDialogState(() => naco = v))),
                     Expanded(child: SwitchListTile(contentPadding: EdgeInsets.zero, title: const Text("Sch. H1", style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)), value: schH1, onChanged: (v) => setDialogState(() => schH1 = v))),
@@ -176,7 +180,8 @@ class _ProductMasterViewState extends State<ProductMasterView> {
                     items: storageOptions.map((s) => DropdownMenuItem(value: s, child: Text(s))).toList(),
                     onChanged: (v) => setDialogState(() => selStore = v!),
                   ),
-                  _section("TAX & INVENTORY"),
+                  
+                  _sectionHeader("TAX & INVENTORY"),
                   Row(children: [
                     Expanded(child: _input(hsnC, "HSN Code", Icons.tag)),
                     const SizedBox(width: 10),
@@ -200,7 +205,7 @@ class _ProductMasterViewState extends State<ProductMasterView> {
 
                 final newItem = Medicine(
                   id: med?.id ?? DateTime.now().toString(),
-                  systemId: systemId, // LOCKED ID
+                  systemId: sysIdDisplay, // LOCKED ID
                   name: nameC.text.toUpperCase(),
                   packing: packC.text.toUpperCase(),
                   companyId: companyId ?? "",
@@ -214,15 +219,17 @@ class _ProductMasterViewState extends State<ProductMasterView> {
                   isNarcotic: naco,
                   isScheduleH1: schH1,
                   storageCondition: selStore,
+                  // Keep rates as they are
                   mrp: med?.mrp ?? 0, purRate: med?.purRate ?? 0, rateA: med?.rateA ?? 0, rateB: med?.rateB ?? 0, rateC: med?.rateC ?? 0,
                 );
 
                 if(med == null) {
                   ph.medicines.add(newItem);
-                  // NAYA: Update Smart Counter after successful save
-                  await PharoahSmartLogic.updateCountersAfterSave(type: "MED", usedID: systemId, companyID: ph.activeCompany!.id);
-                }
-                else { 
+                  // Update counter in shared prefs
+                  await PharoahNumberingEngine.updateSeriesCounter(
+                    type: "PRODUCT", companyID: ph.activeCompany!.id, usedNumber: sysIdDisplay, prefix: "PH-"
+                  );
+                } else { 
                   int i = ph.medicines.indexWhere((x)=>x.id==med.id); 
                   ph.medicines[i] = newItem; 
                 }
@@ -261,7 +268,12 @@ class _ProductMasterViewState extends State<ProductMasterView> {
                 leading: CircleAvatar(backgroundColor: Colors.purple.shade50, child: Text(m.systemId.replaceAll("PH-", ""), style: const TextStyle(fontSize: 8, fontWeight: FontWeight.bold, color: Colors.purple))),
                 title: Text("${m.name} (${m.packing})", style: const TextStyle(fontWeight: FontWeight.bold)),
                 subtitle: Text("ID: ${m.systemId} | Stock: ${m.stock} | Rack: ${m.rackNo}"),
-                trailing: const Icon(Icons.edit, size: 18, color: Colors.grey),
+                trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+                  if (m.isScheduleH1) const Icon(Icons.report_problem, color: Colors.orange, size: 18),
+                  if (m.isNarcotic) const Icon(Icons.lock_person, color: Colors.red, size: 18),
+                  const SizedBox(width: 5),
+                  const Icon(Icons.edit, size: 16, color: Colors.grey),
+                ]),
                 onTap: () => _showProductForm(med: m),
               ),
             );
@@ -272,15 +284,20 @@ class _ProductMasterViewState extends State<ProductMasterView> {
     );
   }
 
-  Widget _section(String t) => Padding(padding: const EdgeInsets.symmetric(vertical: 12), child: Align(alignment: Alignment.centerLeft, child: Text(t, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.blueGrey, letterSpacing: 1))));
+  // --- HELPERS ---
+  Widget _sectionHeader(String t) => Padding(padding: const EdgeInsets.symmetric(vertical: 12), child: Align(alignment: Alignment.centerLeft, child: Text(t, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.blueGrey, letterSpacing: 1))));
+  
   Widget _input(TextEditingController ctrl, String label, IconData icon, {bool isNum = false}) => Padding(padding: const EdgeInsets.only(bottom: 12), child: TextField(controller: ctrl, keyboardType: isNum ? const TextInputType.numberWithOptions(decimal: true) : TextInputType.text, textCapitalization: TextCapitalization.characters, decoration: InputDecoration(labelText: label, prefixIcon: Icon(icon, size: 18), border: const OutlineInputBorder())));
+  
   Widget _searchableField({required String label, required String value, required IconData icon, required VoidCallback onTap}) {
     return InkWell(onTap: onTap, child: Container(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 15), decoration: BoxDecoration(border: Border.all(color: Colors.grey), borderRadius: BorderRadius.circular(5)), child: Row(children: [Icon(icon, color: Colors.grey, size: 20), const SizedBox(width: 10), Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(label, style: const TextStyle(fontSize: 10, color: Colors.grey)), Text(value, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold))])), const Icon(Icons.arrow_drop_down, color: Colors.grey)])));
   }
+
   void _quickAddCompany(PharoahManager ph) {
     final cC = TextEditingController();
     showDialog(context: context, builder: (c) => AlertDialog(title: const Text("Quick Add Company"), content: TextField(controller: cC, decoration: const InputDecoration(labelText: "Company Name"), textCapitalization: TextCapitalization.characters), actions: [TextButton(onPressed: () => Navigator.pop(c), child: const Text("CANCEL")), ElevatedButton(onPressed: () { if(cC.text.isNotEmpty) { ph.addCompany(Company(id: DateTime.now().toString(), name: cC.text.toUpperCase())); Navigator.pop(c); } }, child: const Text("ADD"))]));
   }
+
   void _quickAddSalt(PharoahManager ph) {
     final sC = TextEditingController();
     showDialog(context: context, builder: (c) => AlertDialog(title: const Text("Quick Add Salt"), content: TextField(controller: sC, decoration: const InputDecoration(labelText: "Salt Name"), textCapitalization: TextCapitalization.characters), actions: [TextButton(onPressed: () => Navigator.pop(c), child: const Text("CANCEL")), ElevatedButton(onPressed: () { if(sC.text.isNotEmpty) { ph.addSalt(Salt(id: DateTime.now().toString(), name: sC.text.toUpperCase())); Navigator.pop(c); } }, child: const Text("ADD"))]));
