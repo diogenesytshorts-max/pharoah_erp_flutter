@@ -1,10 +1,11 @@
+// FILE: lib/gateway/company_control_panel.dart
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../pharoah_manager.dart';
 import 'company_registry_model.dart';
 import 'maintenance_service.dart';
 import 'modify_company_view.dart';
-import 'export_service.dart'; // NAYA: Service connect kar di
+import 'export_service.dart';
 
 class CompanyControlPanelView extends StatefulWidget {
   const CompanyControlPanelView({super.key});
@@ -18,7 +19,7 @@ class _CompanyControlPanelViewState extends State<CompanyControlPanelView> {
   double maintenanceProgress = 0.0;
   String maintenanceStatus = "";
 
-  // --- 1. ASLI MAINTENANCE ENGINE ---
+  // --- MAINTENANCE ENGINE ---
   void _runMaintenance(PharoahManager ph) async {
     String path = await ph.getWorkingPath();
     if (path.isEmpty) {
@@ -26,25 +27,19 @@ class _CompanyControlPanelViewState extends State<CompanyControlPanelView> {
       await ph.loginToCompany(ph.activeCompany!, fy);
       path = await ph.getWorkingPath();
     }
-
     setState(() {
       isMaintenanceRunning = true;
       maintenanceProgress = 0.0;
       maintenanceStatus = "Waking up Pharoah Doctor...";
     });
-
     final engine = MaintenanceService(ph, path);
-    await engine.runFullMaintenance(
-      onProgress: (p, s) {
-        if (mounted) setState(() { maintenanceProgress = p; maintenanceStatus = s; });
-      },
-    );
-
-    await Future.delayed(const Duration(seconds: 1));
+    await engine.runFullMaintenance(onProgress: (p, s) {
+      if (mounted) setState(() { maintenanceProgress = p; maintenanceStatus = s; });
+    });
     if (mounted) setState(() => isMaintenanceRunning = false);
   }
 
-  // --- 2. NEW YEAR SETUP LOGIC ---
+  // --- NEW YEAR SETUP ---
   void _showNewYearDialog(PharoahManager ph) {
     final fyC = TextEditingController();
     showDialog(
@@ -54,12 +49,9 @@ class _CompanyControlPanelViewState extends State<CompanyControlPanelView> {
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Text("Enter the new year name. This will transfer closing stock to the next year.", style: TextStyle(fontSize: 12)),
+            const Text("Enter new year name (e.g. 2026-27).", style: TextStyle(fontSize: 12)),
             const SizedBox(height: 15),
-            TextField(
-              controller: fyC, 
-              decoration: const InputDecoration(labelText: "New FY (e.g. 2026-27)", border: OutlineInputBorder())
-            ),
+            TextField(controller: fyC, decoration: const InputDecoration(labelText: "New FY", border: OutlineInputBorder())),
           ],
         ),
         actions: [
@@ -69,50 +61,11 @@ class _CompanyControlPanelViewState extends State<CompanyControlPanelView> {
               if (fyC.text.isEmpty) return;
               Navigator.pop(c);
               bool ok = await ph.startNewFinancialYear(fyC.text.trim());
-              if (ok) {
-                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("✅ New Year Created Successfully!")));
-              }
+              if (ok) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("✅ New Year Created!")));
             },
             child: const Text("START TRANSFER"),
           )
         ],
-      ),
-    );
-  }
-
-  // --- 3. LOGIN LOGIC ---
-  void _showFYLoginDialog(PharoahManager ph) {
-    List<String> years = ph.activeCompany?.fYears ?? [];
-    if (years.isEmpty) years = ["2025-26"];
-
-    showModalBottomSheet(
-      context: context,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(25))),
-      builder: (c) => Container(
-        padding: const EdgeInsets.all(25),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text("Select Financial Year to Login", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-            const Divider(height: 30),
-            ...years.map((fy) => ListTile(
-              leading: const Icon(Icons.calendar_today, color: Color(0xFF0D47A1)),
-              title: Text(fy, style: const TextStyle(fontWeight: FontWeight.bold)),
-              trailing: const Icon(Icons.login_rounded, color: Colors.green),
-              onTap: () async {
-                Navigator.pop(c);
-                // NAYA: Pehle saal login hote hi registry mein saal add karna (agar missing ho)
-                if (!ph.activeCompany!.fYears.contains(fy)) {
-                   int idx = ph.companiesRegistry.indexWhere((comp) => comp.id == ph.activeCompany!.id);
-                   ph.companiesRegistry[idx].fYears.add(fy);
-                   await ph.saveRegistry();
-                }
-                ph.loginToCompany(ph.activeCompany!, fy);
-              },
-            )),
-            const SizedBox(height: 20),
-          ],
-        ),
       ),
     );
   }
@@ -126,13 +79,10 @@ class _CompanyControlPanelViewState extends State<CompanyControlPanelView> {
     return Scaffold(
       backgroundColor: const Color(0xFFF0F2F5),
       appBar: AppBar(
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(comp.name, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-            Text("System Control Panel (${comp.id})", style: const TextStyle(fontSize: 10, color: Colors.white70)),
-          ],
-        ),
+        title: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(comp.name, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+          Text("System Control Panel (${comp.id})", style: const TextStyle(fontSize: 10, color: Colors.white70)),
+        ]),
         backgroundColor: const Color(0xFF0D47A1),
         foregroundColor: Colors.white,
         leading: IconButton(icon: const Icon(Icons.arrow_back), onPressed: () => ph.clearSession()),
@@ -153,18 +103,11 @@ class _CompanyControlPanelViewState extends State<CompanyControlPanelView> {
                   mainAxisSpacing: 15,
                   childAspectRatio: 1.1,
                   children: [
-                    _menuItem("LOGIN TO WORK", Icons.play_circle_fill_rounded, Colors.green, () => _showFYLoginDialog(ph)),
+                    _menuItem("LOGIN TO WORK", Icons.play_circle_fill_rounded, Colors.green, () => ph.loginToCompany(comp, comp.fYears.last)),
                     _menuItem("FILE MAINTENANCE", Icons.health_and_safety_rounded, Colors.orange.shade800, () => _runMaintenance(ph)),
-                    
-                    // NAYA: EXPORT SERVICE CALL
-                    _menuItem("BACKUP & EXPORT", Icons.cloud_upload_rounded, Colors.blue, () {
-                      ExportService(ph).exportEntireCompany(comp);
-                    }),
-                    
+                    _menuItem("BACKUP & EXPORT", Icons.cloud_upload_rounded, Colors.blue, () => ExportService(ph).exportEntireCompany(comp)),
                     _menuItem("NEW YEAR SETUP", Icons.fiber_new_rounded, Colors.purple, () => _showNewYearDialog(ph)),
-                    _menuItem("MODIFY COMPANY", Icons.settings_applications_rounded, Colors.blueGrey, () {
-                       Navigator.push(context, MaterialPageRoute(builder: (c) => ModifyCompanyView(comp: comp)));
-                    }),
+                    _menuItem("MODIFY COMPANY", Icons.settings_applications_rounded, Colors.blueGrey, () => Navigator.push(context, MaterialPageRoute(builder: (c) => ModifyCompanyView(comp: comp)))),
                     _menuItem("DELETE COMPANY", Icons.delete_forever_rounded, Colors.red, () => _confirmDelete(ph)),
                   ],
                 ),
@@ -177,7 +120,6 @@ class _CompanyControlPanelViewState extends State<CompanyControlPanelView> {
     );
   }
 
-  // --- UI HELPERS ---
   Widget _buildHeaderCard(CompanyProfile comp) {
     return Container(
       width: double.infinity, padding: const EdgeInsets.all(20),
@@ -207,10 +149,6 @@ class _CompanyControlPanelViewState extends State<CompanyControlPanelView> {
           const Text("PHAROAH DOCTOR RUNNING", style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
           const SizedBox(height: 10),
           Text(maintenanceStatus, style: const TextStyle(color: Colors.white70, fontSize: 13)),
-          const SizedBox(height: 30),
-          Container(width: 250, height: 10, decoration: BoxDecoration(color: Colors.white24, borderRadius: BorderRadius.circular(10)), child: ClipRRect(borderRadius: BorderRadius.circular(10), child: LinearProgressIndicator(value: maintenanceProgress, color: Colors.orange, backgroundColor: Colors.transparent))),
-          const SizedBox(height: 10),
-          Text("${(maintenanceProgress * 100).toInt()}% Complete", style: const TextStyle(color: Colors.orange, fontWeight: FontWeight.bold)),
       ]),
     );
   }
