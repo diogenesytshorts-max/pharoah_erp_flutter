@@ -5,6 +5,8 @@ import 'package:provider/provider.dart';
 import '../pharoah_manager.dart';
 import '../models.dart';
 import '../product_master.dart'; 
+import '../batch_sync_engine.dart'; // NAYA IMPORT
+import '../expiry_master.dart';    // NAYA IMPORT
 import 'package:intl/intl.dart';
 
 class PurchaseBillingView extends StatefulWidget {
@@ -42,7 +44,6 @@ class _PurchaseBillingViewState extends State<PurchaseBillingView> {
     if (widget.existingItems != null) items = List.from(widget.existingItems!);
   }
 
-  // NAYA: Serial Number auto-fixer logic
   void _recalculateSR() {
     setState(() {
       for (int i = 0; i < items.length; i++) {
@@ -94,7 +95,7 @@ class _PurchaseBillingViewState extends State<PurchaseBillingView> {
                             child: TextField(
                               autofocus: true,
                               decoration: InputDecoration(
-                                hintText: "Search Product for Purchase...",
+                                hintText: "Search Product for Inward...",
                                 prefixIcon: const Icon(Icons.search, color: Colors.orange),
                                 filled: true, fillColor: Colors.white,
                                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
@@ -105,13 +106,8 @@ class _PurchaseBillingViewState extends State<PurchaseBillingView> {
                           const SizedBox(width: 10),
                           IconButton.filled(
                             onPressed: () async {
-                              final result = await Navigator.push(
-                                context,
-                                MaterialPageRoute(builder: (c) => const ProductMasterView(isSelectionMode: true)),
-                              );
-                              if (result != null && result is Medicine) {
-                                setSheetState(() => selectedMed = result);
-                              }
+                              final result = await Navigator.push(context, MaterialPageRoute(builder: (c) => const ProductMasterView(isSelectionMode: true)));
+                              if (result != null && result is Medicine) { setSheetState(() => selectedMed = result); }
                             },
                             icon: const Icon(Icons.library_add_rounded),
                             style: IconButton.styleFrom(backgroundColor: Colors.orange.shade900),
@@ -172,7 +168,7 @@ class _PurchaseBillingViewState extends State<PurchaseBillingView> {
         foregroundColor: Colors.white,
         title: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text(widget.distributor.name, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
-          Text(widget.isReadOnly ? "VIEWING PURCHASE" : "Bill: ${widget.distBillNo} | ID: ${widget.internalNo}", style: const TextStyle(fontSize: 10))
+          Text(widget.isReadOnly ? "PURCHASE VIEW" : "Bill: ${widget.distBillNo} | ID: ${widget.internalNo}", style: const TextStyle(fontSize: 10))
         ]),
         actions: [
           if (!widget.isReadOnly) 
@@ -183,10 +179,7 @@ class _PurchaseBillingViewState extends State<PurchaseBillingView> {
       ),
       body: Column(children: [
         _buildHeader(),
-        
-        // --- NAYA: Search Bar Trigger (Replaced FAB) ---
         _buildSearchBarTrigger(ph),
-
         Expanded(
           child: items.isEmpty
               ? const Center(child: Text("No items added yet"))
@@ -196,14 +189,11 @@ class _PurchaseBillingViewState extends State<PurchaseBillingView> {
                   itemBuilder: (c, i) => _buildItemCard(items[i], i, ph),
                 ),
         ),
-        
         _buildFooter(),
       ]),
     );
   }
 
-  // --- UI COMPONENTS ---
-  
   Widget _buildHeader() => Container(
     padding: const EdgeInsets.all(15), margin: const EdgeInsets.fromLTRB(10, 10, 10, 5),
     decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12)),
@@ -222,43 +212,31 @@ class _PurchaseBillingViewState extends State<PurchaseBillingView> {
         borderRadius: BorderRadius.circular(10),
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 15),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: Colors.orange.shade300, width: 1.5),
-          ),
-          child: Row(
-            children: [
+          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.orange.shade300, width: 1.5)),
+          child: Row(children: [
               Icon(Icons.search, color: Colors.orange.shade700),
               const SizedBox(width: 10),
               Text("Tap here to search inward stock...", style: TextStyle(color: Colors.grey.shade600, fontSize: 14)),
               const Spacer(),
               Icon(Icons.add_circle, color: Colors.orange.shade700),
-            ],
-          ),
+          ]),
         ),
       ),
     );
   }
 
-  // NAYA: Swipe to Delete Card for Purchase
   Widget _buildItemCard(PurchaseItem it, int index, PharoahManager ph) {
     final card = Card(
       elevation: 2, margin: const EdgeInsets.symmetric(vertical: 4),
       child: ListTile(
-        leading: CircleAvatar(
-          backgroundColor: Colors.orange.shade50, 
-          child: Text("${it.srNo}", style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.deepOrange))
-        ),
+        leading: CircleAvatar(backgroundColor: Colors.orange.shade50, child: Text("${it.srNo}", style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.deepOrange))),
         title: Text(it.name, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.deepOrange)),
         subtitle: Text("Batch: ${it.batch} | Qty: ${it.qty.toInt()} | Pur.Rate: ₹${it.purchaseRate.toStringAsFixed(2)}"),
         trailing: Text("₹${it.total.toStringAsFixed(2)}", style: const TextStyle(fontWeight: FontWeight.bold)),
         onTap: widget.isReadOnly ? null : () => _showItemSearchSheet(ph, itemToEdit: it),
       ),
     );
-
     if (widget.isReadOnly) return card;
-
     return Dismissible(
       key: Key(it.id),
       direction: DismissDirection.endToStart,
@@ -269,10 +247,7 @@ class _PurchaseBillingViewState extends State<PurchaseBillingView> {
         padding: const EdgeInsets.only(right: 20),
         child: const Icon(Icons.delete, color: Colors.white, size: 28),
       ),
-      onDismissed: (direction) {
-        setState(() { items.removeAt(index); });
-        _recalculateSR(); 
-      },
+      onDismissed: (direction) { setState(() { items.removeAt(index); }); _recalculateSR(); },
       child: card,
     );
   }
@@ -294,7 +269,7 @@ class _PurchaseBillingViewState extends State<PurchaseBillingView> {
 }
 
 // =============================================================================
-// PURCHASE ITEM ENTRY CARD (UNCHANGED LOGIC)
+// PURCHASE ITEM ENTRY CARD (SYNC INTEGRATED)
 // =============================================================================
 class PurchaseItemEntryCard extends StatefulWidget {
   final Medicine med;
@@ -361,13 +336,10 @@ class _PurchaseItemEntryCardState extends State<PurchaseItemEntryCard> {
 
   void _formatExpiry(String val) {
     String text = val.replaceAll(RegExp(r'[^0-9]'), '');
-    if (text.length >= 2 && !val.contains('/')) {
-      text = '${text.substring(0, 2)}/${text.substring(2)}';
-    }
+    if (text.length >= 2 && !val.contains('/')) { text = '${text.substring(0, 2)}/${text.substring(2)}'; }
     if (text.length > 5) text = text.substring(0, 5);
-    if (expC.text != text) {
-      expC.value = TextEditingValue(text: text, selection: TextSelection.collapsed(offset: text.length));
-    }
+    if (expC.text != text) { expC.value = TextEditingValue(text: text, selection: TextSelection.collapsed(offset: text.length)); }
+    setState(() {});
   }
 
   void _calcRateC() {
@@ -390,9 +362,13 @@ class _PurchaseItemEntryCardState extends State<PurchaseItemEntryCard> {
   @override
   Widget build(BuildContext context) {
     final ph = Provider.of<PharoahManager>(context);
-    final matchingBatches = (ph.batchHistory[widget.med.identityKey] ?? [])
-        .where((b) => b.batch.toLowerCase().contains(batchC.text.toLowerCase()))
-        .toList();
+    
+    // NAYA: Suggesions from Master Registry
+    final matchingBatches = BatchSyncEngine.getFilteredBatches(
+      ph: ph, 
+      productKey: widget.med.identityKey,
+      hideExpired: false // Purchase mein expired bhi dikhao
+    ).where((b) => b.batch.toLowerCase().contains(batchC.text.toLowerCase())).toList();
 
     return Container(
       padding: const EdgeInsets.all(15),
@@ -403,21 +379,21 @@ class _PurchaseItemEntryCardState extends State<PurchaseItemEntryCard> {
         children: [
           Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [Text("${widget.srNo}. ${widget.med.name}", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)), IconButton(icon: const Icon(Icons.cancel, color: Colors.grey), onPressed: widget.onCancel)]),
           Row(children: [Expanded(child: _buildInput("BATCH", batchC, onChanged: (v) => setState(() {}))), const SizedBox(width: 8), Expanded(child: _buildInput("EXP (MM/YY)", expC, onChanged: _formatExpiry, isNum: true)), const SizedBox(width: 8), Expanded(child: _buildInput("GST %", gstC, isNum: true, onChanged: (v) { _calcRateC(); setState((){}); }))]),
+          
           if (matchingBatches.isNotEmpty && widget.existingItem == null)
             Container(height: 45, margin: const EdgeInsets.symmetric(vertical: 5), child: ListView(scrollDirection: Axis.horizontal, children: matchingBatches.map((b) => Padding(padding: const EdgeInsets.only(right: 8), child: ActionChip(backgroundColor: Colors.orange.withOpacity(0.1), label: Text("${b.batch} (Exp: ${b.exp})", style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.deepOrange)), onPressed: () { setState(() { batchC.text = b.batch; expC.text = b.exp; mrpC.text = b.mrp.toString(); purRateC.text = b.rate.toString(); _calcRateC(); }); }))).toList())),
-          const SizedBox(height: 10),
-          const Text("PURCHASE DETAILS", style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.deepOrange)),
+          
           const Divider(),
           Row(children: [Expanded(child: _buildInput("MRP", mrpC, isNum: true, onChanged: (v) { _calcRateC(); setState((){}); })), const SizedBox(width: 8), Expanded(child: _buildInput("PUR. RATE", purRateC, isNum: true, onChanged: (v) => setState((){}))), const SizedBox(width: 8), Expanded(child: _buildInput("QTY", qtyC, isNum: true, onChanged: (v) => setState((){}))), const SizedBox(width: 8), Expanded(child: _buildInput("FREE", freeC, isNum: true))]),
           const SizedBox(height: 15),
-          const Text("SET FUTURE SALE RATES", style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.deepOrange)),
-          const Divider(),
-          Row(children: [Expanded(child: _buildInput("RATE A", rateAC, isNum: true)), const SizedBox(width: 8), Expanded(child: _buildInput("RATE B", rateBC, isNum: true)), const SizedBox(width: 8), Expanded(child: GestureDetector(onTap: () => setState(() => showDisc = !showDisc), child: _buildInput("RATE C (Tap for Disc)", rateCC, isReadOnly: true, color: Colors.purple)))]),
-          if (showDisc) Padding(padding: const EdgeInsets.only(top: 10), child: _buildInput("DISCOUNT % FOR RATE C", discC, isNum: true, color: Colors.purple, onChanged: (v) => _calcRateC())),
+          const Text("FUTURE SALE RATES", style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.deepOrange)),
+          Row(children: [Expanded(child: _buildInput("RATE A", rateAC, isNum: true)), const SizedBox(width: 8), Expanded(child: _buildInput("RATE B", rateBC, isNum: true)), const SizedBox(width: 8), Expanded(child: GestureDetector(onTap: () => setState(() => showDisc = !showDisc), child: _buildInput("RATE C", rateCC, isReadOnly: true, color: Colors.purple)))]),
+          if (showDisc) Padding(padding: const EdgeInsets.only(top: 10), child: _buildInput("DISC % FOR RATE C", discC, isNum: true, color: Colors.purple, onChanged: (v) => _calcRateC())),
           const SizedBox(height: 15),
-          Container(padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: Colors.orange.shade50, borderRadius: BorderRadius.circular(8)), child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [const Text("Net Purchase Amt:"), Text("₹${_calcTotal().toStringAsFixed(2)}", style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16, color: Colors.orange.shade900))])),
-          const SizedBox(height: 10),
           SizedBox(width: double.infinity, height: 45, child: ElevatedButton(style: ElevatedButton.styleFrom(backgroundColor: Colors.orange.shade800, foregroundColor: Colors.white), onPressed: qtyC.text.isEmpty || qtyC.text == "0" ? null : () {
+            // NAYA: Sync to Registry
+            BatchSyncEngine.registerBatchActivity(ph: ph, productKey: widget.med.identityKey, batchNo: batchC.text, exp: expC.text, packing: widget.med.packing, mrp: double.tryParse(mrpC.text) ?? 0, rate: double.tryParse(purRateC.text) ?? 0);
+            
             double pr = double.tryParse(purRateC.text) ?? 0; double qt = double.tryParse(qtyC.text) ?? 0; double gst = double.tryParse(gstC.text) ?? 0;
             widget.onAdd(PurchaseItem(id: widget.existingItem?.id ?? DateTime.now().toString(), srNo: widget.srNo, medicineID: widget.med.id, name: widget.med.name, packing: widget.med.packing, batch: batchC.text.toUpperCase(), exp: expC.text, hsn: widget.med.hsnCode, mrp: double.tryParse(mrpC.text) ?? 0, qty: qt, freeQty: double.tryParse(freeC.text) ?? 0, purchaseRate: pr, gstRate: gst, total: (pr * qt) * (1 + gst / 100), rateA: double.tryParse(rateAC.text) ?? 0, rateB: double.tryParse(rateBC.text) ?? 0, rateC: double.tryParse(rateCC.text) ?? 0));
           }, child: Text(widget.existingItem != null ? "UPDATE ITEM" : "ADD TO STOCK", style: const TextStyle(fontWeight: FontWeight.bold))))
