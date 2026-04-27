@@ -1,3 +1,5 @@
+// FILE: lib/batch_master_view.dart (Replacement Code - FIXED)
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'pharoah_manager.dart';
@@ -69,7 +71,6 @@ class _BatchMasterViewState extends State<BatchMasterView> {
           else
             ListTile(
               tileColor: Colors.indigo.withOpacity(0.05),
-              // FIXED: 'border' changed to 'side' with BorderSide
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(12), 
                 side: BorderSide(color: Colors.indigo.shade200)
