@@ -1,11 +1,11 @@
-// FILE: lib/sale_entry_view.dart
+// FILE: lib/sale_entry_view.dart (Replacement Code - FIXED)
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import 'pharoah_manager.dart';
 import 'models.dart';
-import 'logic/pharoah_numbering_engine.dart'; // NAYA
+import 'logic/pharoah_numbering_engine.dart';
 import 'billing_view.dart';
 import 'staff_modules/staff_billing_view.dart';
 import 'party_master.dart';
@@ -26,15 +26,17 @@ class _SaleEntryViewState extends State<SaleEntryView> {
   Party? selectedParty; 
   String searchQuery = "";
   final billNoC = TextEditingController();
-
-  // NAYA: Multi-Series State
   NumberingSeries? selectedSeries;
+  bool isLoading = true;
 
   @override void initState() {
     super.initState();
     _initSession();
   }
 
+  // ===========================================================================
+  // SESSION INITIALIZATION
+  // ===========================================================================
   void _initSession() {
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       final ph = Provider.of<PharoahManager>(context, listen: false);
@@ -48,20 +50,23 @@ class _SaleEntryViewState extends State<SaleEntryView> {
             (p) => p.name == widget.existingSale!.partyName, 
             orElse: () => Party(id: '0', name: widget.existingSale!.partyName)
           );
+          isLoading = false;
         });
       } else {
-        // NAYA: Default Series Load karna
+        // Load Default Series
         selectedSeries = ph.getDefaultSeries("SALE");
-        _refreshBillNumber(ph);
+        await _refreshBillNumber(ph);
         setState(() { 
           selectedDate = PharoahDateController.getInitialBillDate(ph.currentFY);
+          isLoading = false;
         });
       }
     });
   }
 
   Future<void> _refreshBillNumber(PharoahManager ph) async {
-    if (selectedSeries == null) return;
+    if (selectedSeries == null || ph.activeCompany == null) return;
+    
     String nextNo = await PharoahNumberingEngine.getNextNumber(
       type: "SALE",
       companyID: ph.activeCompany!.id,
@@ -75,7 +80,7 @@ class _SaleEntryViewState extends State<SaleEntryView> {
   void _handlePartySelection(PharoahManager ph, Party party) {
     setState(() {
       selectedParty = party;
-      // NAYA: Agar party ki apni series linked hai toh auto-switch
+      // Auto-switch series if party has a preference
       if (party.defaultSeriesId.isNotEmpty) {
         try {
           selectedSeries = ph.numberingSeries.firstWhere((s) => s.id == party.defaultSeriesId);
@@ -88,6 +93,8 @@ class _SaleEntryViewState extends State<SaleEntryView> {
   @override Widget build(BuildContext context) {
     final ph = Provider.of<PharoahManager>(context);
     final activeSeriesList = ph.getSeriesByType("SALE").where((s) => s.isActive).toList();
+
+    if (isLoading) return const Scaffold(body: Center(child: CircularProgressIndicator()));
 
     return Scaffold(
       backgroundColor: const Color(0xFFF8F9FD),
@@ -104,7 +111,7 @@ class _SaleEntryViewState extends State<SaleEntryView> {
             color: Colors.white, 
             child: Column(
               children: [
-                // NAYA: Series Selector
+                // --- SERIES SELECTOR ---
                 if (widget.existingSale == null)
                 Padding(
                   padding: const EdgeInsets.only(bottom: 15),
@@ -114,14 +121,17 @@ class _SaleEntryViewState extends State<SaleEntryView> {
                     Expanded(child: DropdownButtonHideUnderline(child: DropdownButton<NumberingSeries>(
                       value: selectedSeries,
                       isDense: true,
-                      items: activeSeriesList.map((s) => DropdownMenuItem(value: s, child: Text(s.name, style: const TextStyle(fontWeight: FontWeight.bold)))).toList(),
+                      items: activeSeriesList.map((s) => DropdownMenuItem<NumberingSeries>(
+                        value: s, 
+                        child: Text(s.name, style: const TextStyle(fontWeight: FontWeight.bold))
+                      )).toList(),
                       onChanged: (v) { setState(() => selectedSeries = v); _refreshBillNumber(ph); },
                     ))),
                   ]),
                 ),
                 
                 Row(children: [
-                  Expanded(child: TextField(controller: billNoC, decoration: const InputDecoration(labelText: "BILL NO", border: OutlineInputBorder(), filled: true, fillColor: Color(0xFFF5F5F5)))),
+                  Expanded(child: TextField(controller: billNoC, readOnly: true, decoration: const InputDecoration(labelText: "BILL NO", border: OutlineInputBorder(), filled: true, fillColor: Color(0xFFF5F5F5)))),
                   const SizedBox(width: 15),
                   Expanded(child: InkWell(
                     onTap: () async { 
