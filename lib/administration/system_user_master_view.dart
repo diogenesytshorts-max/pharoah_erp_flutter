@@ -1,4 +1,4 @@
-// FILE: lib/administration/system_user_master_view.dart
+// FILE: lib/administration/system_user_master_view.dart (Replacement Code - FIXED)
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -28,7 +28,7 @@ class _SystemUserMasterViewState extends State<SystemUserMasterView> {
     bool pRate = user?.canViewPurchaseRate ?? false;
     bool pFinance = user?.canViewFinance ?? false;
     bool pExport = user?.canExportData ?? false;
-    bool pMaintenance = user?.canRunMaintenance ?? false; // NAYA
+    bool pMaintenance = user?.canRunMaintenance ?? false; 
 
     showDialog(
       context: context,
@@ -58,7 +58,7 @@ class _SystemUserMasterViewState extends State<SystemUserMasterView> {
                   _buildToggle("Can View Purchase Rate", pRate, (v) => setDialogState(() => pRate = v)),
                   _buildToggle("Can View Finance Hub", pFinance, (v) => setDialogState(() => pFinance = v)),
                   _buildToggle("Can Export/Backup Data", pExport, (v) => setDialogState(() => pExport = v)),
-                  _buildToggle("Can Run Maintenance", pMaintenance, (v) => setDialogState(() => pMaintenance = v)), // NAYA
+                  _buildToggle("Can Run Maintenance", pMaintenance, (v) => setDialogState(() => pMaintenance = v)),
                 ],
               ),
             ),
@@ -80,7 +80,7 @@ class _SystemUserMasterViewState extends State<SystemUserMasterView> {
                   canViewPurchaseRate: pRate,
                   canViewFinance: pFinance,
                   canExportData: pExport,
-                  canRunMaintenance: pMaintenance, // NAYA
+                  canRunMaintenance: pMaintenance,
                 );
 
                 if (user == null) ph.addSystemUser(newUser);
@@ -137,7 +137,7 @@ class _SystemUserMasterViewState extends State<SystemUserMasterView> {
                             _permissionRow("Purchase Rate", u.canViewPurchaseRate),
                             _permissionRow("Finance Hub", u.canViewFinance),
                             _permissionRow("Export Tool", u.canExportData),
-                            _permissionRow("Maintenance", u.canRunMaintenance), // NAYA
+                            _permissionRow("Maintenance", u.canRunMaintenance),
                             const Divider(),
                             Row(
                               mainAxisAlignment: MainAxisAlignment.end,
