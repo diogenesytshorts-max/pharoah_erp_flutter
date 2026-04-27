@@ -1,10 +1,9 @@
-// FILE: lib/administration/series_master_view.dart
+// FILE: lib/administration/series_master_view.dart (Replacement Code - FIXED)
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../pharoah_manager.dart';
 import '../../models.dart';
-import '../../logic/pharoah_numbering_engine.dart';
 
 class SeriesMasterView extends StatefulWidget {
   const SeriesMasterView({super.key});
@@ -23,24 +22,28 @@ class _SeriesMasterViewState extends State<SeriesMasterView> with SingleTickerPr
     _tabController = TabController(length: types.length, vsync: this);
   }
 
-  // logic: Check if a prefix is already used in transactions (Locking mechanism)
+  // --- LOGIC: CHECK IF SERIES IS IN USE ---
   bool _isSeriesInUse(PharoahManager ph, NumberingSeries series) {
+    // Basic check: If transactions exist with this prefix, lock the prefix
     List<dynamic> targetList;
     switch (series.type) {
       case "SALE": targetList = ph.sales; break;
       case "PURCHASE": targetList = ph.purchases; break;
       case "CHALLAN": targetList = [...ph.saleChallans, ...ph.purchaseChallans]; break;
       case "RETURN": targetList = [...ph.saleReturns, ...ph.purchaseReturns]; break;
-      case "VOUCHER": targetList = ph.vouchers; break;
       default: targetList = [];
     }
 
     return targetList.any((item) {
-      String billNo = (series.type == "PURCHASE") ? (item.internalNo ?? "") : (item.billNo ?? "");
+      String billNo = "";
+      try {
+        billNo = (series.type == "PURCHASE") ? item.internalNo : item.billNo;
+      } catch (e) { billNo = ""; }
       return billNo.startsWith(series.prefix);
     });
   }
 
+  // --- UI: SERIES FORM ---
   void _showSeriesForm({NumberingSeries? existing}) {
     final ph = Provider.of<PharoahManager>(context, listen: false);
     bool isLocked = existing != null && _isSeriesInUse(ph, existing);
@@ -67,7 +70,7 @@ class _SeriesMasterViewState extends State<SeriesMasterView> with SingleTickerPr
                   Container(
                     padding: const EdgeInsets.all(8), margin: const EdgeInsets.only(bottom: 15),
                     decoration: BoxDecoration(color: Colors.orange.shade50, borderRadius: BorderRadius.circular(8)),
-                    child: const Text("⚠️ Prefix is LOCKED because bills are already issued. You can only change Name or Status.", style: TextStyle(fontSize: 10, color: Colors.orange, fontWeight: FontWeight.bold)),
+                    child: const Text("⚠️ Prefix is LOCKED because bills are already issued.", style: TextStyle(fontSize: 10, color: Colors.orange, fontWeight: FontWeight.bold)),
                   ),
                 
                 DropdownButtonFormField<String>(
@@ -77,7 +80,7 @@ class _SeriesMasterViewState extends State<SeriesMasterView> with SingleTickerPr
                   onChanged: isLocked ? null : (v) => setDialogState(() => selType = v!),
                 ),
                 const SizedBox(height: 15),
-                TextField(controller: nameC, decoration: const InputDecoration(labelText: "Series Name (e.g. Retail Sale)", border: OutlineInputBorder())),
+                TextField(controller: nameC, decoration: const InputDecoration(labelText: "Series Name", border: OutlineInputBorder())),
                 const SizedBox(height: 15),
                 TextField(
                   controller: prefixC, 
@@ -100,7 +103,6 @@ class _SeriesMasterViewState extends State<SeriesMasterView> with SingleTickerPr
                 ),
                 SwitchListTile(
                   title: const Text("Active (In Use)", style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
-                  subtitle: const Text("If OFF, it won't show in Billing", style: TextStyle(fontSize: 10)),
                   value: isAct, 
                   onChanged: (v) => setDialogState(() => isAct = v)
                 ),
@@ -166,6 +168,7 @@ class _SeriesMasterViewState extends State<SeriesMasterView> with SingleTickerPr
   }
 
   Widget _buildSeriesList(PharoahManager ph, String type) {
+    // Properly cast the list from Manager
     final list = ph.getSeriesByType(type);
 
     if (list.isEmpty) {
