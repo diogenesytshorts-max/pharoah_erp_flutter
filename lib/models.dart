@@ -2,7 +2,37 @@
 
 import 'dart:convert';
 
-// --- 1. BASIC MASTERS ---
+// ===========================================================================
+// 1. SYSTEM CONFIGURATION MODELS
+// ===========================================================================
+
+class NumberingSeries {
+  String id, name, type, prefix;
+  int startNumber;
+  bool isDefault, isActive;
+
+  NumberingSeries({
+    required this.id, required this.name, required this.type, 
+    required this.prefix, this.startNumber = 1, 
+    this.isDefault = false, this.isActive = true
+  });
+
+  Map<String, dynamic> toMap() => {
+    'id': id, 'name': name, 'type': type, 'prefix': prefix, 
+    'startNumber': startNumber, 'isDefault': isDefault, 'isActive': isActive
+  };
+
+  factory NumberingSeries.fromMap(Map<String, dynamic> map) => NumberingSeries(
+    id: map['id'] ?? '', name: map['name'] ?? '', type: map['type'] ?? 'SALE', 
+    prefix: map['prefix'] ?? '', startNumber: map['startNumber'] ?? 1, 
+    isDefault: map['isDefault'] ?? false, isActive: map['isActive'] ?? true
+  );
+}
+
+// ===========================================================================
+// 2. MASTER MODELS
+// ===========================================================================
+
 class RouteArea { 
   String id, name; 
   RouteArea({required this.id, required this.name}); 
@@ -46,7 +76,10 @@ class Salesman {
   factory Salesman.fromMap(Map<String, dynamic> map) => Salesman(id: map['id'] ?? "", name: map['name'] ?? "", phone: map['phone'] ?? "", route: map['route'] ?? "");
 }
 
-// --- 2. CORE INVENTORY MODELS ---
+// ===========================================================================
+// 3. INVENTORY & ITEM MODELS
+// ===========================================================================
+
 class Medicine {
   String id, systemId, uniqueCode, name, packing, companyId, saltId, drugTypeId, rackNo, hsnCode, drugForm, storageCondition; 
   int conversion; double reorderLevel, gst, mrp, purRate, rateA, rateB, rateC, stock; bool isNarcotic, isScheduleH1;
@@ -66,7 +99,10 @@ class Party {
   factory Party.fromMap(Map<String, dynamic> map) => Party(id: map['id'] ?? "", name: map['name'] ?? "", group: map['group'] ?? "Sundry Debtors", phone: map['phone'] ?? "", email: map['email'] ?? "", address: map['address'] ?? "", city: map['city'] ?? "", state: map['state'] ?? "Rajasthan", route: map['route'] ?? "", gst: map['gst'] ?? "", dl: map['dl'] ?? "", dlExp: map['dlExp'] ?? "", pan: map['pan'] ?? "", transport: map['transport'] ?? "", priceLevel: map['priceLevel'] ?? "A", defaultSeriesId: map['defaultSeriesId'] ?? "", opBal: (map['opBal'] ?? 0.0).toDouble(), creditLimit: (map['creditLimit'] ?? 0.0).toDouble(), creditDays: map['creditDays'] ?? 0);
 }
 
-// --- 3. ITEM MODELS FOR BILLS ---
+// ===========================================================================
+// 4. BILL ITEM MODELS
+// ===========================================================================
+
 class BillItem {
   String id, medicineID, name, packing, batch, exp, hsn, sourceChallanNo; int srNo; 
   double mrp, qty, freeQty, rate, gstRate, cgst, sgst, igst, total, discountRupees;
@@ -85,7 +121,10 @@ class PurchaseItem {
   factory PurchaseItem.fromMap(Map<String, dynamic> map) => PurchaseItem(id: map['id'] ?? "", srNo: map['srNo'] ?? 0, medicineID: map['medicineID'] ?? "", name: map['name'] ?? "", packing: map['packing'] ?? "", batch: map['batch'] ?? "", exp: map['exp'] ?? "", hsn: map['hsn'] ?? "", mrp: (map['mrp'] ?? 0.0).toDouble(), qty: (map['qty'] ?? 0.0).toDouble(), freeQty: (map['freeQty'] ?? 0.0).toDouble(), purchaseRate: (map['purchaseRate'] ?? 0.0).toDouble(), gstRate: (map['gstRate'] ?? 0.0).toDouble(), total: (map['total'] ?? 0.0).toDouble(), rateA: (map['rateA'] ?? 0.0).toDouble(), rateB: (map['rateB'] ?? 0.0).toDouble(), rateC: (map['rateC'] ?? 0.0).toDouble());
 }
 
-// --- 4. TRANSACTION HEADER MODELS ---
+// ===========================================================================
+// 5. TRANSACTION HEADER MODELS
+// ===========================================================================
+
 class Sale { 
   String id, billNo, partyName, partyGstin, partyState, status, invoiceType, paymentMode, transporterName, transporterId, vehicleNo, salesmanName; 
   DateTime date; List<BillItem> items; double totalAmount;
@@ -133,7 +172,10 @@ class PurchaseReturn {
   factory PurchaseReturn.fromMap(Map<String, dynamic> map) => PurchaseReturn(id: map['id'], billNo: map['billNo'], date: DateTime.parse(map['date']), distributorName: map['distributorName'], totalAmount: (map['totalAmount'] ?? 0.0).toDouble(), status: map['status'] ?? "Active", returnType: map['returnType'] ?? "Sellable", items: (map['items'] as List).map((i) => PurchaseItem.fromMap(i)).toList()); 
 }
 
-// --- 5. SYSTEM & FINANCE MODELS ---
+// ===========================================================================
+// 6. LOGS, FINANCE & SYSTEM
+// ===========================================================================
+
 class LogEntry { 
   String id, action, details; DateTime time; 
   LogEntry({required this.id, required this.action, required this.details, required this.time}); 
