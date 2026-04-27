@@ -1,3 +1,5 @@
+// FILE: lib/inventory_logic_center.dart
+
 import 'models.dart';
 
 class InventoryLogicCenter {
@@ -13,7 +15,7 @@ class InventoryLogicCenter {
     batchHistory.forEach((medKey, batches) {
       Medicine? parentMed;
       try {
-        // Now matching via systemId (The identityKey)
+        // Matching via systemId or id (identityKey logic)
         parentMed = medicines.firstWhere((m) => m.identityKey == medKey);
       } catch (e) { parentMed = null; }
 
@@ -36,7 +38,7 @@ class InventoryLogicCenter {
       var b = batches.firstWhere((element) => element.batch.toUpperCase() == batchNo.toUpperCase());
       b.qty -= outQty;
     } catch (e) {
-      // In flexible mode, we allow sales even if batch record is missing in local list
+      // In flexible mode, we allow sales even if batch record is missing
     }
   }
 
@@ -57,21 +59,24 @@ class InventoryLogicCenter {
   }
 
   /// 4. THE GREAT REPAIR (Corrected ID Logic for Batch Master)
-  /// This function is the "Source of Truth" for the entire system.
+  /// Fixed: Batches will now persist because they start from Opening + Adjustment
   static void rebuildAllInventory({
     required List<Medicine> medicines,
     required Map<String, List<BatchInfo>> batchHistory,
     required List<Purchase> purchases,
     required List<Sale> sales,
   }) {
-    // A. Reset current qty to the sum of Opening + Manual Adjustments
+    // --- STEP A: THE FIX ---
+    // Pehle hum quantity ko 0 karte the. 
+    // Ab hum quantity ko (Opening + Manual Adjustments) par reset karenge.
+    // Isse wo batches hamesha yaad rahenge jo aapne manually Master mein dale hain.
     batchHistory.forEach((key, list) {
       for (var b in list) { 
         b.qty = b.openingQty + b.adjustmentQty; 
       }
     });
 
-    // B. Re-process all Purchases (Stock IN)
+    // --- STEP B: PROCESS PURCHASES (Preserved Logic) ---
     for (var pur in purchases) {
       for (var item in pur.items) {
         try {
@@ -100,7 +105,7 @@ class InventoryLogicCenter {
       }
     }
 
-    // C. Re-process all Active Sales (Stock OUT)
+    // --- STEP C: PROCESS SALES (Preserved Logic) ---
     for (var sale in sales.where((s) => s.status == "Active")) {
       for (var item in sale.items) {
         try {
@@ -113,7 +118,7 @@ class InventoryLogicCenter {
             if (idx != -1) {
               batches[idx].qty -= (item.qty + item.freeQty);
             } else {
-              // Create a shell batch for sales that happened before purchase entry
+              // Create a shell batch for sales without purchase history
               batches.add(BatchInfo(
                 batch: item.batch, 
                 exp: item.exp, 
@@ -129,7 +134,7 @@ class InventoryLogicCenter {
       }
     }
 
-    // D. Final Sync with Medicine Master for Display
+    // --- STEP D: SYNC WITH MASTER (Preserved Logic) ---
     for (var med in medicines) {
       double total = 0;
       if (batchHistory.containsKey(med.identityKey)) {
