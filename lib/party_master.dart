@@ -1,4 +1,4 @@
-// FILE: lib/party_master.dart
+// FILE: lib/party_master.dart (Replacement Code - FIXED)
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -26,13 +26,10 @@ class _PartyMasterViewState extends State<PartyMasterView> {
     }
   }
 
-  // ===========================================================================
-  // ADD / EDIT FORM DIALOG
-  // ===========================================================================
+  // --- ADD / EDIT FORM DIALOG ---
   void _showPartyForm({Party? party}) {
     final ph = Provider.of<PharoahManager>(context, listen: false);
 
-    // --- PRESERVING ALL OLD CONTROLLERS ---
     final nameC = TextEditingController(text: party?.name);
     final phoneC = TextEditingController(text: party?.phone);
     final emailC = TextEditingController(text: party?.email);
@@ -50,11 +47,9 @@ class _PartyMasterViewState extends State<PartyMasterView> {
     String selectedGroup = party?.group ?? "Sundry Debtors";
     String selectedPriceLevel = party?.priceLevel ?? "A";
     String selectedRoute = (party?.route != null && party!.route.isNotEmpty) ? party.route : "";
-    
-    // NAYA FIELD: Selected Series ID
     String selectedSeriesId = party?.defaultSeriesId ?? "";
 
-    // --- LOGIC: AUTO-EXTRACT PAN FROM GSTIN (Preserved) ---
+    // Auto-extract PAN from GSTIN
     gstC.addListener(() {
       if (gstC.text.length >= 12) {
         String extractedPan = gstC.text.substring(2, 12).toUpperCase();
@@ -68,6 +63,10 @@ class _PartyMasterViewState extends State<PartyMasterView> {
       context: context,
       barrierDismissible: false,
       builder: (c) => StatefulBuilder(builder: (context, setDialogState) {
+        // Fetch and cast the active SALE series list
+        final List<NumberingSeries> activeSeries = ph.getSeriesByType("SALE")
+            .where((s) => s.isActive).toList();
+
         return AlertDialog(
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
           title: Text(party == null ? "Create New Party/Ledger" : "Update Party Details"),
@@ -79,7 +78,7 @@ class _PartyMasterViewState extends State<PartyMasterView> {
                   _sectionTitle("BASIC INFORMATION"),
                   _inputField(nameC, "Party/Firm Name *", Icons.business),
                   _inputField(phoneC, "Mobile Number", Icons.phone, isNum: true),
-                  _inputField(emailC, "Email Address (For Invoicing)", Icons.email),
+                  _inputField(emailC, "Email Address", Icons.email),
                   _inputField(addressC, "Full Address", Icons.location_on),
                   Row(
                     children: [
@@ -98,28 +97,33 @@ class _PartyMasterViewState extends State<PartyMasterView> {
                   
                   const SizedBox(height: 20),
                   _sectionTitle("TAX & LICENSES"),
-                  _inputField(gstC, "GSTIN Number (15-Digit)", Icons.receipt_long),
-                  _inputField(panC, "PAN Card (Auto-Extracted)", Icons.badge_outlined),
+                  _inputField(gstC, "GSTIN Number", Icons.receipt_long),
+                  _inputField(panC, "PAN Card", Icons.badge_outlined),
                   Row(
                     children: [
                       Expanded(child: _inputField(dlC, "Drug License (DL)", Icons.medical_services)),
                       const SizedBox(width: 10),
-                      Expanded(child: _inputField(dlExpC, "DL Expiry (Optional)", Icons.event_busy)),
+                      Expanded(child: _inputField(dlExpC, "DL Expiry", Icons.event_busy)),
                     ],
                   ),
                   
                   const SizedBox(height: 20),
-                  _sectionTitle("BILLING & CREDIT CONTROL"),
-                  Row(
-                    children: [
-                      Expanded(child: _inputField(creditLimitC, "Credit Limit ₹", Icons.speed, isNum: true)),
-                      const SizedBox(width: 10),
-                      Expanded(child: _inputField(creditDaysC, "Credit Days", Icons.timer, isNum: true)),
-                    ],
-                  ),
-                  const SizedBox(height: 10),
+                  _sectionTitle("BILLING & AUTOMATION"),
                   
-                  // DROPDOWN 1: Price Level (Preserved)
+                  // DROPDOWN: Link Billing Series (FIXED TYPE)
+                  DropdownButtonFormField<String>(
+                    value: selectedSeriesId.isEmpty ? null : selectedSeriesId,
+                    decoration: const InputDecoration(labelText: "Default Billing Series", border: OutlineInputBorder(), prefixIcon: Icon(Icons.layers_outlined)),
+                    items: activeSeries.map((s) => DropdownMenuItem<String>(
+                      value: s.id, 
+                      child: Text("${s.name} (${s.prefix})", style: const TextStyle(fontSize: 13))
+                    )).toList(),
+                    onChanged: (v) => selectedSeriesId = v!,
+                    hint: const Text("Select Series (Optional)"),
+                  ),
+
+                  const SizedBox(height: 15),
+                  
                   DropdownButtonFormField<String>(
                     value: selectedPriceLevel,
                     decoration: const InputDecoration(labelText: "Default Pricing Level", border: OutlineInputBorder()),
@@ -129,7 +133,6 @@ class _PartyMasterViewState extends State<PartyMasterView> {
                   
                   const SizedBox(height: 10),
 
-                  // DROPDOWN 2: Route Master (Preserved)
                   DropdownButtonFormField<String>(
                     value: selectedRoute.isEmpty ? null : selectedRoute,
                     decoration: const InputDecoration(labelText: "Assigned Route / Area", border: OutlineInputBorder()),
@@ -138,30 +141,13 @@ class _PartyMasterViewState extends State<PartyMasterView> {
                     hint: const Text("Select Route"),
                   ),
 
-                  const SizedBox(height: 10),
-
-                  // --- NAYA FIELD ADDED: LINK BILLING SERIES ---
-                  _dropdownLabel("Link Billing Series (Automation)"),
-                  DropdownButtonFormField<String>(
-                    value: selectedSeriesId.isEmpty ? null : selectedSeriesId,
-                    decoration: const InputDecoration(border: OutlineInputBorder(), prefixIcon: Icon(Icons.layers_outlined)),
-                    items: ph.getSeriesByType("SALE").where((s) => s.isActive).map((s) => DropdownMenuItem(
-                      value: s.id, 
-                      child: Text("${s.name} (${s.prefix})", style: const TextStyle(fontSize: 13))
-                    )).toList(),
-                    onChanged: (v) => selectedSeriesId = v!,
-                    hint: const Text("No specific series linked"),
-                  ),
-
-                  const SizedBox(height: 10),
-                  _inputField(transportC, "Preferred Transport", Icons.local_shipping_outlined),
                   _inputField(opBalC, "Opening Balance (₹)", Icons.account_balance_wallet, isNum: true),
                 ],
               ),
             ),
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(c), child: const Text("CANCEL", style: TextStyle(color: Colors.grey))),
+            TextButton(onPressed: () => Navigator.pop(c), child: const Text("CANCEL")),
             ElevatedButton(
               style: ElevatedButton.styleFrom(backgroundColor: Colors.indigo, foregroundColor: Colors.white),
               onPressed: () {
@@ -185,7 +171,7 @@ class _PartyMasterViewState extends State<PartyMasterView> {
                   route: selectedRoute,
                   transport: transportC.text.trim(),
                   opBal: double.tryParse(opBalC.text) ?? 0.0,
-                  defaultSeriesId: selectedSeriesId, // SAVING THE NEW FIELD
+                  defaultSeriesId: selectedSeriesId, 
                 );
 
                 if (party == null) {
@@ -204,7 +190,7 @@ class _PartyMasterViewState extends State<PartyMasterView> {
                   Navigator.pop(c);
                 }
               },
-              child: const Text("SAVE PARTY / LEDGER"),
+              child: const Text("SAVE PARTY"),
             ),
           ],
         );
@@ -222,11 +208,7 @@ class _PartyMasterViewState extends State<PartyMasterView> {
 
     return Scaffold(
       backgroundColor: const Color(0xFFF5F6F9),
-      appBar: AppBar(
-        title: const Text("Party Master / Ledgers"),
-        backgroundColor: Colors.indigo,
-        foregroundColor: Colors.white,
-      ),
+      appBar: AppBar(title: const Text("Party Master"), backgroundColor: Colors.indigo, foregroundColor: Colors.white),
       body: Column(
         children: [
           Container(
@@ -236,10 +218,9 @@ class _PartyMasterViewState extends State<PartyMasterView> {
               decoration: InputDecoration(
                 hintText: "Search by Name or City...",
                 prefixIcon: const Icon(Icons.search, color: Colors.indigo),
-                filled: true,
-                fillColor: Colors.white,
+                filled: true, fillColor: Colors.white,
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-                contentPadding: const EdgeInsets.symmetric(vertical: 0),
+                contentPadding: EdgeInsets.zero,
               ),
               onChanged: (v) => setState(() => searchQuery = v),
             ),
@@ -280,61 +261,18 @@ class _PartyMasterViewState extends State<PartyMasterView> {
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _showPartyForm(),
         backgroundColor: Colors.indigo,
-        icon: const Icon(Icons.add, color: Colors.white),
-        label: const Text("ADD NEW PARTY", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        icon: const Icon(Icons.add),
+        label: const Text("ADD NEW PARTY", style: TextStyle(fontWeight: FontWeight.bold)),
       ),
     );
   }
 
-  Widget _sectionTitle(String title) {
-    return Align(
-      alignment: Alignment.centerLeft,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 10),
-        child: Text(title, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.blueGrey, letterSpacing: 1)),
-      ),
-    );
-  }
+  Widget _sectionTitle(String title) => Align(alignment: Alignment.centerLeft, child: Padding(padding: const EdgeInsets.symmetric(vertical: 10), child: Text(title, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.blueGrey, letterSpacing: 1))));
 
-  Widget _dropdownLabel(String text) {
-    return Align(
-      alignment: Alignment.centerLeft,
-      child: Padding(
-        padding: const EdgeInsets.only(bottom: 5, left: 2, top: 10),
-        child: Text(text, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.grey)),
-      ),
-    );
-  }
-
-  Widget _inputField(TextEditingController ctrl, String label, IconData icon, {bool isNum = false}) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: TextField(
-        controller: ctrl,
-        keyboardType: isNum ? const TextInputType.numberWithOptions(decimal: true) : TextInputType.text,
-        style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
-        decoration: InputDecoration(
-          labelText: label,
-          prefixIcon: Icon(icon, size: 20),
-          border: const OutlineInputBorder(),
-          contentPadding: const EdgeInsets.all(12),
-        ),
-      ),
-    );
-  }
+  Widget _inputField(TextEditingController ctrl, String label, IconData icon, {bool isNum = false}) => Padding(padding: const EdgeInsets.only(bottom: 12), child: TextField(controller: ctrl, keyboardType: isNum ? const TextInputType.numberWithOptions(decimal: true) : TextInputType.text, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold), decoration: InputDecoration(labelText: label, prefixIcon: Icon(icon, size: 20), border: const OutlineInputBorder(), contentPadding: const EdgeInsets.all(12))));
 
   void _confirmDelete(PharoahManager ph, Party p) {
     if (p.name == "CASH") return;
-    showDialog(
-      context: context,
-      builder: (c) => AlertDialog(
-        title: const Text("Delete Party?"),
-        content: Text("Are you sure you want to delete '${p.name}'? All history for this ledger will be affected."),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(c), child: const Text("NO")),
-          ElevatedButton(onPressed: () { ph.deleteParty(p.id); Navigator.pop(c); }, child: const Text("YES, DELETE")),
-        ],
-      ),
-    );
+    showDialog(context: context, builder: (c) => AlertDialog(title: const Text("Delete Party?"), content: Text("Are you sure you want to delete '${p.name}'?"), actions: [TextButton(onPressed: () => Navigator.pop(c), child: const Text("NO")), ElevatedButton(onPressed: () { ph.deleteParty(p.id); Navigator.pop(c); }, child: const Text("YES, DELETE"))]));
   }
 }
