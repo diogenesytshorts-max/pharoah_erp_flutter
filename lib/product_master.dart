@@ -29,7 +29,7 @@ class _ProductMasterViewState extends State<ProductMasterView> {
   }
 
   // ===========================================================================
-  // MASTER FORM DIALOG (Rebuilt for Managed Saving)
+  // MAIN PRODUCT FORM DIALOG
   // ===========================================================================
   void _showProductForm({Medicine? med}) async {
     final ph = Provider.of<PharoahManager>(context, listen: false);
@@ -42,7 +42,7 @@ class _ProductMasterViewState extends State<ProductMasterView> {
     final reorderC = TextEditingController(text: med?.reorderLevel.toString() ?? "0");
     final gstC = TextEditingController(text: med?.gst.toString() ?? "12");
     
-    // 1. SMART ID GENERATION (awaiting fresh calculation)
+    // 1. Generate Smart ID for New Product
     String sysIdDisplay = med?.systemId ?? "Generating...";
     if (med == null) {
       sysIdDisplay = await PharoahNumberingEngine.getNextNumber(
@@ -65,9 +65,16 @@ class _ProductMasterViewState extends State<ProductMasterView> {
     String saltName = "Tap to Select Salt";
 
     try {
-       if(companyId != null) companyName = ph.companies.firstWhere((c) => c.id == companyId).name;
-       if(saltId != null) saltName = ph.salts.firstWhere((s) => s.id == saltId).name;
-    } catch(e) {}
+       if(companyId != null && companyId.isNotEmpty) {
+         companyName = ph.companies.firstWhere((c) => c.id == companyId).name;
+       }
+       if(saltId != null && saltId.isNotEmpty) {
+         saltName = ph.salts.firstWhere((s) => s.id == saltId).name;
+       }
+    } catch(e) {
+       // Fallback if ID is stored but name not found
+       if(companyId != null) companyName = companyId;
+    }
 
     if (!mounted) return;
 
@@ -83,7 +90,7 @@ class _ProductMasterViewState extends State<ProductMasterView> {
             child: SingleChildScrollView(
               child: Column(
                 children: [
-                  // LOCKED SYSTEM ID
+                  // ID DISPLAY PANEL
                   Container(
                     padding: const EdgeInsets.all(10), margin: const EdgeInsets.only(bottom: 15),
                     decoration: BoxDecoration(color: Colors.indigo.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.indigo.shade100)),
@@ -124,13 +131,11 @@ class _ProductMasterViewState extends State<ProductMasterView> {
                     ),
                   ),
                   
-                  _sectionHeader("LEGAL & STORAGE"),
+                  _sectionHeader("LEGAL & TAX"),
                   Row(children: [
-                    Expanded(child: SwitchListTile(contentPadding: EdgeInsets.zero, title: const Text("Narcotic", style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)), value: naco, onChanged: (v) => setDialogState(() => naco = v))),
-                    Expanded(child: SwitchListTile(contentPadding: EdgeInsets.zero, title: const Text("Sch. H1", style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)), value: schH1, onChanged: (v) => setDialogState(() => schH1 = v))),
+                    Expanded(child: SwitchListTile(contentPadding: EdgeInsets.zero, title: const Text("Narcotic", style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)), value: naco, onChanged: (v) => setDialogState(() => naco = v))),
+                    Expanded(child: SwitchListTile(contentPadding: EdgeInsets.zero, title: const Text("Sch. H1", style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)), value: schH1, onChanged: (v) => setDialogState(() => schH1 = v))),
                   ]),
-                  
-                  _sectionHeader("TAX & INVENTORY"),
                   Row(children: [
                     Expanded(child: _input(hsnC, "HSN Code", Icons.tag)),
                     const SizedBox(width: 10),
@@ -166,7 +171,6 @@ class _ProductMasterViewState extends State<ProductMasterView> {
                   mrp: med?.mrp ?? 0, purRate: med?.purRate ?? 0, rateA: med?.rateA ?? 0, rateB: med?.rateB ?? 0, rateC: med?.rateC ?? 0,
                 );
 
-                // 2. USING MANAGED FUNCTIONS (Fix for ID Stuck)
                 if(med == null) {
                   ph.addMedicine(newItem);
                 } else { 
@@ -219,9 +223,7 @@ class _ProductMasterViewState extends State<ProductMasterView> {
     );
   }
 
-  // ===========================================================================
   // UI HELPERS
-  // ===========================================================================
   Widget _sectionHeader(String t) => Padding(padding: const EdgeInsets.symmetric(vertical: 12), child: Align(alignment: Alignment.centerLeft, child: Text(t, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.blueGrey, letterSpacing: 1))));
   
   Widget _input(TextEditingController ctrl, String label, IconData icon, {bool isNum = false}) => Padding(padding: const EdgeInsets.only(bottom: 12), child: TextField(controller: ctrl, keyboardType: isNum ? const TextInputType.numberWithOptions(decimal: true) : TextInputType.text, textCapitalization: TextCapitalization.characters, decoration: InputDecoration(labelText: label, prefixIcon: Icon(icon, size: 18), border: const OutlineInputBorder())));
@@ -248,15 +250,15 @@ class _ProductMasterViewState extends State<ProductMasterView> {
 
   void _quickAddCompany(PharoahManager ph) async {
     final cC = TextEditingController();
-    String nextId = await PharoahNumberingEngine.getNextNumber(type: "COMPANY", companyID: ph.activeCompany!.id, prefix: "CP-", startFrom: 101, currentList: ph.companies);
+    String nextId = await PharoahNumberingEngine.getNextNumber(type: "COMPANY", companyID: ph.activeCompany!.id, prefix: "CP-", startFrom: 1001, currentList: ph.companies);
     if(!mounted) return;
-    showDialog(context: context, builder: (c) => AlertDialog(title: const Text("Quick Add Company"), content: TextField(controller: cC, decoration: InputDecoration(labelText: "Company Name", subtitleText: "ID: $nextId"), textCapitalization: TextCapitalization.characters), actions: [TextButton(onPressed: () => Navigator.pop(c), child: const Text("CANCEL")), ElevatedButton(onPressed: () { if(cC.text.isNotEmpty) { ph.addCompany(Company(id: nextId, name: cC.text.toUpperCase())); Navigator.pop(c); } }, child: const Text("ADD"))]));
+    showDialog(context: context, builder: (c) => AlertDialog(title: const Text("Quick Add Company"), content: TextField(controller: cC, decoration: InputDecoration(labelText: "Company Name", helperText: "Next ID: $nextId"), textCapitalization: TextCapitalization.characters), actions: [TextButton(onPressed: () => Navigator.pop(c), child: const Text("CANCEL")), ElevatedButton(onPressed: () { if(cC.text.isNotEmpty) { ph.addCompany(Company(id: nextId, name: cC.text.toUpperCase())); Navigator.pop(c); } }, child: const Text("ADD"))]));
   }
 
   void _quickAddSalt(PharoahManager ph) async {
     final sC = TextEditingController();
-    String nextId = await PharoahNumberingEngine.getNextNumber(type: "SALT", companyID: ph.activeCompany!.id, prefix: "SL-", startFrom: 101, currentList: ph.salts);
+    String nextId = await PharoahNumberingEngine.getNextNumber(type: "SALT", companyID: ph.activeCompany!.id, prefix: "SL-", startFrom: 1001, currentList: ph.salts);
     if(!mounted) return;
-    showDialog(context: context, builder: (c) => AlertDialog(title: const Text("Quick Add Salt"), content: TextField(controller: sC, decoration: InputDecoration(labelText: "Salt Name", subtitleText: "ID: $nextId"), textCapitalization: TextCapitalization.characters), actions: [TextButton(onPressed: () => Navigator.pop(c), child: const Text("CANCEL")), ElevatedButton(onPressed: () { if(sC.text.isNotEmpty) { ph.addSalt(Salt(id: nextId, name: sC.text.toUpperCase())); Navigator.pop(c); } }, child: const Text("ADD"))]));
+    showDialog(context: context, builder: (c) => AlertDialog(title: const Text("Quick Add Salt"), content: TextField(controller: sC, decoration: InputDecoration(labelText: "Salt Name", helperText: "Next ID: $nextId"), textCapitalization: TextCapitalization.characters), actions: [TextButton(onPressed: () => Navigator.pop(c), child: const Text("CANCEL")), ElevatedButton(onPressed: () { if(sC.text.isNotEmpty) { ph.addSalt(Salt(id: nextId, name: sC.text.toUpperCase())); Navigator.pop(c); } }, child: const Text("ADD"))]));
   }
 }
