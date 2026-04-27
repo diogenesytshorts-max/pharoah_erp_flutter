@@ -5,68 +5,69 @@ import 'package:shared_preferences/shared_preferences.dart';
 class PharoahNumberingEngine {
   
   // ===========================================================================
-  // 1. GET NEXT SMART NUMBER
+  // 1. GET NEXT SMART NUMBER (Old Logic Preserved + Product Support Added)
   // ===========================================================================
   static Future<String> getNextNumber({
-    required String type,           // SALE, PURCHASE, CHALLAN, etc.
-    required String companyID,      // To keep it isolated
-    required String prefix,         // e.g. "CUSA-" or "INV/"
-    required int startFrom,         // User defined start number
-    required List<dynamic> currentList, // Full list of transactions from Manager
+    required String type,           // SALE, PURCHASE, PRODUCT, etc.
+    required String companyID,      
+    required String prefix,         // e.g. "PH-"
+    required int startFrom,         
+    required List<dynamic> currentList, 
   }) async {
     
     final prefs = await SharedPreferences.getInstance();
     
-    // Unique key for this specific series in this specific company
-    // Key Format: lastID_SALE_CUSA-_PH-C-123
+    // Unique key logic - same as before
     String counterKey = 'lastID_${type}_${prefix}_$companyID';
     int lastPersistedID = prefs.getInt(counterKey) ?? (startFrom - 1);
 
-    // Step A: Filter current list to find numbers only belonging to THIS prefix
+    // Step A: Scan current list to find numbers
     List<int> existingNumbers = [];
     for (var item in currentList) {
-      String billNo = "";
+      String idToParse = "";
       
-      // Extracting bill number based on object type
-      // Using 'dynamic' access for flexibility across models
       try {
         if (type == "PURCHASE") {
-          billNo = item.internalNo; // Purchase uses internal tracking ID
-        } else {
-          billNo = item.billNo;     // Sales, Challans, Returns use billNo
+          idToParse = item.internalNo; 
+        } 
+        // --- NAYA BADLAV YAHAN HAI: PRODUCT SUPPORT ---
+        else if (type == "PRODUCT") {
+          idToParse = item.systemId; // Medicine ke liye systemId check karo
+        } 
+        // ----------------------------------------------
+        else {
+          idToParse = item.billNo;     
         }
       } catch (e) {
-        billNo = item.id; // Fallback
+        idToParse = item.id; 
       }
 
-      if (billNo.startsWith(prefix)) {
-        String numPart = billNo.replaceFirst(prefix, "");
+      if (idToParse.startsWith(prefix)) {
+        String numPart = idToParse.replaceFirst(prefix, "");
         int? n = int.tryParse(numPart);
         if (n != null) existingNumbers.add(n);
       }
     }
 
-    // Step B: Gap Filling Logic
+    // Step B: Gap Filling Logic - same as before
     if (existingNumbers.isNotEmpty) {
       existingNumbers.sort();
       
-      // Scan from startNumber to current Max to find missing gaps (Deleted bills)
       for (int i = startFrom; i <= existingNumbers.last; i++) {
         if (!existingNumbers.contains(i)) {
           return "$prefix$i"; // Found a gap! Return it.
         }
       }
       
-      // If no gaps, return Max + 1
       return "$prefix${existingNumbers.last + 1}";
     }
 
-    // Step C: If list is empty, start from User's preferred Start Number
+    // Step C: If list is empty - same as before
     return "$prefix$startFrom";
   }
 
   // ===========================================================================
-  // 2. UPDATE PERSISTENT COUNTER (Call this on Save)
+  // 2. UPDATE PERSISTENT COUNTER (Old Logic - Unchanged)
   // ===========================================================================
   static Future<void> updateSeriesCounter({
     required String type,
@@ -91,7 +92,7 @@ class PharoahNumberingEngine {
   }
 
   // ===========================================================================
-  // 3. RESET LOGIC (For Maintenance)
+  // 3. RESET LOGIC (Old Logic - Unchanged)
   // ===========================================================================
   static Future<void> resetSeries({
     required String type,
