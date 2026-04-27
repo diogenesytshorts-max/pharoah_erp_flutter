@@ -1,8 +1,11 @@
+// FILE: lib/item_entry_card.dart
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'models.dart';
 import 'pharoah_manager.dart';
-import 'expiry_master.dart'; // NAYA INTEGRATION
+import 'expiry_master.dart';
+import 'batch_sync_engine.dart'; // NAYA IMPORT
 
 class ItemEntryCard extends StatefulWidget {
   final Medicine med;
@@ -25,7 +28,7 @@ class ItemEntryCard extends StatefulWidget {
 }
 
 class _ItemEntryCardState extends State<ItemEntryCard> {
-  // --- CONTROLLERS ---
+  // --- CONTROLLERS (Preserved) ---
   final batchC = TextEditingController();
   final expC = TextEditingController();
   final mrpC = TextEditingController();
@@ -37,7 +40,7 @@ class _ItemEntryCardState extends State<ItemEntryCard> {
   final normDiscC = TextEditingController(text: "0.0");
 
   String selectedRateType = "A";
-  String originalExp = ""; // Purana Logic preserved
+  String originalExp = "";
 
   @override
   void initState() {
@@ -66,7 +69,7 @@ class _ItemEntryCardState extends State<ItemEntryCard> {
     }
   }
 
-  // --- RATE CALCULATIONS (Preserved) ---
+  // --- CALCULATION LOGIC (Preserved) ---
   void _calculateRateC() {
     double mrp = double.tryParse(mrpC.text) ?? 0.0;
     double gst = double.tryParse(gstC.text) ?? 0.0;
@@ -78,28 +81,19 @@ class _ItemEntryCardState extends State<ItemEntryCard> {
   }
 
   void _updateRateLogic() {
-    if (selectedRateType == "C") {
-      _calculateRateC();
-    } else {
-      rateC.text = selectedRateType == "A" 
-          ? widget.med.rateA.toString() 
-          : widget.med.rateB.toString();
-    }
+    if (selectedRateType == "C") { _calculateRateC(); } 
+    else { rateC.text = selectedRateType == "A" ? widget.med.rateA.toString() : widget.med.rateB.toString(); }
     setState(() {});
   }
 
-  // --- EXPIRY FORMATTING (Preserved & Enhanced) ---
   void _formatExpiry(String val) {
     String text = val.replaceAll(RegExp(r'[^0-9]'), '');
-    if (text.length >= 2 && !val.contains('/')) {
-      text = '${text.substring(0, 2)}/${text.substring(2)}';
-    }
+    if (text.length >= 2 && !val.contains('/')) { text = '${text.substring(0, 2)}/${text.substring(2)}'; }
     if (text.length > 5) text = text.substring(0, 5);
-    
     if (expC.text != text) {
       expC.value = TextEditingValue(text: text, selection: TextSelection.collapsed(offset: text.length));
     }
-    setState(() {}); // Refresh UI for ExpiryMaster colors
+    setState(() {});
   }
 
   Map<String, double> _calcTotals() {
@@ -114,30 +108,41 @@ class _ItemEntryCardState extends State<ItemEntryCard> {
     return {'taxable': taxable, 'cgst': taxAmt / 2, 'sgst': taxAmt / 2, 'total': taxable + taxAmt, 'discountAmt': discAmt};
   }
 
-  // --- VALIDATION LOGIC (Preserved) ---
+  // --- THE NEW SYNC TRIGGER ---
   void _validateAndAdd(PharoahManager ph) {
     if (qtyC.text.isEmpty || qtyC.text == "0") return;
 
-    // Check against history for expiry mismatch
-    final history = ph.batchHistory[widget.med.identityKey] ?? [];
+    // 1. Rahul Enterprise ki diary mein ye batch turant register/update karo
+    BatchSyncEngine.registerBatchActivity(
+      ph: ph, 
+      productKey: widget.med.identityKey, 
+      batchNo: batchC.text, 
+      exp: expC.text, 
+      packing: widget.med.packing, 
+      mrp: double.tryParse(mrpC.text) ?? 0, 
+      rate: double.tryParse(rateC.text) ?? 0
+    );
+
+    // 2. Expiry mismatch warning (Preserved logic)
+    final history = BatchSyncEngine.getFilteredBatches(ph: ph, productKey: widget.med.identityKey);
     try {
       final existingBatch = history.firstWhere((b) => b.batch == batchC.text.toUpperCase());
       if (existingBatch.exp != expC.text) {
         originalExp = existingBatch.exp;
-        _showExpiryWarning(); // Call the dialog
+        _showExpiryWarning();
         return;
       }
     } catch (e) {}
+
     _addItemToBill();
   }
 
-  // --- DIALOGS (Preserved) ---
   void _showExpiryWarning() {
     showDialog(
       context: context,
       builder: (c) => AlertDialog(
         title: const Text("Expiry Mismatch!", style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
-        content: Text("System records show expiry $originalExp for this batch. Do you want to overwrite it with ${expC.text}?"),
+        content: Text("Records show $originalExp. Overwrite with ${expC.text}?"),
         actions: [
           TextButton(onPressed: () => Navigator.pop(c), child: const Text("CANCEL")),
           TextButton(onPressed: () { expC.text = originalExp; Navigator.pop(c); _addItemToBill(); }, child: Text("USE OLD ($originalExp)")),
@@ -175,16 +180,18 @@ class _ItemEntryCardState extends State<ItemEntryCard> {
     final ph = Provider.of<PharoahManager>(context);
     final totals = _calcTotals();
     
-    // NEW INTEGRATION: Expiry Intelligence
+    // NAYA: Ab suggestions Bills se nahi, Master Registry se aayenge
+    final matchingBatches = BatchSyncEngine.getFilteredBatches(
+      ph: ph, 
+      productKey: widget.med.identityKey,
+      hideExpired: true // Sale/Billing screen ke liye expired hide rakhenge
+    ).where((b) => b.batch.toLowerCase().contains(batchC.text.toLowerCase())).toList();
+
+    // UI Status from ExpiryMaster
     String expStr = expC.text;
     ExpiryStatus expStatus = ExpiryMaster.getStatus(expStr);
     Color statusColor = ExpiryMaster.getStatusColor(expStr);
-    String? valMsg = ExpiryMaster.getValidationWarning(expStr);
     bool isAllowed = ExpiryMaster.isSaleAllowed(expStr);
-
-    final matchingBatches = (ph.batchHistory[widget.med.identityKey] ?? [])
-        .where((b) => b.batch.toLowerCase().contains(batchC.text.toLowerCase()))
-        .toList();
 
     return Container(
       padding: const EdgeInsets.all(15),
@@ -201,29 +208,12 @@ class _ItemEntryCardState extends State<ItemEntryCard> {
           Row(children: [
             Expanded(child: _buildInput("BATCH", batchC, onChanged: (v) => setState(() {}))),
             const SizedBox(width: 8),
-            // EXPIRY FIELD: Now uses Master status color
             Expanded(child: _buildInput("EXPIRY (MM/YY)", expC, onChanged: _formatExpiry, isNum: true, color: statusColor)),
             const SizedBox(width: 8),
             Expanded(child: _buildInput("GST %", gstC, isNum: true, onChanged: (v){ if(selectedRateType=="C") _calculateRateC(); setState((){}); })),
           ]),
 
-          // NEW: Warnings from ExpiryMaster
-          if (valMsg != null) 
-            Padding(padding: const EdgeInsets.only(top: 5), child: Text(valMsg, style: const TextStyle(color: Colors.orange, fontSize: 10, fontWeight: FontWeight.bold))),
-
-          if (expStr.length == 5) 
-            Container(
-              margin: const EdgeInsets.only(top: 8),
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(color: statusColor.withOpacity(0.1), borderRadius: BorderRadius.circular(5)),
-              child: Text(
-                expStatus == ExpiryStatus.expired ? "🔴 BATCH EXPIRED - SALE BLOCKED" : 
-                expStatus == ExpiryStatus.nearExpiry ? "⚠️ NEAR EXPIRY (LESS THAN 6 MONTHS)" : "✅ BATCH SAFE",
-                style: TextStyle(color: statusColor, fontSize: 10, fontWeight: FontWeight.bold),
-              ),
-            ),
-
-          // BATCH CHIPS (Enhanced with Expiry Colors)
+          // BATCH CHIPS (Preserved Design, Integrated with Engine)
           if (matchingBatches.isNotEmpty && widget.existingItem == null)
             Container(height: 45, margin: const EdgeInsets.symmetric(vertical: 8),
               child: ListView(scrollDirection: Axis.horizontal, children: matchingBatches.map((b) {
@@ -231,7 +221,6 @@ class _ItemEntryCardState extends State<ItemEntryCard> {
                   return Padding(padding: const EdgeInsets.only(right: 8),
                     child: ActionChip(
                       backgroundColor: bColor.withOpacity(0.05),
-                      side: BorderSide(color: bColor.withOpacity(0.3)),
                       label: Text("${b.batch} (${b.exp})", style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: bColor)),
                       onPressed: () {
                         setState(() {
@@ -278,7 +267,6 @@ class _ItemEntryCardState extends State<ItemEntryCard> {
           ),
 
           const SizedBox(height: 15),
-          // MAIN BUTTON: Now respects isSaleAllowed from ExpiryMaster
           SizedBox(width: double.infinity, height: 52,
             child: ElevatedButton(
               style: ElevatedButton.styleFrom(backgroundColor: isAllowed ? Colors.green : Colors.grey.shade400, foregroundColor: Colors.white),
@@ -296,21 +284,12 @@ class _ItemEntryCardState extends State<ItemEntryCard> {
   }
 
   Widget _buildInput(String label, TextEditingController ctrl, {bool isNum = false, Function(String)? onChanged, bool isReadOnly = false, Color? color}) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+    return Column(crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(label, style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: color ?? Colors.black54)),
         const SizedBox(height: 2),
-        TextField(
-          controller: ctrl, readOnly: isReadOnly,
-          keyboardType: isNum ? const TextInputType.numberWithOptions(decimal: true) : TextInputType.text,
-          onChanged: onChanged,
-          style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: color),
-          decoration: InputDecoration(
-            isDense: true, contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(5)),
-            filled: isReadOnly, fillColor: isReadOnly ? Colors.grey.shade100 : Colors.white,
-          ),
+        TextField(controller: ctrl, readOnly: isReadOnly, keyboardType: isNum ? const TextInputType.numberWithOptions(decimal: true) : TextInputType.text, onChanged: onChanged, style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: color),
+          decoration: InputDecoration(isDense: true, contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10), border: OutlineInputBorder(borderRadius: BorderRadius.circular(5)), filled: isReadOnly, fillColor: isReadOnly ? Colors.grey.shade100 : Colors.white),
         ),
       ],
     );
