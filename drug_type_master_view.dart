@@ -1,7 +1,10 @@
+// FILE: lib/drug_type_master_view.dart
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'pharoah_manager.dart';
 import 'models.dart';
+import 'logic/pharoah_numbering_engine.dart';
 
 class DrugTypeMasterView extends StatefulWidget {
   const DrugTypeMasterView({super.key});
@@ -11,26 +14,60 @@ class DrugTypeMasterView extends StatefulWidget {
 class _DrugTypeMasterViewState extends State<DrugTypeMasterView> {
   String search = "";
 
-  void _showForm({DrugType? dtype}) {
+  void _showForm({DrugType? dtype}) async {
     final ph = Provider.of<PharoahManager>(context, listen: false);
     final nameC = TextEditingController(text: dtype?.name);
 
+    // Smart ID Generation
+    String nextId = dtype?.id ?? "Generating...";
+    if (dtype == null) {
+      nextId = await PharoahNumberingEngine.getNextNumber(
+        type: "DRUGTYPE", 
+        companyID: ph.activeCompany!.id, 
+        prefix: "DT-", 
+        startFrom: 101, 
+        currentList: ph.drugTypes
+      );
+    }
+
+    if(!mounted) return;
+
     showDialog(context: context, builder: (c) => AlertDialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
       title: Text(dtype == null ? "Add Category" : "Edit Category"),
-      content: TextField(controller: nameC, decoration: const InputDecoration(labelText: "Category Name (e.g. Schedule H)"), textCapitalization: TextCapitalization.characters),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8), margin: const EdgeInsets.only(bottom: 15),
+            decoration: BoxDecoration(color: Colors.cyan.shade50, borderRadius: BorderRadius.circular(8)),
+            child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+              const Text("SYSTEM ID:", style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold)),
+              Text(nextId, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.cyan)),
+            ]),
+          ),
+          TextField(controller: nameC, decoration: const InputDecoration(labelText: "Category Name", border: OutlineInputBorder()), textCapitalization: TextCapitalization.characters),
+        ],
+      ),
       actions: [
         TextButton(onPressed: () => Navigator.pop(c), child: const Text("CANCEL")),
-        ElevatedButton(onPressed: () {
-          if (nameC.text.isEmpty) return;
-          if (dtype == null) {
-            ph.addDrugType(DrugType(id: DateTime.now().toString(), name: nameC.text.toUpperCase()));
-          } else {
-            int i = ph.drugTypes.indexWhere((x) => x.id == dtype.id);
-            ph.drugTypes[i].name = nameC.text.toUpperCase();
-            ph.save();
-          }
-          Navigator.pop(c);
-        }, child: const Text("SAVE"))
+        ElevatedButton(
+          style: ElevatedButton.styleFrom(backgroundColor: Colors.cyan.shade700, foregroundColor: Colors.white),
+          onPressed: () {
+            if (nameC.text.isEmpty) return;
+            final newType = DrugType(id: nextId, name: nameC.text.toUpperCase());
+            
+            if (dtype == null) {
+              ph.addDrugType(newType);
+            } else {
+              int i = ph.drugTypes.indexWhere((x) => x.id == dtype.id);
+              if (i != -1) ph.drugTypes[i] = newType;
+              ph.save();
+            }
+            Navigator.pop(c);
+          }, 
+          child: const Text("SAVE CATEGORY")
+        )
       ],
     ));
   }
@@ -41,7 +78,7 @@ class _DrugTypeMasterViewState extends State<DrugTypeMasterView> {
     final list = ph.drugTypes.where((d) => d.name.toLowerCase().contains(search.toLowerCase())).toList();
 
     return Scaffold(
-      appBar: AppBar(title: const Text("Drug Category Master"), backgroundColor: Colors.cyan.shade700),
+      appBar: AppBar(title: const Text("Drug Category Master"), backgroundColor: Colors.cyan.shade700, foregroundColor: Colors.white),
       body: Column(children: [
         Padding(padding: const EdgeInsets.all(12), child: TextField(
           decoration: const InputDecoration(hintText: "Search Category...", prefixIcon: Icon(Icons.search), border: OutlineInputBorder()),
@@ -50,7 +87,7 @@ class _DrugTypeMasterViewState extends State<DrugTypeMasterView> {
         Expanded(child: ListView.builder(
           itemCount: list.length,
           itemBuilder: (c, i) => ListTile(
-            leading: const Icon(Icons.verified_user, color: Colors.cyan),
+            leading: CircleAvatar(backgroundColor: Colors.cyan.shade50, child: Text(list[i].id.replaceAll("DT-", ""), style: const TextStyle(fontSize: 10, color: Colors.cyan))),
             title: Text(list[i].name, style: const TextStyle(fontWeight: FontWeight.bold)),
             trailing: IconButton(icon: const Icon(Icons.edit), onPressed: () => _showForm(dtype: list[i])),
           ),
