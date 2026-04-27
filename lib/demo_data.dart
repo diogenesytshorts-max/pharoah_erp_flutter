@@ -1,99 +1,66 @@
-// FILE: lib/demo_data.dart (Replacement Code)
+// FILE: lib/demo_data.dart
 
 import 'models.dart';
 
 class DemoData {
+  
+  // 1. DEMO MEDICINES (Matching PH- Prefix)
   static List<Medicine> getMedicines() {
+    List<Map<String, dynamic>> products = [
+      {"name": "DOLO 650 MG", "pack": "15 TAB", "mrp": 30.91, "pur": 25.40, "a": 28.50, "b": 27.00, "c": 26.50, "sid": "PH-00001", "cid": "CP-00001", "slid": "SL-00001"},
+      {"name": "PAN 40 MG", "pack": "10 TAB", "mrp": 120.00, "pur": 95.00, "a": 110.00, "b": 105.00, "c": 100.00, "sid": "PH-00002", "cid": "CP-00002", "slid": "SL-00002"},
+      {"name": "AZITHRAL 500", "pack": "5 TAB", "mrp": 115.00, "pur": 88.00, "a": 105.00, "b": 100.00, "c": 98.00, "sid": "PH-00003", "cid": "CP-00003", "slid": "SL-00003"},
+      {"name": "LIMCEE 500", "pack": "15 TAB", "mrp": 25.00, "pur": 18.00, "a": 23.00, "b": 22.00, "c": 20.00, "sid": "PH-00004", "cid": "CP-00004", "slid": "SL-00004"},
+    ];
+
+    return products.map((p) {
+      return Medicine(
+        id: "demo_${p['sid']}", // Technical Unique ID
+        systemId: p['sid'],     // Business Series ID (Engine isko scan karega)
+        name: p['name'],
+        packing: p['pack'],
+        companyId: p['cid'],    // Linked to Demo Company
+        saltId: p['slid'],       // Linked to Demo Salt
+        mrp: p['mrp'],
+        purRate: p['pur'],
+        rateA: p['a'],
+        rateB: p['b'],
+        rateC: p['c'],
+        stock: 0.0,
+        gst: 12.0,
+        hsnCode: "3004",
+      );
+    }).toList();
+  }
+
+  // 2. DEMO COMPANIES (Matching CP- Prefix)
+  static List<Company> getCompanies() {
     return [
-      Medicine(
-        id: "demo_1",
-        systemId: "PH-D-10001", // 'D' for Demo to avoid overlap
-        name: "DOLO 650 MG",
-        packing: "15 TAB",
-        companyId: "MICRO LABS",
-        mrp: 30.91,
-        purRate: 25.40,
-        rateA: 28.50,
-        rateB: 27.00,
-        rateC: 26.50,
-        stock: 0.0,
-        gst: 12.0,
-        hsnCode: "3004",
-        isScheduleH1: false,
-        isNarcotic: false,
-      ),
-      Medicine(
-        id: "demo_2",
-        systemId: "PH-D-10002",
-        name: "PAN 40 MG",
-        packing: "10 TAB",
-        companyId: "ALKEM LABORATORIES",
-        mrp: 120.00,
-        purRate: 95.00,
-        rateA: 110.00,
-        rateB: 105.00,
-        rateC: 100.00,
-        stock: 0.0,
-        gst: 12.0,
-        hsnCode: "3004",
-      ),
-      Medicine(
-        id: "demo_3",
-        systemId: "PH-D-10003",
-        name: "AZITHRAL 500",
-        packing: "5 TAB",
-        companyId: "ALEMBIC PHARMA",
-        mrp: 115.00,
-        purRate: 88.00,
-        rateA: 105.00,
-        rateB: 100.00,
-        rateC: 98.00,
-        stock: 0.0,
-        gst: 12.0,
-        hsnCode: "3004",
-        isScheduleH1: true, // Test ke liye H1 On kiya hai
-      ),
-      Medicine(
-        id: "demo_4",
-        systemId: "PH-D-10004",
-        name: "FORTWIN INJECTION",
-        packing: "1 ML",
-        companyId: "SANOFI INDIA",
-        mrp: 15.50,
-        purRate: 10.00,
-        rateA: 14.50,
-        rateB: 14.00,
-        rateC: 13.50,
-        stock: 0.0,
-        gst: 12.0,
-        hsnCode: "3004",
-        isNarcotic: true, // Test ke liye Narcotic On kiya hai
-      ),
-      Medicine(
-        id: "demo_5",
-        systemId: "PH-D-10005",
-        name: "LIMCEE 500",
-        packing: "15 TAB",
-        companyId: "ABBOTT INDIA",
-        mrp: 25.00,
-        purRate: 18.00,
-        rateA: 23.00,
-        rateB: 22.00,
-        rateC: 20.00,
-        stock: 0.0,
-        gst: 12.0,
-        hsnCode: "3004",
-      ),
+      Company(id: "CP-00001", name: "MICRO LABS LTD"),
+      Company(id: "CP-00002", name: "ALKEM LABORATORIES"),
+      Company(id: "CP-00003", name: "ALEMBIC PHARMA"),
+      Company(id: "CP-00004", name: "ABBOTT INDIA"),
     ];
   }
 
+  // 3. DEMO SALTS (Matching SL- Prefix)
+  static List<Salt> getSalts() {
+    return [
+      Salt(id: "SL-00001", name: "PARACETAMOL 650MG", type: "Mono"),
+      Salt(id: "SL-00002", name: "PANTOPRAZOLE 40MG", type: "Mono"),
+      Salt(id: "SL-00003", name: "AZITHROMYCIN 500MG", type: "Mono"),
+      Salt(id: "SL-00004", name: "VITAMIN C (ASCORBIC ACID)", type: "Mono"),
+    ];
+  }
+
+  // 4. DEMO PARTY
   static Party getDemoParty() {
     return Party(
       id: "demo_party_1", 
-      name: "DEMO PHARMA DISTRIBUTORS", 
-      address: "61, UNIVERSITY ROAD", 
+      name: "ABC PHARMA DISTRIBUTORS", 
+      address: "M.G. ROAD, INDUSTRIAL AREA", 
       city: "UDAIPUR", 
-      gst: "08FSBPM0623R1ZC",
+      gst: "08ABCDE1234F1Z5",
       group: "Sundry Creditors"
     );
   }
