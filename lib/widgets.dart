@@ -175,3 +175,39 @@ class ActionIconBtn extends StatelessWidget {
     );
   }
 }
+// --- NEW CODE ADDITION (Add at the end of lib/widgets.dart) ---
+
+class PharoahSmartGrid extends StatelessWidget {
+  final List<ModuleAction> actions;
+  final Function(ModuleAction) onActionTap;
+
+  const PharoahSmartGrid({
+    super.key,
+    required this.actions,
+    required this.onActionTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GridView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      itemCount: actions.length,
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 3,        // Ek row mein 3 buttons (Tree Layout ke liye perfect)
+        crossAxisSpacing: 12,
+        mainAxisSpacing: 12,
+        childAspectRatio: 0.85,    // Buttons thode lambe aur sundar dikhenge
+      ),
+      itemBuilder: (context, index) {
+        final action = actions[index];
+        return ActionIconBtn(
+          title: action.title,
+          icon: action.icon,
+          color: action.color,
+          onTap: () => onActionTap(action),
+        );
+      },
+    );
+  }
+}
