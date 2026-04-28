@@ -8,8 +8,7 @@ plugins {
 
 android {
     namespace = "com.rawat.pharoah_erp"
-    // UPDATED: Set to 36 to support latest AndroidX and Plugins
-    compileSdk = 36
+    compileSdk = 35
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
@@ -24,8 +23,7 @@ android {
     defaultConfig {
         applicationId = "com.rawat.pharoah_erp"
         minSdk = 24 
-        // UPDATED: Set to 36 for runtime compatibility
-        targetSdk = 36
+        targetSdk = 35
         versionCode = flutter.versionCode
         versionName = flutter.versionName
     }
@@ -35,6 +33,15 @@ android {
             signingConfig = signingConfigs.getByName("debug")
             proguardFiles(getDefaultProguardFile("proguard-android.txt"), "proguard-rules.pro")
         }
+    }
+}
+
+// FORCE RECTIFY lStar conflict
+configurations.all {
+    resolutionStrategy {
+        force("androidx.core:core:1.13.1")
+        force("androidx.core:core-ktx:1.13.1")
+        force("androidx.annotation:annotation:1.8.0")
     }
 }
 
