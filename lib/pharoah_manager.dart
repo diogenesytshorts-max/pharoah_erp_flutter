@@ -24,7 +24,40 @@ class PharoahManager with ChangeNotifier {
     ModuleAction(title: "Returns", icon: Icons.assignment_return, color: Colors.red, navModule: "GO_RETURNS"),
     // FUTURE: Yahan "Demo" add karna 1 second ka kaam hoga
   ];
+// --- ADD THIS IN PharoahManager (Under billingActions) ---
 
+// 3. INVENTORY ACTIONS
+List<ModuleAction> get inventoryActions => [
+  ModuleAction(title: "Stock View", icon: Icons.view_in_ar, color: Colors.purple, navModule: "GO_STOCK"),
+  ModuleAction(title: "Shortage", icon: Icons.trending_down, color: Colors.red, navModule: "GO_SHORTAGE"),
+  ModuleAction(title: "Item Ledger", icon: Icons.menu_book, color: Colors.blueGrey, navModule: "GO_ITEM_LEDGER"),
+  ModuleAction(title: "Dump Stock", icon: Icons.delete_sweep, color: Colors.brown, navModule: "GO_DUMP"),
+];
+
+// 4. ACCOUNTS ACTIONS
+List<ModuleAction> get accountsActions => [
+  ModuleAction(title: "Daybook", icon: Icons.event_note, color: Colors.blueGrey, navModule: "GO_DAYBOOK"),
+  ModuleAction(title: "Ledgers", icon: Icons.people_alt, color: Colors.indigo, navModule: "GO_LEDGERS"),
+  ModuleAction(title: "Receipts", icon: Icons.add_chart, color: Colors.green, navModule: "GO_RECEIPT"),
+  ModuleAction(title: "Payments", icon: Icons.analytics, color: Colors.red, navModule: "GO_PAYMENT"),
+];
+
+// 5. MASTERS ACTIONS (Aapka tree structure yahan hai)
+List<ModuleAction> get mastersActions => [
+  ModuleAction(title: "Parties", icon: Icons.group_add, color: Colors.indigo, navModule: "GO_M_PARTY"),
+  ModuleAction(title: "Items", icon: Icons.medication, color: Colors.purple, navModule: "GO_M_ITEM"),
+  ModuleAction(title: "Batches", icon: Icons.layers, color: Colors.blueGrey, navModule: "GO_M_BATCH"),
+  ModuleAction(title: "Routes", icon: Icons.map, color: Colors.teal, navModule: "GO_M_ROUTE"),
+  ModuleAction(title: "Security", icon: Icons.admin_panel_settings, color: Colors.red, navModule: "GO_M_STAFF"),
+  ModuleAction(title: "Company", icon: Icons.business, color: Colors.brown, navModule: "GO_M_COMP"),
+];
+
+// 6. GST ACTIONS
+List<ModuleAction> get gstActions => [
+  ModuleAction(title: "GSTR-1", icon: Icons.assignment, color: Colors.green, navModule: "GO_GST_1"),
+  ModuleAction(title: "GSTR-3B", icon: Icons.summarize, color: Colors.blue, navModule: "GO_GST_3B"),
+  ModuleAction(title: "Portal Match", icon: Icons.fact_check, color: Colors.teal, navModule: "GO_GST_RECON"),
+];
   // Baki masters ki list bhi yahan ayengi...
 
   // --- MASTERS LISTS (Aapka purana code yahan se shuru hota hai) ---
