@@ -6,8 +6,10 @@ plugins {
 
 android {
     namespace = "com.rawat.pharoah_erp"
-    // Required by latest AndroidX activity libraries
-    compileSdk = 36
+
+    // 🔥 Stable SDK (ML Kit compatible)
+    compileSdk = 34
+
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
@@ -21,30 +23,20 @@ android {
 
     defaultConfig {
         applicationId = "com.rawat.pharoah_erp"
-        minSdk = 24 
-        targetSdk = 36
+
+        // ✅ Safe values
+        minSdk = 21
+        targetSdk = 34
+
         versionCode = flutter.versionCode
         versionName = flutter.versionName
     }
 
     buildTypes {
         release {
+            // ⚠️ production me baad me proper signing lagana
             signingConfig = signingConfigs.getByName("debug")
-            proguardFiles(getDefaultProguardFile("proguard-android.txt"), "proguard-rules.pro")
         }
-    }
-}
-
-// THE CURE FOR lStar ERROR & ACTIVITY DEPENDENCY CRASH:
-configurations.all {
-    resolutionStrategy {
-        force("androidx.core:core:1.15.0-alpha01")
-        force("androidx.core:core-ktx:1.15.0-alpha01")
-        force("androidx.annotation:annotation:1.9.1")
-        
-        // AndroidX Activity crash fix
-        force("androidx.activity:activity:1.9.3")
-        force("androidx.activity:activity-ktx:1.9.3")
     }
 }
 
