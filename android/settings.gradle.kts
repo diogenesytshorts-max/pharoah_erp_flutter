@@ -6,7 +6,9 @@ pluginManagement {
             propertiesFile.inputStream().use { properties.load(it) }
         }
         val sdkPath = properties.getProperty("flutter.sdk")
-        requireNotNull(sdkPath) { "Flutter SDK not found. Define 'flutter.sdk' in local.properties or environment." }
+        requireNotNull(sdkPath) {
+            "Flutter SDK not found. Define 'flutter.sdk' in local.properties or environment."
+        }
     }
 
     includeBuild("$flutterSdkPath/packages/flutter_tools/gradle")
@@ -20,9 +22,12 @@ pluginManagement {
 
 plugins {
     id("dev.flutter.flutter-plugin-loader") version "1.0.0"
-    // यहाँ AGP वर्जन 8.7.3 (या 8.1.0) से 8.9.1 कर दिया गया है
-    id("com.android.application") version "8.9.1" apply false
-    id("org.jetbrains.kotlin.android") version "1.9.24" apply false
+
+    // 🔥 Stable version (Flutter compatible)
+    id("com.android.application") version "8.1.0" apply false
+
+    // 🔥 Stable Kotlin version
+    id("org.jetbrains.kotlin.android") version "1.9.22" apply false
 }
 
 include(":app")
