@@ -81,10 +81,9 @@ class _MainControlShellState extends State<MainControlShell> {
             if (ph.activeModule != "HOME") 
                IconButton(icon: const Icon(Icons.grid_view_rounded), onPressed: () => ph.updateModule("HOME")),
             
-            // Search Placeholder (Logic will be added in Step 3)
-            IconButton(icon: const Icon(Icons.search), onPressed: () {
-              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Search feature activating soon...")));
-            }),
+            // Search Placeholder (Logic will be added in Step IconButton(icon: const Icon(Icons.search), onPressed: () {
+  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Search feature activating soon...")));
+}),
 
             // NAYA: LOGOUT BUTTON
             IconButton(
@@ -218,5 +217,77 @@ class _MainControlShellState extends State<MainControlShell> {
       }
       if (target != null) Navigator.push(context, MaterialPageRoute(builder: (c) => target!));
     }
+  }
+}
+// --- UNIVERSAL SEARCH ENGINE (GLOBAL) ---
+class PharoahGlobalSearch extends SearchDelegate {
+  final PharoahManager ph;
+  PharoahGlobalSearch({required this.ph});
+
+  @override
+  List<Widget>? buildActions(BuildContext context) {
+    return [IconButton(icon: const Icon(Icons.clear), onPressed: () => query = "")];
+  }
+
+  @override
+  Widget? buildLeading(BuildContext context) {
+    return IconButton(icon: const Icon(Icons.arrow_back), onPressed: () => close(context, null));
+  }
+
+  @override
+  Widget buildResults(BuildContext context) => _buildSearchResults();
+
+  @override
+  Widget buildSuggestions(BuildContext context) => _buildSearchResults();
+
+  Widget _buildSearchResults() {
+    if (query.isEmpty) return const Center(child: Text("Search Items or Parties..."));
+
+    // 1. Medicines Filter
+    final filteredMeds = ph.medicines.where((m) => m.name.toLowerCase().contains(query.toLowerCase())).toList();
+    // 2. Parties Filter
+    final filteredParties = ph.parties.where((p) => p.name.toLowerCase().contains(query.toLowerCase())).toList();
+
+    return ListView(
+      children: [
+        if (filteredMeds.isNotEmpty) ...[
+          const Padding(
+            padding: EdgeInsets.all(15),
+            child: Text("PRODUCTS / ITEMS", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.purple, fontSize: 10, letterSpacing: 1)),
+          ),
+          ...filteredMeds.map((m) => ListTile(
+            leading: const Icon(Icons.medication, color: Colors.purple),
+            title: Text(m.name, style: const TextStyle(fontWeight: FontWeight.bold)),
+            subtitle: Text("Pack: ${m.packing} | Stock: ${m.stock}"),
+            onTap: () {
+              // Click karte hi Item Ledger par le jao
+              close(context, null);
+              Navigator.push(context, MaterialPageRoute(builder: (c) => ItemLedgerDetailView(medicine: m)));
+            },
+          )),
+        ],
+        if (filteredParties.isNotEmpty) ...[
+          const Padding(
+            padding: EdgeInsets.all(15),
+            child: Text("PARTIES / ACCOUNTS", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.indigo, fontSize: 10, letterSpacing: 1)),
+          ),
+          ...filteredParties.map((p) => ListTile(
+            leading: const Icon(Icons.person, color: Colors.indigo),
+            title: Text(p.name, style: const TextStyle(fontWeight: FontWeight.bold)),
+            subtitle: Text("${p.city} | ${p.group}"),
+            onTap: () {
+              // Click karte hi Party Ledger par le jao
+              close(context, null);
+              Navigator.push(context, MaterialPageRoute(builder: (c) => SingleLedgerDetailView(party: p)));
+            },
+          )),
+        ],
+        if (filteredMeds.isEmpty && filteredParties.isEmpty)
+          const Padding(
+            padding: EdgeInsets.all(30),
+            child: Center(child: Text("No match found in dukan records.")),
+          ),
+      ],
+    );
   }
 }
