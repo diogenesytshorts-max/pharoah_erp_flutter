@@ -37,6 +37,8 @@ import 'modifications/modify_hub_view.dart';
 import 'compliance/compliance_hub.dart';   
 import 'administration/series_master_view.dart'; 
 import 'administration/app_settings_view.dart'; 
+import 'sale_summary_view.dart'; // Corrected Import
+import 'purchase/purchase_summary_view.dart'; // Corrected Import
 
 class MainControlShell extends StatefulWidget {
   const MainControlShell({super.key});
@@ -183,9 +185,8 @@ class _MainControlShellState extends State<MainControlShell> {
       switch (action.navModule) {
         case "GO_SALE": target = const SaleEntryView(); break;
         case "GO_PURCHASE": target = const PurchaseEntryView(); break;
-        // FIXED: Removed 'const' because views may not have const constructors
-        case "GO_SALE_REG": target = SaleSummaryView(); break;
-        case "GO_PUR_REG": target = PurchaseSummaryView(); break;
+        case "GO_SALE_REG": target = const SaleSummaryView(); break;
+        case "GO_PUR_REG": target = const PurchaseSummaryView(); break;
         case "GO_CHALLAN": target = const ChallanDashboard(); break;
         case "GO_CHALLAN_SALE": target = const SaleChallanView(); break;
         case "GO_CHALLAN_PUR": target = const PurchaseChallanView(); break;
@@ -236,7 +237,6 @@ class PharoahGlobalSearch extends SearchDelegate {
   @override
   Widget buildSuggestions(BuildContext context) => _buildSearchList(context);
 
-  // FIXED: Added BuildContext context as parameter
   Widget _buildSearchList(BuildContext context) {
     if (query.isEmpty) return const Center(child: Text("Search Products or Parties..."));
     final filteredMeds = ph.medicines.where((m) => m.name.toLowerCase().contains(query.toLowerCase())).toList();
