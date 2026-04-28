@@ -1,4 +1,35 @@
-// FILE: lib/pharoah_manager.dart (FIXED & COMPLETE)
+class PharoahManager with ChangeNotifier {
+  // --- NAVIGATION STATE ---
+  String activeModule = "HOME"; 
+
+  void updateModule(String newModule) {
+    activeModule = newModule;
+    notifyListeners();
+  }
+
+  // --- DYNAMIC MENU LISTS ---
+  List<ModuleAction> get mainMenuActions => [
+    ModuleAction(title: "BILLING", icon: Icons.receipt_long, color: Colors.blue, navModule: "BILLING"),
+    ModuleAction(title: "INVENTORY", icon: Icons.inventory, color: Colors.purple, navModule: "INVENTORY"),
+    ModuleAction(title: "ACCOUNTS", icon: Icons.account_balance_wallet, color: Colors.teal, navModule: "ACCOUNTS"),
+    ModuleAction(title: "MASTERS", icon: Icons.stars, color: Colors.indigo, navModule: "MASTERS"),
+    ModuleAction(title: "GST", icon: Icons.verified, color: Colors.green, navModule: "GST"),
+    ModuleAction(title: "AI TOOLS", icon: Icons.auto_awesome, color: Colors.deepPurple, navModule: "AI"),
+  ];
+
+  List<ModuleAction> get billingActions => [
+    ModuleAction(title: "New Sale", icon: Icons.add_shopping_cart, color: Colors.blue, navModule: "GO_SALE"),
+    ModuleAction(title: "Purchase", icon: Icons.downloading, color: Colors.orange, navModule: "GO_PURCHASE"),
+    ModuleAction(title: "Challans", icon: Icons.local_shipping, color: Colors.teal, navModule: "GO_CHALLAN"),
+    ModuleAction(title: "Returns", icon: Icons.assignment_return, color: Colors.red, navModule: "GO_RETURNS"),
+    // FUTURE: Yahan "Demo" add karna 1 second ka kaam hoga
+  ];
+
+  // Baki masters ki list bhi yahan ayengi...
+
+  // --- MASTERS LISTS (Aapka purana code yahan se shuru hota hai) ---
+  List<Medicine> medicines = [];
+  // ... (baki code waise hi rehne dein)// FILE: lib/pharoah_manager.dart (FIXED & COMPLETE)
 
 import 'dart:convert';
 import 'dart:io';
