@@ -1,3 +1,5 @@
+// FILE: android/app/build.gradle.kts
+
 plugins {
     id("com.android.application")
     id("kotlin-android")
@@ -6,8 +8,8 @@ plugins {
 
 android {
     namespace = "com.rawat.pharoah_erp"
-    // Locked to 35 for modern AndroidX compatibility
-    compileSdk = 35
+    // UPDATED: Set to 36 to support latest AndroidX and Plugins
+    compileSdk = 36
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
@@ -21,8 +23,9 @@ android {
 
     defaultConfig {
         applicationId = "com.rawat.pharoah_erp"
-        minSdk = 24 // Updated for modern libraries
-        targetSdk = 35
+        minSdk = 24 
+        // UPDATED: Set to 36 for runtime compatibility
+        targetSdk = 36
         versionCode = flutter.versionCode
         versionName = flutter.versionName
     }
