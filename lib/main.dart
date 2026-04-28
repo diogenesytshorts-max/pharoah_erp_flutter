@@ -77,8 +77,7 @@ class AppGateway extends StatelessWidget {
     }
 
     // STEP 5: Sab kuch sahi hai -> Seedha Dashboard kholo
-    return DashboardView(onLogout: () {
-      ph.clearSession(); 
+    return const MainControlShell(); 
     });
   }
 }
