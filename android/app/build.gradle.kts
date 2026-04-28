@@ -22,14 +22,14 @@ android {
         applicationId = "com.rawat.pharoah_erp"
         minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
-        versionCode = flutter.versionCode()
-        versionName = flutter.versionName()
+        // FIXED: Properties used instead of functions
+        versionCode = flutter.versionCode
+        versionName = flutter.versionName
     }
 
     buildTypes {
         release {
             signingConfig = signingConfigs.getByName("debug")
-            // NAYI LINE YAHAN JODI GAYI HAI
             proguardFiles(getDefaultProguardFile("proguard-android.txt"), "proguard-rules.pro")
         }
     }
