@@ -1,5 +1,3 @@
-// FILE: android/app/build.gradle.kts
-
 plugins {
     id("com.android.application")
     id("kotlin-android")
@@ -8,7 +6,8 @@ plugins {
 
 android {
     namespace = "com.rawat.pharoah_erp"
-    compileSdk = 35
+    // UPDATED: Required by latest AndroidX activity libraries
+    compileSdk = 36
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
@@ -23,7 +22,8 @@ android {
     defaultConfig {
         applicationId = "com.rawat.pharoah_erp"
         minSdk = 24 
-        targetSdk = 35
+        // UPDATED: Aligned with compileSdk
+        targetSdk = 36
         versionCode = flutter.versionCode
         versionName = flutter.versionName
     }
@@ -36,14 +36,13 @@ android {
     }
 }
 
-// THE PERMANENT FIX FOR lStar ERROR:
-// Yeh project ki sabhi dependencies ko latest stable core libraries use karne par force karega.
+// THE CURE FOR lStar ERROR:
+// Forcing 1.15.0-alpha01 or higher is needed for SDK 36 compatibility
 configurations.all {
     resolutionStrategy {
-        force("androidx.core:core:1.13.1")
-        force("androidx.core:core-ktx:1.13.1")
-        force("androidx.annotation:annotation:1.8.0")
-        force("androidx.fragment:fragment:1.8.1")
+        force("androidx.core:core:1.15.0-alpha01")
+        force("androidx.core:core-ktx:1.15.0-alpha01")
+        force("androidx.annotation:annotation:1.9.1")
     }
 }
 
