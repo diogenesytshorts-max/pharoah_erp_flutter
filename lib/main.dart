@@ -1,12 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'pharoah_manager.dart';
-import 'dashboard_view.dart';
 import 'login_view.dart';
 import 'gateway/multi_setup_view.dart';
 import 'gateway/company_list_screen.dart';
 import 'gateway/company_control_panel.dart';
-import 'main_control_shell.dart'; // NAYA
+import 'main_control_shell.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -30,7 +29,8 @@ class MyApp extends StatelessWidget {
       theme: ThemeData(
         useMaterial3: true,
         colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF0D47A1)),
-        cardTheme: const CardTheme(
+        // FIXED: Changed CardTheme to CardThemeData
+        cardTheme: const CardThemeData(
           elevation: 3,
           surfaceTintColor: Colors.white,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(15))),
