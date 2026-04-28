@@ -1,34 +1,54 @@
-name: Flutter Build APK
+name: Build Flutter APK
 
 on:
   push:
     branches:
       - main
+  workflow_dispatch:
 
 jobs:
   build:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout code
+      # 1. Checkout code
+      - name: Checkout repository
         uses: actions/checkout@v4
 
+      # 2. Setup Flutter
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
           flutter-version: 3.41.8
 
-      # 🔥 VERY IMPORTANT (Fix your error)
+      # 3. Java setup (required for Gradle)
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      # 🔥 4. Clean Gradle cache (VERY IMPORTANT FIX)
       - name: Clean Gradle Cache
         run: |
           rm -rf ~/.gradle/caches
           rm -rf ~/.gradle/wrapper
 
+      # 5. Flutter clean
       - name: Flutter Clean
         run: flutter clean
 
-      - name: Get Dependencies
+      # 6. Get dependencies
+      - name: Install Dependencies
         run: flutter pub get
 
+      # 7. Build APK
       - name: Build APK
         run: flutter build apk --release
+
+      # 8. Upload APK
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-release
+          path: build/app/outputs/flutter-apk/app-release.apk
