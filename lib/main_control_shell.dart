@@ -5,13 +5,18 @@ import 'package:provider/provider.dart';
 import 'pharoah_manager.dart';
 import 'models.dart';
 import 'widgets.dart';
+import 'inventory_logic_center.dart';
 
 // --- VIEWS IMPORTS ---
 import 'sale_entry_view.dart';
 import 'purchase/purchase_entry_view.dart';
 import 'challans/challan_dashboard.dart';
+import 'challans/sale_challan_view.dart';
+import 'challans/purchase_challan_view.dart';
+import 'challans/challan_to_bill_converter.dart';
 import 'returns/sale_return_view.dart';
 import 'returns/purchase_return_view.dart';
+import 'returns/expiry_breakage_return_view.dart';
 import 'item_ledger_view.dart';
 import 'inventory_intel/shortage_register.dart';
 import 'inventory_intel/stock_health_reports.dart';
@@ -24,13 +29,14 @@ import 'batch_master_view.dart';
 import 'route_master_view.dart';
 import 'administration/system_user_master_view.dart';
 import 'company_master_view.dart';
+import 'salt_master_view.dart';
 import 'gst_report_detail_view.dart';
 import 'gst_reconciliation_view.dart';
 import 'pharoah_ai_vision.dart';
-import 'modifications/modify_hub_view.dart'; // Naya link
-import 'compliance/compliance_hub.dart';   // Naya link
-import 'administration/series_master_view.dart'; // Naya link
-import 'administration/app_settings_view.dart'; // Settings ke liye
+import 'modifications/modify_hub_view.dart'; 
+import 'compliance/compliance_hub.dart';   
+import 'administration/series_master_view.dart'; 
+import 'administration/app_settings_view.dart'; 
 
 class MainControlShell extends StatefulWidget {
   const MainControlShell({super.key});
@@ -57,13 +63,13 @@ class _MainControlShellState extends State<MainControlShell> {
       default: displayActions = ph.mainMenuActions; displayTitle = "MAIN BUSINESS MODULES";
     }
 
-    // NAYA: BACK BUTTON PROTECTOR (PopScope)
+    // --- 1. BACK BUTTON PROTECTOR (PopScope) ---
     return PopScope(
-      canPop: ph.activeModule == "HOME", // Sirf HOME par exit allow karein
-      onPopInvoked: (didPop) {
+      canPop: ph.activeModule == "HOME", 
+      onPopInvokedWithResult: (didPop, result) {
         if (didPop) return;
         if (ph.activeModule != "HOME") {
-          ph.updateModule("HOME"); // Back dabane par Home par le jao
+          ph.updateModule("HOME"); // Back dabane par app se bahar nahi, Home par jayenge
         }
       },
       child: Scaffold(
@@ -81,14 +87,18 @@ class _MainControlShellState extends State<MainControlShell> {
             if (ph.activeModule != "HOME") 
                IconButton(icon: const Icon(Icons.grid_view_rounded), onPressed: () => ph.updateModule("HOME")),
             
-            // Search Placeholder (Logic will be added in Step IconButton(icon: const Icon(Icons.search), onPressed: () {
-  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Search feature activating soon...")));
-}),
+            // --- 2. UNIVERSAL SEARCH ---
+            IconButton(
+              icon: const Icon(Icons.search), 
+              onPressed: () {
+                showSearch(context: context, delegate: PharoahGlobalSearch(ph: ph));
+              }
+            ),
 
-            // NAYA: LOGOUT BUTTON
+            // --- 3. LOGOUT / SWITCH COMPANY ---
             IconButton(
               icon: const Icon(Icons.exit_to_app_rounded, color: Colors.orangeAccent), 
-              tooltip: "Logout / Switch Company",
+              tooltip: "Logout",
               onPressed: () => ph.clearSession()
             ),
           ],
@@ -101,7 +111,8 @@ class _MainControlShellState extends State<MainControlShell> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    _buildLiveKpiStrip(ph), // Yahan ab Purchase dikhega
+                    // --- 4. KPI STRIP (Sale + Purchase + Stock) ---
+                    _buildLiveKpiStrip(ph), 
                     const SizedBox(height: 30),
                     Text(displayTitle, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Colors.blueGrey, letterSpacing: 1)),
                     const SizedBox(height: 15),
@@ -113,21 +124,21 @@ class _MainControlShellState extends State<MainControlShell> {
                 ),
               ),
             ),
-            // NAYA: CONDITIONAL ALERT (Sirf tab dikhega jab Shortage ho)
+            // --- 5. CONDITIONAL ALERT (Only shows if there is a shortage) ---
             if (ph.shortages.isNotEmpty) _buildAlertsBar(ph.shortages.length),
           ],
         ),
         bottomNavigationBar: BottomNavigationBar(
-          currentIndex: _getBottomNavIndex(ph.activeModule),
+          currentIndex: ph.activeModule == "GST" ? 1 : 0,
           selectedItemColor: const Color(0xFF0D47A1),
           onTap: (i) { 
             if(i == 0) ph.updateModule("HOME");
-            if(i == 1) ph.updateModule("GST"); // Reports placeholder
+            if(i == 1) ph.updateModule("GST"); 
             if(i == 2) Navigator.push(context, MaterialPageRoute(builder: (c) => const AppSettingsView()));
           },
           items: const [
             BottomNavigationBarItem(icon: Icon(Icons.dashboard_rounded), label: "Menu"),
-            BottomNavigationBarItem(icon: Icon(Icons.analytics_outlined), label: "Reports"),
+            BottomNavigationBarItem(icon: Icon(Icons.analytics_outlined), label: "GST/Reports"),
             BottomNavigationBarItem(icon: Icon(Icons.settings_outlined), label: "Settings"),
           ],
         ),
@@ -135,12 +146,13 @@ class _MainControlShellState extends State<MainControlShell> {
     );
   }
 
-  // --- NAYA KPI STRIP (SALE + PURCHASE + STOCK) ---
+  // --- UI HELPER: KPI STRIP ---
   Widget _buildLiveKpiStrip(PharoahManager ph) {
     DateTime now = DateTime.now();
     double todaySales = ph.sales.where((s) => s.status == "Active" && s.date.day == now.day && s.date.month == now.month).fold(0.0, (sum, s) => sum + s.totalAmount);
     double todayPur = ph.purchases.where((p) => p.date.day == now.day && p.date.month == now.month).fold(0.0, (sum, p) => sum + p.totalAmount);
-    
+    double stockVal = InventoryLogicCenter.calculateTotalStockValue(batchHistory: ph.batchHistory, medicines: ph.medicines);
+
     return Column(
       children: [
         Row(children: [
@@ -149,11 +161,12 @@ class _MainControlShellState extends State<MainControlShell> {
           Expanded(child: StatWidget(title: "TODAY PURCHASE", value: "₹${todayPur.toStringAsFixed(0)}", period: "Inward", icon: "shopping_cart", color: Colors.orange)),
         ]),
         const SizedBox(height: 12),
-        StatWidget(title: "ESTIMATED STOCK VALUE", value: "Real-time Sync", period: "Valuation", icon: "inventory_2", color: Colors.purple),
+        StatWidget(title: "ESTIMATED STOCK VALUE", value: "₹${stockVal.toStringAsFixed(0)}", period: "Taxable", icon: "inventory_2", color: Colors.purple),
       ],
     );
   }
 
+  // --- UI HELPER: SHORTAGE ALERT BAR ---
   Widget _buildAlertsBar(int count) {
     return Container(
       width: double.infinity, padding: const EdgeInsets.all(12),
@@ -169,12 +182,7 @@ class _MainControlShellState extends State<MainControlShell> {
     );
   }
 
-  int _getBottomNavIndex(String module) {
-    if (module == "GST") return 1;
-    return 0;
-  }
-
-  // --- UPDATED NAVIGATION HANDLER ---
+  // --- NAVIGATION HANDLER (ALL TARGETS MAPPED) ---
   void _handleNavigation(BuildContext context, PharoahManager ph, ModuleAction action) {
     if (action.navModule != null && !action.navModule!.startsWith("GO_")) {
       if (action.navModule == "AI") Navigator.push(context, MaterialPageRoute(builder: (c) => const PharoahAiVision()));
@@ -219,74 +227,49 @@ class _MainControlShellState extends State<MainControlShell> {
     }
   }
 }
-// --- UNIVERSAL SEARCH ENGINE (GLOBAL) ---
+
+// --- UNIVERSAL SEARCH LOGIC ---
 class PharoahGlobalSearch extends SearchDelegate {
   final PharoahManager ph;
   PharoahGlobalSearch({required this.ph});
 
   @override
-  List<Widget>? buildActions(BuildContext context) {
-    return [IconButton(icon: const Icon(Icons.clear), onPressed: () => query = "")];
-  }
+  List<Widget>? buildActions(BuildContext context) => [IconButton(icon: const Icon(Icons.clear), onPressed: () => query = "")];
 
   @override
-  Widget? buildLeading(BuildContext context) {
-    return IconButton(icon: const Icon(Icons.arrow_back), onPressed: () => close(context, null));
-  }
+  Widget? buildLeading(BuildContext context) => IconButton(icon: const Icon(Icons.arrow_back), onPressed: () => close(context, null));
 
   @override
-  Widget buildResults(BuildContext context) => _buildSearchResults();
+  Widget buildResults(BuildContext context) => _buildSearchList();
 
   @override
-  Widget buildSuggestions(BuildContext context) => _buildSearchResults();
+  Widget buildSuggestions(BuildContext context) => _buildSearchList();
 
-  Widget _buildSearchResults() {
-    if (query.isEmpty) return const Center(child: Text("Search Items or Parties..."));
-
-    // 1. Medicines Filter
+  Widget _buildSearchList() {
+    if (query.isEmpty) return const Center(child: Text("Search Products or Parties..."));
     final filteredMeds = ph.medicines.where((m) => m.name.toLowerCase().contains(query.toLowerCase())).toList();
-    // 2. Parties Filter
     final filteredParties = ph.parties.where((p) => p.name.toLowerCase().contains(query.toLowerCase())).toList();
 
     return ListView(
       children: [
         if (filteredMeds.isNotEmpty) ...[
-          const Padding(
-            padding: EdgeInsets.all(15),
-            child: Text("PRODUCTS / ITEMS", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.purple, fontSize: 10, letterSpacing: 1)),
-          ),
+          const Padding(padding: EdgeInsets.all(15), child: Text("ITEMS / STOCK", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 10, color: Colors.blueGrey))),
           ...filteredMeds.map((m) => ListTile(
             leading: const Icon(Icons.medication, color: Colors.purple),
             title: Text(m.name, style: const TextStyle(fontWeight: FontWeight.bold)),
-            subtitle: Text("Pack: ${m.packing} | Stock: ${m.stock}"),
-            onTap: () {
-              // Click karte hi Item Ledger par le jao
-              close(context, null);
-              Navigator.push(context, MaterialPageRoute(builder: (c) => ItemLedgerDetailView(medicine: m)));
-            },
+            subtitle: Text("Stock: ${m.stock} | Pack: ${m.packing}"),
+            onTap: () { close(context, null); Navigator.push(context, MaterialPageRoute(builder: (c) => ItemLedgerDetailView(medicine: m))); },
           )),
         ],
         if (filteredParties.isNotEmpty) ...[
-          const Padding(
-            padding: EdgeInsets.all(15),
-            child: Text("PARTIES / ACCOUNTS", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.indigo, fontSize: 10, letterSpacing: 1)),
-          ),
+          const Padding(padding: EdgeInsets.all(15), child: Text("PARTIES / LEDGERS", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 10, color: Colors.blueGrey))),
           ...filteredParties.map((p) => ListTile(
             leading: const Icon(Icons.person, color: Colors.indigo),
             title: Text(p.name, style: const TextStyle(fontWeight: FontWeight.bold)),
             subtitle: Text("${p.city} | ${p.group}"),
-            onTap: () {
-              // Click karte hi Party Ledger par le jao
-              close(context, null);
-              Navigator.push(context, MaterialPageRoute(builder: (c) => SingleLedgerDetailView(party: p)));
-            },
+            onTap: () { close(context, null); Navigator.push(context, MaterialPageRoute(builder: (c) => SingleLedgerDetailView(party: p))); },
           )),
         ],
-        if (filteredMeds.isEmpty && filteredParties.isEmpty)
-          const Padding(
-            padding: EdgeInsets.all(30),
-            child: Center(child: Text("No match found in dukan records.")),
-          ),
       ],
     );
   }
