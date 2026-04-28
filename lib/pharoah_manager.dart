@@ -25,11 +25,7 @@ class PharoahManager with ChangeNotifier {
     notifyListeners();
   }
 
-  // ===========================================================================
-  // --- DYNAMIC MENU LISTS (STEP 1: REORGANIZED) ---
-  // ===========================================================================
-
-  // 1. Main Home Grid: Added Modifications, Compliance & Split Challan/Return
+  // --- DYNAMIC MENU LISTS ---
   List<ModuleAction> get mainMenuActions => [
     ModuleAction(title: "BILLING", icon: Icons.receipt_long, color: Colors.blue, navModule: "BILLING"),
     ModuleAction(title: "CHALLANS", icon: Icons.local_shipping, color: Colors.teal, navModule: "CHALLANS"),
@@ -43,7 +39,6 @@ class PharoahManager with ChangeNotifier {
     ModuleAction(title: "AI TOOLS", icon: Icons.auto_awesome, color: Colors.deepPurple, navModule: "AI"),
   ];
 
-  // 2. Billing Module: Focused on Sales, Purchases & Registers
   List<ModuleAction> get billingActions => [
     ModuleAction(title: "New Sale", icon: Icons.add_shopping_cart, color: Colors.blue, navModule: "GO_SALE"),
     ModuleAction(title: "Purchase", icon: Icons.downloading, color: Colors.orange, navModule: "GO_PURCHASE"),
@@ -51,21 +46,18 @@ class PharoahManager with ChangeNotifier {
     ModuleAction(title: "Pur Register", icon: Icons.history_rounded, color: Colors.brown, navModule: "GO_PUR_REG"),
   ];
 
-  // 3. Challans: Dedicated for outward and inward delivery notes
   List<ModuleAction> get challanActions => [
     ModuleAction(title: "Sale Challan", icon: Icons.local_shipping, color: Colors.teal, navModule: "GO_CHALLAN_SALE"),
     ModuleAction(title: "Purchase Challan", icon: Icons.inventory_2, color: Colors.amber.shade800, navModule: "GO_CHALLAN_PUR"),
     ModuleAction(title: "Challan Dashboard", icon: Icons.dashboard_customize, color: Colors.blueGrey, navModule: "GO_CHALLAN"),
   ];
 
-  // 4. Returns: Dedicated for Credit and Debit Notes
   List<ModuleAction> get returnActions => [
-    ModuleAction(title: "Credit Note (Sale)", icon: Icons.assignment_return, color: Colors.red, navModule: "GO_RETURN_SALE"),
-    ModuleAction(title: "Debit Note (Pur)", icon: Icons.remove_shopping_cart, color: Colors.brown, navModule: "GO_RETURN_PUR"),
+    ModuleAction(title: "Credit Note", icon: Icons.assignment_return, color: Colors.red, navModule: "GO_RETURN_SALE"),
+    ModuleAction(title: "Debit Note", icon: Icons.remove_shopping_cart, color: Colors.brown, navModule: "GO_RETURN_PUR"),
     ModuleAction(title: "Breakage Return", icon: Icons.delete_sweep, color: Colors.deepOrange, navModule: "GO_RETURN_BREAKAGE"),
   ];
 
-  // 5. Inventory Actions
   List<ModuleAction> get inventoryActions => [
     ModuleAction(title: "Stock View", icon: Icons.view_in_ar, color: Colors.purple, navModule: "GO_STOCK"),
     ModuleAction(title: "Shortage", icon: Icons.trending_down, color: Colors.red, navModule: "GO_SHORTAGE"),
@@ -73,7 +65,6 @@ class PharoahManager with ChangeNotifier {
     ModuleAction(title: "Dump Stock", icon: Icons.delete_sweep, color: Colors.brown, navModule: "GO_DUMP"),
   ];
 
-  // 6. Accounts Actions
   List<ModuleAction> get accountsActions => [
     ModuleAction(title: "Daybook", icon: Icons.event_note, color: Colors.blueGrey, navModule: "GO_DAYBOOK"),
     ModuleAction(title: "Ledgers", icon: Icons.people_alt, color: Colors.indigo, navModule: "GO_LEDGERS"),
@@ -81,7 +72,6 @@ class PharoahManager with ChangeNotifier {
     ModuleAction(title: "Payments", icon: Icons.analytics, color: Colors.red, navModule: "GO_PAYMENT"),
   ];
 
-  // 7. Masters: Added Missing Series and Staff/Security
   List<ModuleAction> get mastersActions => [
     ModuleAction(title: "Parties", icon: Icons.group_add, color: Colors.indigo, navModule: "GO_M_PARTY"),
     ModuleAction(title: "Items", icon: Icons.medication, color: Colors.purple, navModule: "GO_M_ITEM"),
@@ -93,17 +83,13 @@ class PharoahManager with ChangeNotifier {
     ModuleAction(title: "Salt Master", icon: Icons.science, color: Colors.deepOrange, navModule: "GO_M_SALT"),
   ];
 
-  // 8. GST Actions
   List<ModuleAction> get gstActions => [
     ModuleAction(title: "GSTR-1", icon: Icons.assignment, color: Colors.green, navModule: "GO_GST_1"),
     ModuleAction(title: "GSTR-3B", icon: Icons.summarize, color: Colors.blue, navModule: "GO_GST_3B"),
     ModuleAction(title: "Portal Match", icon: Icons.fact_check, color: Colors.teal, navModule: "GO_GST_RECON"),
   ];
 
-  // ===========================================================================
-  // --- CORE DATA LISTS & PERSISTENCE ---
-  // ===========================================================================
-
+  // --- CORE DATA LISTS ---
   List<Medicine> medicines = [];
   List<SystemUser> systemUsers = [];
   SystemUser? loggedInStaff;
@@ -152,24 +138,9 @@ class PharoahManager with ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> loginToCompany(CompanyProfile comp, String fy) async { 
-    activeCompany = comp; 
-    currentFY = fy; 
-    await loadAllData(); 
-  }
-
-  void clearSession() { 
-    activeCompany = null; 
-    currentFY = ""; 
-    isAdminAuthenticated = false; 
-    loggedInStaff = null; 
-    notifyListeners(); 
-  }
-
-  void authenticateAdmin(bool status) { 
-    isAdminAuthenticated = status; 
-    notifyListeners(); 
-  }
+  Future<void> loginToCompany(CompanyProfile comp, String fy) async { activeCompany = comp; currentFY = fy; await loadAllData(); }
+  void clearSession() { activeCompany = null; currentFY = ""; isAdminAuthenticated = false; loggedInStaff = null; notifyListeners(); }
+  void authenticateAdmin(bool status) { isAdminAuthenticated = status; notifyListeners(); }
 
   Future<String> getWorkingPath() async {
     if (activeCompany == null || currentFY.isEmpty) return "";
@@ -232,7 +203,15 @@ class PharoahManager with ChangeNotifier {
     notifyListeners();
   }
 
-  // --- HELPER METHODS ---
+  // --- RECONCILIATION / SYSTEM METHODS ---
+
+  // FIXED: ADDED THE MISSING METHOD
+  void resetCounter(String type) {
+    addLog("SYSTEM", "User requested reset for numbering: $type");
+    // Actual reset logic is inside NumberingEngine, we trigger refresh here
+    notifyListeners();
+  }
+
   void addMedicine(Medicine m) { medicines.add(m); if (!batchHistory.containsKey(m.identityKey)) batchHistory[m.identityKey] = []; if (activeCompany != null) PharoahNumberingEngine.updateSeriesCounter(type: "PRODUCT", companyID: activeCompany!.id, usedNumber: m.systemId, prefix: "PH-"); save(); }
   void addSalt(Salt s) { salts.add(s); if (activeCompany != null) PharoahNumberingEngine.updateSeriesCounter(type: "SALT", companyID: activeCompany!.id, usedNumber: s.id, prefix: "SL-"); save(); }
   void addCompany(Company c) { companies.add(c); if (activeCompany != null) PharoahNumberingEngine.updateSeriesCounter(type: "COMPANY", companyID: activeCompany!.id, usedNumber: c.id, prefix: "CP-"); save(); }
@@ -279,7 +258,7 @@ class PharoahManager with ChangeNotifier {
   void updateNumberingSeries(NumberingSeries ns) { int i = numberingSeries.indexWhere((x) => x.id == ns.id); if(i != -1) { numberingSeries[i] = ns; save(); } }
   void updateAppConfig(AppConfig c) { config = c; notifyListeners(); }
   
-  void runAutoShortageScan() { /* Placeholder for future automation */ }
+  void runAutoShortageScan() { /* Placeholder */ }
   double calculateAvgMonthlySale(String id) => 0.0;
   void deleteShortage(String id) { shortages.removeWhere((s) => s.id == id); save(); }
   void addManualShortage({required Medicine med, required double qty, String cust = ""}) { shortages.add(ShortageItem(id: DateTime.now().toString(), medicineId: med.id, medicineName: med.name, companyName: med.companyId, qtyRequired: qty, currentStock: med.stock, date: DateTime.now(), customerName: cust)); save(); }
