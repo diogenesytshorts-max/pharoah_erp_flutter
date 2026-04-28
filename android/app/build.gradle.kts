@@ -6,7 +6,7 @@ plugins {
 
 android {
     namespace = "com.rawat.pharoah_erp"
-    compileSdk = 34 // 36 से हटाकर 34 करें (Stable)
+    compileSdk = 35 // Fix for JNI requirement
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
@@ -21,7 +21,7 @@ android {
     defaultConfig {
         applicationId = "com.rawat.pharoah_erp"
         minSdk = 24 
-        targetSdk = 34 // 36 से हटाकर 34 करें
+        targetSdk = 35
         versionCode = flutter.versionCode
         versionName = flutter.versionName
     }
@@ -37,4 +37,3 @@ android {
 flutter {
     source = "../.."
 }
-// (नीचे से resolutionStrategy हटा दें, हम उसे Root file में डालेंगे)
