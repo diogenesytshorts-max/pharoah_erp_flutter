@@ -1,26 +1,38 @@
-// FILE: android/build.gradle.kts
-
 allprojects {
     repositories {
         google()
         mavenCentral()
     }
+    
+    // DEEP FIX: Force all plugins to use stable AndroidX versions
+    configurations.all {
+        resolutionStrategy.eachDependency {
+            if (requested.group == "androidx.activity") {
+                useVersion("1.9.3")
+            }
+            if (requested.group == "androidx.lifecycle") {
+                useVersion("2.8.7")
+            }
+            if (requested.group == "androidx.core" && requested.name == "core-ktx") {
+                useVersion("1.13.1")
+            }
+        }
+    }
 }
 
-// 🔥 Clean and safe build directory setup
-val newBuildDir = rootProject.layout.buildDirectory.dir("../../build")
-rootProject.layout.buildDirectory.set(newBuildDir)
+// THE FIX FOR CIRCULAR EVALUATION ERROR 👇
+val newBuildDir = rootProject.layout.projectDirectory.dir("../../build")
+rootProject.layout.buildDirectory.value(newBuildDir)
 
 subprojects {
-    layout.buildDirectory.set(newBuildDir.map { it.dir(name) })
+    val newSubprojectBuildDir = newBuildDir.dir(project.name)
+    project.layout.buildDirectory.value(newSubprojectBuildDir)
 }
 
-// ⚠️ Ensure app evaluated first (important for Flutter plugins)
 subprojects {
-    evaluationDependsOn(":app")
+    project.evaluationDependsOn(":app")
 }
 
-// 🧹 Clean task
 tasks.register<Delete>("clean") {
     delete(rootProject.layout.buildDirectory)
 }
