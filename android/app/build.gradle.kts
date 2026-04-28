@@ -1,52 +1,37 @@
-plugins {
-    id("com.android.application")
-    id("kotlin-android")
-    id("dev.flutter.flutter-gradle-plugin")
-}
-
-android {
-    namespace = "com.rawat.pharoah_erp"
-    compileSdk = 35
-    ndkVersion = flutter.ndkVersion
-
-    compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_17
-        targetCompatibility = JavaVersion.VERSION_17
+allprojects {
+    repositories {
+        google()
+        mavenCentral()
     }
-
-    kotlinOptions {
-        jvmTarget = "17"
-    }
-
-    defaultConfig {
-        applicationId = "com.rawat.pharoah_erp"
-        minSdk = 24 
-        targetSdk = 35
-        versionCode = flutter.versionCode
-        versionName = flutter.versionName
-    }
-
-    buildTypes {
-        release {
-            signingConfig = signingConfigs.getByName("debug")
-            proguardFiles(getDefaultProguardFile("proguard-android.txt"), "proguard-rules.pro")
+    
+    // DEEP FIX: Force all plugins to use stable AndroidX versions compatible with AGP 8.7.3
+    configurations.all {
+        resolutionStrategy.eachDependency {
+            if (requested.group == "androidx.activity") {
+                useVersion("1.9.3")
+            }
+            if (requested.group == "androidx.lifecycle") {
+                useVersion("2.8.7")
+            }
+            if (requested.group == "androidx.core" && requested.name == "core-ktx") {
+                useVersion("1.13.1")
+            }
         }
     }
 }
 
-// THE CURE FOR DEPENDENCY CRASHES:
-configurations.all {
-    resolutionStrategy {
-        force("androidx.core:core:1.15.0-alpha01")
-        force("androidx.core:core-ktx:1.15.0-alpha01")
-        force("androidx.annotation:annotation:1.9.1")
-        
-        // AndroidX Activity crash fix (Forces to a stable version compatible with AGP 8.7.3)
-        force("androidx.activity:activity:1.9.3")
-        force("androidx.activity:activity-ktx:1.9.3")
-    }
+val newBuildDir: Directory = rootProject.layout.buildDirectory.dir("../../build").get()
+rootProject.layout.buildDirectory.value(newBuildDir)
+
+subprojects {
+    val newSubprojectBuildDir: Directory = newBuildDir.dir(project.name)
+    project.layout.buildDirectory.value(newSubprojectBuildDir)
 }
 
-flutter {
-    source = "../.."
+subprojects {
+    project.evaluationDependsOn(":app")
+}
+
+tasks.register<Delete>("clean") {
+    delete(rootProject.layout.buildDirectory)
 }
