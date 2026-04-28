@@ -1,6 +1,5 @@
-// FILE: lib/models.dart
-
 import 'dart:convert';
+import 'package:flutter/material.dart';
 
 // ===========================================================================
 // 1. SYSTEM CONFIGURATION MODELS
@@ -10,23 +9,9 @@ class NumberingSeries {
   String id, name, type, prefix;
   int startNumber;
   bool isDefault, isActive;
-
-  NumberingSeries({
-    required this.id, required this.name, required this.type, 
-    required this.prefix, this.startNumber = 1, 
-    this.isDefault = false, this.isActive = true
-  });
-
-  Map<String, dynamic> toMap() => {
-    'id': id, 'name': name, 'type': type, 'prefix': prefix, 
-    'startNumber': startNumber, 'isDefault': isDefault, 'isActive': isActive
-  };
-
-  factory NumberingSeries.fromMap(Map<String, dynamic> map) => NumberingSeries(
-    id: map['id'] ?? '', name: map['name'] ?? '', type: map['type'] ?? 'SALE', 
-    prefix: map['prefix'] ?? '', startNumber: map['startNumber'] ?? 1, 
-    isDefault: map['isDefault'] ?? false, isActive: map['isActive'] ?? true
-  );
+  NumberingSeries({required this.id, required this.name, required this.type, required this.prefix, this.startNumber = 1, this.isDefault = false, this.isActive = true});
+  Map<String, dynamic> toMap() => {'id': id, 'name': name, 'type': type, 'prefix': prefix, 'startNumber': startNumber, 'isDefault': isDefault, 'isActive': isActive};
+  factory NumberingSeries.fromMap(Map<String, dynamic> map) => NumberingSeries(id: map['id'] ?? '', name: map['name'] ?? '', type: map['type'] ?? 'SALE', prefix: map['prefix'] ?? '', startNumber: map['startNumber'] ?? 1, isDefault: map['isDefault'] ?? false, isActive: map['isActive'] ?? true);
 }
 
 // ===========================================================================
@@ -77,18 +62,16 @@ class Salesman {
 }
 
 // ===========================================================================
-// 3. INVENTORY & ITEM MODELS
+// 3. INVENTORY & PARTY MODELS
 // ===========================================================================
 
 class Medicine {
   String id, systemId, uniqueCode, name, packing, companyId, saltId, drugTypeId, rackNo, hsnCode, drugForm, storageCondition; 
   int conversion; double reorderLevel, gst, mrp, purRate, rateA, rateB, rateC, stock; bool isNarcotic, isScheduleH1;
   String get identityKey => systemId.isNotEmpty ? systemId : id;
-
-  Medicine({required this.id, this.systemId = "", this.uniqueCode = "", required this.name, required this.packing, this.companyId = "", this.saltId = "", this.drugTypeId = "", this.rackNo = "", this.hsnCode = "N/A", this.conversion = 1, this.reorderLevel = 0.0, this.gst = 12.0, this.mrp = 0.0, this.purRate = 0.0, this.rateA = 0.0, this.rateB = 0.0, this.rateC = 0.0, this.stock = 0.0, this.drugForm = "TAB", this.isNarcotic = false, this.isScheduleH1 = false, this.storageCondition = "Room Temp"});
-
+  Medicine({required this.id, this.systemId = "", this.uniqueCode = "", required this.name, required this.packing, this.companyId = "", this.saltId = "", this.drugTypeId = "", this.rackNo = "", this.hsnCode = "3004", this.conversion = 1, this.reorderLevel = 0.0, this.gst = 12.0, this.mrp = 0.0, this.purRate = 0.0, this.rateA = 0.0, this.rateB = 0.0, this.rateC = 0.0, this.stock = 0.0, this.drugForm = "TAB", this.isNarcotic = false, this.isScheduleH1 = false, this.storageCondition = "Room Temp"});
   Map<String, dynamic> toMap() => {'id': id, 'systemId': systemId, 'uniqueCode': uniqueCode, 'name': name, 'packing': packing, 'companyId': companyId, 'saltId': saltId, 'drugTypeId': drugTypeId, 'rackNo': rackNo, 'hsnCode': hsnCode, 'conversion': conversion, 'reorderLevel': reorderLevel, 'gst': gst, 'mrp': mrp, 'purRate': purRate, 'rateA': rateA, 'rateB': rateB, 'rateC': rateC, 'stock': stock, 'drugForm': drugForm, 'isNarcotic': isNarcotic, 'isScheduleH1': isScheduleH1, 'storageCondition': storageCondition};
-  factory Medicine.fromMap(Map<String, dynamic> map) => Medicine(id: map['id'] ?? "", systemId: map['systemId'] ?? "", uniqueCode: map['uniqueCode'] ?? "", name: map['name'] ?? "", packing: map['packing'] ?? "", companyId: map['companyId'] ?? "", saltId: map['saltId'] ?? "", drugTypeId: map['drugTypeId'] ?? "", rackNo: map['rackNo'] ?? "", hsnCode: map['hsnCode'] ?? "N/A", conversion: map['conversion'] ?? 1, reorderLevel: (map['reorderLevel'] ?? 0.0).toDouble(), gst: (map['gst'] ?? 12).toDouble(), mrp: (map['mrp'] ?? 0.0).toDouble(), purRate: (map['purRate'] ?? 0.0).toDouble(), rateA: (map['rateA'] ?? 0.0).toDouble(), rateB: (map['rateB'] ?? 0.0).toDouble(), rateC: (map['rateC'] ?? 0.0).toDouble(), stock: (map['stock'] ?? 0.0).toDouble(), drugForm: map['drugForm'] ?? "TAB", isNarcotic: map['isNarcotic'] ?? false, isScheduleH1: map['isScheduleH1'] ?? false, storageCondition: map['storageCondition'] ?? "Room Temp");
+  factory Medicine.fromMap(Map<String, dynamic> map) => Medicine(id: map['id'] ?? "", systemId: map['systemId'] ?? "", uniqueCode: map['uniqueCode'] ?? "", name: map['name'] ?? "", packing: map['packing'] ?? "", companyId: map['companyId'] ?? "", saltId: map['saltId'] ?? "", drugTypeId: map['drugTypeId'] ?? "", rackNo: map['rackNo'] ?? "", hsnCode: map['hsnCode'] ?? "3004", conversion: map['conversion'] ?? 1, reorderLevel: (map['reorderLevel'] ?? 0.0).toDouble(), gst: (map['gst'] ?? 12).toDouble(), mrp: (map['mrp'] ?? 0.0).toDouble(), purRate: (map['purRate'] ?? 0.0).toDouble(), rateA: (map['rateA'] ?? 0.0).toDouble(), rateB: (map['rateB'] ?? 0.0).toDouble(), rateC: (map['rateC'] ?? 0.0).toDouble(), stock: (map['stock'] ?? 0.0).toDouble(), drugForm: map['drugForm'] ?? "TAB", isNarcotic: map['isNarcotic'] ?? false, isScheduleH1: map['isScheduleH1'] ?? false, storageCondition: map['storageCondition'] ?? "Room Temp");
 }
 
 class Party {
@@ -100,7 +83,7 @@ class Party {
 }
 
 // ===========================================================================
-// 4. BILL ITEM MODELS
+// 3. TRANSACTION ITEM MODELS
 // ===========================================================================
 
 class BillItem {
@@ -122,7 +105,7 @@ class PurchaseItem {
 }
 
 // ===========================================================================
-// 5. TRANSACTION HEADER MODELS
+// 4. TRANSACTION HEADER MODELS
 // ===========================================================================
 
 class Sale { 
@@ -213,13 +196,17 @@ class ShortageItem {
   Map<String, dynamic> toMap() => {'id': id, 'medicineId': medicineId, 'medicineName': medicineName, 'companyName': companyName, 'distributorName': distributorName, 'customerName': customerName, 'source': source, 'qtyRequired': qtyRequired, 'currentStock': currentStock, 'date': date.toIso8601String()};
   factory ShortageItem.fromMap(Map<String, dynamic> map) => ShortageItem(id: map['id'] ?? "", medicineId: map['medicineId'] ?? "", medicineName: map['medicineName'] ?? "", companyName: map['companyName'] ?? "N/A", distributorName: map['distributorName'] ?? "", customerName: map['customerName'] ?? "", source: map['source'] ?? "Manual", qtyRequired: (map['qtyRequired'] ?? 0.0).toDouble(), currentStock: (map['currentStock'] ?? 0.0).toDouble(), date: DateTime.parse(map['date'] ?? DateTime.now().toIso8601String())); 
 }
-// --- NEW CODE TO ADD ---
+
+// ===========================================================================
+// NEW NAVIGATION MODEL
+// ===========================================================================
+
 class ModuleAction {
   final String title;
   final IconData icon;
   final Color color;
-  final Widget? targetScreen; // Click karne par kahan jana hai
-  final String? navModule;    // Kya ye kisi category (Billing/Masters) ka button hai?
+  final Widget? targetScreen; 
+  final String? navModule;
 
   ModuleAction({
     required this.title,
