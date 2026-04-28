@@ -36,12 +36,14 @@ android {
     }
 }
 
-// FORCE RECTIFY lStar conflict
+// THE PERMANENT FIX FOR lStar ERROR:
+// Yeh project ki sabhi dependencies ko latest stable core libraries use karne par force karega.
 configurations.all {
     resolutionStrategy {
         force("androidx.core:core:1.13.1")
         force("androidx.core:core-ktx:1.13.1")
         force("androidx.annotation:annotation:1.8.0")
+        force("androidx.fragment:fragment:1.8.1")
     }
 }
 
