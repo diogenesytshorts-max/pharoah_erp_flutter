@@ -213,3 +213,19 @@ class ShortageItem {
   Map<String, dynamic> toMap() => {'id': id, 'medicineId': medicineId, 'medicineName': medicineName, 'companyName': companyName, 'distributorName': distributorName, 'customerName': customerName, 'source': source, 'qtyRequired': qtyRequired, 'currentStock': currentStock, 'date': date.toIso8601String()};
   factory ShortageItem.fromMap(Map<String, dynamic> map) => ShortageItem(id: map['id'] ?? "", medicineId: map['medicineId'] ?? "", medicineName: map['medicineName'] ?? "", companyName: map['companyName'] ?? "N/A", distributorName: map['distributorName'] ?? "", customerName: map['customerName'] ?? "", source: map['source'] ?? "Manual", qtyRequired: (map['qtyRequired'] ?? 0.0).toDouble(), currentStock: (map['currentStock'] ?? 0.0).toDouble(), date: DateTime.parse(map['date'] ?? DateTime.now().toIso8601String())); 
 }
+// --- NEW CODE TO ADD ---
+class ModuleAction {
+  final String title;
+  final IconData icon;
+  final Color color;
+  final Widget? targetScreen; // Click karne par kahan jana hai
+  final String? navModule;    // Kya ye kisi category (Billing/Masters) ka button hai?
+
+  ModuleAction({
+    required this.title,
+    required this.icon,
+    required this.color,
+    this.targetScreen,
+    this.navModule,
+  });
+}
