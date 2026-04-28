@@ -6,7 +6,8 @@ plugins {
 
 android {
     namespace = "com.rawat.pharoah_erp"
-    compileSdk = flutter.compileSdkVersion
+    // Locked to 35 for modern AndroidX compatibility
+    compileSdk = 35
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
@@ -20,9 +21,8 @@ android {
 
     defaultConfig {
         applicationId = "com.rawat.pharoah_erp"
-        minSdk = flutter.minSdkVersion
-        targetSdk = flutter.targetSdkVersion
-        // FIXED: Properties used instead of functions
+        minSdk = 24 // Updated for modern libraries
+        targetSdk = 35
         versionCode = flutter.versionCode
         versionName = flutter.versionName
     }
