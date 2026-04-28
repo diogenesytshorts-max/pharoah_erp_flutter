@@ -6,10 +6,7 @@ plugins {
 
 android {
     namespace = "com.rawat.pharoah_erp"
-
-    // 🔥 Stable SDK (ML Kit compatible)
-    compileSdk = 34
-
+    compileSdk = 35
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
@@ -23,20 +20,30 @@ android {
 
     defaultConfig {
         applicationId = "com.rawat.pharoah_erp"
-
-        // ✅ Safe values
-        minSdk = 21
-        targetSdk = 34
-
+        minSdk = 24 
+        targetSdk = 35
         versionCode = flutter.versionCode
         versionName = flutter.versionName
     }
 
     buildTypes {
         release {
-            // ⚠️ production me baad me proper signing lagana
             signingConfig = signingConfigs.getByName("debug")
+            proguardFiles(getDefaultProguardFile("proguard-android.txt"), "proguard-rules.pro")
         }
+    }
+}
+
+// THE CURE FOR DEPENDENCY CRASHES:
+configurations.all {
+    resolutionStrategy {
+        force("androidx.core:core:1.15.0-alpha01")
+        force("androidx.core:core-ktx:1.15.0-alpha01")
+        force("androidx.annotation:annotation:1.9.1")
+        
+        // AndroidX Activity crash fix (Forces to a stable version compatible with AGP 8.7.3)
+        force("androidx.activity:activity:1.9.3")
+        force("androidx.activity:activity-ktx:1.9.3")
     }
 }
 
