@@ -16,7 +16,50 @@ class PharoahManager with ChangeNotifier {
     ModuleAction(title: "GST", icon: Icons.verified, color: Colors.green, navModule: "GST"),
     ModuleAction(title: "AI TOOLS", icon: Icons.auto_awesome, color: Colors.deepPurple, navModule: "AI"),
   ];
+// --- STEP 1: ADD THESE LISTS INSIDE PharoahManager CLASS ---
 
+  // 1. BILLING Category Buttons
+  List<ModuleAction> get billingActions => [
+    ModuleAction(title: "New Sale", icon: Icons.add_shopping_cart, color: Colors.blue, navModule: "GO_SALE"),
+    ModuleAction(title: "Purchase", icon: Icons.downloading, color: Colors.orange, navModule: "GO_PURCHASE"),
+    ModuleAction(title: "Challans", icon: Icons.local_shipping, color: Colors.teal, navModule: "GO_CHALLAN"),
+    ModuleAction(title: "Returns", icon: Icons.assignment_return, color: Colors.red, navModule: "GO_RETURNS"),
+    // Aap yahan future mein "Demo" button asani se add kar sakenge
+  ];
+
+  // 2. INVENTORY Category Buttons
+  List<ModuleAction> get inventoryActions => [
+    ModuleAction(title: "Stock View", icon: Icons.view_in_ar, color: Colors.purple, navModule: "GO_STOCK"),
+    ModuleAction(title: "Shortage", icon: Icons.trending_down, color: Colors.red, navModule: "GO_SHORTAGE"),
+    ModuleAction(title: "Item Ledger", icon: Icons.menu_book, color: Colors.blueGrey, navModule: "GO_ITEM_LEDGER"),
+    ModuleAction(title: "Analytics", icon: Icons.analytics, color: Colors.indigo, navModule: "GO_STOCK_HEALTH"),
+  ];
+
+  // 3. ACCOUNTS Category Buttons
+  List<ModuleAction> get accountsActions => [
+    ModuleAction(title: "Daybook", icon: Icons.event_note, color: Colors.blueGrey, navModule: "GO_DAYBOOK"),
+    ModuleAction(title: "Ledgers", icon: Icons.people_alt, color: Colors.indigo, navModule: "GO_LEDGERS"),
+    ModuleAction(title: "Receipts", icon: Icons.add_chart, color: Colors.green, navModule: "GO_RECEIPT"),
+    // FIXED: Yahan 'Receipt' ka 'R' capital rakha hai taaki Voucher logic se match kare
+    ModuleAction(title: "Payments", icon: Icons.analytics, color: Colors.red, navModule: "GO_PAYMENT"),
+  ];
+
+  // 4. MASTERS Category Buttons
+  List<ModuleAction> get mastersActions => [
+    ModuleAction(title: "Parties", icon: Icons.group_add, color: Colors.indigo, navModule: "GO_M_PARTY"),
+    ModuleAction(title: "Items", icon: Icons.medication, color: Colors.purple, navModule: "GO_M_ITEM"),
+    ModuleAction(title: "Batches", icon: Icons.layers, color: Colors.blueGrey, navModule: "GO_M_BATCH"),
+    ModuleAction(title: "Routes", icon: Icons.map, color: Colors.teal, navModule: "GO_M_ROUTE"),
+    ModuleAction(title: "Security", icon: Icons.admin_panel_settings, color: Colors.red, navModule: "GO_M_STAFF"),
+    ModuleAction(title: "Company", icon: Icons.business, color: Colors.brown, navModule: "GO_M_COMP"),
+  ];
+
+  // 5. GST Category Buttons
+  List<ModuleAction> get gstActions => [
+    ModuleAction(title: "GSTR-1", icon: Icons.assignment, color: Colors.green, navModule: "GO_GST_1"),
+    ModuleAction(title: "GSTR-3B", icon: Icons.summarize, color: Colors.blue, navModule: "GO_GST_3B"),
+    ModuleAction(title: "Reconcile", icon: Icons.fact_check, color: Colors.teal, navModule: "GO_GST_RECON"),
+  ];
   List<ModuleAction> get billingActions => [
     ModuleAction(title: "New Sale", icon: Icons.add_shopping_cart, color: Colors.blue, navModule: "GO_SALE"),
     ModuleAction(title: "Purchase", icon: Icons.downloading, color: Colors.orange, navModule: "GO_PURCHASE"),
