@@ -51,7 +51,6 @@ class _MainControlShellState extends State<MainControlShell> {
     List<ModuleAction> displayActions;
     String displayTitle;
 
-    // --- MODULE SWITCHER LOGIC ---
     switch (ph.activeModule) {
       case "BILLING": displayActions = ph.billingActions; displayTitle = "BILLING & TRANSACTIONS"; break;
       case "CHALLANS": displayActions = ph.challanActions; displayTitle = "CHALLAN MANAGEMENT"; break;
@@ -63,13 +62,12 @@ class _MainControlShellState extends State<MainControlShell> {
       default: displayActions = ph.mainMenuActions; displayTitle = "MAIN BUSINESS MODULES";
     }
 
-    // --- 1. BACK BUTTON PROTECTOR (PopScope) ---
     return PopScope(
       canPop: ph.activeModule == "HOME", 
       onPopInvokedWithResult: (didPop, result) {
         if (didPop) return;
         if (ph.activeModule != "HOME") {
-          ph.updateModule("HOME"); // Back dabane par app se bahar nahi, Home par jayenge
+          ph.updateModule("HOME");
         }
       },
       child: Scaffold(
@@ -87,7 +85,6 @@ class _MainControlShellState extends State<MainControlShell> {
             if (ph.activeModule != "HOME") 
                IconButton(icon: const Icon(Icons.grid_view_rounded), onPressed: () => ph.updateModule("HOME")),
             
-            // --- 2. UNIVERSAL SEARCH ---
             IconButton(
               icon: const Icon(Icons.search), 
               onPressed: () {
@@ -95,7 +92,6 @@ class _MainControlShellState extends State<MainControlShell> {
               }
             ),
 
-            // --- 3. LOGOUT / SWITCH COMPANY ---
             IconButton(
               icon: const Icon(Icons.exit_to_app_rounded, color: Colors.orangeAccent), 
               tooltip: "Logout",
@@ -111,7 +107,6 @@ class _MainControlShellState extends State<MainControlShell> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // --- 4. KPI STRIP (Sale + Purchase + Stock) ---
                     _buildLiveKpiStrip(ph), 
                     const SizedBox(height: 30),
                     Text(displayTitle, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Colors.blueGrey, letterSpacing: 1)),
@@ -124,7 +119,6 @@ class _MainControlShellState extends State<MainControlShell> {
                 ),
               ),
             ),
-            // --- 5. CONDITIONAL ALERT (Only shows if there is a shortage) ---
             if (ph.shortages.isNotEmpty) _buildAlertsBar(ph.shortages.length),
           ],
         ),
@@ -146,7 +140,6 @@ class _MainControlShellState extends State<MainControlShell> {
     );
   }
 
-  // --- UI HELPER: KPI STRIP ---
   Widget _buildLiveKpiStrip(PharoahManager ph) {
     DateTime now = DateTime.now();
     double todaySales = ph.sales.where((s) => s.status == "Active" && s.date.day == now.day && s.date.month == now.month).fold(0.0, (sum, s) => sum + s.totalAmount);
@@ -166,7 +159,6 @@ class _MainControlShellState extends State<MainControlShell> {
     );
   }
 
-  // --- UI HELPER: SHORTAGE ALERT BAR ---
   Widget _buildAlertsBar(int count) {
     return Container(
       width: double.infinity, padding: const EdgeInsets.all(12),
@@ -182,7 +174,6 @@ class _MainControlShellState extends State<MainControlShell> {
     );
   }
 
-  // --- NAVIGATION HANDLER (ALL TARGETS MAPPED) ---
   void _handleNavigation(BuildContext context, PharoahManager ph, ModuleAction action) {
     if (action.navModule != null && !action.navModule!.startsWith("GO_")) {
       if (action.navModule == "AI") Navigator.push(context, MaterialPageRoute(builder: (c) => const PharoahAiVision()));
@@ -192,8 +183,9 @@ class _MainControlShellState extends State<MainControlShell> {
       switch (action.navModule) {
         case "GO_SALE": target = const SaleEntryView(); break;
         case "GO_PURCHASE": target = const PurchaseEntryView(); break;
-        case "GO_SALE_REG": target = const SaleSummaryView(); break;
-        case "GO_PUR_REG": target = const PurchaseSummaryView(); break;
+        // FIXED: Removed 'const' because views may not have const constructors
+        case "GO_SALE_REG": target = SaleSummaryView(); break;
+        case "GO_PUR_REG": target = PurchaseSummaryView(); break;
         case "GO_CHALLAN": target = const ChallanDashboard(); break;
         case "GO_CHALLAN_SALE": target = const SaleChallanView(); break;
         case "GO_CHALLAN_PUR": target = const PurchaseChallanView(); break;
@@ -228,7 +220,6 @@ class _MainControlShellState extends State<MainControlShell> {
   }
 }
 
-// --- UNIVERSAL SEARCH LOGIC ---
 class PharoahGlobalSearch extends SearchDelegate {
   final PharoahManager ph;
   PharoahGlobalSearch({required this.ph});
@@ -240,12 +231,13 @@ class PharoahGlobalSearch extends SearchDelegate {
   Widget? buildLeading(BuildContext context) => IconButton(icon: const Icon(Icons.arrow_back), onPressed: () => close(context, null));
 
   @override
-  Widget buildResults(BuildContext context) => _buildSearchList();
+  Widget buildResults(BuildContext context) => _buildSearchList(context);
 
   @override
-  Widget buildSuggestions(BuildContext context) => _buildSearchList();
+  Widget buildSuggestions(BuildContext context) => _buildSearchList(context);
 
-  Widget _buildSearchList() {
+  // FIXED: Added BuildContext context as parameter
+  Widget _buildSearchList(BuildContext context) {
     if (query.isEmpty) return const Center(child: Text("Search Products or Parties..."));
     final filteredMeds = ph.medicines.where((m) => m.name.toLowerCase().contains(query.toLowerCase())).toList();
     final filteredParties = ph.parties.where((p) => p.name.toLowerCase().contains(query.toLowerCase())).toList();
