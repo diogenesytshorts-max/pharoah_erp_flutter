@@ -1,37 +1,40 @@
-allprojects {
-    repositories {
-        google()
-        mavenCentral()
+plugins {
+    id("com.android.application")
+    id("kotlin-android")
+    id("dev.flutter.flutter-gradle-plugin")
+}
+
+android {
+    namespace = "com.rawat.pharoah_erp"
+    compileSdk = 34 // 36 से हटाकर 34 करें (Stable)
+    ndkVersion = flutter.ndkVersion
+
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
     }
-    
-    // DEEP FIX: Force all plugins to use stable AndroidX versions compatible with AGP 8.7.3
-    configurations.all {
-        resolutionStrategy.eachDependency {
-            if (requested.group == "androidx.activity") {
-                useVersion("1.9.3")
-            }
-            if (requested.group == "androidx.lifecycle") {
-                useVersion("2.8.7")
-            }
-            if (requested.group == "androidx.core" && requested.name == "core-ktx") {
-                useVersion("1.13.1")
-            }
+
+    kotlinOptions {
+        jvmTarget = "17"
+    }
+
+    defaultConfig {
+        applicationId = "com.rawat.pharoah_erp"
+        minSdk = 24 
+        targetSdk = 34 // 36 से हटाकर 34 करें
+        versionCode = flutter.versionCode
+        versionName = flutter.versionName
+    }
+
+    buildTypes {
+        release {
+            signingConfig = signingConfigs.getByName("debug")
+            proguardFiles(getDefaultProguardFile("proguard-android.txt"), "proguard-rules.pro")
         }
     }
 }
 
-val newBuildDir: Directory = rootProject.layout.buildDirectory.dir("../../build").get()
-rootProject.layout.buildDirectory.value(newBuildDir)
-
-subprojects {
-    val newSubprojectBuildDir: Directory = newBuildDir.dir(project.name)
-    project.layout.buildDirectory.value(newSubprojectBuildDir)
+flutter {
+    source = "../.."
 }
-
-subprojects {
-    project.evaluationDependsOn(":app")
-}
-
-tasks.register<Delete>("clean") {
-    delete(rootProject.layout.buildDirectory)
-}
+// (नीचे से resolutionStrategy हटा दें, हम उसे Root file में डालेंगे)
