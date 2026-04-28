@@ -19,18 +19,6 @@ subprojects {
     project.evaluationDependsOn(":app")
 }
 
-// FORCE ALL PLUGINS TO USE SDK 35 (Fix for lStar error)
-subprojects {
-    afterEvaluate {
-        if (project.hasProperty("android")) {
-            val android = project.extensions.getByName("android") as? com.android.build.gradle.BaseExtension
-            android?.let {
-                it.compileSdkVersion(35)
-            }
-        }
-    }
-}
-
 tasks.register<Delete>("clean") {
     delete(rootProject.layout.buildDirectory)
 }
