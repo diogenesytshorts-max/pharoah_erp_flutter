@@ -15,6 +15,16 @@ subprojects {
 
 subprojects {
     project.evaluationDependsOn(":app")
+    
+    // 🎯 THE FINAL FIX FOR 'lStar' ERROR
+    // यह सभी प्लगइन्स (जैसे mlkit) को मजबूर करेगा कि वे SDK 36 का ही इस्तेमाल करें
+    afterEvaluate {
+        if (project.hasProperty("android")) {
+            project.configure<com.android.build.gradle.BaseExtension> {
+                compileSdkVersion(36)
+            }
+        }
+    }
 }
 
 tasks.register<Delete>("clean") {
