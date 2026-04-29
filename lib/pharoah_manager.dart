@@ -242,6 +242,17 @@ class PharoahManager with ChangeNotifier {
 
   void finalizePurchaseChallan({required String challanNo, required String internalNo, required DateTime date, required Party party, required List<PurchaseItem> items, required double total, String remarks = ""}) async { 
     purchaseChallans.add(PurchaseChallan(id: DateTime.now().toString(), internalNo: internalNo, billNo: challanNo, date: date, distributorName: party.name, items: items, totalAmount: total, remarks: remarks)); 
+    
+    // NAYA: Engine ko batao ki ye ID use ho gayi hai
+    if (activeCompany != null) {
+      await PharoahNumberingEngine.updateSeriesCounter(
+        type: "CHALLAN_PUR", 
+        companyID: activeCompany!.id, 
+        usedNumber: internalNo, 
+        prefix: "PCH-"
+      );
+    }
+    
     save(); 
     notifyListeners();
   }
