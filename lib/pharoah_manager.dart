@@ -50,7 +50,8 @@ class PharoahManager with ChangeNotifier {
   List<ModuleAction> get challanActions => [
     ModuleAction(title: "Sale Challan", icon: Icons.local_shipping, color: Colors.teal, navModule: "GO_CHALLAN_SALE"),
     ModuleAction(title: "Purchase Challan", icon: Icons.inventory_2, color: Colors.amber.shade800, navModule: "GO_CHALLAN_PUR"),
-    ModuleAction(title: "Sale Register", icon: Icons.format_list_bulleted_rounded, color: Colors.indigo, navModule: "GO_CHALLAN_SALE_REG"), // NAYA
+    ModuleAction(title: "Sale Register", icon: Icons.format_list_bulleted_rounded, color: Colors.indigo, navModule: "GO_CHALLAN_SALE_REG"),
+    ModuleAction(title: "Pur Register", icon: Icons.history_edu_rounded, color: Colors.amber.shade900, navModule: "GO_CHALLAN_PUR_REG"), // NAYA
     ModuleAction(title: "Challan Dashboard", icon: Icons.dashboard_customize, color: Colors.blueGrey, navModule: "GO_CHALLAN"),
   ];
 
