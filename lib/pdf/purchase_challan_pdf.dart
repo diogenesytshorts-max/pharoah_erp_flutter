@@ -65,7 +65,7 @@ class PurchaseChallanPdf {
 
   static pw.Widget _buildFooter(PurchaseChallan challan) {
     return pw.Container(
-      padding: const EdgeInsets.all(10),
+      padding: const pw.EdgeInsets.all(10),
       color: PdfColors.grey100,
       child: pw.Row(
         mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
