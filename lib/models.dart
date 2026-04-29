@@ -140,19 +140,19 @@ class Purchase {
 }
 
 class SaleChallan { 
-  String id, billNo, partyName, partyGstin, partyState, status, salesmanName; 
+  String id, billNo, partyName, partyGstin, partyState, status, salesmanName, remarks; 
   DateTime date; List<BillItem> items; double totalAmount;
-  SaleChallan({required this.id, required this.billNo, required this.date, required this.partyName, required this.partyGstin, required this.partyState, required this.items, required this.totalAmount, this.status = "Pending", this.salesmanName = ""});
-  Map<String, dynamic> toMap() => {'id': id, 'billNo': billNo, 'date': date.toIso8601String(), 'partyName': partyName, 'partyGstin': partyGstin, 'partyState': partyState, 'totalAmount': totalAmount, 'status': status, 'salesmanName': salesmanName, 'items': items.map((i) => i.toMap()).toList()};
-  factory SaleChallan.fromMap(Map<String, dynamic> map) => SaleChallan(id: map['id'], billNo: map['billNo'], date: DateTime.parse(map['date']), partyName: map['partyName'], partyGstin: map['partyGstin'] ?? "", partyState: map['partyState'] ?? "Rajasthan", totalAmount: (map['totalAmount'] ?? 0.0).toDouble(), status: map['status'] ?? "Pending", salesmanName: map['salesmanName'] ?? "", items: (map['items'] as List).map((i) => BillItem.fromMap(i)).toList()); 
+  SaleChallan({required this.id, required this.billNo, required this.date, required this.partyName, required this.partyGstin, required this.partyState, required this.items, required this.totalAmount, this.status = "Pending", this.salesmanName = "", this.remarks = ""});
+  Map<String, dynamic> toMap() => {'id': id, 'billNo': billNo, 'date': date.toIso8601String(), 'partyName': partyName, 'partyGstin': partyGstin, 'partyState': partyState, 'totalAmount': totalAmount, 'status': status, 'salesmanName': salesmanName, 'remarks': remarks, 'items': items.map((i) => i.toMap()).toList()};
+  factory SaleChallan.fromMap(Map<String, dynamic> map) => SaleChallan(id: map['id'], billNo: map['billNo'], date: DateTime.parse(map['date']), partyName: map['partyName'], partyGstin: map['partyGstin'] ?? "", partyState: map['partyState'] ?? "Rajasthan", totalAmount: (map['totalAmount'] ?? 0.0).toDouble(), status: map['status'] ?? "Pending", salesmanName: map['salesmanName'] ?? "", remarks: map['remarks'] ?? "", items: (map['items'] as List).map((i) => BillItem.fromMap(i)).toList()); 
 }
 
 class PurchaseChallan { 
-  String id, internalNo, billNo, distributorName, status; 
+  String id, internalNo, billNo, distributorName, status, remarks; 
   DateTime date; List<PurchaseItem> items; double totalAmount;
-  PurchaseChallan({required this.id, required this.internalNo, required this.billNo, required this.date, required this.distributorName, required this.items, required this.totalAmount, this.status = "Pending"});
-  Map<String, dynamic> toMap() => {'id': id, 'internalNo': internalNo, 'billNo': billNo, 'date': date.toIso8601String(), 'distributorName': distributorName, 'totalAmount': totalAmount, 'status': status, 'items': items.map((i) => i.toMap()).toList()};
-  factory PurchaseChallan.fromMap(Map<String, dynamic> map) => PurchaseChallan(id: map['id'], internalNo: map['internalNo'] ?? "", billNo: map['billNo'], distributorName: map['distributorName'], date: DateTime.parse(map['date']), totalAmount: (map['totalAmount'] ?? 0.0).toDouble(), status: map['status'] ?? "Pending", items: (map['items'] as List).map((i) => PurchaseItem.fromMap(i)).toList()); 
+  PurchaseChallan({required this.id, required this.internalNo, required this.billNo, required this.date, required this.distributorName, required this.items, required this.totalAmount, this.status = "Pending", this.remarks = ""});
+  Map<String, dynamic> toMap() => {'id': id, 'internalNo': internalNo, 'billNo': billNo, 'date': date.toIso8601String(), 'distributorName': distributorName, 'totalAmount': totalAmount, 'status': status, 'remarks': remarks, 'items': items.map((i) => i.toMap()).toList()};
+  factory PurchaseChallan.fromMap(Map<String, dynamic> map) => PurchaseChallan(id: map['id'], internalNo: map['internalNo'] ?? "", billNo: map['billNo'], distributorName: map['distributorName'], date: DateTime.parse(map['date']), totalAmount: (map['totalAmount'] ?? 0.0).toDouble(), status: map['status'] ?? "Pending", remarks: map['remarks'] ?? "", items: (map['items'] as List).map((i) => PurchaseItem.fromMap(i)).toList()); 
 }
 
 class SaleReturn { 
