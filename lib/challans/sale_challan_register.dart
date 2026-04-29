@@ -1,5 +1,5 @@
 // FILE: lib/challans/sale_challan_register.dart
-
+import '../pdf/sale_challan_report_pdf.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
@@ -57,9 +57,19 @@ class _SaleChallanRegisterState extends State<SaleChallanRegister> {
         backgroundColor: const Color(0xFF1A237E),
         foregroundColor: Colors.white,
         actions: [
-          IconButton(icon: const Icon(Icons.picture_as_pdf_outlined), onPressed: () {
-            // Future: Logic for PDF Report export
-          }),
+          IconButton(
+            icon: const Icon(Icons.picture_as_pdf_outlined), 
+            tooltip: "Export Summary Report",
+            onPressed: () async {
+              if (ph.activeCompany != null && list.isNotEmpty) {
+                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Generating Summary Report...")));
+                // Hum wahi 'list' bhej rahe hain jo screen par filtered dikh rahi hai
+                await SaleChallanReportPdf.generate(list, fromDate, toDate, ph.activeCompany!);
+              } else {
+                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("No data to export!")));
+              }
+            }
+          ),
         ],
       ),
       body: Column(
