@@ -52,7 +52,7 @@ class _PurchaseChallanViewState extends State<PurchaseChallanView> {
     } else {
       if (ph.activeCompany != null) {
         String nextNo = await PharoahNumberingEngine.getNextNumber(
-          type: "CHALLAN",
+          type: "CHALLAN_PUR", // <--- Ise badal kar "CHALLAN_PUR" kar dein
           companyID: ph.activeCompany!.id,
           prefix: "PCH-", 
           startFrom: 1,
