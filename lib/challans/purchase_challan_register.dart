@@ -9,6 +9,7 @@ import '../pharoah_date_controller.dart';
 import '../app_date_logic.dart';
 import 'purchase_challan_view.dart';
 import '../pdf/purchase_challan_pdf.dart';
+import '../pdf/purchase_challan_report_pdf.dart'; // <--- Report Import
 
 class PurchaseChallanRegister extends StatefulWidget {
   const PurchaseChallanRegister({super.key});
@@ -28,7 +29,7 @@ class _PurchaseChallanRegisterState extends State<PurchaseChallanRegister> {
     super.didChangeDependencies();
     if (!_isInit) {
       final ph = Provider.of<PharoahManager>(context, listen: false);
-      // Smart Date Selection from FY
+      // Smart Date Logic (Financial Year aware)
       toDate = AppDateLogic.getSmartDate(ph.currentFY);
       fromDate = toDate.subtract(const Duration(days: 30));
       DateTime fyStart = AppDateLogic.getFYStart(ph.currentFY);
@@ -41,29 +42,45 @@ class _PurchaseChallanRegisterState extends State<PurchaseChallanRegister> {
   Widget build(BuildContext context) {
     final ph = Provider.of<PharoahManager>(context);
 
-    // LOGIC: Filter Purchase Challans
+    // Filter Logic: Search + Date Range
     final list = ph.purchaseChallans.reversed.where((ch) {
       bool matchesSearch = ch.distributorName.toLowerCase().contains(searchQuery.toLowerCase()) || 
-                           ch.billNo.toLowerCase().contains(searchQuery.toLowerCase()) ||
-                           ch.internalNo.toLowerCase().contains(searchQuery.toLowerCase());
+                           ch.billNo.toLowerCase().contains(searchQuery.toLowerCase());
       bool matchesDate = ch.date.isAfter(fromDate.subtract(const Duration(days: 1))) && 
                          ch.date.isBefore(toDate.add(const Duration(days: 1)));
       return matchesSearch && matchesDate;
     }).toList();
 
     return Scaffold(
-      backgroundColor: const Color(0xFFFDF8F1), // Very light amber
+      backgroundColor: const Color(0xFFFDF8F1),
       appBar: AppBar(
-        title: const Text("Purchase Challan Register", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 17)),
+        title: const Text("Purchase Challan Register"),
         backgroundColor: Colors.amber.shade900,
         foregroundColor: Colors.white,
+        // ==========================================================
+        // ACTION SECTION 1: TOP RIGHT PDF REPORT BUTTON
+        // ==========================================================
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.picture_as_pdf_outlined), 
+            tooltip: "Export Register PDF",
+            onPressed: () async {
+              if (ph.activeCompany != null && list.isNotEmpty) {
+                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Generating Inward Report...")));
+                await PurchaseChallanReportPdf.generate(list, fromDate, toDate, ph.activeCompany!);
+              } else {
+                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("No data found to export!")));
+              }
+            }
+          ),
+        ],
       ),
       body: Column(
         children: [
           _buildFilterPanel(ph),
           Expanded(
             child: list.isEmpty 
-              ? const Center(child: Text("No Inward Challans found."))
+              ? const Center(child: Text("No Purchase Challans found."))
               : ListView.builder(
                   padding: const EdgeInsets.all(16),
                   itemCount: list.length,
@@ -141,7 +158,7 @@ class _PurchaseChallanRegisterState extends State<PurchaseChallanRegister> {
       margin: const EdgeInsets.only(bottom: 12),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
       child: InkWell(
-        onTap: () => _showActionMenu(ch, ph),
+        onTap: () => _showActionMenu(ch, ph), // <--- Tap trigger for Menu
         borderRadius: BorderRadius.circular(18),
         child: Padding(
           padding: const EdgeInsets.all(16),
@@ -157,20 +174,13 @@ class _PurchaseChallanRegisterState extends State<PurchaseChallanRegister> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(ch.distributorName, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 15)),
-                    Text("Bill: ${ch.billNo} • ID: ${ch.internalNo}", style: const TextStyle(color: Colors.grey, fontSize: 11)),
-                    Text(DateFormat('dd MMMM yyyy').format(ch.date), style: TextStyle(color: Colors.amber.shade900, fontSize: 10, fontWeight: FontWeight.bold)),
+                    Text(ch.distributorName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+                    Text("Ref: ${ch.billNo} • ID: ${ch.internalNo}", style: const TextStyle(color: Colors.grey, fontSize: 11)),
+                    Text(DateFormat('dd MMM yyyy').format(ch.date), style: TextStyle(color: Colors.amber.shade900, fontSize: 10, fontWeight: FontWeight.bold)),
                   ],
                 ),
               ),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Text("₹${ch.totalAmount.toStringAsFixed(2)}", style: TextStyle(fontWeight: FontWeight.w900, fontSize: 15, color: Colors.amber.shade900)),
-                  const SizedBox(height: 5),
-                  _statusBadge(ch.status),
-                ],
-              )
+              Text("₹${ch.totalAmount.toStringAsFixed(0)}", style: TextStyle(fontWeight: FontWeight.w900, color: Colors.amber.shade900)),
             ],
           ),
         ),
@@ -178,45 +188,54 @@ class _PurchaseChallanRegisterState extends State<PurchaseChallanRegister> {
     );
   }
 
-  Widget _statusBadge(String status) {
-    bool isPending = status == "Pending";
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-      decoration: BoxDecoration(
-        color: isPending ? Colors.blue.shade50 : Colors.green.shade50,
-        borderRadius: BorderRadius.circular(5),
-      ),
-      child: Text(status.toUpperCase(), style: TextStyle(fontSize: 8, fontWeight: FontWeight.bold, color: isPending ? Colors.blue.shade900 : Colors.green.shade900)),
-    );
-  }
-
+  // ==========================================================================
+  // ACTION SECTION 2: BOTTOM SHEET MENU (VIEW / EDIT / PRINT / DELETE)
+  // ==========================================================================
   void _showActionMenu(PurchaseChallan ch, PharoahManager ph) {
     showModalBottomSheet(
       context: context,
+      isScrollControlled: true,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(25))),
       builder: (c) => Padding(
         padding: const EdgeInsets.all(20),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(ch.distributorName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-            const Divider(),
-            _menuTile(Icons.visibility, "View Items (Inward)", Colors.blue, () {
+            Container(height: 5, width: 40, decoration: BoxDecoration(color: Colors.grey.shade300, borderRadius: BorderRadius.circular(10))),
+            const SizedBox(height: 20),
+            Text(ch.distributorName, textAlign: TextAlign.center, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+            Text("Challan: ${ch.billNo}", style: const TextStyle(color: Colors.grey, fontSize: 12)),
+            const Divider(height: 30),
+
+            // 1. VIEW (READ-ONLY)
+            _menuTile(Icons.visibility_outlined, "View Inward Details", Colors.blue, () {
               Navigator.pop(c);
               Navigator.push(context, MaterialPageRoute(builder: (c) => PurchaseChallanView(existingRecord: ch, isReadOnly: true)));
             }),
-            _menuTile(Icons.edit, "Modify Inward Note", Colors.orange, () {
+
+            // 2. EDIT
+            _menuTile(Icons.edit_note_rounded, "Modify / Edit Items", Colors.orange, () {
               Navigator.pop(c);
               Navigator.push(context, MaterialPageRoute(builder: (c) => PurchaseChallanView(existingRecord: ch)));
             }),
-            _menuTile(Icons.print, "Print Inward PDF", Colors.teal, () {
+
+            // 3. PRINT PDF
+            _menuTile(Icons.print_rounded, "Print / Share PDF", Colors.teal, () async {
               Navigator.pop(c);
               if(ph.activeCompany != null) {
                 final party = ph.parties.firstWhere((p) => p.name == ch.distributorName, orElse: () => Party(id: '0', name: ch.distributorName));
-                PurchaseChallanPdf.generate(ch, party, ph.activeCompany!);
+                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Preparing PDF...")));
+                await PurchaseChallanPdf.generate(ch, party, ph.activeCompany!);
               }
             }),
-            _menuTile(Icons.delete_forever, "Delete Record", Colors.red, () => _confirmDelete(ch, ph)),
+
+            // 4. DELETE
+            _menuTile(Icons.delete_forever_rounded, "Delete Permanently", Colors.red, () {
+              Navigator.pop(c);
+              _confirmDelete(ch, ph);
+            }),
+            
+            const SizedBox(height: 20),
           ],
         ),
       ),
@@ -224,20 +243,19 @@ class _PurchaseChallanRegisterState extends State<PurchaseChallanRegister> {
   }
 
   Widget _menuTile(IconData icon, String t, Color c, VoidCallback onTap) => 
-      ListTile(leading: Icon(icon, color: c), title: Text(t, style: const TextStyle(fontWeight: FontWeight.bold)), onTap: onTap);
+      ListTile(leading: Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: c.withOpacity(0.1), shape: BoxShape.circle), child: Icon(icon, color: c, size: 20)), title: Text(t, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)), onTap: onTap);
 
   void _confirmDelete(PurchaseChallan ch, PharoahManager ph) {
     showDialog(
       context: context,
       builder: (c) => AlertDialog(
-        title: const Text("Delete Purchase Challan?"),
-        content: const Text("Warning: This will remove the inward record and reverse stock entry."),
+        title: const Text("Delete Record?"),
+        content: const Text("This will reverse stock and remove the entry permanently."),
         actions: [
           TextButton(onPressed: () => Navigator.pop(c), child: const Text("CANCEL")),
           ElevatedButton(style: ElevatedButton.styleFrom(backgroundColor: Colors.red), onPressed: () {
             ph.deletePurchaseChallan(ch.id);
             Navigator.pop(c);
-            Navigator.pop(context);
           }, child: const Text("YES, DELETE", style: TextStyle(color: Colors.white))),
         ],
       ),
