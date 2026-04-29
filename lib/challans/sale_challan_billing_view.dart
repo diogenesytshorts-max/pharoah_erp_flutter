@@ -7,6 +7,7 @@ import '../pharoah_manager.dart';
 import '../models.dart';
 import '../item_entry_card.dart';
 import '../product_master.dart';
+import '../pdf/sale_challan_pdf.dart';
 
 class SaleChallanBillingView extends StatefulWidget {
   final Party party;
