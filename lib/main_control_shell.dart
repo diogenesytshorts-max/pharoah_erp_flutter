@@ -1,5 +1,5 @@
 // FILE: lib/main_control_shell.dart
-
+import 'challans/sale_challan_register.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'pharoah_manager.dart';
@@ -183,6 +183,9 @@ class _MainControlShellState extends State<MainControlShell> {
     } else if (action.navModule != null) {
       Widget? target;
       switch (action.navModule) {
+          case "GO_CHALLAN_SALE": target = const SaleChallanView(); break;
+        // YAHAN NICHE WALI LINE PASTE KAREIN
+        case "GO_CHALLAN_SALE_REG": target = const SaleChallanRegister(); break;
         case "GO_SALE": target = const SaleEntryView(); break;
         case "GO_PURCHASE": target = const PurchaseEntryView(); break;
         case "GO_SALE_REG": target = const SaleSummaryView(); break;
