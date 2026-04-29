@@ -28,17 +28,18 @@ class PharoahNumberingEngine {
       String idToParse = "";
       
       try {
-        if (type == "PURCHASE") {
+        // NAYA: CHALLAN_PUR ke liye internalNo check karo
+        if (type == "PURCHASE" || type == "CHALLAN_PUR") {
           idToParse = item.internalNo; 
         } 
         else if (type == "PRODUCT") {
-          idToParse = item.systemId; // Medicines use systemId
+          idToParse = item.systemId;
         } 
-        else if (type == "SALT" || type == "COMPANY") {
-          idToParse = item.id; // Salt and Company use id field for display
+        else if (type == "SALT" || type == "COMPANY" || type == "DRUGTYPE") {
+          idToParse = item.id;
         }
         else {
-          idToParse = item.billNo; // Sale, Challan, Returns use billNo
+          idToParse = item.billNo; 
         }
       } catch (e) {
         // Fallback for safety
