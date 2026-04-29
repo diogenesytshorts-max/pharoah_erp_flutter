@@ -183,6 +183,9 @@ class _MainControlShellState extends State<MainControlShell> {
     } else if (action.navModule != null) {
       Widget? target;
       switch (action.navModule) {
+          case "GO_CHALLAN_SALE_REG": target = const SaleChallanRegister(); break;
+        // YAHAN NICHE WALI LINE PASTE KAREIN
+        case "GO_CHALLAN_PUR_REG": target = const PurchaseChallanRegister(); break;
           case "GO_CHALLAN_SALE": target = const SaleChallanView(); break;
         // YAHAN NICHE WALI LINE PASTE KAREIN
         case "GO_CHALLAN_SALE_REG": target = const SaleChallanRegister(); break;
