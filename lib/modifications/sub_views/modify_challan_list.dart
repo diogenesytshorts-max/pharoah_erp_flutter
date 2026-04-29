@@ -1,10 +1,14 @@
-// FILE: lib/modifications/sub_views/modify_challan_list.dart (Replacement Code - FIXED)
+// FILE: lib/modifications/sub_views/modify_challan_list.dart
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:intl/intl.dart';
 import '../../../pharoah_manager.dart';
 import '../../../models.dart';
-import '../../../challans/sale_challan_view.dart'; 
+import '../../../challans/sale_challan_view.dart';
+import '../../../challans/purchase_challan_view.dart';
+import '../../../pdf/sale_challan_pdf.dart';
+import '../../../pdf/purchase_challan_pdf.dart';
 
 class ModifyChallanList extends StatelessWidget {
   final String searchQuery;
@@ -14,7 +18,7 @@ class ModifyChallanList extends StatelessWidget {
   Widget build(BuildContext context) {
     final ph = Provider.of<PharoahManager>(context);
     
-    // Combine both Sale and Purchase Challans for the universal list
+    // Combine both Sale and Purchase Challans
     List<dynamic> allChallans = [...ph.saleChallans, ...ph.purchaseChallans];
     
     final filtered = allChallans.where((c) {
@@ -22,6 +26,9 @@ class ModifyChallanList extends StatelessWidget {
       return c.billNo.toLowerCase().contains(searchQuery.toLowerCase()) || 
              name.toLowerCase().contains(searchQuery.toLowerCase());
     }).toList();
+
+    // Sort by Date (Latest First)
+    filtered.sort((a, b) => b.date.compareTo(a.date));
 
     if (filtered.isEmpty) {
       return const Center(child: Text("No challans found matching search.", style: TextStyle(color: Colors.grey)));
@@ -33,19 +40,29 @@ class ModifyChallanList extends StatelessWidget {
       itemBuilder: (context, i) {
         final ch = filtered[i];
         bool isSale = ch is SaleChallan;
-        
+        String partyName = isSale ? ch.partyName : (ch as PurchaseChallan).distributorName;
+        Color themeColor = isSale ? Colors.blueGrey : Colors.amber.shade800;
+
         return Card(
           elevation: 2,
           margin: const EdgeInsets.only(bottom: 12),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
           child: ListTile(
+            contentPadding: const EdgeInsets.symmetric(horizontal: 15, vertical: 8),
             leading: CircleAvatar(
-              backgroundColor: isSale ? Colors.blueGrey : Colors.amber.shade700,
-              child: Text(isSale ? "SC" : "PC", style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold)),
+              backgroundColor: themeColor.withOpacity(0.1),
+              child: Text(isSale ? "SC" : "PC", style: TextStyle(color: themeColor, fontSize: 10, fontWeight: FontWeight.bold)),
             ),
-            title: Text(ch.billNo, style: const TextStyle(fontWeight: FontWeight.bold)),
-            subtitle: Text(isSale ? (ch as SaleChallan).partyName : (ch as PurchaseChallan).distributorName),
-            trailing: const Icon(Icons.more_vert),
+            title: Text(partyName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+            subtitle: Text("${ch.billNo} | ${DateFormat('dd/MM/yy').format(ch.date)}"),
+            trailing: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text("₹${ch.totalAmount.toStringAsFixed(0)}", style: TextStyle(fontWeight: FontWeight.bold, color: themeColor)),
+                const Icon(Icons.more_vert, size: 18, color: Colors.grey),
+              ],
+            ),
             onTap: () => _showActionMenu(context, ph, ch),
           ),
         );
@@ -53,58 +70,79 @@ class ModifyChallanList extends StatelessWidget {
     );
   }
 
-  // --- ACTION MENU ---
   void _showActionMenu(BuildContext context, PharoahManager ph, dynamic challan) {
     bool isSale = challan is SaleChallan;
-    // Check permissions from loggedInStaff
-    bool canEdit = ph.loggedInStaff == null || ph.loggedInStaff!.canEditBill;
-    bool canDelete = ph.loggedInStaff == null || ph.loggedInStaff!.canDeleteBill;
-
+    
     showModalBottomSheet(
       context: context,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
-      builder: (c) => Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          ListTile(
-            title: Text("Challan: ${challan.billNo}", style: const TextStyle(fontWeight: FontWeight.bold)),
-            subtitle: Text(isSale ? "Outward Sale Challan" : "Inward Purchase Challan"),
-          ),
-          const Divider(),
-          
-          if (canEdit && isSale)
-            ListTile(
-              leading: const Icon(Icons.edit, color: Colors.blue),
-              title: const Text("Edit / Modify Challan"),
-              onTap: () {
-                Navigator.pop(c);
-                Navigator.push(context, MaterialPageRoute(
-                  builder: (c) => SaleChallanView(existingRecord: challan as SaleChallan)
-                ));
-              },
-            ),
+      builder: (c) => Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(isSale ? "SALE CHALLAN ACTIONS" : "PURCHASE CHALLAN ACTIONS", 
+                 style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.grey, fontSize: 11)),
+            const SizedBox(height: 10),
+            Text(challan.billNo, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+            const Divider(),
+            
+            // 1. VIEW
+            _menuTile(Icons.visibility, "View Items (Read Only)", Colors.blue, () {
+              Navigator.pop(c);
+              Navigator.push(context, MaterialPageRoute(
+                builder: (context) => isSale 
+                  ? SaleChallanView(existingRecord: challan, isReadOnly: true)
+                  : PurchaseChallanView(existingRecord: challan, isReadOnly: true)
+              ));
+            }),
 
-          if (canDelete)
-            ListTile(
-              leading: const Icon(Icons.delete_forever, color: Colors.red),
-              title: const Text("Delete Challan Record"),
-              onTap: () {
-                _confirmDelete(context, ph, challan);
-              },
-            ),
-          
-          const SizedBox(height: 20),
-        ],
+            // 2. EDIT
+            _menuTile(Icons.edit, "Modify / Edit Record", Colors.orange, () {
+              Navigator.pop(c);
+              Navigator.push(context, MaterialPageRoute(
+                builder: (context) => isSale 
+                  ? SaleChallanView(existingRecord: challan)
+                  : PurchaseChallanView(existingRecord: challan)
+              ));
+            }),
+
+            // 3. PRINT
+            _menuTile(Icons.print, "Print PDF", Colors.teal, () {
+              Navigator.pop(c);
+              if (ph.activeCompany != null) {
+                if (isSale) {
+                  final party = ph.parties.firstWhere((p) => p.name == challan.partyName, orElse: () => Party(id: '0', name: challan.partyName));
+                  SaleChallanPdf.generate(challan, party, ph.activeCompany!);
+                } else {
+                  final party = ph.parties.firstWhere((p) => p.name == challan.distributorName, orElse: () => Party(id: '0', name: challan.distributorName));
+                  PurchaseChallanPdf.generate(challan, party, ph.activeCompany!);
+                }
+              }
+            }),
+
+            // 4. DELETE
+            _menuTile(Icons.delete_forever, "Delete Permanently", Colors.red, () {
+              Navigator.pop(c);
+              _confirmDelete(context, ph, challan);
+            }),
+            
+            const SizedBox(height: 20),
+          ],
+        ),
       ),
     );
   }
+
+  Widget _menuTile(IconData icon, String t, Color c, VoidCallback onTap) => 
+      ListTile(leading: Icon(icon, color: c), title: Text(t, style: const TextStyle(fontWeight: FontWeight.bold)), onTap: onTap);
 
   void _confirmDelete(BuildContext context, PharoahManager ph, dynamic ch) {
     showDialog(
       context: context,
       builder: (c) => AlertDialog(
-        title: const Text("Delete Record?"),
-        content: const Text("Are you sure? This will reverse the stock impact of this challan."),
+        title: const Text("Confirm Delete?"),
+        content: const Text("This action will remove the challan and reverse the stock impact."),
         actions: [
           TextButton(onPressed: () => Navigator.pop(c), child: const Text("CANCEL")),
           ElevatedButton(
@@ -112,8 +150,7 @@ class ModifyChallanList extends StatelessWidget {
             onPressed: () {
               if (ch is SaleChallan) ph.deleteSaleChallan(ch.id);
               else ph.deletePurchaseChallan(ch.id);
-              Navigator.pop(c); // Close Alert
-              Navigator.pop(context); // Close BottomSheet
+              Navigator.pop(c);
             }, 
             child: const Text("YES, DELETE", style: TextStyle(color: Colors.white)),
           )
