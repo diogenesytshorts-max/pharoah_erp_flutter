@@ -208,10 +208,34 @@ class _SaleChallanRegisterState extends State<SaleChallanRegister> {
               Navigator.pop(c);
               Navigator.push(context, MaterialPageRoute(builder: (c) => SaleChallanView(existingRecord: ch)));
             }),
-            _menuTile(Icons.print, "Print PDF", Colors.teal, () {
-              if(ph.activeCompany != null) {
-                final party = ph.parties.firstWhere((p) => p.name == ch.partyName, orElse: () => Party(id: '0', name: ch.partyName));
-                SaleChallanPdf.generate(ch, party, ph.activeCompany!);
+            // 3. PRINT (Fixed & Verified Logic)
+            _menuTile(Icons.print, "Print / Share PDF", Colors.teal, () async {
+              Navigator.pop(c); // Sabse pehle menu band karein
+              
+              if (ph.activeCompany == null) {
+                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Error: Company Profile not loaded!")));
+                return;
+              }
+
+              // Party details nikalna (Safety ke saath)
+              Party targetParty;
+              try {
+                targetParty = ph.parties.firstWhere((p) => p.name == ch.partyName);
+              } catch (e) {
+                // Agar party master mein nahi milti (Old record), toh temporary object bhejenge
+                targetParty = Party(
+                  id: 'temp', 
+                  name: ch.partyName, 
+                  gst: ch.partyGstin, 
+                  state: ch.partyState
+                );
+              }
+
+              // PDF Generate karna
+              try {
+                await SaleChallanPdf.generate(ch, targetParty, ph.activeCompany!);
+              } catch (pdfError) {
+                debugPrint("PDF Generation Failed: $pdfError");
               }
             }),
             _menuTile(Icons.delete_forever, "Delete Challan", Colors.red, () => _confirmDelete(ch, ph)),
