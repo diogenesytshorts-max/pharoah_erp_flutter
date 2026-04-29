@@ -178,9 +178,19 @@ class _SaleChallanBillingViewState extends State<SaleChallanBillingView> {
           IconButton(
             icon: const Icon(Icons.print_rounded),
             onPressed: items.isEmpty ? null : () {
-              // PDF Printing will be activated in Step 5
-              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("PDF Generation will be active in Step 5!")));
-            },
+  if (ph.activeCompany != null) {
+    SaleChallanPdf.generate(
+      SaleChallan(
+        id: "temp", billNo: widget.challanNo, date: widget.challanDate, 
+        partyName: widget.party.name, partyGstin: widget.party.gst, 
+        partyState: widget.party.state, items: items, totalAmount: totalAmt, 
+        remarks: remarksC.text.trim()
+      ), 
+      widget.party, 
+      ph.activeCompany!
+    );
+  }
+},
           ),
           if (!widget.isReadOnly)
             TextButton(
