@@ -183,35 +183,71 @@ class _ChallanStitcherWizardState extends State<ChallanStitcherWizard> with Sing
     );
   }
 
-  void _handleConversion(PharoahManager ph, bool isSale) {
+  void _handleConversion(PharoahManager ph, bool isSale) async {
+    // 1. Loading Indicator dikhao taaki user ko lage system check kar raha hai
+    showDialog(context: context, barrierDismissible: false, builder: (c) => const Center(child: CircularProgressIndicator()));
+
+    String nextBillNo = "";
+    
     if (isSale) {
+      // --- SALE BILL NUMBER GENERATION ---
+      var series = ph.getDefaultSeries("SALE");
+      nextBillNo = await PharoahNumberingEngine.getNextNumber(
+        type: "SALE",
+        companyID: ph.activeCompany!.id,
+        prefix: series.prefix,
+        startFrom: series.startNumber,
+        currentList: ph.sales,
+      );
+
       List<BillItem> merged = [];
       List<SaleChallan> selected = ph.saleChallans.where((c) => selectedChallanIds.contains(c.id)).toList();
+      
       for (var ch in selected) {
         for (var it in ch.items) {
-          merged.add(it.copyWith(sourceChallanNo: "${ch.billNo} (${DateFormat('dd/MM').format(ch.date)})"));
+          merged.add(it.copyWith(
+            sourceChallanNo: "${ch.billNo} (${DateFormat('dd/MM').format(ch.date)})"
+          ));
         }
       }
+
+      Navigator.pop(context); // Loader hatao
       Navigator.push(context, MaterialPageRoute(builder: (c) => BillingView(
         party: selectedParty!, 
-        billNo: "AUTO", 
+        billNo: nextBillNo, // <--- AB ACTUAL NUMBER JAYEGA
         billDate: DateTime.now(), 
         mode: "CREDIT", 
         existingItems: merged,
-        linkedChallanIds: selectedChallanIds, // IDs pass for status update
+        linkedChallanIds: selectedChallanIds,
       )));
+
     } else {
+      // --- PURCHASE BILL NUMBER GENERATION (INTERNAL ID) ---
+      nextBillNo = await PharoahNumberingEngine.getNextNumber(
+        type: "PURCHASE",
+        companyID: ph.activeCompany!.id,
+        prefix: "PUR-",
+        startFrom: 1,
+        currentList: ph.purchases,
+      );
+
       List<PurchaseItem> merged = [];
       List<PurchaseChallan> selected = ph.purchaseChallans.where((c) => selectedChallanIds.contains(c.id)).toList();
+      
       for (var ch in selected) {
         for (var it in ch.items) {
-          merged.add(it.copyWith(srNo: merged.length + 1));
+          // Purchase mein hum temporary reference HSN field mein store kar rahe hain dikhane ke liye
+          merged.add(it.copyWith(
+            srNo: merged.length + 1,
+          ));
         }
       }
+
+      Navigator.pop(context); // Loader hatao
       Navigator.push(context, MaterialPageRoute(builder: (c) => PurchaseBillingView(
         distributor: selectedParty!, 
-        internalNo: "AUTO", 
-        distBillNo: "", 
+        internalNo: nextBillNo, // <--- AB ACTUAL NUMBER JAYEGA
+        distBillNo: "", // Supplier ka bill no user wahan khud bharega
         billDate: DateTime.now(), 
         entryDate: DateTime.now(), 
         mode: "CREDIT", 
@@ -219,7 +255,6 @@ class _ChallanStitcherWizardState extends State<ChallanStitcherWizard> with Sing
       )));
     }
   }
-
   Widget _dateTile(String l, DateTime d, Function(DateTime) onPick, String fy) => InkWell(
     onTap: () async { DateTime? p = await PharoahDateController.pickDate(context: context, currentFY: fy, initialDate: d); if(p!=null) onPick(p); },
     child: Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(border: Border.all(color: Colors.grey.shade300), borderRadius: BorderRadius.circular(10)), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(l, style: const TextStyle(fontSize: 8, color: Colors.grey, fontWeight: FontWeight.bold)), Text(DateFormat('dd/MM/yy').format(d), style: const TextStyle(fontWeight: FontWeight.bold))])),
