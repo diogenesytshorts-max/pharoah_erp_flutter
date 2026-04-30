@@ -114,14 +114,22 @@ class BillItem {
 }
 
 class PurchaseItem {
-  String id, medicineID, name, packing, batch, exp, hsn; int srNo; 
+  String id, medicineID, name, packing, batch, exp, hsn, sourceChallanNo; // <--- NAYA FIELD ADDED
+  int srNo; 
   double mrp, qty, freeQty, purchaseRate, gstRate, total, rateA, rateB, rateC;
-  PurchaseItem({required this.id, required this.srNo, required this.medicineID, required this.name, required this.packing, required this.batch, required this.exp, required this.hsn, required this.mrp, required this.qty, this.freeQty = 0, required this.purchaseRate, required this.gstRate, required this.total, this.rateA = 0, this.rateB = 0, this.rateC = 0});
-  PurchaseItem copyWith({int? srNo}) => PurchaseItem(id: id, srNo: srNo ?? this.srNo, medicineID: medicineID, name: name, packing: packing, batch: batch, exp: exp, hsn: hsn, mrp: mrp, qty: qty, freeQty: freeQty, purchaseRate: purchaseRate, gstRate: gstRate, total: total, rateA: rateA, rateB: rateB, rateC: rateC);
-  Map<String, dynamic> toMap() => {'id': id, 'srNo': srNo, 'medicineID': medicineID, 'name': name, 'packing': packing, 'batch': batch, 'exp': exp, 'hsn': hsn, 'mrp': mrp, 'qty': qty, 'freeQty': freeQty, 'purchaseRate': purchaseRate, 'gstRate': gstRate, 'total': total, 'rateA': rateA, 'rateB': rateB, 'rateC': rateC};
-  factory PurchaseItem.fromMap(Map<String, dynamic> map) => PurchaseItem(id: map['id'] ?? "", srNo: map['srNo'] ?? 0, medicineID: map['medicineID'] ?? "", name: map['name'] ?? "", packing: map['packing'] ?? "", batch: map['batch'] ?? "", exp: map['exp'] ?? "", hsn: map['hsn'] ?? "", mrp: (map['mrp'] ?? 0.0).toDouble(), qty: (map['qty'] ?? 0.0).toDouble(), freeQty: (map['freeQty'] ?? 0.0).toDouble(), purchaseRate: (map['purchaseRate'] ?? 0.0).toDouble(), gstRate: (map['gstRate'] ?? 0.0).toDouble(), total: (map['total'] ?? 0.0).toDouble(), rateA: (map['rateA'] ?? 0.0).toDouble(), rateB: (map['rateB'] ?? 0.0).toDouble(), rateC: (map['rateC'] ?? 0.0).toDouble());
-}
+  
+  // Constructor updated below
+  PurchaseItem({required this.id, required this.srNo, required this.medicineID, required this.name, required this.packing, required this.batch, required this.exp, required this.hsn, required this.mrp, required this.qty, this.freeQty = 0, required this.purchaseRate, required this.gstRate, required this.total, this.rateA = 0, this.rateB = 0, this.rateC = 0, this.sourceChallanNo = ""}); // <--- UPDATED
 
+  // copyWith updated below
+  PurchaseItem copyWith({int? srNo, String? sourceChallanNo}) => PurchaseItem(id: id, srNo: srNo ?? this.srNo, medicineID: medicineID, name: name, packing: packing, batch: batch, exp: exp, hsn: hsn, mrp: mrp, qty: qty, freeQty: freeQty, purchaseRate: purchaseRate, gstRate: gstRate, total: total, rateA: rateA, rateB: rateB, rateC: rateC, sourceChallanNo: sourceChallanNo ?? this.sourceChallanNo); // <--- UPDATED
+  
+  // toMap updated below
+  Map<String, dynamic> toMap() => {'id': id, 'srNo': srNo, 'medicineID': medicineID, 'name': name, 'packing': packing, 'batch': batch, 'exp': exp, 'hsn': hsn, 'mrp': mrp, 'qty': qty, 'freeQty': freeQty, 'purchaseRate': purchaseRate, 'gstRate': gstRate, 'total': total, 'rateA': rateA, 'rateB': rateB, 'rateC': rateC, 'sourceChallanNo': sourceChallanNo}; // <--- UPDATED
+  
+  // fromMap updated below
+  factory PurchaseItem.fromMap(Map<String, dynamic> map) => PurchaseItem(id: map['id'] ?? "", srNo: map['srNo'] ?? 0, medicineID: map['medicineID'] ?? "", name: map['name'] ?? "", packing: map['packing'] ?? "", batch: map['batch'] ?? "", exp: map['exp'] ?? "", hsn: map['hsn'] ?? "", mrp: (map['mrp'] ?? 0.0).toDouble(), qty: (map['qty'] ?? 0.0).toDouble(), freeQty: (map['freeQty'] ?? 0.0).toDouble(), purchaseRate: (map['purchaseRate'] ?? 0.0).toDouble(), gstRate: (map['gstRate'] ?? 0.0).toDouble(), total: (map['total'] ?? 0.0).toDouble(), rateA: (map['rateA'] ?? 0.0).toDouble(), rateB: (map['rateB'] ?? 0.0).toDouble(), rateC: (map['rateC'] ?? 0.0).toDouble(), sourceChallanNo: map['sourceChallanNo'] ?? ""); // <--- UPDATED
+}
 // ===========================================================================
 // 5. TRANSACTION HEADER MODELS
 // ===========================================================================
