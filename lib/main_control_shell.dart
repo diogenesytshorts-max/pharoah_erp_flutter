@@ -9,6 +9,7 @@ import 'widgets.dart';
 import 'inventory_logic_center.dart';
 
 // --- VIEWS IMPORTS ---
+import 'data_exchange_view.dart';
 import 'returns/purchase_return_register.dart';
 import 'returns/sale_return_register.dart';
 import 'challans/challan_stitcher_wizard.dart';
@@ -226,6 +227,9 @@ class _MainControlShellState extends State<MainControlShell> {
         case "GO_GST_1": target = const GSTReportDetailView(reportType: "GSTR-1"); break;
         case "GO_GST_3B": target = const GSTReportDetailView(reportType: "GSTR-3B"); break;
         case "GO_GST_RECON": target = const GSTReconciliationView(); break;
+        // NAYA RASTA ADDED BELOW
+        case "GO_DATA_HUB": target = const DataExchangeView(); break;
+      }
           // CASE ADD KAREIN:
         case "GO_STITCHER_WIZARD": target = const ChallanStitcherWizard(); break;
       }
