@@ -83,14 +83,34 @@ class _DataExchangeViewState extends State<DataExchangeView> {
   }
 
   void _pickFile(PharoahManager ph, String type, String mode) async {
-    FilePickerResult? result = await FilePicker.platform.pickFiles(type: FileType.custom, allowedExtensions: ['csv']);
+    FilePickerResult? result = await FilePicker.platform.pickFiles(
+      type: FileType.custom, 
+      allowedExtensions: ['csv']
+    );
+
     if (result != null && result.files.single.path != null) {
       File file = File(result.files.single.path!);
       String content = await file.readAsString();
+      
+      // Smart Parsing
       List<List<dynamic>> rows = CsvEngine.parseCsv(content);
+      
       if (mounted) {
-        if (rows.length <= 1) { ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Selected file is empty!"))); return; }
-        Navigator.push(context, MaterialPageRoute(builder: (c) => ImportVerificationView(csvData: rows, importType: type, isOtherFormat: mode == "OTHER")));
+        if (rows.isEmpty || rows.length < 2) { 
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text("⚠️ Selected file is empty or invalid!"))
+          ); 
+          return; 
+        }
+
+        // --- NAVIGATION TO WIZARD ---
+        Navigator.push(context, MaterialPageRoute(
+          builder: (c) => ImportVerificationView(
+            csvData: rows, 
+            importType: type, // "SALE" or "PURCHASE"
+            isOtherFormat: mode == "OTHER" // Detects if it's distributor file
+          )
+        ));
       }
     }
   }
