@@ -90,7 +90,7 @@ class PharoahManager with ChangeNotifier {
     ModuleAction(title: "Portal Match", icon: Icons.fact_check, color: Colors.teal, navModule: "GO_GST_RECON"),
   ];
 
-  // --- CORE DATA ---
+  // --- DATA LISTS ---
   List<Medicine> medicines = [];
   List<SystemUser> systemUsers = [];
   SystemUser? loggedInStaff;
@@ -156,7 +156,7 @@ class PharoahManager with ChangeNotifier {
   }
 
   // ===========================================================================
-  // DATA PERSISTENCE
+  // PERSISTENCE (SAVE / LOAD)
   // ===========================================================================
 
   Future<void> save() async {
@@ -190,9 +190,9 @@ class PharoahManager with ChangeNotifier {
     dynamic load(String n) { final f = File('$dir/$n'); return f.existsSync() ? jsonDecode(f.readAsStringSync()) : null; }
     medicines = (load('meds.json') as List?)?.map((e) => Medicine.fromMap(e)).toList() ?? DemoData.getMedicines();
     parties = (load('parts.json') as List?)?.map((e) => Party.fromMap(e)).toList() ?? [Party(id: 'cash', name: "CASH", group: "Cash in Hand")];
-    companies = (load('comps.json') as List?)?.map((e) => Company.fromMap(e)).toList() ?? MasterDataLibrary.getTopCompanies();
-    salts = (load('salts.json') as List?)?.map((e) => Salt.fromMap(e)).toList() ?? MasterDataLibrary.getTopSalts();
-    drugTypes = (load('dtypes.json') as List?)?.map((e) => DrugType.fromMap(e)).toList() ?? MasterDataLibrary.getDrugTypes();
+    companies = (load('comps.json') as List?)?.map((e) => Company.fromMap(e)).toList() ?? [];
+    salts = (load('salts.json') as List?)?.map((e) => Salt.fromMap(e)).toList() ?? [];
+    drugTypes = (load('dtypes.json') as List?)?.map((e) => DrugType.fromMap(e)).toList() ?? [];
     sales = (load('sales.json') as List?)?.map((e) => Sale.fromMap(e)).toList() ?? [];
     purchases = (load('purc.json') as List?)?.map((e) => Purchase.fromMap(e)).toList() ?? [];
     vouchers = (load('vouc.json') as List?)?.map((e) => Voucher.fromMap(e)).toList() ?? [];
@@ -251,14 +251,16 @@ class PharoahManager with ChangeNotifier {
   }
 
   // ===========================================================================
-  // DELETE & MASTER MANAGEMENT
+  // DELETE & MASTERS
   // ===========================================================================
 
   void deleteBill(String id) {
-    final sale = sales.firstWhere((s) => s.id == id);
-    if (sale.linkedChallanIds.isNotEmpty) { for (var cId in sale.linkedChallanIds) { int idx = saleChallans.indexWhere((c) => c.id == cId); if (idx != -1) saleChallans[idx].status = "Pending"; } }
-    sales.removeWhere((s) => s.id == id);
-    save().then((_) => loadAllData());
+    try {
+      final sale = sales.firstWhere((s) => s.id == id);
+      if (sale.linkedChallanIds.isNotEmpty) { for (var cId in sale.linkedChallanIds) { int idx = saleChallans.indexWhere((c) => c.id == cId); if (idx != -1) saleChallans[idx].status = "Pending"; } }
+      sales.removeWhere((s) => s.id == id);
+      save().then((_) => loadAllData());
+    } catch (e) {}
   }
 
   void deletePurchase(String id) { purchases.removeWhere((p) => p.id == id); save().then((_) => loadAllData()); }
@@ -280,7 +282,7 @@ class PharoahManager with ChangeNotifier {
   void addNumberingSeries(NumberingSeries ns) { numberingSeries.add(ns); save(); }
   void updateNumberingSeries(NumberingSeries ns) { int i = numberingSeries.indexWhere((x) => x.id == ns.id); if(i != -1) { numberingSeries[i] = ns; save(); } }
   void updateAppConfig(AppConfig c) { config = c; notifyListeners(); }
-  void resetCounter(String type) { addLog("SYSTEM", "Reset for $type"); notifyListeners(); }
+  void resetCounter(String type) { addLog("SYSTEM", "Reset requested for $type"); notifyListeners(); }
   void addVoucher(Voucher v) { vouchers.add(v); save(); }
   void addBank(Bank b) { banks.add(b); save(); }
   void deleteBank(String id) { banks.removeWhere((b) => b.id == id); save(); }
@@ -292,27 +294,42 @@ class PharoahManager with ChangeNotifier {
   void updateChequeStatus(String id, String status, String reason) { int i = cheques.indexWhere((c) => c.id == id); if(i != -1) { cheques[i].status = status; cheques[i].remark = reason; save(); } }
 
   // ===========================================================================
-  // MISC
+  // INVENTORY INTEL (SHORTAGE 1.5x)
   // ===========================================================================
 
-  List<BankTransaction> getBankStatement(String bankName, DateTime from, DateTime to) {
-    List<BankTransaction> list = [];
-    for(var v in vouchers.where((v) => v.paymentMode == "Bank" || v.paymentMode == "Cheque")) {
-       if (v.date.isAfter(from.subtract(const Duration(days:1))) && v.date.isBefore(to.add(const Duration(days:1)))) {
-         list.add(BankTransaction(id: v.id, date: v.date, particulars: v.partyName, reference: v.narration, amountIn: v.type == "Receipt" ? v.amount : 0, amountOut: v.type == "Payment" ? v.amount : 0, type: "VOUCHER"));
-       }
+  double calculateAvgMonthlySale(String medicineId) {
+    DateTime thirtyDaysAgo = DateTime.now().subtract(const Duration(days: 30));
+    double monthlyQty = 0;
+    for (var sale in sales.where((s) => s.status == "Active" && s.date.isAfter(thirtyDaysAgo))) {
+      for (var item in sale.items.where((it) => it.medicineID == medicineId)) {
+        monthlyQty += (item.qty + item.freeQty);
+      }
     }
-    return list;
+    return monthlyQty;
   }
+
+  void runAutoShortageScan() {
+    shortages.removeWhere((s) => s.source == "Auto");
+    for (var med in medicines) {
+      double avg = calculateAvgMonthlySale(med.id);
+      double required = avg * 1.5;
+      if (med.stock < required && required > 0) {
+        shortages.add(ShortageItem(id: "auto_${med.id}", medicineId: med.id, medicineName: med.name, companyName: med.companyId, qtyRequired: required - med.stock, currentStock: med.stock, date: DateTime.now(), source: "Auto"));
+      }
+    }
+    save();
+  }
+
+  // ===========================================================================
+  // SYSTEM SETUP & YEAR END
+  // ===========================================================================
 
   Future<void> setupNewCompanyEnvironment(CompanyProfile profile, String initialFY) async {
     activeCompany = profile; currentFY = initialFY;
     numberingSeries = [NumberingSeries(id: 's1', name: "Standard Retail", type: "SALE", prefix: "INV-", isDefault: true)];
     medicines = DemoData.getMedicines();
-    companies = MasterDataLibrary.getTopCompanies();
-    salts = MasterDataLibrary.getTopSalts();
-    drugTypes = MasterDataLibrary.getDrugTypes();
-    parties = [DemoData.getDemoParty(), Party(id: 'cash', name: "CASH", group: "Cash in Hand")];
+    companies = []; salts = []; drugTypes = [];
+    parties = [Party(id: 'cash', name: "CASH", group: "Cash in Hand")];
     await save();
     if (!companiesRegistry.any((c) => c.id == profile.id)) { companiesRegistry.add(profile); await saveRegistry(); }
     notifyListeners();
