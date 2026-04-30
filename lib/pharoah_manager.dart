@@ -217,9 +217,58 @@ class PharoahManager with ChangeNotifier {
   // FINALIZATION LOGIC
   // ===========================================================================
 
-  void finalizeSale({required String billNo, required DateTime date, required Party party, required List<BillItem> items, required double total, required String mode, bool isEdit = false, List<String>? linkedIds}) { 
-    sales.add(Sale(id: DateTime.now().toString(), billNo: billNo, date: date, partyName: party.name, partyGstin: party.gst, partyState: party.state, items: items, totalAmount: total, paymentMode: mode, linkedChallanIds: linkedIds ?? [])); 
-    if (linkedIds != null && linkedIds.isNotEmpty) {<br>  for (var id in linkedIds) {<br>    int idx = saleChallans.indexWhere((c) => c.id == id);<br>    if (idx != -1) {<br>      saleChallans[idx].status = "Billed";<br>      addLog("CHALLAN", "Challan ${saleChallans[idx].billNo} converted to Bill $billNo");<br>    }<br>  }<br>}<br>if (activeCompany != null) await PharoahNumberingEngine.updateSeriesCounter(...);<br>await save(); // Wait for disk write<br>notifyListeners(); // Refresh UI directly
+  Future<void> finalizeSale({
+    required String billNo, 
+    required DateTime date, 
+    required Party party, 
+    required List<BillItem> items, 
+    required double total, 
+    required String mode, 
+    List<String>? linkedIds
+  }) async { 
+    // 1. Bill record add karna
+    sales.add(Sale(
+      id: DateTime.now().toString(), 
+      billNo: billNo, 
+      date: date, 
+      partyName: party.name, 
+      partyGstin: party.gst, 
+      partyState: party.state, 
+      items: items, 
+      totalAmount: total, 
+      paymentMode: mode,
+      linkedChallanIds: linkedIds ?? []
+    )); 
+
+    // 2. Agar challan se bana hai, toh unhe 'Billed' mark karna
+    if (linkedIds != null && linkedIds.isNotEmpty) {
+      for (var id in linkedIds) {
+        int idx = saleChallans.indexWhere((c) => c.id == id);
+        if (idx != -1) saleChallans[idx].status = "Billed";
+      }
+    }
+
+    // 3. Numbering series update karna
+    if (activeCompany != null) {
+      String prefix = billNo.split(RegExp(r'\d')).first;
+      await PharoahNumberingEngine.updateSeriesCounter(
+        type: "SALE", 
+        companyID: activeCompany!.id, 
+        usedNumber: billNo, 
+        prefix: prefix
+      );
+    }
+
+    // 4. Save and Sync
+    await save();
+    // Inventory rebuild call taaki stock sahi dikhe
+    InventoryLogicCenter.rebuildAllInventory(
+      medicines: medicines, 
+      batchHistory: batchHistory, 
+      purchases: purchases, 
+      sales: sales
+    );
+    notifyListeners(); 
   }
 
   void finalizePurchase({required String internalNo, required String billNo, required DateTime date, DateTime? entryDate, required Party party, required List<PurchaseItem> items, required double total, required String mode}) { 
