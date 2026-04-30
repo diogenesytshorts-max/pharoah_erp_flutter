@@ -168,7 +168,13 @@ class _PurchaseBillingViewState extends State<PurchaseBillingView> {
         foregroundColor: Colors.white,
         title: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text(widget.distributor.name, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
-          Text(widget.isReadOnly ? "PURCHASE VIEW" : "Bill: ${widget.distBillNo} | ID: ${widget.internalNo}", style: const TextStyle(fontSize: 10))
+          // YE LOGIC AB SMARTLY HANDLE KAREGA
+          Text(widget.isReadOnly 
+              ? "PURCHASE VIEW" 
+              : (widget.distBillNo.isEmpty 
+                  ? "CONVERTING ID: ${widget.internalNo}" 
+                  : "Bill: ${widget.distBillNo} | ID: ${widget.internalNo}"), 
+              style: const TextStyle(fontSize: 10))
         ]),
         actions: [
           if (!widget.isReadOnly) 
