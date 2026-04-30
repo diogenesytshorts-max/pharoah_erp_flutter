@@ -34,7 +34,6 @@ class PharoahManager with ChangeNotifier {
     ModuleAction(title: "ACCOUNTS", icon: Icons.account_balance_wallet, color: Colors.indigo, navModule: "ACCOUNTS"),
     ModuleAction(title: "MASTERS", icon: Icons.stars, color: Colors.orange, navModule: "MASTERS"),
     ModuleAction(title: "MODIFICATIONS", icon: Icons.edit_note_rounded, color: Colors.blueGrey, navModule: "GO_MODIFICATION"),
-    ModuleAction(title: "COMPLIANCE", icon: Icons.verified_user_rounded, color: Colors.teal.shade700, navModule: "GO_COMPLIANCE"),
     ModuleAction(title: "GST", icon: Icons.verified, color: Colors.green, navModule: "GST"),
   ];
 
@@ -54,7 +53,44 @@ class PharoahManager with ChangeNotifier {
     ModuleAction(title: "Challan Dashboard", icon: Icons.dashboard_customize, color: Colors.blueGrey, navModule: "GO_CHALLAN"),
   ];
 
-  // --- CORE DATA LISTS ---
+  List<ModuleAction> get returnActions => [
+    ModuleAction(title: "Credit Note", icon: Icons.assignment_return, color: Colors.red, navModule: "GO_RETURN_SALE"),
+    ModuleAction(title: "Debit Note", icon: Icons.remove_shopping_cart, color: Colors.brown, navModule: "GO_RETURN_PUR"),
+    ModuleAction(title: "Breakage Return", icon: Icons.delete_sweep, color: Colors.deepOrange, navModule: "GO_RETURN_BREAKAGE"),
+  ];
+
+  List<ModuleAction> get inventoryActions => [
+    ModuleAction(title: "Stock View", icon: Icons.view_in_ar, color: Colors.purple, navModule: "GO_STOCK"),
+    ModuleAction(title: "Shortage", icon: Icons.trending_down, color: Colors.red, navModule: "GO_SHORTAGE"),
+    ModuleAction(title: "Item Ledger", icon: Icons.menu_book, color: Colors.blueGrey, navModule: "GO_ITEM_LEDGER"),
+    ModuleAction(title: "Dump Stock", icon: Icons.delete_sweep, color: Colors.brown, navModule: "GO_DUMP"),
+  ];
+
+  List<ModuleAction> get accountsActions => [
+    ModuleAction(title: "Daybook", icon: Icons.event_note, color: Colors.blueGrey, navModule: "GO_DAYBOOK"),
+    ModuleAction(title: "Ledgers", icon: Icons.people_alt, color: Colors.indigo, navModule: "GO_LEDGERS"),
+    ModuleAction(title: "Receipts", icon: Icons.add_chart, color: Colors.green, navModule: "GO_RECEIPT"),
+    ModuleAction(title: "Payments", icon: Icons.analytics, color: Colors.red, navModule: "GO_PAYMENT"),
+  ];
+
+  List<ModuleAction> get mastersActions => [
+    ModuleAction(title: "Parties", icon: Icons.group_add, color: Colors.indigo, navModule: "GO_M_PARTY"),
+    ModuleAction(title: "Items", icon: Icons.medication, color: Colors.purple, navModule: "GO_M_ITEM"),
+    ModuleAction(title: "Series Master", icon: Icons.format_list_numbered, color: Colors.blue, navModule: "GO_M_SERIES"),
+    ModuleAction(title: "Staff & Security", icon: Icons.admin_panel_settings, color: Colors.red, navModule: "GO_M_STAFF"),
+    ModuleAction(title: "Batches", icon: Icons.layers, color: Colors.blueGrey, navModule: "GO_M_BATCH"),
+    ModuleAction(title: "Routes", icon: Icons.map, color: Colors.teal, navModule: "GO_M_ROUTE"),
+    ModuleAction(title: "Company", icon: Icons.business, color: Colors.brown, navModule: "GO_M_COMP"),
+    ModuleAction(title: "Salt Master", icon: Icons.science, color: Colors.deepOrange, navModule: "GO_M_SALT"),
+  ];
+
+  List<ModuleAction> get gstActions => [
+    ModuleAction(title: "GSTR-1", icon: Icons.assignment, color: Colors.green, navModule: "GO_GST_1"),
+    ModuleAction(title: "GSTR-3B", icon: Icons.summarize, color: Colors.blue, navModule: "GO_GST_3B"),
+    ModuleAction(title: "Portal Match", icon: Icons.fact_check, color: Colors.teal, navModule: "GO_GST_RECON"),
+  ];
+
+  // --- CORE DATA ---
   List<Medicine> medicines = [];
   List<SystemUser> systemUsers = [];
   SystemUser? loggedInStaff;
@@ -85,7 +121,7 @@ class PharoahManager with ChangeNotifier {
   PharoahManager() { initRegistry(); }
 
   // ===========================================================================
-  // SESSION & STORAGE
+  // SESSION & REGISTRY
   // ===========================================================================
 
   Future<void> initRegistry() async {
@@ -119,6 +155,10 @@ class PharoahManager with ChangeNotifier {
     return dir.path;
   }
 
+  // ===========================================================================
+  // DATA PERSISTENCE
+  // ===========================================================================
+
   Future<void> save() async {
     final dir = await getWorkingPath(); if (dir.isEmpty) return;
     Future _write(String n, List data) async => await File('$dir/$n').writeAsString(jsonEncode(data.map((e) => e.toMap()).toList()));
@@ -150,9 +190,9 @@ class PharoahManager with ChangeNotifier {
     dynamic load(String n) { final f = File('$dir/$n'); return f.existsSync() ? jsonDecode(f.readAsStringSync()) : null; }
     medicines = (load('meds.json') as List?)?.map((e) => Medicine.fromMap(e)).toList() ?? DemoData.getMedicines();
     parties = (load('parts.json') as List?)?.map((e) => Party.fromMap(e)).toList() ?? [Party(id: 'cash', name: "CASH", group: "Cash in Hand")];
-    companies = (load('comps.json') as List?)?.map((e) => Company.fromMap(e)).toList() ?? [];
-    salts = (load('salts.json') as List?)?.map((e) => Salt.fromMap(e)).toList() ?? [];
-    drugTypes = (load('dtypes.json') as List?)?.map((e) => DrugType.fromMap(e)).toList() ?? [];
+    companies = (load('comps.json') as List?)?.map((e) => Company.fromMap(e)).toList() ?? MasterDataLibrary.getTopCompanies();
+    salts = (load('salts.json') as List?)?.map((e) => Salt.fromMap(e)).toList() ?? MasterDataLibrary.getTopSalts();
+    drugTypes = (load('dtypes.json') as List?)?.map((e) => DrugType.fromMap(e)).toList() ?? MasterDataLibrary.getDrugTypes();
     sales = (load('sales.json') as List?)?.map((e) => Sale.fromMap(e)).toList() ?? [];
     purchases = (load('purc.json') as List?)?.map((e) => Purchase.fromMap(e)).toList() ?? [];
     vouchers = (load('vouc.json') as List?)?.map((e) => Voucher.fromMap(e)).toList() ?? [];
@@ -173,7 +213,7 @@ class PharoahManager with ChangeNotifier {
   }
 
   // ===========================================================================
-  // TRANSACTION FINALIZATION
+  // FINALIZATION LOGIC
   // ===========================================================================
 
   void finalizeSale({required String billNo, required DateTime date, required Party party, required List<BillItem> items, required double total, required String mode, bool isEdit = false, List<String>? linkedIds}) { 
@@ -211,21 +251,14 @@ class PharoahManager with ChangeNotifier {
   }
 
   // ===========================================================================
-  // DELETE LOGIC (WITH REVERSALS)
+  // DELETE & MASTER MANAGEMENT
   // ===========================================================================
 
   void deleteBill(String id) {
-    try {
-      final sale = sales.firstWhere((s) => s.id == id);
-      if (sale.linkedChallanIds.isNotEmpty) {
-        for (var cId in sale.linkedChallanIds) {
-          int idx = saleChallans.indexWhere((c) => c.id == cId);
-          if (idx != -1) saleChallans[idx].status = "Pending";
-        }
-      }
-      sales.removeWhere((s) => s.id == id);
-      save().then((_) => loadAllData());
-    } catch (e) { debugPrint("Delete Error: $e"); }
+    final sale = sales.firstWhere((s) => s.id == id);
+    if (sale.linkedChallanIds.isNotEmpty) { for (var cId in sale.linkedChallanIds) { int idx = saleChallans.indexWhere((c) => c.id == cId); if (idx != -1) saleChallans[idx].status = "Pending"; } }
+    sales.removeWhere((s) => s.id == id);
+    save().then((_) => loadAllData());
   }
 
   void deletePurchase(String id) { purchases.removeWhere((p) => p.id == id); save().then((_) => loadAllData()); }
@@ -235,11 +268,6 @@ class PharoahManager with ChangeNotifier {
   void deletePurchaseReturn(String id) { purchaseReturns.removeWhere((r) => r.id == id); save(); }
   void deleteParty(String id) { parties.removeWhere((p) => p.id == id); save(); }
   void deleteRoute(String id) { routes.removeWhere((r) => r.id == id); save(); }
-  
-  // ===========================================================================
-  // MASTER OPERATIONS
-  // ===========================================================================
-
   void addLog(String action, String details) { logs.add(LogEntry(id: DateTime.now().toString(), action: action, details: details, time: DateTime.now())); save(); }
   void addRoute(RouteArea r) { routes.add(r); save(); }
   void addMedicine(Medicine m) { medicines.add(m); if (!batchHistory.containsKey(m.identityKey)) batchHistory[m.identityKey] = []; save(); }
@@ -252,7 +280,7 @@ class PharoahManager with ChangeNotifier {
   void addNumberingSeries(NumberingSeries ns) { numberingSeries.add(ns); save(); }
   void updateNumberingSeries(NumberingSeries ns) { int i = numberingSeries.indexWhere((x) => x.id == ns.id); if(i != -1) { numberingSeries[i] = ns; save(); } }
   void updateAppConfig(AppConfig c) { config = c; notifyListeners(); }
-  void resetCounter(String type) { addLog("SYSTEM", "Reset requested for $type"); notifyListeners(); }
+  void resetCounter(String type) { addLog("SYSTEM", "Reset for $type"); notifyListeners(); }
   void addVoucher(Voucher v) { vouchers.add(v); save(); }
   void addBank(Bank b) { banks.add(b); save(); }
   void deleteBank(String id) { banks.removeWhere((b) => b.id == id); save(); }
@@ -263,19 +291,28 @@ class PharoahManager with ChangeNotifier {
   void addManualShortage({required Medicine med, required double qty, String cust = ""}) { shortages.add(ShortageItem(id: DateTime.now().toString(), medicineId: med.id, medicineName: med.name, companyName: med.companyId, qtyRequired: qty, currentStock: med.stock, date: DateTime.now(), customerName: cust)); save(); }
   void updateChequeStatus(String id, String status, String reason) { int i = cheques.indexWhere((c) => c.id == id); if(i != -1) { cheques[i].status = status; cheques[i].remark = reason; save(); } }
 
-  double calculateAvgMonthlySale(String id) => 0.0;
-  void runAutoShortageScan() {}
+  // ===========================================================================
+  // MISC
+  // ===========================================================================
 
-  // ===========================================================================
-  // SYSTEM CONTEXT
-  // ===========================================================================
+  List<BankTransaction> getBankStatement(String bankName, DateTime from, DateTime to) {
+    List<BankTransaction> list = [];
+    for(var v in vouchers.where((v) => v.paymentMode == "Bank" || v.paymentMode == "Cheque")) {
+       if (v.date.isAfter(from.subtract(const Duration(days:1))) && v.date.isBefore(to.add(const Duration(days:1)))) {
+         list.add(BankTransaction(id: v.id, date: v.date, particulars: v.partyName, reference: v.narration, amountIn: v.type == "Receipt" ? v.amount : 0, amountOut: v.type == "Payment" ? v.amount : 0, type: "VOUCHER"));
+       }
+    }
+    return list;
+  }
 
   Future<void> setupNewCompanyEnvironment(CompanyProfile profile, String initialFY) async {
     activeCompany = profile; currentFY = initialFY;
     numberingSeries = [NumberingSeries(id: 's1', name: "Standard Retail", type: "SALE", prefix: "INV-", isDefault: true)];
     medicines = DemoData.getMedicines();
-    companies = []; salts = []; drugTypes = [];
-    parties = [Party(id: 'cash', name: "CASH", group: "Cash in Hand")];
+    companies = MasterDataLibrary.getTopCompanies();
+    salts = MasterDataLibrary.getTopSalts();
+    drugTypes = MasterDataLibrary.getDrugTypes();
+    parties = [DemoData.getDemoParty(), Party(id: 'cash', name: "CASH", group: "Cash in Hand")];
     await save();
     if (!companiesRegistry.any((c) => c.id == profile.id)) { companiesRegistry.add(profile); await saveRegistry(); }
     notifyListeners();
