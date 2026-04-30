@@ -45,6 +45,7 @@ class PharoahManager with ChangeNotifier {
     ModuleAction(title: "Purchase", icon: Icons.downloading, color: Colors.orange, navModule: "GO_PURCHASE"),
     ModuleAction(title: "Sale Register", icon: Icons.description_outlined, color: Colors.blue, navModule: "GO_SALE_REG"),
     ModuleAction(title: "Pur Register", icon: Icons.history_rounded, color: Colors.brown, navModule: "GO_PUR_REG"),
+    ModuleAction(title: "CONVERT CHALLAN TO BILL", icon: Icons.PublishedWithChanges_rounded, color: Colors.teal, navModule: "GO_CHALLAN_CONV"),
   ];
 
   List<ModuleAction> get challanActions => [
@@ -271,7 +272,24 @@ class PharoahManager with ChangeNotifier {
   // MASTER MANAGEMENT & DELETE OPS
   // ===========================================================================
 
-  void deleteBill(String id) { sales.removeWhere((s) => s.id == id); save().then((_) => loadAllData()); }
+  void deleteBill(String id) {
+    // 1. Bill dhoondo
+    final saleToDelete = sales.firstWhere((s) => s.id == id);
+    
+    // 2. Agar ye bill Challan se bana tha, toh Challans ko wapas Pending karo
+    if (saleToDelete.linkedChallanIds.isNotEmpty) {
+      for (var challanId in saleToDelete.linkedChallanIds) {
+        int idx = saleChallans.indexWhere((c) => c.id == challanId);
+        if (idx != -1) saleChallans[idx].status = "Pending";
+      }
+    }
+
+    // 3. Delete Bill
+    sales.removeWhere((s) => s.id == id);
+    
+    // 4. Save aur Sync (Inventory automatic manage ho jayegi rebuild se)
+    save().then((_) => loadAllData()); 
+  }
   void deletePurchase(String id) { purchases.removeWhere((p) => p.id == id); save().then((_) => loadAllData()); }
   void deleteSaleChallan(String id) { saleChallans.removeWhere((c) => c.id == id); save(); }
   void deletePurchaseChallan(String id) { purchaseChallans.removeWhere((c) => c.id == id); save(); }
