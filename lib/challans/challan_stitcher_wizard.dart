@@ -7,7 +7,8 @@ import '../pharoah_manager.dart';
 import '../models.dart';
 import '../pharoah_date_controller.dart';
 import '../billing_view.dart';
-import '../purchase/purchase_billing_view.dart'; // Import fix
+import '../purchase/purchase_billing_view.dart';
+import '../logic/pharoah_numbering_engine.dart'; // <--- YE MISSING THA (FIXED)
 
 class ChallanStitcherWizard extends StatefulWidget {
   const ChallanStitcherWizard({super.key});
@@ -114,7 +115,6 @@ class _ChallanStitcherWizardState extends State<ChallanStitcherWizard> with Sing
   }
 
   Widget _buildChallanList(PharoahManager ph, bool isSale) {
-    // FIX: Explicit casting for stability
     final List<dynamic> rawList = isSale ? ph.saleChallans : ph.purchaseChallans;
     
     final list = rawList.where((dynamic c) {
@@ -178,19 +178,16 @@ class _ChallanStitcherWizardState extends State<ChallanStitcherWizard> with Sing
       child: ElevatedButton(
         style: ElevatedButton.styleFrom(backgroundColor: isSale ? Colors.indigo.shade900 : Colors.orange.shade900, foregroundColor: Colors.white, minimumSize: const Size(double.infinity, 55), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
         onPressed: () => _handleConversion(ph, isSale),
-        child: Text("CONVERT ${selectedChallanIds.length} CHALLANS TO BILL", style: const TextStyle(fontWeight: FontWeight.bold)),
+        child: Text("CONVERT ${selectedChallanIds.length} CHALLANS", style: const TextStyle(fontWeight: FontWeight.bold)),
       ),
     );
   }
 
   void _handleConversion(PharoahManager ph, bool isSale) async {
-    // 1. Loading Indicator dikhao taaki user ko lage system check kar raha hai
     showDialog(context: context, barrierDismissible: false, builder: (c) => const Center(child: CircularProgressIndicator()));
 
     String nextBillNo = "";
-    
     if (isSale) {
-      // --- SALE BILL NUMBER GENERATION ---
       var series = ph.getDefaultSeries("SALE");
       nextBillNo = await PharoahNumberingEngine.getNextNumber(
         type: "SALE",
@@ -202,27 +199,14 @@ class _ChallanStitcherWizardState extends State<ChallanStitcherWizard> with Sing
 
       List<BillItem> merged = [];
       List<SaleChallan> selected = ph.saleChallans.where((c) => selectedChallanIds.contains(c.id)).toList();
-      
       for (var ch in selected) {
         for (var it in ch.items) {
-          merged.add(it.copyWith(
-            sourceChallanNo: "${ch.billNo} (${DateFormat('dd/MM').format(ch.date)})"
-          ));
+          merged.add(it.copyWith(sourceChallanNo: "${ch.billNo} (${DateFormat('dd/MM').format(ch.date)})"));
         }
       }
-
-      Navigator.pop(context); // Loader hatao
-      Navigator.push(context, MaterialPageRoute(builder: (c) => BillingView(
-        party: selectedParty!, 
-        billNo: nextBillNo, // <--- AB ACTUAL NUMBER JAYEGA
-        billDate: DateTime.now(), 
-        mode: "CREDIT", 
-        existingItems: merged,
-        linkedChallanIds: selectedChallanIds,
-      )));
-
+      Navigator.pop(context);
+      Navigator.push(context, MaterialPageRoute(builder: (c) => BillingView(party: selectedParty!, billNo: nextBillNo, billDate: DateTime.now(), mode: "CREDIT", existingItems: merged, linkedChallanIds: selectedChallanIds)));
     } else {
-      // --- PURCHASE BILL NUMBER GENERATION (INTERNAL ID) ---
       nextBillNo = await PharoahNumberingEngine.getNextNumber(
         type: "PURCHASE",
         companyID: ph.activeCompany!.id,
@@ -233,31 +217,19 @@ class _ChallanStitcherWizardState extends State<ChallanStitcherWizard> with Sing
 
       List<PurchaseItem> merged = [];
       List<PurchaseChallan> selected = ph.purchaseChallans.where((c) => selectedChallanIds.contains(c.id)).toList();
-      
       for (var ch in selected) {
         for (var it in ch.items) {
-          // Purchase mein hum temporary reference HSN field mein store kar rahe hain dikhane ke liye
-          merged.add(it.copyWith(
-            srNo: merged.length + 1,
-          ));
+          merged.add(it.copyWith(srNo: merged.length + 1));
         }
       }
-
-      Navigator.pop(context); // Loader hatao
-      Navigator.push(context, MaterialPageRoute(builder: (c) => PurchaseBillingView(
-        distributor: selectedParty!, 
-        internalNo: nextBillNo, // <--- AB ACTUAL NUMBER JAYEGA
-        distBillNo: "", // Supplier ka bill no user wahan khud bharega
-        billDate: DateTime.now(), 
-        entryDate: DateTime.now(), 
-        mode: "CREDIT", 
-        existingItems: merged,
-      )));
+      Navigator.pop(context);
+      Navigator.push(context, MaterialPageRoute(builder: (c) => PurchaseBillingView(distributor: selectedParty!, internalNo: nextBillNo, distBillNo: "", billDate: DateTime.now(), entryDate: DateTime.now(), mode: "CREDIT", existingItems: merged)));
     }
   }
+
   Widget _dateTile(String l, DateTime d, Function(DateTime) onPick, String fy) => InkWell(
     onTap: () async { DateTime? p = await PharoahDateController.pickDate(context: context, currentFY: fy, initialDate: d); if(p!=null) onPick(p); },
-    child: Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(border: Border.all(color: Colors.grey.shade300), borderRadius: BorderRadius.circular(10)), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(l, style: const TextStyle(fontSize: 8, color: Colors.grey, fontWeight: FontWeight.bold)), Text(DateFormat('dd/MM/yy').format(d), style: const TextStyle(fontWeight: FontWeight.bold))])),
+    child: Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(border: Border.all(color: Colors.grey.shade300), borderRadius: BorderRadius.circular(10)), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(l, style: const TextStyle(fontSize: 8, color: Colors.grey)), Text(DateFormat('dd/MM/yy').format(d), style: const TextStyle(fontWeight: FontWeight.bold))])),
   );
 
   Widget _buildPlaceholder(String t) => Center(child: Padding(padding: const EdgeInsets.all(40), child: Text(t, textAlign: TextAlign.center, style: const TextStyle(color: Colors.grey, fontStyle: FontStyle.italic))));
