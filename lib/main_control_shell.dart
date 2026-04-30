@@ -187,19 +187,14 @@ class _MainControlShellState extends State<MainControlShell> {
     } else if (action.navModule != null) {
       Widget? target;
       switch (action.navModule) {
-          case "GO_RETURN_PUR_REG": target = const PurchaseReturnRegister(); break;
-          case "GO_RETURN_SALE_REG": target = const SaleReturnRegister(); break;
-          case "GO_CHALLAN_SALE_REG": target = const SaleChallanRegister(); break;
-        // YAHAN NICHE WALI LINE PASTE KAREIN
+        case "GO_RETURN_PUR_REG": target = const PurchaseReturnRegister(); break;
+        case "GO_RETURN_SALE_REG": target = const SaleReturnRegister(); break;
         case "GO_CHALLAN_PUR_REG": target = const PurchaseChallanRegister(); break;
-          case "GO_CHALLAN_SALE": target = const SaleChallanView(); break;
-        // YAHAN NICHE WALI LINE PASTE KAREIN
         case "GO_CHALLAN_SALE_REG": target = const SaleChallanRegister(); break;
         case "GO_SALE": target = const SaleEntryView(); break;
         case "GO_PURCHASE": target = const PurchaseEntryView(); break;
         case "GO_SALE_REG": target = const SaleSummaryView(); break;
         case "GO_PUR_REG": target = const PurchaseSummaryView(); break;
-      
         case "GO_CHALLAN_SALE": target = const SaleChallanView(); break;
         case "GO_CHALLAN_PUR": target = const PurchaseChallanView(); break;
         case "GO_CHALLAN_CONV": target = const ChallanToBillConverter(); break;
@@ -227,12 +222,13 @@ class _MainControlShellState extends State<MainControlShell> {
         case "GO_GST_1": target = const GSTReportDetailView(reportType: "GSTR-1"); break;
         case "GO_GST_3B": target = const GSTReportDetailView(reportType: "GSTR-3B"); break;
         case "GO_GST_RECON": target = const GSTReconciliationView(); break;
-        // NAYA RASTA ADDED BELOW
-        case "GO_DATA_HUB": target = const DataExchangeView(); break;
-      }
-          // CASE ADD KAREIN:
         case "GO_STITCHER_WIZARD": target = const ChallanStitcherWizard(); break;
-      }
+        
+        // YE LINE SWITCH KE ANDAR HONI CHAHIYE (Closing } se pehle)
+        case "GO_DATA_HUB": target = const DataExchangeView(); break; 
+      } // <--- SWITCH BLOCK YAHAN KHATAM HOGA
+
+      // Navigation switch ke bahar honi chahiye
       if (target != null) Navigator.push(context, MaterialPageRoute(builder: (c) => target!));
     }
   }
