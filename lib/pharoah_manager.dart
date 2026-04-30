@@ -57,6 +57,7 @@ class PharoahManager with ChangeNotifier {
     ModuleAction(title: "Credit Note", icon: Icons.assignment_return, color: Colors.red, navModule: "GO_RETURN_SALE"),
     ModuleAction(title: "Debit Note", icon: Icons.remove_shopping_cart, color: Colors.brown, navModule: "GO_RETURN_PUR"),
     ModuleAction(title: "Breakage Return", icon: Icons.delete_sweep, color: Colors.deepOrange, navModule: "GO_RETURN_BREAKAGE"),
+    ModuleAction(title: "Pur. Register", icon: Icons.history_edu_rounded, color: Colors.brown.shade800, navModule: "GO_RETURN_PUR_REG"),
   ];
 
   List<ModuleAction> get inventoryActions => [
