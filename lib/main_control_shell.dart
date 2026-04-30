@@ -9,6 +9,7 @@ import 'widgets.dart';
 import 'inventory_logic_center.dart';
 
 // --- VIEWS IMPORTS ---
+import 'returns/purchase_return_register.dart';
 import 'returns/sale_return_register.dart';
 import 'challans/challan_stitcher_wizard.dart';
 import 'sale_entry_view.dart';
