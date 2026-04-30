@@ -115,7 +115,25 @@ class _SaleSummaryViewState extends State<SaleSummaryView> {
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                 child: ListTile(
                   title: Text(s.partyName, style: const TextStyle(fontWeight: FontWeight.bold)),
-                  subtitle: Text("Bill: ${s.billNo} | Date: ${AppDateLogic.format(s.date)}\nTotal: ₹${s.totalAmount.toStringAsFixed(2)}"),
+                  subtitle: Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Row(
+        children: [
+          Text("Bill: ${s.billNo} | ${AppDateLogic.format(s.date)}", style: const TextStyle(fontSize: 12)),
+          if (s.linkedChallanIds.isNotEmpty) ...[
+            const SizedBox(width: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+              decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(4), border: Border.all(color: Colors.blue.shade200)),
+              child: Text("MERGED", style: TextStyle(color: Colors.blue.shade900, fontSize: 8, fontWeight: FontWeight.bold)),
+            ),
+          ],
+        ],
+      ),
+      Text("Total: ₹${s.totalAmount.toStringAsFixed(2)}", style: const TextStyle(fontWeight: FontWeight.bold)),
+    ],
+  ),
                   trailing: Row(mainAxisSize: MainAxisSize.min, children: [
                     IconButton(
                       icon: const Icon(Icons.print, color: Colors.blueGrey), 
