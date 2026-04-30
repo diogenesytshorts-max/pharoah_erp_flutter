@@ -9,6 +9,7 @@ import 'widgets.dart';
 import 'inventory_logic_center.dart';
 
 // --- VIEWS IMPORTS ---
+import 'challans/challan_stitcher_wizard.dart';
 import 'sale_entry_view.dart';
 import 'purchase/purchase_entry_view.dart';
 import 'challans/challan_dashboard.dart';
@@ -222,6 +223,8 @@ class _MainControlShellState extends State<MainControlShell> {
         case "GO_GST_1": target = const GSTReportDetailView(reportType: "GSTR-1"); break;
         case "GO_GST_3B": target = const GSTReportDetailView(reportType: "GSTR-3B"); break;
         case "GO_GST_RECON": target = const GSTReconciliationView(); break;
+          // CASE ADD KAREIN:
+        case "GO_STITCHER_WIZARD": target = const ChallanStitcherWizard(); break;
       }
       if (target != null) Navigator.push(context, MaterialPageRoute(builder: (c) => target!));
     }
