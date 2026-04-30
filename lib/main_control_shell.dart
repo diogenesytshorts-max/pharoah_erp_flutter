@@ -9,6 +9,7 @@ import 'widgets.dart';
 import 'inventory_logic_center.dart';
 
 // --- VIEWS IMPORTS ---
+import 'returns/sale_return_register.dart';
 import 'challans/challan_stitcher_wizard.dart';
 import 'sale_entry_view.dart';
 import 'purchase/purchase_entry_view.dart';
@@ -185,6 +186,7 @@ class _MainControlShellState extends State<MainControlShell> {
     } else if (action.navModule != null) {
       Widget? target;
       switch (action.navModule) {
+          case "GO_RETURN_SALE_REG": target = const SaleReturnRegister(); break;
           case "GO_CHALLAN_SALE_REG": target = const SaleChallanRegister(); break;
         // YAHAN NICHE WALI LINE PASTE KAREIN
         case "GO_CHALLAN_PUR_REG": target = const PurchaseChallanRegister(); break;
