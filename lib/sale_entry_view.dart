@@ -211,8 +211,17 @@ class _SaleEntryViewState extends State<SaleEntryView> {
     bool isStaff = ph.loggedInStaff != null;
     if (isStaff) {
       Navigator.push(context, MaterialPageRoute(builder: (c) => StaffBillingView(party: selectedParty!, billNo: billNoC.text, billDate: selectedDate, mode: paymentMode)));
-    } else {
-      Navigator.push(context, MaterialPageRoute(builder: (c) => BillingView(party: selectedParty!, billNo: billNoC.text, billDate: selectedDate, mode: paymentMode, existingItems: widget.existingSale?.items, modifySaleId: widget.existingSale?.id, isReadOnly: widget.isReadOnly)));
+   } else {
+      Navigator.push(context, MaterialPageRoute(builder: (c) => BillingView(
+        party: selectedParty!, 
+        billNo: billNoC.text, 
+        billDate: selectedDate, 
+        mode: paymentMode, 
+        existingItems: widget.existingSale?.items, 
+        modifySaleId: widget.existingSale?.id, 
+        isReadOnly: widget.isReadOnly,
+        linkedChallanIds: const [], // Naya argument for normal sales
+      )));
     }
   }
 }
