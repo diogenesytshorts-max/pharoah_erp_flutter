@@ -115,7 +115,25 @@ class _PurchaseSummaryViewState extends State<PurchaseSummaryView> {
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                 child: ListTile(
                   title: Text(p.distributorName, style: const TextStyle(fontWeight: FontWeight.bold)),
-                  subtitle: Text("Bill: ${p.billNo} | ${AppDateLogic.format(p.date)}\nTotal: ₹${p.totalAmount.toStringAsFixed(2)}"),
+                  subtitle: Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Row(
+        children: [
+          Text("Bill: ${p.billNo} | ${AppDateLogic.format(p.date)}", style: const TextStyle(fontSize: 12)),
+          if (p.linkedChallanIds.isNotEmpty) ...[
+            const SizedBox(width: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+              decoration: BoxDecoration(color: Colors.orange.shade50, borderRadius: BorderRadius.circular(4), border: Border.all(color: Colors.orange.shade200)),
+              child: Text("MERGED", style: TextStyle(color: Colors.orange.shade900, fontSize: 8, fontWeight: FontWeight.bold)),
+            ),
+          ],
+        ],
+      ),
+      Text("Total: ₹${p.totalAmount.toStringAsFixed(2)}", style: const TextStyle(fontWeight: FontWeight.bold)),
+    ],
+  ),
                   trailing: Row(mainAxisSize: MainAxisSize.min, children: [
                     IconButton(
                       icon: const Icon(Icons.print, color: Colors.blueGrey), 
