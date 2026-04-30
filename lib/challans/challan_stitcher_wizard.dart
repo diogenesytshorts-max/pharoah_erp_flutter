@@ -205,8 +205,18 @@ class _ChallanStitcherWizardState extends State<ChallanStitcherWizard> with Sing
         }
       }
       Navigator.pop(context);
-      Navigator.push(context, MaterialPageRoute(builder: (c) => BillingView(party: selectedParty!, billNo: nextBillNo, billDate: DateTime.now(), mode: "CREDIT", existingItems: merged, linkedChallanIds: selectedChallanIds)));
-    } else {
+    // Smart Date Logic: Current FY ke range ki date lega
+      DateTime smartBillDate = PharoahDateController.getInitialBillDate(ph.currentFY);
+
+      Navigator.pop(context);
+      Navigator.push(context, MaterialPageRoute(builder: (c) => BillingView(
+        party: selectedParty!, 
+        billNo: nextBillNo, 
+        billDate: smartBillDate, 
+        mode: "CREDIT", 
+        existingItems: merged, 
+        linkedChallanIds: selectedChallanIds,
+      )));
       nextBillNo = await PharoahNumberingEngine.getNextNumber(
         type: "PURCHASE",
         companyID: ph.activeCompany!.id,
