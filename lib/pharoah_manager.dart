@@ -219,8 +219,19 @@ class PharoahManager with ChangeNotifier {
   // TRANSACTION FINALIZATION (SALE / PURCHASE / CHALLAN)
   // ===========================================================================
 
-  void finalizeSale({required String billNo, required DateTime date, required Party party, required List<BillItem> items, required double total, required String mode, bool isEdit = false}) { 
-    sales.add(Sale(id: DateTime.now().toString(), billNo: billNo, date: date, partyName: party.name, partyGstin: party.gst, partyState: party.state, items: items, totalAmount: total, paymentMode: mode)); 
+  void finalizeSale({required String billNo, required DateTime date, required Party party, required List<BillItem> items, required double total, required String mode, bool isEdit = false, List<String>? linkedIds}) { 
+    // linkedIds naya parameter hai
+    final newSale = Sale(id: DateTime.now().toString(), billNo: billNo, date: date, partyName: party.name, partyGstin: party.gst, partyState: party.state, items: items, totalAmount: total, paymentMode: mode, linkedChallanIds: linkedIds ?? []);
+    sales.add(newSale); 
+    
+    // NAYA: Challans ko "Billed" mark karna
+    if (linkedIds != null) {
+      for (var id in linkedIds) {
+        int idx = saleChallans.indexWhere((c) => c.id == id);
+        if (idx != -1) saleChallans[idx].status = "Billed";
+      }
+    }
+
     if (activeCompany != null) {
       PharoahNumberingEngine.updateSeriesCounter(type: "SALE", companyID: activeCompany!.id, usedNumber: billNo, prefix: billNo.split(RegExp(r'\d')).first);
     }
