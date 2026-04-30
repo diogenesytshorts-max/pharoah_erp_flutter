@@ -186,6 +186,7 @@ class _MainControlShellState extends State<MainControlShell> {
     } else if (action.navModule != null) {
       Widget? target;
       switch (action.navModule) {
+          case "GO_RETURN_PUR_REG": target = const PurchaseReturnRegister(); break;
           case "GO_RETURN_SALE_REG": target = const SaleReturnRegister(); break;
           case "GO_CHALLAN_SALE_REG": target = const SaleChallanRegister(); break;
         // YAHAN NICHE WALI LINE PASTE KAREIN
