@@ -214,7 +214,11 @@ class _SaleChallanRegisterState extends State<SaleChallanRegister> {
               Navigator.pop(c);
               Navigator.push(context, MaterialPageRoute(builder: (c) => SaleChallanView(existingRecord: ch, isReadOnly: true)));
             }),
-            _menuTile(Icons.edit, "Modify Challan", Colors.orange, () {
+            _menuTile(Icons.edit, "Modify Challan", ch.status == "Billed" ? Colors.grey : Colors.orange, () {
+              if (ch.status == "Billed") {
+                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Locked: Bill has already been generated!")));
+                return;
+              }
               Navigator.pop(c);
               Navigator.push(context, MaterialPageRoute(builder: (c) => SaleChallanView(existingRecord: ch)));
             }),
