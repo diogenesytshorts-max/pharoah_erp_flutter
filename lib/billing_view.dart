@@ -334,8 +334,8 @@ class _BillingViewState extends State<BillingView> {
   void _handleSave(PharoahManager ph) {
     if (widget.modifySaleId != null) ph.deleteBill(widget.modifySaleId!);
     ph.finalizeSale(
-      billNo: widget.billNo, 
-      date: widget.billDate, 
+      billNo: billNoC.text, // <--- Controller se uthayega
+      date: selectedBillDate, // <--- Selected date lega
       party: widget.party, 
       items: items, 
       total: totalAmt, 
