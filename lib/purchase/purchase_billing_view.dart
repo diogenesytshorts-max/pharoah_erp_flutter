@@ -35,12 +35,21 @@ class PurchaseBillingView extends StatefulWidget {
 }
 
 class _PurchaseBillingViewState extends State<PurchaseBillingView> {
+  // NEW: Editable Header Controllers
+  late TextEditingController internalNoC;
+  late TextEditingController distBillNoC;
+  late DateTime selectedBillDate;
   List<PurchaseItem> items = [];
   double get totalAmt => items.fold(0, (sum, it) => sum + it.total);
 
   @override
   void initState() {
     super.initState();
+    // Initialize with data passed from wizard or entry
+    internalNoC = TextEditingController(text: widget.internalNo);
+    distBillNoC = TextEditingController(text: widget.distBillNo);
+    selectedBillDate = widget.billDate;
+    
     if (widget.existingItems != null) items = List.from(widget.existingItems!);
   }
 
@@ -203,10 +212,45 @@ class _PurchaseBillingViewState extends State<PurchaseBillingView> {
   Widget _buildHeader() => Container(
     padding: const EdgeInsets.all(15), margin: const EdgeInsets.fromLTRB(10, 10, 10, 5),
     decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12)),
-    child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-      Text(widget.distributor.name, style: TextStyle(fontWeight: FontWeight.bold, color: Colors.orange.shade900)),
-      Text(DateFormat('dd/MM/yyyy').format(widget.billDate), style: const TextStyle(fontWeight: FontWeight.bold)),
-    ]),
+    child: Column(
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(widget.distributor.name, style: TextStyle(fontWeight: FontWeight.bold, color: Colors.orange.shade900)),
+            InkWell(
+              onTap: widget.isReadOnly ? null : () async {
+                final ph = Provider.of<PharoahManager>(context, listen: false);
+                DateTime? p = await PharoahDateController.pickDate(context: context, currentFY: ph.currentFY, initialDate: selectedBillDate);
+                if (p != null) setState(() => selectedBillDate = p);
+              },
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(border: Border.all(color: Colors.grey.shade300), borderRadius: BorderRadius.circular(5)),
+                child: Text(DateFormat('dd/MM/yyyy').format(selectedBillDate), style: const TextStyle(fontWeight: FontWeight.bold)),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            Expanded(child: TextField(
+              controller: internalNoC, readOnly: true,
+              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey),
+              decoration: const InputDecoration(labelText: "INTERNAL ID", border: OutlineInputBorder(), isDense: true),
+            )),
+            const SizedBox(width: 10),
+            Expanded(child: TextField(
+              controller: distBillNoC, readOnly: widget.isReadOnly,
+              textCapitalization: TextCapitalization.characters,
+              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+              decoration: const InputDecoration(labelText: "SUPPLIER BILL NO", border: OutlineInputBorder(), isDense: true),
+            )),
+          ],
+        ),
+      ],
+    ),
   );
 
   Widget _buildSearchBarTrigger(PharoahManager ph) {
@@ -276,7 +320,16 @@ class _PurchaseBillingViewState extends State<PurchaseBillingView> {
 
   void _handleSave(PharoahManager ph) {
     if (widget.modifyPurchaseId != null) ph.deletePurchase(widget.modifyPurchaseId!);
-    ph.finalizePurchase(internalNo: widget.internalNo, billNo: widget.distBillNo, date: widget.billDate, entryDate: widget.entryDate, party: widget.distributor, items: items, total: totalAmt, mode: widget.mode);
+    ph.finalizePurchase(
+      internalNo: internalNoC.text, 
+      billNo: distBillNoC.text.trim(), 
+      date: selectedBillDate, 
+      entryDate: widget.entryDate, 
+      party: widget.distributor, 
+      items: items, 
+      total: totalAmt, 
+      mode: widget.mode
+    );
     Navigator.of(context).popUntil((route) => route.isFirst);
   }
 }
