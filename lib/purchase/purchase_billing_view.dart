@@ -229,8 +229,15 @@ class _PurchaseBillingViewState extends State<PurchaseBillingView> {
     final card = Card(
       elevation: 2, margin: const EdgeInsets.symmetric(vertical: 4),
       child: ListTile(
-        leading: CircleAvatar(backgroundColor: Colors.orange.shade50, child: Text("${it.srNo}", style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.deepOrange))),
-        title: Text(it.name, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.deepOrange)),
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(it.name, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.deepOrange)),
+            // NAYA: Purchase mein bhi source dikhana hai
+            if (it.hsn.contains('PCH-')) // Purchase mein hum HSN ya kisi field mein temporary ref rakhte hain
+               Text("Ref: ${it.hsn}", style: const TextStyle(fontSize: 9, color: Colors.blueGrey, fontWeight: FontWeight.bold)),
+          ],
+        ),
         subtitle: Text("Batch: ${it.batch} | Qty: ${it.qty.toInt()} | Pur.Rate: ₹${it.purchaseRate.toStringAsFixed(2)}"),
         trailing: Text("₹${it.total.toStringAsFixed(2)}", style: const TextStyle(fontWeight: FontWeight.bold)),
         onTap: widget.isReadOnly ? null : () => _showItemSearchSheet(ph, itemToEdit: it),
