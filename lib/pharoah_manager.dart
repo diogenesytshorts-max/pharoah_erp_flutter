@@ -219,9 +219,7 @@ class PharoahManager with ChangeNotifier {
 
   void finalizeSale({required String billNo, required DateTime date, required Party party, required List<BillItem> items, required double total, required String mode, bool isEdit = false, List<String>? linkedIds}) { 
     sales.add(Sale(id: DateTime.now().toString(), billNo: billNo, date: date, partyName: party.name, partyGstin: party.gst, partyState: party.state, items: items, totalAmount: total, paymentMode: mode, linkedChallanIds: linkedIds ?? [])); 
-    if (linkedIds != null) { for (var id in linkedIds) { int idx = saleChallans.indexWhere((c) => c.id == id); if (idx != -1) saleChallans[idx].status = "Billed"; } }
-    if (activeCompany != null) PharoahNumberingEngine.updateSeriesCounter(type: "SALE", companyID: activeCompany!.id, usedNumber: billNo, prefix: billNo.split(RegExp(r'\d')).first);
-    save().then((_) => loadAllData()); 
+    if (linkedIds != null && linkedIds.isNotEmpty) {<br>  for (var id in linkedIds) {<br>    int idx = saleChallans.indexWhere((c) => c.id == id);<br>    if (idx != -1) {<br>      saleChallans[idx].status = "Billed";<br>      addLog("CHALLAN", "Challan ${saleChallans[idx].billNo} converted to Bill $billNo");<br>    }<br>  }<br>}<br>if (activeCompany != null) await PharoahNumberingEngine.updateSeriesCounter(...);<br>await save(); // Wait for disk write<br>notifyListeners(); // Refresh UI directly
   }
 
   void finalizePurchase({required String internalNo, required String billNo, required DateTime date, DateTime? entryDate, required Party party, required List<PurchaseItem> items, required double total, required String mode}) { 
