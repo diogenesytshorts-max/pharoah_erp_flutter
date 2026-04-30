@@ -37,12 +37,19 @@ class BillingView extends StatefulWidget {
 }
 
 class _BillingViewState extends State<BillingView> {
+  // NEW: Editable Header States
+  late TextEditingController billNoC;
+  late DateTime selectedBillDate;
   List<BillItem> items = [];
   double get totalAmt => items.fold(0, (sum, it) => sum + it.total);
 
-  @override
+ @override
   void initState() {
     super.initState();
+    // Initialize with passed data
+    billNoC = TextEditingController(text: widget.billNo);
+    selectedBillDate = widget.billDate;
+    
     if (widget.existingItems != null) items = List.from(widget.existingItems!);
   }
 
