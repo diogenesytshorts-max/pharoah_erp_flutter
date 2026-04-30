@@ -186,10 +186,9 @@ class _ChallanStitcherWizardState extends State<ChallanStitcherWizard> with Sing
   void _handleConversion(PharoahManager ph, bool isSale) async {
     showDialog(context: context, barrierDismissible: false, builder: (c) => const Center(child: CircularProgressIndicator()));
 
-    String nextBillNo = "";
     if (isSale) {
       var series = ph.getDefaultSeries("SALE");
-      nextBillNo = await PharoahNumberingEngine.getNextNumber(
+      String nextBillNo = await PharoahNumberingEngine.getNextNumber(
         type: "SALE",
         companyID: ph.activeCompany!.id,
         prefix: series.prefix,
@@ -197,27 +196,26 @@ class _ChallanStitcherWizardState extends State<ChallanStitcherWizard> with Sing
         currentList: ph.sales,
       );
 
-      List<BillItem> merged = [];
-      List<SaleChallan> selected = ph.saleChallans.where((c) => selectedChallanIds.contains(c.id)).toList();
-      for (var ch in selected) {
+      List<BillItem> saleItems = [];
+      List<SaleChallan> selSales = ph.saleChallans.where((c) => selectedChallanIds.contains(c.id)).toList();
+      for (var ch in selSales) {
         for (var it in ch.items) {
-          merged.add(it.copyWith(sourceChallanNo: "${ch.billNo} (${DateFormat('dd/MM').format(ch.date)})"));
+          saleItems.add(it.copyWith(sourceChallanNo: "${ch.billNo} (${DateFormat('dd/MM').format(ch.date)})"));
         }
       }
-      Navigator.pop(context);
-    // Smart Date Logic: Current FY ke range ki date lega
+      
       DateTime smartBillDate = PharoahDateController.getInitialBillDate(ph.currentFY);
-
       Navigator.pop(context);
       Navigator.push(context, MaterialPageRoute(builder: (c) => BillingView(
         party: selectedParty!, 
         billNo: nextBillNo, 
         billDate: smartBillDate, 
         mode: "CREDIT", 
-        existingItems: merged, 
-        linkedChallanIds: selectedChallanIds,
+        existingItems: saleItems, 
+        linkedChallanIds: selectedChallanIds
       )));
-      nextBillNo = await PharoahNumberingEngine.getNextNumber(
+    } else {
+      String nextPurNo = await PharoahNumberingEngine.getNextNumber(
         type: "PURCHASE",
         companyID: ph.activeCompany!.id,
         prefix: "PUR-",
@@ -225,15 +223,23 @@ class _ChallanStitcherWizardState extends State<ChallanStitcherWizard> with Sing
         currentList: ph.purchases,
       );
 
-      List<PurchaseItem> merged = [];
-      List<PurchaseChallan> selected = ph.purchaseChallans.where((c) => selectedChallanIds.contains(c.id)).toList();
-      for (var ch in selected) {
+      List<PurchaseItem> purItems = [];
+      List<PurchaseChallan> selPurs = ph.purchaseChallans.where((c) => selectedChallanIds.contains(c.id)).toList();
+      for (var ch in selPurs) {
         for (var it in ch.items) {
-          merged.add(it.copyWith(srNo: merged.length + 1));
+          purItems.add(it.copyWith(srNo: purItems.length + 1));
         }
       }
       Navigator.pop(context);
-      Navigator.push(context, MaterialPageRoute(builder: (c) => PurchaseBillingView(distributor: selectedParty!, internalNo: nextBillNo, distBillNo: "", billDate: DateTime.now(), entryDate: DateTime.now(), mode: "CREDIT", existingItems: merged)));
+      Navigator.push(context, MaterialPageRoute(builder: (c) => PurchaseBillingView(
+        distributor: selectedParty!, 
+        internalNo: nextPurNo, 
+        distBillNo: "", 
+        billDate: DateTime.now(), 
+        entryDate: DateTime.now(), 
+        mode: "CREDIT", 
+        existingItems: purItems
+      )));
     }
   }
 
