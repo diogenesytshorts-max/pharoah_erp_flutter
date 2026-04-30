@@ -199,7 +199,7 @@ class _MainControlShellState extends State<MainControlShell> {
         case "GO_PURCHASE": target = const PurchaseEntryView(); break;
         case "GO_SALE_REG": target = const SaleSummaryView(); break;
         case "GO_PUR_REG": target = const PurchaseSummaryView(); break;
-        case "GO_CHALLAN": target = const ChallanDashboard(); break;
+      
         case "GO_CHALLAN_SALE": target = const SaleChallanView(); break;
         case "GO_CHALLAN_PUR": target = const PurchaseChallanView(); break;
         case "GO_CHALLAN_CONV": target = const ChallanToBillConverter(); break;
