@@ -35,6 +35,7 @@ class PharoahManager with ChangeNotifier {
     ModuleAction(title: "MASTERS", icon: Icons.stars, color: Colors.orange, navModule: "MASTERS"),
     ModuleAction(title: "MODIFICATIONS", icon: Icons.edit_note_rounded, color: Colors.blueGrey, navModule: "GO_MODIFICATION"),
     ModuleAction(title: "GST", icon: Icons.verified, color: Colors.green, navModule: "GST"),
+    ModuleAction(title: "DATA HUB", icon: Icons.cloud_sync_rounded, color: Colors.teal.shade700, navModule: "GO_DATA_HUB"),
   ];
 
   List<ModuleAction> get billingActions => [
