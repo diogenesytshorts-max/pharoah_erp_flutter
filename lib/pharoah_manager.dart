@@ -373,12 +373,22 @@ class PharoahManager with ChangeNotifier {
   // ===========================================================================
 
   Future<void> setupNewCompanyEnvironment(CompanyProfile profile, String initialFY) async {
-    activeCompany = profile; currentFY = initialFY;
+    activeCompany = profile; 
+    currentFY = initialFY;
     numberingSeries = [NumberingSeries(id: 's1', name: "Standard Retail", type: "SALE", prefix: "INV-", isDefault: true)];
-    medicines = DemoData.getMedicines();<br>companies = MasterDataLibrary.getTopCompanies();<br>salts = MasterDataLibrary.getTopSalts();<br>drugTypes = MasterDataLibrary.getDrugTypes();<br>parties = [DemoData.getDemoParty(), Party(id: 'cash', name: "CASH", group: "Cash in Hand")];
-    parties = [Party(id: 'cash', name: "CASH", group: "Cash in Hand")];
+    
+    // Demo data inject karna
+    medicines = DemoData.getMedicines();
+    companies = MasterDataLibrary.getTopCompanies();
+    salts = MasterDataLibrary.getTopSalts();
+    drugTypes = MasterDataLibrary.getDrugTypes();
+    parties = [DemoData.getDemoParty(), Party(id: 'cash', name: "CASH", group: "Cash in Hand")];
+    
     await save();
-    if (!companiesRegistry.any((c) => c.id == profile.id)) { companiesRegistry.add(profile); await saveRegistry(); }
+    if (!companiesRegistry.any((c) => c.id == profile.id)) { 
+      companiesRegistry.add(profile); 
+      await saveRegistry(); 
+    }
     notifyListeners();
   }
 
