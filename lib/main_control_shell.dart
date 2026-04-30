@@ -14,7 +14,6 @@ import 'returns/sale_return_register.dart';
 import 'challans/challan_stitcher_wizard.dart';
 import 'sale_entry_view.dart';
 import 'purchase/purchase_entry_view.dart';
-import 'challans/challan_dashboard.dart';
 import 'challans/sale_challan_view.dart';
 import 'challans/purchase_challan_view.dart';
 import 'challans/challan_to_bill_converter.dart';
