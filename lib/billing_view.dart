@@ -246,17 +246,24 @@ class _BillingViewState extends State<BillingView> {
   }
 
   // NAYA: Swipe to Delete Card
-  Widget _buildItemCard(BillItem it, int index, PharoahManager ph) {
-    final card = Card(
-      elevation: 2, margin: const EdgeInsets.symmetric(vertical: 4),
-      child: ListTile(
-        leading: CircleAvatar(backgroundColor: Colors.teal.shade50, child: Text("${it.srNo}", style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold))),
-        title: Text(it.name, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.teal)),
-        subtitle: Text("Batch: ${it.batch} | Qty: ${it.qty.toInt()} | Rate: ₹${it.rate.toStringAsFixed(2)}"),
-        trailing: Text("₹${it.total.toStringAsFixed(2)}", style: const TextStyle(fontWeight: FontWeight.bold)),
-        onTap: widget.isReadOnly ? null : () => _showItemSearchSheet(ph, itemToEdit: it),
+  Widget _buildItemCard(BillItem it, int index, PharoahManager ph) => Card(
+    elevation: 2, margin: const EdgeInsets.symmetric(vertical: 5),
+    child: ListTile(
+      title: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(it.name, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.teal)),
+          // NAYA: Agar source challan info hai toh dikhao
+          if (it.sourceChallanNo.isNotEmpty)
+            Text("Source: ${it.sourceChallanNo}", style: const TextStyle(fontSize: 9, color: Colors.blueGrey, fontWeight: FontWeight.bold)),
+        ],
       ),
-    );
+      subtitle: Text("Batch: ${it.batch} | Qty: ${it.qty.toInt()} | Rate: ₹${it.rate.toStringAsFixed(2)}"),
+      trailing: Text("₹${it.total.toStringAsFixed(2)}", style: const TextStyle(fontWeight: FontWeight.bold)),
+      onTap: widget.isReadOnly ? null : () => _showItemSearchSheet(ph, itemToEdit: it),
+      onLongPress: widget.isReadOnly ? null : () => setState(() => items.removeAt(index)),
+    ),
+  );
 
     // Agar View Only mode hai toh Swipe band rahega
     if (widget.isReadOnly) return card;
