@@ -7,7 +7,7 @@ import '../pharoah_manager.dart';
 import '../models.dart';
 import '../pharoah_date_controller.dart';
 import '../billing_view.dart';
-import 'purchase_challan_billing_view.dart';
+import '../purchase/purchase_billing_view.dart'; // Import fix
 
 class ChallanStitcherWizard extends StatefulWidget {
   const ChallanStitcherWizard({super.key});
@@ -29,7 +29,13 @@ class _ChallanStitcherWizardState extends State<ChallanStitcherWizard> with Sing
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
     _tabController.addListener(() {
-      setState(() { selectedParty = null; selectedChallanIds.clear(); });
+      if (_tabController.indexIsChanging) {
+        setState(() {
+          selectedParty = null;
+          selectedChallanIds.clear();
+          partySearch = "";
+        });
+      }
     });
   }
 
@@ -108,13 +114,18 @@ class _ChallanStitcherWizardState extends State<ChallanStitcherWizard> with Sing
   }
 
   Widget _buildChallanList(PharoahManager ph, bool isSale) {
-    final rawList = isSale ? ph.saleChallans : ph.purchaseChallans;
-    final list = rawList.where((c) {
+    // FIX: Explicit casting for stability
+    final List<dynamic> rawList = isSale ? ph.saleChallans : ph.purchaseChallans;
+    
+    final list = rawList.where((dynamic c) {
       String pName = isSale ? (c as SaleChallan).partyName : (c as PurchaseChallan).distributorName;
+      DateTime cDate = isSale ? (c as SaleChallan).date : (c as PurchaseChallan).date;
+      String cStatus = isSale ? (c as SaleChallan).status : (c as PurchaseChallan).status;
+
       return pName == selectedParty!.name && 
-             c.status == "Pending" &&
-             c.date.isAfter(fromDate.subtract(const Duration(days: 1))) && 
-             c.date.isBefore(toDate.add(const Duration(days: 1)));
+             cStatus == "Pending" &&
+             cDate.isAfter(fromDate.subtract(const Duration(days: 1))) && 
+             cDate.isBefore(toDate.add(const Duration(days: 1)));
     }).toList();
 
     if (list.isEmpty) return _buildPlaceholder("No pending challans found for this date range.");
@@ -127,20 +138,23 @@ class _ChallanStitcherWizardState extends State<ChallanStitcherWizard> with Sing
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text("PENDING CHALLANS (${list.length})", style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.grey)),
-              TextButton(onPressed: () => setState(() => selectedChallanIds = list.map((e) => e.id as String).toList()), child: const Text("SELECT ALL")),
+              TextButton(onPressed: () => setState(() => selectedChallanIds = list.map((dynamic e) => e.id as String).toList()), child: const Text("SELECT ALL")),
             ],
           ),
         ),
         Expanded(
           child: ListView.builder(
-            padding: const EdgeInsets.symmetric(horizontal: 15),
             itemCount: list.length,
+            padding: const EdgeInsets.symmetric(horizontal: 15),
             itemBuilder: (c, i) {
-              final ch = list[i];
+              final dynamic ch = list[i];
               final isSel = selectedChallanIds.contains(ch.id);
               return Card(
                 elevation: 0,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15), border: Border.all(color: isSel ? (isSale ? Colors.indigo : Colors.orange) : Colors.grey.shade200, width: 2)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(15), 
+                  side: BorderSide(color: isSel ? (isSale ? Colors.indigo : Colors.orange) : Colors.grey.shade200, width: 2)
+                ),
                 child: CheckboxListTile(
                   value: isSel,
                   activeColor: isSale ? Colors.indigo : Colors.orange,
@@ -178,16 +192,31 @@ class _ChallanStitcherWizardState extends State<ChallanStitcherWizard> with Sing
           merged.add(it.copyWith(sourceChallanNo: "${ch.billNo} (${DateFormat('dd/MM').format(ch.date)})"));
         }
       }
-      Navigator.push(context, MaterialPageRoute(builder: (c) => BillingView(party: selectedParty!, billNo: "AUTO", billDate: DateTime.now(), mode: "CREDIT", existingItems: merged)));
+      Navigator.push(context, MaterialPageRoute(builder: (c) => BillingView(
+        party: selectedParty!, 
+        billNo: "AUTO", 
+        billDate: DateTime.now(), 
+        mode: "CREDIT", 
+        existingItems: merged,
+        linkedChallanIds: selectedChallanIds, // IDs pass for status update
+      )));
     } else {
       List<PurchaseItem> merged = [];
       List<PurchaseChallan> selected = ph.purchaseChallans.where((c) => selectedChallanIds.contains(c.id)).toList();
       for (var ch in selected) {
         for (var it in ch.items) {
-          merged.add(it.copyWith(srNo: merged.length + 1)); // Source info logic same as sale if needed
+          merged.add(it.copyWith(srNo: merged.length + 1));
         }
       }
-      Navigator.push(context, MaterialPageRoute(builder: (c) => PurchaseBillingView(distributor: selectedParty!, internalNo: "AUTO", distBillNo: "", billDate: DateTime.now(), entryDate: DateTime.now(), mode: "CREDIT", existingItems: merged)));
+      Navigator.push(context, MaterialPageRoute(builder: (c) => PurchaseBillingView(
+        distributor: selectedParty!, 
+        internalNo: "AUTO", 
+        distBillNo: "", 
+        billDate: DateTime.now(), 
+        entryDate: DateTime.now(), 
+        mode: "CREDIT", 
+        existingItems: merged,
+      )));
     }
   }
 
@@ -196,5 +225,5 @@ class _ChallanStitcherWizardState extends State<ChallanStitcherWizard> with Sing
     child: Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(border: Border.all(color: Colors.grey.shade300), borderRadius: BorderRadius.circular(10)), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(l, style: const TextStyle(fontSize: 8, color: Colors.grey, fontWeight: FontWeight.bold)), Text(DateFormat('dd/MM/yy').format(d), style: const TextStyle(fontWeight: FontWeight.bold))])),
   );
 
-  Widget _buildPlaceholder(String t) => Center(child: Text(t, style: const TextStyle(color: Colors.grey, fontStyle: FontStyle.italic)));
+  Widget _buildPlaceholder(String t) => Center(child: Padding(padding: const EdgeInsets.all(40), child: Text(t, textAlign: TextAlign.center, style: const TextStyle(color: Colors.grey, fontStyle: FontStyle.italic))));
 }
