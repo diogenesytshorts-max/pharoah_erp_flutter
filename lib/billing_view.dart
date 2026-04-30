@@ -302,8 +302,7 @@ class _BillingViewState extends State<BillingView> {
       items: items, 
       total: totalAmt, 
       mode: widget.mode,
-      isEdit: widget.modifySaleId != null,
-      linkedIds: widget.linkedChallanIds, // <--- Wizard se aaye linked IDs pass karein
+      linkedIds: widget.linkedChallanIds, 
     );
     Navigator.of(context).popUntil((route) => route.isFirst);
   }
