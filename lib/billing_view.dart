@@ -3,8 +3,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
-import '../pharoah_manager.dart';
-import '../models.dart';
+import 'pharoah_manager.dart';
+import 'models.dart';
 import 'pdf/sale_invoice_pdf.dart';
 import 'pdf/thermal_invoice_pdf.dart'; 
 import 'item_entry_card.dart';
@@ -18,6 +18,7 @@ class BillingView extends StatefulWidget {
   final List<BillItem>? existingItems;
   final String? modifySaleId;
   final bool isReadOnly; 
+  final List<String>? linkedChallanIds; // NAYA: Stitcher Wizard se IDs pakadne ke liye
 
   const BillingView({
     super.key,
@@ -28,6 +29,7 @@ class BillingView extends StatefulWidget {
     this.existingItems,
     this.modifySaleId,
     this.isReadOnly = false,
+    this.linkedChallanIds,
   });
 
   @override
@@ -58,7 +60,9 @@ class _BillingViewState extends State<BillingView> {
     String localSearch = "";
     Medicine? selectedMed;
     if (itemToEdit != null) {
-      selectedMed = ph.medicines.firstWhere((m) => m.id == itemToEdit.medicineID);
+      try {
+        selectedMed = ph.medicines.firstWhere((m) => m.id == itemToEdit.medicineID);
+      } catch (e) { selectedMed = null; }
     }
 
     showModalBottomSheet(
@@ -111,9 +115,7 @@ class _BillingViewState extends State<BillingView> {
                                 MaterialPageRoute(builder: (c) => const ProductMasterView(isSelectionMode: true)),
                               );
                               if (result != null && result is Medicine) {
-                                setSheetState(() {
-                                  selectedMed = result;
-                                });
+                                setSheetState(() { selectedMed = result; });
                               }
                             },
                             icon: const Icon(Icons.add_box_rounded),
@@ -189,10 +191,7 @@ class _BillingViewState extends State<BillingView> {
       ),
       body: Column(children: [
         _buildHeader(),
-        
-        // --- NAYA: Search Bar Trigger (Replaced FAB) ---
         _buildSearchBarTrigger(ph),
-
         Expanded(
           child: items.isEmpty 
           ? const Center(child: Text("Bill is empty"))
@@ -216,7 +215,6 @@ class _BillingViewState extends State<BillingView> {
     ]),
   );
 
-  // NAYA: Search Bar Widget
   Widget _buildSearchBarTrigger(PharoahManager ph) {
     if (widget.isReadOnly) return const SizedBox.shrink();
     return Padding(
@@ -245,33 +243,30 @@ class _BillingViewState extends State<BillingView> {
     );
   }
 
-  // NAYA: Swipe to Delete Card
-  Widget _buildItemCard(BillItem it, int index, PharoahManager ph) => Card(
-    elevation: 2, margin: const EdgeInsets.symmetric(vertical: 5),
-    child: ListTile(
-      title: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(it.name, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.teal)),
-          // NAYA: Agar source challan info hai toh dikhao
-          if (it.sourceChallanNo.isNotEmpty)
-            Text("Source: ${it.sourceChallanNo}", style: const TextStyle(fontSize: 9, color: Colors.blueGrey, fontWeight: FontWeight.bold)),
-        ],
+  Widget _buildItemCard(BillItem it, int index, PharoahManager ph) {
+    final card = Card(
+      elevation: 2, margin: const EdgeInsets.symmetric(vertical: 5),
+      child: ListTile(
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(it.name, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.teal)),
+            if (it.sourceChallanNo.isNotEmpty)
+              Text("Source: ${it.sourceChallanNo}", style: const TextStyle(fontSize: 9, color: Colors.blueGrey, fontWeight: FontWeight.bold)),
+          ],
+        ),
+        subtitle: Text("Batch: ${it.batch} | Qty: ${it.qty.toInt()} | Rate: ₹${it.rate.toStringAsFixed(2)}"),
+        trailing: Text("₹${it.total.toStringAsFixed(2)}", style: const TextStyle(fontWeight: FontWeight.bold)),
+        onTap: widget.isReadOnly ? null : () => _showItemSearchSheet(ph, itemToEdit: it),
+        onLongPress: widget.isReadOnly ? null : () => setState(() => items.removeAt(index)),
       ),
-      subtitle: Text("Batch: ${it.batch} | Qty: ${it.qty.toInt()} | Rate: ₹${it.rate.toStringAsFixed(2)}"),
-      trailing: Text("₹${it.total.toStringAsFixed(2)}", style: const TextStyle(fontWeight: FontWeight.bold)),
-      onTap: widget.isReadOnly ? null : () => _showItemSearchSheet(ph, itemToEdit: it),
-      onLongPress: widget.isReadOnly ? null : () => setState(() => items.removeAt(index)),
-    ),
-  );
+    );
 
-    // Agar View Only mode hai toh Swipe band rahega
     if (widget.isReadOnly) return card;
 
-    // NAYA: Swipe Widget
     return Dismissible(
       key: Key(it.id),
-      direction: DismissDirection.endToStart, // Sirf right se left swipe allowed
+      direction: DismissDirection.endToStart,
       background: Container(
         margin: const EdgeInsets.symmetric(vertical: 4),
         decoration: BoxDecoration(color: Colors.red, borderRadius: BorderRadius.circular(12)),
@@ -307,7 +302,8 @@ class _BillingViewState extends State<BillingView> {
       items: items, 
       total: totalAmt, 
       mode: widget.mode,
-      isEdit: widget.modifySaleId != null
+      isEdit: widget.modifySaleId != null,
+      linkedIds: widget.linkedChallanIds, // <--- Wizard se aaye linked IDs pass karein
     );
     Navigator.of(context).popUntil((route) => route.isFirst);
   }
