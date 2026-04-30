@@ -45,7 +45,7 @@ class PharoahManager with ChangeNotifier {
     ModuleAction(title: "Purchase", icon: Icons.downloading, color: Colors.orange, navModule: "GO_PURCHASE"),
     ModuleAction(title: "Sale Register", icon: Icons.description_outlined, color: Colors.blue, navModule: "GO_SALE_REG"),
     ModuleAction(title: "Pur Register", icon: Icons.history_rounded, color: Colors.brown, navModule: "GO_PUR_REG"),
-    ModuleAction(title: "CONVERT CHALLAN TO BILL", icon: Icons.PublishedWithChanges_rounded, color: Colors.teal, navModule: "GO_CHALLAN_CONV"),
+    ModuleAction(title: "CONVERT CHALLAN TO BILL", icon: Icons.auto_fix_high_rounded, color: Colors.indigo, navModule: "GO_STITCHER_WIZARD"),
   ];
 
   List<ModuleAction> get challanActions => [
@@ -273,16 +273,19 @@ class PharoahManager with ChangeNotifier {
   // ===========================================================================
 
   void deleteBill(String id) {
-    // 1. Bill dhoondo
-    final saleToDelete = sales.firstWhere((s) => s.id == id);
-    
-    // 2. Agar ye bill Challan se bana tha, toh Challans ko wapas Pending karo
-    if (saleToDelete.linkedChallanIds.isNotEmpty) {
-      for (var challanId in saleToDelete.linkedChallanIds) {
-        int idx = saleChallans.indexWhere((c) => c.id == challanId);
-        if (idx != -1) saleChallans[idx].status = "Pending";
+    try {
+      final sale = sales.firstWhere((s) => s.id == id);
+      // Agar ye challan se bana hai, toh challans ko wapas pending karo
+      if (sale.linkedChallanIds.isNotEmpty) {
+        for (var cId in sale.linkedChallanIds) {
+          int idx = saleChallans.indexWhere((c) => c.id == cId);
+          if (idx != -1) saleChallans[idx].status = "Pending";
+        }
       }
-    }
+      sales.removeWhere((s) => s.id == id);
+      save().then((_) => loadAllData());
+    } catch (e) { debugPrint("Delete Error: $e"); }
+  }
 
     // 3. Delete Bill
     sales.removeWhere((s) => s.id == id);
