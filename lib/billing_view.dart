@@ -216,10 +216,41 @@ class _BillingViewState extends State<BillingView> {
   Widget _buildHeader() => Container(
     padding: const EdgeInsets.all(15), margin: const EdgeInsets.fromLTRB(10, 10, 10, 5),
     decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12)),
-    child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-      Text(widget.party.name, style: TextStyle(fontWeight: FontWeight.bold, color: Colors.teal.shade800)),
-      Text(DateFormat('dd/MM/yyyy').format(widget.billDate), style: const TextStyle(fontWeight: FontWeight.bold)),
-    ]),
+    child: Column(
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(widget.party.name, style: TextStyle(fontWeight: FontWeight.bold, color: Colors.teal.shade800)),
+            // Date Picker Trigger
+            InkWell(
+              onTap: widget.isReadOnly ? null : () async {
+                final ph = Provider.of<PharoahManager>(context, listen: false);
+                DateTime? p = await PharoahDateController.pickDate(context: context, currentFY: ph.currentFY, initialDate: selectedBillDate);
+                if (p != null) setState(() => selectedBillDate = p);
+              },
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(border: Border.all(color: Colors.grey.shade300), borderRadius: BorderRadius.circular(5)),
+                child: Text(DateFormat('dd/MM/yyyy').format(selectedBillDate), style: const TextStyle(fontWeight: FontWeight.bold)),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        // Editable Bill Number
+        TextField(
+          controller: billNoC,
+          readOnly: widget.isReadOnly,
+          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+          decoration: const InputDecoration(
+            labelText: "BILL NUMBER",
+            isDense: true,
+            border: OutlineInputBorder(),
+          ),
+        ),
+      ],
+    ),
   );
 
   Widget _buildSearchBarTrigger(PharoahManager ph) {
