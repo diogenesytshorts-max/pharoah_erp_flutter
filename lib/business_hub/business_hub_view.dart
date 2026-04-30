@@ -1,7 +1,7 @@
 // FILE: lib/business_hub/business_hub_view.dart
 
 import 'package:flutter/material.dart';
-import '../challans/challan_dashboard.dart';
+import '../challans/sale_challan_register.dart';
 import '../modifications/modify_hub_view.dart';
 import '../finance/finance_dashboard.dart';
 import '../inventory_intel/inventory_intel_view.dart';
@@ -41,7 +41,7 @@ class BusinessHubView extends StatelessWidget {
               mainAxisSpacing: 15, 
               childAspectRatio: 1.1,
               children: [
-                _hubCard(context, "CHALLANS & RETURNS", "Notes & Conversion", Icons.receipt_long_rounded, Colors.orange.shade800, const ChallanDashboard()),
+                _hubCard(context, "CHALLANS & RETURNS", "Notes & Conversion", Icons.receipt_long_rounded, Colors.orange.shade800, const SaleChallanRegister()),
                 _hubCard(context, "MODIFICATION CENTER", "Universal Search & Edit", Icons.edit_note_rounded, Colors.blue.shade800, const ModifyHubView()),
                 _hubCard(context, "FINANCE & RECOVERY", "Outstanding & PDC", Icons.account_balance_rounded, Colors.green.shade800, const FinanceDashboard()),
                 _hubCard(context, "STOCK ANALYTICS", "Shortage & PO Builder", Icons.analytics_rounded, Colors.purple.shade700, const InventoryIntelView()),
