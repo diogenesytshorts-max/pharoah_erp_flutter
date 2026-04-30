@@ -246,7 +246,8 @@ class _ChallanToBillConverterState extends State<ChallanToBillConverter> {
       party: selectedParty!, 
       items: items, 
       total: items.fold(0, (sum, it) => sum + it.total), 
-      mode: payMode
+      mode: payMode,
+      linkedIds: selectedChallanIds, // <--- YE LINK HONA ZAROORI HAI
     );
 
     if (mounted) {
