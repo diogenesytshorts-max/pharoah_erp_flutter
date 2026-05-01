@@ -207,6 +207,40 @@ class PharoahManager with ChangeNotifier {
     if (activeCompany != null) PharoahNumberingEngine.updateSeriesCounter(type: "PURCHASE", companyID: activeCompany!.id, usedNumber: internalNo, prefix: "PUR-"); 
     save().then((_) => loadAllData()); 
   }
+  // NAYA: Silent Update (Isme Reversal trigger nahi hoga)
+  void updatePurchase({
+    required String id, 
+    required String internalNo, 
+    required String billNo, 
+    required DateTime date, 
+    DateTime? entryDate, 
+    required Party party, 
+    required List<PurchaseItem> items, 
+    required double total, 
+    required String mode,
+    required List<String> linkedChallanIds
+  }) {
+    // 1. List mein us bill ka index dhoondo
+    int idx = purchases.indexWhere((p) => p.id == id);
+    
+    if (idx != -1) {
+      // 2. Usi index par naya data overwrite kar do
+      purchases[idx] = Purchase(
+        id: id, // ID purani hi rahegi
+        internalNo: internalNo,
+        billNo: billNo,
+        date: date,
+        entryDate: entryDate ?? DateTime.now(),
+        distributorName: party.name,
+        items: items,
+        totalAmount: total,
+        paymentMode: mode,
+        linkedChallanIds: linkedChallanIds // Links safe rahenge
+      );
+      
+      save().then((_) => loadAllData());
+    }
+  }
   Future<void> finalizeBatchPurchases(List<Purchase> b) async {
     purchases.addAll(b);
     for (var p in b) { if (p.linkedChallanIds.isNotEmpty) { for (var id in p.linkedChallanIds) { int i = purchaseChallans.indexWhere((c) => c.id == id); if (i != -1) purchaseChallans[i].status = "Billed"; } } }
