@@ -229,7 +229,29 @@ class PharoahManager with ChangeNotifier {
 
   // --- DELETE & CRUD ---
   void deleteBill(String id) { try { final s = sales.firstWhere((s) => s.id == id); if (s.linkedChallanIds.isNotEmpty) { for (var cId in s.linkedChallanIds) { int i = saleChallans.indexWhere((c) => c.id == cId); if (i != -1) saleChallans[i].status = "Pending"; } } sales.removeWhere((s) => s.id == id); save().then((_) => loadAllData()); } catch (e) {} }
-  void deletePurchase(String id) { purchases.removeWhere((p) => p.id == id); save().then((_) => loadAllData()); }
+  void deletePurchase(String id) {
+    try {
+      // 1. Pehle us purchase bill ko dhoondo jise delete karna hai
+      final purBill = purchases.firstWhere((p) => p.id == id);
+
+      // 2. REVERSAL LOGIC: Agar isme challan links hain, toh unhe wapas "Pending" karo
+      if (purBill.linkedChallanIds.isNotEmpty) {
+        for (var cId in purBill.linkedChallanIds) {
+          int idx = purchaseChallans.indexWhere((c) => c.id == cId);
+          if (idx != -1) {
+            purchaseChallans[idx].status = "Pending"; // Wapas list mein dikhne lagega
+          }
+        }
+      }
+
+      // 3. Ab bill delete karo
+      purchases.removeWhere((p) => p.id == id);
+      
+      save().then((_) => loadAllData());
+    } catch (e) {
+      debugPrint("Delete Purchase Error: $e");
+    }
+  }
   void deleteSaleChallan(String id) { saleChallans.removeWhere((c) => c.id == id); save(); }
   void deletePurchaseChallan(String id) { purchaseChallans.removeWhere((c) => c.id == id); save(); }
   void deleteSaleReturn(String id) { saleReturns.removeWhere((r) => r.id == id); save().then((_) => loadAllData()); }
