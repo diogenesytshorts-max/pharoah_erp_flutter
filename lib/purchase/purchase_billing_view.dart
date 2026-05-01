@@ -16,6 +16,7 @@ class PurchaseBillingView extends StatefulWidget {
   final List<PurchaseItem>? existingItems;
   final String? modifyPurchaseId;
   final bool isReadOnly; 
+  final List<String>? linkedChallanIds; // <--- NAYA FIELD
 
   const PurchaseBillingView({
     super.key,
@@ -28,6 +29,7 @@ class PurchaseBillingView extends StatefulWidget {
     this.existingItems,
     this.modifyPurchaseId,
     this.isReadOnly = false,
+    this.linkedChallanIds, // <--- ISKO BHI ADD KAREIN
   });
 
   @override
@@ -234,7 +236,8 @@ class _PurchaseBillingViewState extends State<PurchaseBillingView> {
       party: widget.distributor, 
       items: items, 
       total: totalAmt, 
-      mode: widget.mode
+      mode: widget.mode,
+      linkedChallanIds: widget.linkedChallanIds // <--- YE DATA MANAGER KO BHEJEGA
     );
 
     // ---> NAYA: SMART NAVIGATION FOR PURCHASE --->
@@ -316,13 +319,18 @@ class _PurchaseItemEntryCardState extends State<PurchaseItemEntryCard> {
             Expanded(child: _buildInput("FREE", freeC, isNum: true))
           ]),
           
-          const SizedBox(height: 15),
-          const Text("FUTURE SALE RATES", style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.deepOrange)),
           Row(children: [
             Expanded(child: _buildInput("RATE A", rateAC, isNum: true)), const SizedBox(width: 8), 
             Expanded(child: _buildInput("RATE B", rateBC, isNum: true)), const SizedBox(width: 8), 
             Expanded(child: GestureDetector(onTap: () => setState(() => showDisc = !showDisc), child: _buildInput("RATE C", rateCC, isReadOnly: true, color: Colors.purple)))
           ]),
+
+          // NAYA: Rate C par tap karte hi ye input box niche dikhai dega
+          if (showDisc)
+            Padding(
+              padding: const EdgeInsets.only(top: 10),
+              child: _buildInput("RATE C DISCOUNT %", discC, isNum: true, color: Colors.purple, onChanged: (v) => _calcRateC()),
+            ),
           
           const SizedBox(height: 15),
           SizedBox(width: double.infinity, height: 45, child: ElevatedButton(style: ElevatedButton.styleFrom(backgroundColor: Colors.orange.shade800, foregroundColor: Colors.white), onPressed: () {
