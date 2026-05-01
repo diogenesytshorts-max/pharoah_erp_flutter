@@ -17,7 +17,7 @@ class PurchaseBillingView extends StatefulWidget {
   final List<PurchaseItem>? existingItems;
   final String? modifyPurchaseId;
   final bool isReadOnly; 
-  final List<String>? linkedChallanIds; // NAYA: Bridge for challan conversion
+  final List<String>? linkedChallanIds; 
 
   const PurchaseBillingView({
     super.key,
@@ -30,7 +30,7 @@ class PurchaseBillingView extends StatefulWidget {
     this.existingItems,
     this.modifyPurchaseId,
     this.isReadOnly = false,
-    this.linkedChallanIds, // NAYA
+    this.linkedChallanIds,
   });
 
   @override
@@ -62,7 +62,7 @@ class _PurchaseBillingViewState extends State<PurchaseBillingView> {
   }
 
   // ===========================================================================
-  // 🖥️ UI: ITEM CARD WITH SOURCE BADGE
+  // 🖥️ UI: ITEM CARD
   // ===========================================================================
   Widget _buildItemCard(PurchaseItem it, int index, PharoahManager ph) {
     final card = Card(
@@ -228,47 +228,26 @@ class _PurchaseBillingViewState extends State<PurchaseBillingView> {
 
   void _handleSave(PharoahManager ph) {
     List<String> links = widget.linkedChallanIds ?? [];
-
     if (widget.modifyPurchaseId != null) {
-      // CASE 1: AGAR EDIT KAR RAHE HAIN (Update Logic - No Reversal)
       ph.updatePurchase(
-        id: widget.modifyPurchaseId!,
-        internalNo: internalNoC.text,
-        billNo: distBillNoC.text.trim(),
-        date: selectedBillDate,
-        entryDate: widget.entryDate,
-        party: widget.distributor,
-        items: items,
-        total: totalAmt,
-        mode: widget.mode,
-        linkedChallanIds: links
+        id: widget.modifyPurchaseId!, internalNo: internalNoC.text, billNo: distBillNoC.text.trim(), 
+        date: selectedBillDate, entryDate: widget.entryDate, party: widget.distributor, 
+        items: items, total: totalAmt, mode: widget.mode, linkedChallanIds: links
       );
     } else {
-      // CASE 2: AGAR NAYA BILL HAI (Normal Finalize)
       ph.finalizePurchase(
-        internalNo: internalNoC.text, 
-        billNo: distBillNoC.text.trim(), 
-        date: selectedBillDate, 
-        entryDate: widget.entryDate, 
-        party: widget.distributor, 
-        items: items, 
-        total: totalAmt, 
-        mode: widget.mode,
-        linkedChallanIds: links
+        internalNo: internalNoC.text, billNo: distBillNoC.text.trim(), date: selectedBillDate, 
+        entryDate: widget.entryDate, party: widget.distributor, items: items, 
+        total: totalAmt, mode: widget.mode, linkedChallanIds: links
       );
     }
-
-    // Smart Navigation
-    if (internalNoC.text == "DRAFT") {
-      Navigator.pop(context);
-    } else {
-      Navigator.of(context).popUntil((route) => route.isFirst);
-    }
+    if (internalNoC.text == "DRAFT") Navigator.pop(context);
+    else Navigator.of(context).popUntil((route) => route.isFirst);
   }
 }
 
 // =============================================================================
-// 🛒 PURCHASE ITEM ENTRY CARD (FIXED WITH EXPIRY FORMATTER & RATE C DISC)
+// 🛒 PURCHASE ITEM ENTRY CARD
 // =============================================================================
 class PurchaseItemEntryCard extends StatefulWidget {
   final Medicine med; final int srNo; final PurchaseItem? existingItem; final Function(PurchaseItem) onAdd; final VoidCallback onCancel;
@@ -293,8 +272,7 @@ class _PurchaseItemEntryCardState extends State<PurchaseItemEntryCard> {
       batchC.text = i.batch; expC.text = i.exp; gstC.text = i.gstRate.toString();
       mrpC.text = i.mrp.toString(); purRateC.text = i.purchaseRate.toString();
       qtyC.text = i.qty.toString(); freeC.text = i.freeQty.toString();
-      rateAC.text = i.rateA.toString(); rateBC.text = i.rateB.toString(); 
-      rateCC.text = i.rateC.toString();
+      rateAC.text = i.rateA.toString(); rateBC.text = i.rateB.toString(); rateCC.text = i.rateC.toString();
     } else {
       gstC.text = widget.med.gst.toString(); mrpC.text = widget.med.mrp.toString();
       purRateC.text = widget.med.purRate.toString(); rateAC.text = widget.med.rateA.toString(); 
@@ -302,19 +280,13 @@ class _PurchaseItemEntryCardState extends State<PurchaseItemEntryCard> {
     }
   }
 
-  // NAYA: Smart Expiry Formatter (MM/YY)
   void _formatExpiry(String val) {
     String clean = val.replaceAll(RegExp(r'[^0-9]'), '');
     String formatted = clean;
-    if (clean.length >= 2) {
-      formatted = '${clean.substring(0, 2)}/${clean.substring(2)}';
-    }
+    if (clean.length >= 2) formatted = '${clean.substring(0, 2)}/${clean.substring(2)}';
     if (formatted.length > 5) formatted = formatted.substring(0, 5);
     if (expC.text != formatted) {
-      expC.value = TextEditingValue(
-        text: formatted,
-        selection: TextSelection.collapsed(offset: formatted.length),
-      );
+      expC.value = TextEditingValue(text: formatted, selection: TextSelection.collapsed(offset: formatted.length));
     }
     setState(() {});
   }
@@ -329,53 +301,45 @@ class _PurchaseItemEntryCardState extends State<PurchaseItemEntryCard> {
   @override Widget build(BuildContext context) {
     final ph = Provider.of<PharoahManager>(context);
     final matchingBatches = BatchSyncEngine.getFilteredBatches(ph: ph, productKey: widget.med.identityKey, hideExpired: false);
+    bool isChallanItem = widget.existingItem?.sourceChallanId.isNotEmpty ?? false;
 
     return Container(
       padding: const EdgeInsets.all(15), margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(15)),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [Text("${widget.srNo}. ${widget.med.name}", style: const TextStyle(fontWeight: FontWeight.bold)), IconButton(icon: const Icon(Icons.cancel), onPressed: widget.onCancel)]),
-          
           Row(children: [
             Expanded(child: _buildInput("BATCH", batchC)), const SizedBox(width: 8), 
             Expanded(child: _buildInput("EXP (MM/YY)", expC, isNum: true, onChanged: _formatExpiry)), const SizedBox(width: 8), 
             Expanded(child: _buildInput("GST%", gstC, isNum: true, onChanged: (v)=>_calcRateC()))
           ]),
-          
           if (matchingBatches.isNotEmpty)
             SizedBox(height: 45, child: ListView(scrollDirection: Axis.horizontal, children: matchingBatches.map((b) => Padding(padding: const EdgeInsets.only(right: 8), child: ActionChip(label: Text(b.batch), onPressed: () {
               setState(() { batchC.text = b.batch; expC.text = b.exp; mrpC.text = b.mrp.toString(); purRateC.text = b.rate.toString(); _calcRateC(); });
             }))).toList())),
-
           const SizedBox(height: 10),
           Row(children: [
             Expanded(child: _buildInput("MRP", mrpC, isNum: true, onChanged: (v)=>_calcRateC())), const SizedBox(width: 8), 
             Expanded(child: _buildInput("PUR. RATE", purRateC, isNum: true)), const SizedBox(width: 8), 
-            Expanded(child: _buildInput("QTY", qtyC, isNum: true)), const SizedBox(width: 8), 
-            Expanded(child: _buildInput("FREE", freeC, isNum: true))
+            Expanded(child: _buildInput("QTY", qtyC, isNum: true, isReadOnly: isChallanItem)), const SizedBox(width: 8), 
+            Expanded(child: _buildInput("FREE", freeC, isNum: true, isReadOnly: isChallanItem))
           ]),
-          
+          if (isChallanItem) const Padding(padding: EdgeInsets.only(top: 2), child: Text("* Qty locked by Challan", style: TextStyle(color: Colors.red, fontSize: 8, fontWeight: FontWeight.bold))),
           const SizedBox(height: 10),
           Row(children: [
             Expanded(child: _buildInput("RATE A", rateAC, isNum: true)), const SizedBox(width: 8), 
             Expanded(child: _buildInput("RATE B", rateBC, isNum: true)), const SizedBox(width: 8), 
             Expanded(child: GestureDetector(onTap: () => setState(() => showDisc = !showDisc), child: _buildInput("RATE C", rateCC, isReadOnly: true, color: Colors.purple)))
           ]),
-
-          if (showDisc)
-            Padding(
-              padding: const EdgeInsets.only(top: 10),
-              child: _buildInput("RATE C DISCOUNT %", discC, isNum: true, color: Colors.purple, onChanged: (v) => _calcRateC()),
-            ),
-          
+          if (showDisc) Padding(padding: const EdgeInsets.only(top: 10), child: _buildInput("RATE C DISC %", discC, isNum: true, color: Colors.purple, onChanged: (v) => _calcRateC())),
           const SizedBox(height: 15),
           SizedBox(width: double.infinity, height: 45, child: ElevatedButton(style: ElevatedButton.styleFrom(backgroundColor: Colors.orange.shade800, foregroundColor: Colors.white), onPressed: () {
             BatchSyncEngine.registerBatchActivity(ph: ph, productKey: widget.med.identityKey, batchNo: batchC.text, exp: expC.text, packing: widget.med.packing, mrp: double.tryParse(mrpC.text) ?? 0, rate: double.tryParse(purRateC.text) ?? 0);
-            widget.onAdd(PurchaseItem(id: widget.existingItem?.id ?? DateTime.now().toString(), srNo: widget.srNo, medicineID: widget.med.id, name: widget.med.name, packing: widget.med.packing, batch: batchC.text.toUpperCase(), exp: expC.text, hsn: widget.med.hsnCode, mrp: double.tryParse(mrpC.text) ?? 0, qty: double.tryParse(qtyC.text) ?? 0, freeQty: double.tryParse(freeC.text) ?? 0, purchaseRate: double.tryParse(purRateC.text) ?? 0, gstRate: double.tryParse(gstC.text) ?? 0, total: (double.tryParse(purRateC.text) ?? 0) * (double.tryParse(qtyC.text) ?? 0) * (1 + (double.tryParse(gstC.text) ?? 0) / 100), rateA: double.tryParse(rateAC.text) ?? 0, rateB: double.tryParse(rateBC.text) ?? 0, rateC: double.tryParse(rateCC.text) ?? 0, sourceChallanNo: widget.existingItem?.sourceChallanNo ?? ""));
+            widget.onAdd(PurchaseItem(id: widget.existingItem?.id ?? DateTime.now().toString(), srNo: widget.srNo, medicineID: widget.med.id, name: widget.med.name, packing: widget.med.packing, batch: batchC.text.toUpperCase(), exp: expC.text, hsn: widget.med.hsnCode, mrp: double.tryParse(mrpC.text) ?? 0, qty: double.tryParse(qtyC.text) ?? 0, freeQty: double.tryParse(freeC.text) ?? 0, purchaseRate: double.tryParse(purRateC.text) ?? 0, gstRate: double.tryParse(gstC.text) ?? 0, total: (double.tryParse(purRateC.text) ?? 0) * (double.tryParse(qtyC.text) ?? 0) * (1 + (double.tryParse(gstC.text) ?? 0) / 100), rateA: double.tryParse(rateAC.text) ?? 0, rateB: double.tryParse(rateBC.text) ?? 0, rateC: double.tryParse(rateCC.text) ?? 0, sourceChallanNo: widget.existingItem?.sourceChallanNo ?? "", sourceChallanId: widget.existingItem?.sourceChallanId ?? ""));
           }, child: const Text("ADD TO LIST")))
       ]),
     );
   }
 
-  Widget _buildInput(String l, TextEditingController c, {bool isNum = false, Function(String)? onChanged, bool isReadOnly = false, Color? color}) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(l, style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: color)), TextField(controller: c, keyboardType: isNum ? TextInputType.number : TextInputType.text, onChanged: onChanged, readOnly: isReadOnly, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: color), decoration: const InputDecoration(isDense: true, border: OutlineInputBorder()))]);
+  Widget _buildInput(String l, TextEditingController c, {bool isNum = false, Function(String)? onChanged, bool isReadOnly = false, Color? color}) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(l, style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: color)), TextField(controller: c, keyboardType: isNum ? TextInputType.number : TextInputType.text, onChanged: onChanged, readOnly: isReadOnly, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: color), decoration: InputDecoration(isDense: true, border: const OutlineInputBorder(), fillColor: isReadOnly ? Colors.grey.shade100 : Colors.white, filled: isReadOnly))]);
 }
