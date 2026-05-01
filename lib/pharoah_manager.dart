@@ -15,10 +15,10 @@ import 'logic/pharoah_numbering_engine.dart';
 import 'master_data_library.dart';
 
 class PharoahManager with ChangeNotifier {
-  String activeModule = "HOME";
+  String activeModule = "HOME"; 
   void updateModule(String n) { activeModule = n; notifyListeners(); }
 
-  // --- DYNAMIC MODULE ACTIONS ---
+  // --- MENU ACTIONS ---
   List<ModuleAction> get mainMenuActions => [
     ModuleAction(title: "BILLING", icon: Icons.receipt_long, color: Colors.blue, navModule: "BILLING"),
     ModuleAction(title: "CHALLANS", icon: Icons.local_shipping, color: Colors.teal, navModule: "CHALLANS"),
@@ -35,15 +35,15 @@ class PharoahManager with ChangeNotifier {
     ModuleAction(title: "New Sale", icon: Icons.add_shopping_cart, color: Colors.blue, navModule: "GO_SALE"),
     ModuleAction(title: "Purchase", icon: Icons.downloading, color: Colors.orange, navModule: "GO_PURCHASE"),
     ModuleAction(title: "STITCHER", icon: Icons.auto_fix_high, color: Colors.teal, navModule: "GO_STITCHER_WIZARD"),
-    ModuleAction(title: "Sale Register", icon: Icons.description, color: Colors.blue, navModule: "GO_SALE_REG"),
-    ModuleAction(title: "Pur Register", icon: Icons.history, color: Colors.brown, navModule: "GO_PUR_REG"),
+    ModuleAction(title: "Sale Reg", icon: Icons.description, color: Colors.blue, navModule: "GO_SALE_REG"),
+    ModuleAction(title: "Pur Reg", icon: Icons.history, color: Colors.brown, navModule: "GO_PUR_REG"),
   ];
 
   List<ModuleAction> get challanActions => [
     ModuleAction(title: "Sale Challan", icon: Icons.local_shipping, color: Colors.teal, navModule: "GO_CHALLAN_SALE"),
-    ModuleAction(title: "Pur Challan", icon: Icons.inventory_2, color: Colors.amber, navModule: "GO_CHALLAN_PUR"),
+    ModuleAction(title: "Pur Challan", icon: Icons.inventory_2, color: Colors.orange, navModule: "GO_CHALLAN_PUR"),
     ModuleAction(title: "Sale Reg", icon: Icons.list, color: Colors.indigo, navModule: "GO_CHALLAN_SALE_REG"),
-    ModuleAction(title: "Pur Reg", icon: Icons.history_edu, color: Colors.amber.shade900, navModule: "GO_CHALLAN_PUR_REG"),
+    ModuleAction(title: "Pur Reg", icon: Icons.history_edu, color: Colors.amber, navModule: "GO_CHALLAN_PUR_REG"),
   ];
 
   List<ModuleAction> get returnActions => [
@@ -56,8 +56,7 @@ class PharoahManager with ChangeNotifier {
   List<ModuleAction> get inventoryActions => [
     ModuleAction(title: "Stock", icon: Icons.view_in_ar, color: Colors.purple, navModule: "GO_STOCK"),
     ModuleAction(title: "Shortage", icon: Icons.trending_down, color: Colors.red, navModule: "GO_SHORTAGE"),
-    ModuleAction(title: "Item Ledger", icon: Icons.menu_book, color: Colors.blueGrey, navModule: "GO_ITEM_LEDGER"),
-    ModuleAction(title: "Dump Stock", icon: Icons.delete_sweep, color: Colors.brown, navModule: "GO_DUMP"),
+    ModuleAction(title: "Ledger", icon: Icons.menu_book, color: Colors.blueGrey, navModule: "GO_ITEM_LEDGER"),
   ];
 
   List<ModuleAction> get accountsActions => [
@@ -72,19 +71,15 @@ class PharoahManager with ChangeNotifier {
     ModuleAction(title: "Items", icon: Icons.medication, color: Colors.purple, navModule: "GO_M_ITEM"),
     ModuleAction(title: "Series", icon: Icons.format_list_numbered, color: Colors.blue, navModule: "GO_M_SERIES"),
     ModuleAction(title: "Staff", icon: Icons.admin_panel_settings, color: Colors.red, navModule: "GO_M_STAFF"),
-    ModuleAction(title: "Batches", icon: Icons.layers, color: Colors.blueGrey, navModule: "GO_M_BATCH"),
-    ModuleAction(title: "Routes", icon: Icons.map, color: Colors.teal, navModule: "GO_M_ROUTE"),
-    ModuleAction(title: "Company", icon: Icons.business, color: Colors.brown, navModule: "GO_M_COMP"),
-    ModuleAction(title: "Salt Master", icon: Icons.science, color: Colors.deepOrange, navModule: "GO_M_SALT"),
   ];
 
   List<ModuleAction> get gstActions => [
     ModuleAction(title: "GSTR-1", icon: Icons.assignment, color: Colors.green, navModule: "GO_GST_1"),
     ModuleAction(title: "GSTR-3B", icon: Icons.summarize, color: Colors.blue, navModule: "GO_GST_3B"),
-    ModuleAction(title: "Portal Match", icon: Icons.fact_check, color: Colors.teal, navModule: "GO_GST_RECON"),
+    ModuleAction(title: "Portal", icon: Icons.fact_check, color: Colors.teal, navModule: "GO_GST_RECON"),
   ];
 
-  // --- DATA RECEPTACLES ---
+  // --- DATA ---
   List<Medicine> medicines = []; List<SystemUser> systemUsers = []; SystemUser? loggedInStaff;
   List<Party> parties = []; List<RouteArea> routes = []; List<Company> companies = [];
   List<Salt> salts = []; List<DrugType> drugTypes = []; List<Bank> banks = [];
@@ -98,7 +93,7 @@ class PharoahManager with ChangeNotifier {
 
   PharoahManager() { initRegistry(); }
 
-  // --- SESSION & REGISTRY ---
+  // --- REGISTRY & SESSION ---
   Future<void> initRegistry() async {
     final root = await getApplicationDocumentsDirectory(); final file = File('${root.path}/pharoah_registry.json');
     if (await file.exists()) { try { List l = jsonDecode(await file.readAsString()); companiesRegistry = l.map((e) => CompanyProfile.fromMap(e)).toList(); } catch (e) {} }
@@ -114,11 +109,12 @@ class PharoahManager with ChangeNotifier {
   void authenticateAdmin(bool s) { isAdminAuthenticated = s; notifyListeners(); }
   Future<String> getWorkingPath() async {
     if (activeCompany == null || currentFY.isEmpty) return "";
-    final root = await getApplicationDocumentsDirectory(); final dir = Directory('${root.path}/Pharoah_Data/${activeCompany!.id}/${activeCompany!.businessType}/$currentFY');
+    final root = await getApplicationDocumentsDirectory();
+    final dir = Directory('${root.path}/Pharoah_Data/${activeCompany!.id}/${activeCompany!.businessType}/$currentFY');
     if (!await dir.exists()) await dir.create(recursive: true); return dir.path;
   }
 
-  // --- SAVE / LOAD CORE ---
+  // --- PERSISTENCE ---
   Future<void> save() async {
     final dir = await getWorkingPath(); if (dir.isEmpty) return;
     Future _w(String n, List data) async => await File('$dir/$n').writeAsString(jsonEncode(data.map((e) => e.toMap()).toList()));
@@ -152,17 +148,17 @@ class PharoahManager with ChangeNotifier {
     logs = (_l('logs.json') as List?)?.map((e) => LogEntry.fromMap(e)).toList() ?? [];
     routes = (_l('routs.json') as List?)?.map((e) => RouteArea.fromMap(e)).toList() ?? [];
     banks = (_l('banks.json') as List?)?.map((e) => Bank.fromMap(e)).toList() ?? [];
-    var sD = _l('series.json'); if (sD != null) numberingSeries = (sD as List).map((e) => NumberingSeries.fromMap(e)).toList();
-    var uD = _l('sys_users.json'); if (uD != null) systemUsers = (uD as List).map((e) => SystemUser.fromMap(e)).toList();
-    var bD = _l('bats.json'); if (bD != null) { batchHistory.clear(); (bD as Map).forEach((k, v) => batchHistory[k] = (v as List).map((b) => BatchInfo.fromMap(b)).toList()); }
+    var sD = _l('series.json'); if (sD!=null) numberingSeries = (sD as List).map((e)=>NumberingSeries.fromMap(e)).toList();
+    var uD = _l('sys_users.json'); if (uD!=null) systemUsers = (uD as List).map((e)=>SystemUser.fromMap(e)).toList();
+    var bD = _l('bats.json'); if (bD!=null) { batchHistory.clear(); (bD as Map).forEach((k,v)=>batchHistory[k]=(v as List).map((b)=>BatchInfo.fromMap(b)).toList()); }
     InventoryLogicCenter.rebuildAllInventory(medicines: medicines, batchHistory: batchHistory, purchases: purchases, sales: sales);
     notifyListeners();
   }
 
-  // --- FINALIZATION ENGINE ---
+  // --- FINALIZATION ---
   Future<void> finalizeSale({required String billNo, required DateTime date, required Party party, required List<BillItem> items, required double total, required String mode, List<String>? linkedIds}) async { 
     sales.add(Sale(id: DateTime.now().toString(), billNo: billNo, date: date, partyName: party.name, partyGstin: party.gst, partyState: party.state, items: items, totalAmount: total, paymentMode: mode, linkedChallanIds: linkedIds ?? [])); 
-    if (linkedIds != null) { for (var id in linkedIds) { int i = saleChallans.indexWhere((c) => c.id == id); if (i != -1) saleChallans[i].status = "Billed"; } }
+    if (linkedIds != null) { for (var id in linkedIds) { int idx = saleChallans.indexWhere((c) => c.id == id); if (idx != -1) saleChallans[idx].status = "Billed"; } }
     if (activeCompany != null) { String p = billNo.split(RegExp(r'\d')).first; await PharoahNumberingEngine.updateSeriesCounter(type: "SALE", companyID: activeCompany!.id, usedNumber: billNo, prefix: p); }
     await save(); InventoryLogicCenter.rebuildAllInventory(medicines: medicines, batchHistory: batchHistory, purchases: purchases, sales: sales);
     notifyListeners(); 
@@ -193,18 +189,14 @@ class PharoahManager with ChangeNotifier {
   void finalizeSaleReturn({required String billNo, required DateTime date, required Party party, required List<BillItem> items, required double total, String type = "Sellable"}) async { saleReturns.add(SaleReturn(id: DateTime.now().toString(), billNo: billNo, date: date, partyName: party.name, items: items, totalAmount: total, returnType: type)); save().then((_) => loadAllData()); }
   void finalizePurchaseReturn({required String billNo, required DateTime date, required Party party, required List<PurchaseItem> items, required double total, String type = "Breakage"}) { purchaseReturns.add(PurchaseReturn(id: DateTime.now().toString(), billNo: billNo, distributorName: party.name, date: date, items: items, totalAmount: total, status: "Active", returnType: type)); save().then((_) => loadAllData()); }
 
-  // --- MASTER HELPERS ---
-  List<NumberingSeries> getSeriesByType(String t) => numberingSeries.where((s) => s.type == t).toList();
-  NumberingSeries getDefaultSeries(String t) => numberingSeries.firstWhere((s) => s.type == t && s.isDefault, orElse: () => numberingSeries.firstWhere((s) => s.type == t, orElse: () => NumberingSeries(id: 'tmp', name: 'Default', type: t, prefix: 'TXN-')));
-
-  // --- BATCH & INTEL ---
+  // --- BATCH & STOCK TOOLS ---
   void adjustBatchStock({required String medId, required String batchNo, required double adjQty, required String reason}) { if (batchHistory.containsKey(medId)) { try { var b = batchHistory[medId]!.firstWhere((x) => x.batch == batchNo); b.adjustmentQty += adjQty; b.adjReason = reason; save().then((_) => loadAllData()); } catch (e) {} } }
   void updateBatchMetadata({required String medId, required String batchNo, required String newExp, required double newMrp, required double newRate}) { if (batchHistory.containsKey(medId)) { try { var b = batchHistory[medId]!.firstWhere((x) => x.batch == batchNo); b.exp = newExp; b.mrp = newMrp; b.rate = newRate; save().then((_) => loadAllData()); } catch (e) {} } }
   void resetCounter(String t) { if (activeCompany != null) { String p = (t == "SALE_BILL") ? "INV-" : (t == "PUR_BILL" ? "PUR-" : "SCH-"); PharoahNumberingEngine.resetSeries(type: t.contains("SALE") ? "SALE" : "PURCHASE", companyID: activeCompany!.id, prefix: p); } notifyListeners(); }
   double calculateAvgMonthlySale(String mId) { DateTime d = DateTime.now().subtract(const Duration(days: 30)); double q = 0; for (var s in sales.where((s) => s.status == "Active" && s.date.isAfter(d))) { for (var it in s.items.where((it) => it.medicineID == mId)) { q += (it.qty + it.freeQty); } } return q; }
   void runAutoShortageScan() { shortages.removeWhere((s) => s.source == "Auto"); for (var m in medicines) { double a = calculateAvgMonthlySale(m.id); double r = a * 1.5; if (m.stock < r && r > 0) { shortages.add(ShortageItem(id: "auto_${m.id}", medicineId: m.id, medicineName: m.name, companyName: m.companyId, qtyRequired: r - m.stock, currentStock: m.stock, date: DateTime.now(), source: "Auto")); } } save(); }
 
-  // --- CRUD HELPERS ---
+  // --- DELETE & CRUD ---
   void deleteBill(String id) { try { final s = sales.firstWhere((s) => s.id == id); if (s.linkedChallanIds.isNotEmpty) { for (var cId in s.linkedChallanIds) { int i = saleChallans.indexWhere((c) => c.id == cId); if (i != -1) saleChallans[i].status = "Pending"; } } sales.removeWhere((s) => s.id == id); save().then((_) => loadAllData()); } catch (e) {} }
   void deletePurchase(String id) { purchases.removeWhere((p) => p.id == id); save().then((_) => loadAllData()); }
   void deleteSaleChallan(String id) { saleChallans.removeWhere((c) => c.id == id); save(); }
@@ -245,5 +237,14 @@ class PharoahManager with ChangeNotifier {
     await save(); bool ok = await FYTransferEngine.transferData(companyID: activeCompany!.id, businessType: activeCompany!.businessType, sourceFY: currentFY, targetFY: n);
     if(ok) { currentFY = n; await loadAllData(); } return ok;
   }
-  Future<void> masterReset() async { final d = await getWorkingPath(); if(d.isNotEmpty) { final dir = Directory(d); if(d.existsSync()) d.deleteSync(recursive: true); } await loadAllData(); }
+  Future<void> masterReset() async { 
+    final p = await getWorkingPath(); 
+    if(p.isNotEmpty) { 
+      final dir = Directory(p); 
+      if(dir.existsSync()) dir.deleteSync(recursive: true); 
+    } 
+    await loadAllData(); 
+  }
+  List<NumberingSeries> getSeriesByType(String t) => numberingSeries.where((s) => s.type == t).toList();
+  NumberingSeries getDefaultSeries(String t) => numberingSeries.firstWhere((s) => s.type == t && s.isDefault, orElse: () => numberingSeries.firstWhere((s) => s.type == t, orElse: () => NumberingSeries(id: 'tmp', name: 'Default', type: t, prefix: 'TXN-', isDefault: true)));
 }
