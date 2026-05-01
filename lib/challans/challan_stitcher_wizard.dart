@@ -56,7 +56,7 @@ class _ChallanStitcherWizardState extends State<ChallanStitcherWizard> with Sing
   }
 
   // ===========================================================================
-  // ⚡ LOGIC: BATCH SAVE (FIXED FOR MERGED LABEL)
+  // ⚡ LOGIC: BATCH SAVE
   // ===========================================================================
   
   Future<void> _handleBatchSave(PharoahManager ph) async {
@@ -91,7 +91,6 @@ class _ChallanStitcherWizardState extends State<ChallanStitcherWizard> with Sing
       await ph.finalizeBatchSales(batchToSave);
       _updateLocalStatus(batchToSave, true);
     } else {
-      // --- PURCHASE BATCH (FIXED) ---
       List<Purchase> purBatch = [];
       for (var b in selected) {
         String pNo = await PharoahNumberingEngine.getNextNumber(type: "PURCHASE", companyID: ph.activeCompany!.id, prefix: "PUR-", startFrom: 1, currentList: ph.purchases);
@@ -99,14 +98,14 @@ class _ChallanStitcherWizardState extends State<ChallanStitcherWizard> with Sing
         purBatch.add(Purchase(
           id: DateTime.now().millisecondsSinceEpoch.toString() + pNo,
           internalNo: pNo, 
-          billNo: "CH-CONV-${pNo.replaceAll("PUR-", "")}", // Unique Tracking ID
+          billNo: "CH-CONV-${pNo.replaceAll("PUR-", "")}", 
           date: b['date'], 
           entryDate: DateTime.now(),
           distributorName: b['party'].name,
           items: b['items'].cast<PurchaseItem>(),
           totalAmount: b['total'], 
           paymentMode: "CREDIT",
-          linkedChallanIds: List<String>.from(b['challanIds']) // IDs Passed!
+          linkedChallanIds: List<String>.from(b['challanIds'])
         ));
       }
       await ph.finalizeBatchPurchases(purBatch);
@@ -114,7 +113,6 @@ class _ChallanStitcherWizardState extends State<ChallanStitcherWizard> with Sing
     }
 
     setState(() { isProcessing = false; });
-    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("✅ Batch Saved Successfully!"), backgroundColor: Colors.green));
   }
 
   void _updateLocalStatus(List<dynamic> savedBatch, bool isSale) {
@@ -132,7 +130,7 @@ class _ChallanStitcherWizardState extends State<ChallanStitcherWizard> with Sing
   }
 
   // ===========================================================================
-  // 📁 ZIP EXPORT (FIXED SAVE AS PICKER)
+  // 📁 ZIP EXPORT
   // ===========================================================================
   Future<void> _handleZipExport(PharoahManager ph) async {
     var selected = draftBills.where((b) => b['isSelected']).toList();
@@ -178,7 +176,7 @@ class _ChallanStitcherWizardState extends State<ChallanStitcherWizard> with Sing
                   try {
                     final bytes = await File(path).readAsBytes();
                     await FileSaver.instance.saveAs(
-                      name: "Batch_Bills_${DateFormat('ddMM_HHmm').format(DateTime.now())}", 
+                      name: "Invoices_Batch_${DateFormat('ddMM_HHmm').format(DateTime.now())}", 
                       bytes: bytes, 
                       ext: "zip", 
                       mimeType: MimeType.zip
@@ -197,7 +195,7 @@ class _ChallanStitcherWizardState extends State<ChallanStitcherWizard> with Sing
   }
 
   // ===========================================================================
-  // 🖥️ UI BUILDER & HELPERS
+  // 🖥️ UI BUILDER
   // ===========================================================================
 
   @override
@@ -300,18 +298,13 @@ class _ChallanStitcherWizardState extends State<ChallanStitcherWizard> with Sing
       for(var c in chs) { 
         if (isSale) { 
           SaleChallan act = c as SaleChallan; 
-          for(var it in act.items) { 
-            // NAYA: ID aur Number dono copy honge
-            items.add(it.copyWith(sourceChallanNo: act.billNo, sourceChallanId: act.id)); 
-          } 
+          for(var it in act.items) { items.add(it.copyWith(sourceChallanNo: act.billNo, sourceChallanId: act.id)); } 
         } 
         else { 
           PurchaseChallan act = c as PurchaseChallan; 
-          for(var it in act.items) { 
-            // NAYA: ID aur Number dono copy honge
-            items.add(it.copyWith(sourceChallanNo: act.billNo, sourceChallanId: act.id)); 
-          } 
+          for(var it in act.items) { items.add(it.copyWith(sourceChallanNo: act.billNo, sourceChallanId: act.id)); } 
         }
+      }
       temp.add({'party': pObj, 'billNo': 'DRAFT', 'date': batchBillDate, 'items': items, 'total': items.fold(0.0, (s, i)=>s+i.total), 'status': 'DRAFT', 'isSelected': true, 'challanIds': chs.map((c)=> isSale ? (c as SaleChallan).id : (c as PurchaseChallan).id).toList()});
     }
     setState(() { draftBills = temp; funnelStep = "REVIEW"; isProcessing = false; });
