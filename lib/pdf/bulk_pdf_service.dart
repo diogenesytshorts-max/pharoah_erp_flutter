@@ -57,12 +57,18 @@ class BulkPdfService {
   }
 
   // ===========================================================================
-  // 2. PROFESSIONAL SALE INVOICE CLONE (LANDSCAPE + 13 COLUMNS)
+  // 2. PROFESSIONAL SALE INVOICE (3-BOX FOOTER + SEQUENTIAL S.N.)
   // ===========================================================================
   static Future<Uint8List> _generateSaleCloneBytes(Sale sale, Party party, CompanyProfile shop) async {
     final pdf = pw.Document();
     const int itemsPerPage = 22; 
     int totalPages = (sale.items.length / itemsPerPage).ceil();
+
+    // Calculations for Footer
+    double totalGross = sale.items.fold(0, (sum, i) => sum + (i.qty * i.rate));
+    double totalSGST = sale.items.fold(0, (sum, i) => sum + i.sgst);
+    double totalCGST = sale.items.fold(0, (sum, i) => sum + i.cgst);
+    int roundedGrandTotal = sale.totalAmount.round();
 
     String formatQty(double val) => val == val.toInt() ? val.toInt().toString() : val.toStringAsFixed(1);
 
@@ -78,7 +84,7 @@ class BulkPdfService {
         build: (context) => pw.Container(
           decoration: pw.BoxDecoration(border: pw.Border.all(width: 1)),
           child: pw.Column(children: [
-            // --- PROFESSIONAL 3-BOX HEADER ---
+            // --- HEADER ---
             pw.Row(children: [
               _hBox(280, pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
                 pw.Text(shop.name.toUpperCase(), style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold, color: PdfColors.blue900)),
@@ -102,20 +108,22 @@ class BulkPdfService {
               ])),
             ]),
 
-            // --- 13 COLUMN TABLE HEADER ---
+            // --- TABLE HEADER ---
             pw.Container(color: PdfColors.grey100, child: pw.Row(children: [
               _tCol("S.N", 25), _tCol("Qty + Free", 50), _tCol("Pack", 40), _tCol("Product Name", 185, align: pw.Alignment.centerLeft),
               _tCol("Batch", 75), _tCol("Exp", 45), _tCol("HSN", 50), _tCol("MRP", 55), _tCol("Rate", 55), 
               _tCol("DIS%", 30), _tCol("SGST%", 40), _tCol("CGST%", 40), _tCol("Net Amt", 80),
             ])),
 
-            // --- ITEM ROWS ---
+            // --- ITEM ROWS (S.N. Fixed) ---
             pw.Expanded(child: pw.Column(children: pageItems.map((i) {
+              int currentIndex = start + pageItems.indexOf(i) + 1; // Sequential Index
               String displayQty = i.freeQty > 0 ? "${formatQty(i.qty)} + ${formatQty(i.freeQty)}" : formatQty(i.qty);
               return pw.Container(
                 decoration: const pw.BoxDecoration(border: pw.Border(bottom: pw.BorderSide(width: 0.1, color: PdfColors.grey400))),
                 child: pw.Row(children: [
-                  _cell("${i.srNo}", 25), _cell(displayQty, 50), _cell(i.packing, 40), 
+                  _cell("$currentIndex", 25), // S.N. FIX
+                  _cell(displayQty, 50), _cell(i.packing, 40), 
                   _cell(i.name, 185, align: pw.Alignment.centerLeft), _cell(i.batch, 75), _cell(i.exp, 45), 
                   _cell(i.hsn, 50), _cell(i.mrp.toStringAsFixed(2), 55), _cell(i.rate.toStringAsFixed(2), 55), 
                   _cell(i.discountRupees.toStringAsFixed(1), 30), _cell("${(i.gstRate/2).toStringAsFixed(1)}%", 40),
@@ -124,8 +132,8 @@ class BulkPdfService {
               );
             }).toList())),
 
-            // --- FOOTER ---
-            if (isLastPage) _buildFooter(shop.name, sale.totalAmount)
+            // --- 3-BOX FOOTER (Sale) ---
+            if (isLastPage) _buildProfessionalFooter(shop.name, totalGross, totalSGST, totalCGST, roundedGrandTotal)
             else pw.Padding(padding: const pw.EdgeInsets.all(5), child: pw.Text("Continued to next page...", style: pw.TextStyle(fontStyle: pw.FontStyle.italic, fontSize: 10))),
           ]),
         )
@@ -135,12 +143,17 @@ class BulkPdfService {
   }
 
   // ===========================================================================
-  // 3. PROFESSIONAL PURCHASE CLONE (LANDSCAPE)
+  // 3. PROFESSIONAL PURCHASE INVOICE (3-BOX FOOTER + SEQUENTIAL S.N.)
   // ===========================================================================
   static Future<Uint8List> _generatePurchaseCloneBytes(Purchase pur, Party supplier, CompanyProfile shop) async {
     final pdf = pw.Document();
     const int itemsPerPage = 12;
     int totalPages = (pur.items.length / itemsPerPage).ceil();
+
+    // Calculations
+    double totalTaxable = pur.items.fold(0, (sum, i) => sum + (i.purchaseRate * i.qty));
+    double totalGst = pur.totalAmount - totalTaxable;
+    int roundedTotal = pur.totalAmount.round();
 
     for (int pageNum = 0; pageNum < totalPages; pageNum++) {
       int start = pageNum * itemsPerPage;
@@ -184,17 +197,22 @@ class BulkPdfService {
               _tCol("MRP", 55), _tCol("Pur.Rate", 55), _tCol("GST%", 35), _tCol("Net Amt", 85),
             ])),
 
-            pw.Expanded(child: pw.Column(children: pageItems.map((i) => pw.Container(
-              decoration: const pw.BoxDecoration(border: pw.Border(bottom: pw.BorderSide(width: 0.1))),
-              child: pw.Row(children: [
-                _cell("${i.srNo}", 25), _cell(i.qty.toStringAsFixed(0), 40),
-                _cell(i.freeQty.toStringAsFixed(0), 30), _cell(i.packing, 45),
-                _cell(i.name, 190, align: pw.Alignment.centerLeft), _cell(i.batch, 75), _cell(i.exp, 45), _cell(i.hsn, 50),
-                _cell(i.mrp.toStringAsFixed(2), 55), _cell(i.purchaseRate.toStringAsFixed(2), 55), _cell("${i.gstRate}%", 35), _cell(i.total.toStringAsFixed(2), 85),
-              ]),
-            )).toList())),
+            pw.Expanded(child: pw.Column(children: pageItems.map((i) {
+              int currentIndex = start + pageItems.indexOf(i) + 1;
+              return pw.Container(
+                decoration: const pw.BoxDecoration(border: pw.Border(bottom: pw.BorderSide(width: 0.1))),
+                child: pw.Row(children: [
+                  _cell("$currentIndex", 25), // S.N. FIX
+                  _cell(i.qty.toStringAsFixed(0), 40),
+                  _cell(i.freeQty.toStringAsFixed(0), 30), _cell(i.packing, 45),
+                  _cell(i.name, 190, align: pw.Alignment.centerLeft), _cell(i.batch, 75), _cell(i.exp, 45), _cell(i.hsn, 50),
+                  _cell(i.mrp.toStringAsFixed(2), 55), _cell(i.purchaseRate.toStringAsFixed(2), 55), _cell("${i.gstRate}%", 35), _cell(i.total.toStringAsFixed(2), 85),
+                ]),
+              );
+            }).toList())),
 
-            if (isLastPage) _buildFooter(shop.name, pur.totalAmount)
+            // --- 3-BOX FOOTER (Purchase) ---
+            if (isLastPage) _buildProfessionalFooter(shop.name, totalTaxable, totalGst/2, totalGst/2, roundedTotal, isPurchase: true)
           ]),
         )
       ));
@@ -203,28 +221,50 @@ class BulkPdfService {
   }
 
   // ===========================================================================
-  // UI HELPERS (EXACT MATCHING ORIGINAL SPECS)
+  // 4. THE 3-BOX PROFESSIONAL FOOTER (SALE & PURCHASE)
   // ===========================================================================
-  static pw.Widget _hBox(double w, pw.Widget child) => pw.Container(width: w, height: 85, padding: const pw.EdgeInsets.all(5), decoration: pw.BoxDecoration(border: pw.Border.all(width: 0.5)), child: child);
-  
-  static pw.Widget _tCol(String text, double width, {pw.Alignment align = pw.Alignment.center}) => pw.Container(width: width, height: 20, alignment: align, decoration: pw.BoxDecoration(border: pw.Border.all(width: 0.5)), child: pw.Text(text, style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold)));
-  
-  static pw.Widget _cell(String t, double w, {pw.Alignment align = pw.Alignment.center}) => pw.Container(width: w, padding: const pw.EdgeInsets.symmetric(vertical: 3), alignment: align, child: pw.Text(t, style: const pw.TextStyle(fontSize: 7.5)));
-
-  static pw.Widget _buildFooter(String shopName, double total) {
-    return pw.Row(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
-        pw.Container(width: 470, padding: const pw.EdgeInsets.all(5), decoration: pw.BoxDecoration(border: pw.Border.all(width: 0.5)), child: pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
-          pw.Text("Amount in Words:", style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold)),
-          pw.Text("RUPEES ${PdfMasterService.numberToWords(total.round())} ONLY", style: pw.TextStyle(fontSize: 8.5, fontWeight: pw.FontWeight.bold, color: PdfColors.blue800)),
-        ])),
-        pw.Container(width: 310, padding: const pw.EdgeInsets.all(5), decoration: pw.BoxDecoration(border: pw.Border.all(width: 0.5)), child: pw.Column(children: [
-          pw.Row(mainAxisAlignment: pw.MainAxisAlignment.spaceBetween, children: [
-            pw.Text("NET PAYABLE AMOUNT", style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold)),
-            pw.Text("Rs. ${total.toStringAsFixed(2)}", style: pw.TextStyle(fontSize: 12, fontWeight: pw.FontWeight.bold)),
-          ]),
-          pw.SizedBox(height: 10),
-          pw.Align(alignment: pw.Alignment.centerRight, child: pw.Text("For $shopName", style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold))),
-        ])),
-    ]);
+  static pw.Widget _buildProfessionalFooter(String shopName, double gross, double sgst, double cgst, int total, {bool isPurchase = false}) {
+    return pw.Row(
+      crossAxisAlignment: pw.CrossAxisAlignment.start,
+      children: [
+        // BOX 1: AMOUNT IN WORDS
+        pw.Container(width: 320, padding: const pw.EdgeInsets.all(5), decoration: pw.BoxDecoration(border: pw.Border.all(width: 0.5)), child: pw.Column(
+          crossAxisAlignment: pw.CrossAxisAlignment.start,
+          children: [
+            pw.Text("Amount in Words:", style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold)),
+            pw.Text("RUPEES ${PdfMasterService.numberToWords(total)} ONLY", style: pw.TextStyle(fontSize: 8.5, fontWeight: pw.FontWeight.bold, color: PdfColors.blue800)),
+            pw.SizedBox(height: 5),
+            pw.Text(isPurchase ? "Note: System generated purchase record." : "Terms: 1. Goods once sold will not be taken back. 2. Disputes subject to local jurisdiction.", style: const pw.TextStyle(fontSize: 6.5)),
+          ],
+        )),
+        // BOX 2: TOTALS (MIDDLE BOX)
+        pw.Container(width: 250, padding: const pw.EdgeInsets.all(5), decoration: pw.BoxDecoration(border: pw.Border.all(width: 0.5)), child: pw.Column(
+          children: [
+            _fRow(isPurchase ? "TAXABLE AMOUNT" : "GROSS TOTAL", gross), 
+            _fRow("TOTAL SGST", sgst), 
+            _fRow("TOTAL CGST", cgst),
+            pw.Divider(thickness: 0.5),
+            pw.Row(mainAxisAlignment: pw.MainAxisAlignment.spaceBetween, children: [
+              pw.Text("NET AMOUNT", style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold)),
+              pw.Text("Rs. $total.00", style: pw.TextStyle(fontSize: 13, fontWeight: pw.FontWeight.bold)),
+            ]),
+          ],
+        )),
+        // BOX 3: FIRM NAME & SIGN (RIGHT BOX)
+        pw.Container(width: 210, height: 61, padding: const pw.EdgeInsets.all(5), decoration: pw.BoxDecoration(border: pw.Border.all(width: 0.5)), child: pw.Column(
+          mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+          children: [
+            pw.Text("For $shopName", style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold)),
+            pw.Text("Authorised Signatory", style: const pw.TextStyle(fontSize: 7.5)),
+          ],
+        )),
+      ],
+    );
   }
+
+  // --- HELPERS ---
+  static pw.Widget _fRow(String l, double v) => pw.Row(mainAxisAlignment: pw.MainAxisAlignment.spaceBetween, children: [pw.Text(l, style: const pw.TextStyle(fontSize: 7.5)), pw.Text(v.toStringAsFixed(2), style: pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold))]);
+  static pw.Widget _hBox(double w, pw.Widget child) => pw.Container(width: w, height: 85, padding: const pw.EdgeInsets.all(5), decoration: pw.BoxDecoration(border: pw.Border.all(width: 0.5)), child: child);
+  static pw.Widget _tCol(String text, double width, {pw.Alignment align = pw.Alignment.center}) => pw.Container(width: width, height: 20, alignment: align, decoration: pw.BoxDecoration(border: pw.Border.all(width: 0.5)), child: pw.Text(text, style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold)));
+  static pw.Widget _cell(String t, double w, {pw.Alignment align = pw.Alignment.center}) => pw.Container(width: w, padding: const pw.EdgeInsets.symmetric(vertical: 2), alignment: align, child: pw.Text(t, style: const pw.TextStyle(fontSize: 7.5)));
 }
