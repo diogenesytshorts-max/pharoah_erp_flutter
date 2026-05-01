@@ -1,4 +1,4 @@
-// FILE: lib/pharoah_manager.dart
+// FILE: lib/pharoah_manager.dart (FULLY UPDATED & FIXED)
 
 import 'dart:convert';
 import 'dart:io';
@@ -51,7 +51,6 @@ class PharoahManager with ChangeNotifier {
     ModuleAction(title: "Purchase Challan", icon: Icons.inventory_2, color: Colors.amber.shade800, navModule: "GO_CHALLAN_PUR"),
     ModuleAction(title: "Sale Register", icon: Icons.format_list_bulleted_rounded, color: Colors.indigo, navModule: "GO_CHALLAN_SALE_REG"),
     ModuleAction(title: "Pur Register", icon: Icons.history_edu_rounded, color: Colors.amber.shade900, navModule: "GO_CHALLAN_PUR_REG"),
-
   ];
 
   List<ModuleAction> get returnActions => [
@@ -215,7 +214,7 @@ class PharoahManager with ChangeNotifier {
   }
 
   // ===========================================================================
-  // FINALIZATION LOGIC
+  // ⚡ FINALIZATION LOGIC (UPDATED FOR MERGED BILLS)
   // ===========================================================================
 
   Future<void> finalizeSale({
@@ -227,21 +226,8 @@ class PharoahManager with ChangeNotifier {
     required String mode, 
     List<String>? linkedIds
   }) async { 
-    // 1. Bill record add karna
-    sales.add(Sale(
-      id: DateTime.now().toString(), 
-      billNo: billNo, 
-      date: date, 
-      partyName: party.name, 
-      partyGstin: party.gst, 
-      partyState: party.state, 
-      items: items, 
-      totalAmount: total, 
-      paymentMode: mode,
-      linkedChallanIds: linkedIds ?? []
-    )); 
+    sales.add(Sale(id: DateTime.now().toString(), billNo: billNo, date: date, partyName: party.name, partyGstin: party.gst, partyState: party.state, items: items, totalAmount: total, paymentMode: mode, linkedChallanIds: linkedIds ?? [])); 
 
-    // 2. Agar challan se bana hai, toh unhe 'Billed' mark karna
     if (linkedIds != null && linkedIds.isNotEmpty) {
       for (var id in linkedIds) {
         int idx = saleChallans.indexWhere((c) => c.id == id);
@@ -249,38 +235,17 @@ class PharoahManager with ChangeNotifier {
       }
     }
 
-    // 3. Numbering series update karna
     if (activeCompany != null) {
       String prefix = billNo.split(RegExp(r'\d')).first;
-      await PharoahNumberingEngine.updateSeriesCounter(
-        type: "SALE", 
-        companyID: activeCompany!.id, 
-        usedNumber: billNo, 
-        prefix: prefix
-      );
+      await PharoahNumberingEngine.updateSeriesCounter(type: "SALE", companyID: activeCompany!.id, usedNumber: billNo, prefix: prefix);
     }
-
-    // 4. Save and Sync
     await save();
-    // Inventory rebuild call taaki stock sahi dikhe
-    InventoryLogicCenter.rebuildAllInventory(
-      medicines: medicines, 
-      batchHistory: batchHistory, 
-      purchases: purchases, 
-      sales: sales
-    );
+    InventoryLogicCenter.rebuildAllInventory(medicines: medicines, batchHistory: batchHistory, purchases: purchases, sales: sales);
     notifyListeners(); 
   }
-  // ===========================================================================
-  // 🚀 ADVANCED BATCH PROCESSING (FOR NO-FREEZE CONVERSION)
-  // ===========================================================================
-  
-  // ---> YAHAN SE PASTE KAREIN --->
-  Future<void> finalizeBatchSales(List<Sale> batch) async {
-    // 1. Bulk Collect: Saare bills ek saath memory mein jorein
-    sales.addAll(batch);
 
-    // 2. Status Update: Saare linked challans ko ek saath 'Billed' mark karein
+  Future<void> finalizeBatchSales(List<Sale> batch) async {
+    sales.addAll(batch);
     for (var sale in batch) {
       if (sale.linkedChallanIds.isNotEmpty) {
         for (var id in sale.linkedChallanIds) {
@@ -289,83 +254,35 @@ class PharoahManager with ChangeNotifier {
         }
       }
     }
-
-    // 3. Serial Number Sync: Sirf aakhri bill number ke basis par counter update karein
     if (batch.isNotEmpty && activeCompany != null) {
       String lastNo = batch.last.billNo;
       String prefix = lastNo.split(RegExp(r'\d')).first;
-      await PharoahNumberingEngine.updateSeriesCounter(
-        type: "SALE", 
-        companyID: activeCompany!.id, 
-        usedNumber: lastNo, 
-        prefix: prefix
-      );
+      await PharoahNumberingEngine.updateSeriesCounter(type: "SALE", companyID: activeCompany!.id, usedNumber: lastNo, prefix: prefix);
     }
-
-    // 4. Atomic Save: Poori dukan ka data sirf EK BAAR disk par likhein
-    await save();
-    
-    // 5. Single Rebuild: Inventory calculation sirf ek baar trigger karein
-    InventoryLogicCenter.rebuildAllInventory(
-      medicines: medicines, 
-      batchHistory: batchHistory, 
-      purchases: purchases, 
-      sales: sales
-    );
-    notifyListeners();
-  }
-
-  // Same logic for Purchases
-  Future<void> finalizeBatchPurchases(List<Purchase> batch) async {
-    purchases.addAll(batch);
     await save();
     InventoryLogicCenter.rebuildAllInventory(medicines: medicines, batchHistory: batchHistory, purchases: purchases, sales: sales);
     notifyListeners();
   }
-  // <--- YAHAN TAK PASTE KAREIN <---
 
-  // ---> REPLACE FINALIZE PURCHASE --->
   void finalizePurchase({
-    required String internalNo, 
-    required String billNo, 
-    required DateTime date, 
-    DateTime? entryDate, 
-    required Party party, 
-    required List<PurchaseItem> items, 
-    required double total, 
-    required String mode,
-    List<String>? linkedChallanIds // <--- NAYA PARAMETER
+    required String internalNo, required String billNo, required DateTime date, 
+    DateTime? entryDate, required Party party, required List<PurchaseItem> items, 
+    required double total, required String mode, List<String>? linkedChallanIds
   }) { 
-    purchases.add(Purchase(
-      id: DateTime.now().toString(), 
-      internalNo: internalNo, 
-      billNo: billNo, 
-      date: date, 
-      entryDate: entryDate ?? DateTime.now(), 
-      distributorName: party.name, 
-      items: items, 
-      totalAmount: total, 
-      paymentMode: mode,
-      linkedChallanIds: linkedChallanIds ?? [] // <--- SAVE TO MODEL
-    )); 
-
-    // --- NAYA: MARK PURCHASE CHALLANS AS BILLED ---
+    purchases.add(Purchase(id: DateTime.now().toString(), internalNo: internalNo, billNo: billNo, date: date, entryDate: entryDate ?? DateTime.now(), distributorName: party.name, items: items, totalAmount: total, paymentMode: mode, linkedChallanIds: linkedChallanIds ?? [])); 
+    
     if (linkedChallanIds != null) {
       for (var id in linkedChallanIds) {
         int idx = purchaseChallans.indexWhere((c) => c.id == id);
         if (idx != -1) purchaseChallans[idx].status = "Billed";
       }
     }
-
     if (activeCompany != null) PharoahNumberingEngine.updateSeriesCounter(type: "PURCHASE", companyID: activeCompany!.id, usedNumber: internalNo, prefix: "PUR-"); 
     save().then((_) => loadAllData()); 
   }
 
-  // ---> REPLACE FINALIZE BATCH PURCHASES --->
   Future<void> finalizeBatchPurchases(List<Purchase> batch) async {
     purchases.addAll(batch);
-    
-    // Status Update for all linked challans in batch
     for (var p in batch) {
       if (p.linkedChallanIds.isNotEmpty) {
         for (var id in p.linkedChallanIds) {
@@ -374,31 +291,9 @@ class PharoahManager with ChangeNotifier {
         }
       }
     }
-
     await save();
     InventoryLogicCenter.rebuildAllInventory(medicines: medicines, batchHistory: batchHistory, purchases: purchases, sales: sales);
     notifyListeners();
-  }
-
-  void finalizeSaleChallan({required String challanNo, required DateTime date, required Party party, required List<BillItem> items, required double total, String remarks = ""}) async { 
-    saleChallans.add(SaleChallan(id: DateTime.now().toString(), billNo: challanNo, date: date, partyName: party.name, partyGstin: party.gst, partyState: party.state, items: items, totalAmount: total, remarks: remarks)); 
-    save(); 
-  }
-
-  void finalizePurchaseChallan({required String challanNo, required String internalNo, required DateTime date, required Party party, required List<PurchaseItem> items, required double total, String remarks = ""}) async { 
-    purchaseChallans.add(PurchaseChallan(id: DateTime.now().toString(), internalNo: internalNo, billNo: challanNo, date: date, distributorName: party.name, items: items, totalAmount: total, remarks: remarks)); 
-    if (activeCompany != null) await PharoahNumberingEngine.updateSeriesCounter(type: "CHALLAN_PUR", companyID: activeCompany!.id, usedNumber: internalNo, prefix: "PCH-");
-    save(); 
-  }
-
-  void finalizeSaleReturn({required String billNo, required DateTime date, required Party party, required List<BillItem> items, required double total, String type = "Sellable"}) async { 
-    saleReturns.add(SaleReturn(id: DateTime.now().toString(), billNo: billNo, date: date, partyName: party.name, items: items, totalAmount: total, returnType: type)); 
-    save(); 
-  }
-
-  void finalizePurchaseReturn({required String billNo, required DateTime date, required Party party, required List<PurchaseItem> items, required double total, String type = "Breakage"}) { 
-    purchaseReturns.add(PurchaseReturn(id: DateTime.now().toString(), billNo: billNo, distributorName: party.name, date: date, items: items, totalAmount: total, status: "Active", returnType: type)); 
-    save(); 
   }
 
   // ===========================================================================
@@ -444,31 +339,25 @@ class PharoahManager with ChangeNotifier {
   void addManualShortage({required Medicine med, required double qty, String cust = ""}) { shortages.add(ShortageItem(id: DateTime.now().toString(), medicineId: med.id, medicineName: med.name, companyName: med.companyId, qtyRequired: qty, currentStock: med.stock, date: DateTime.now(), customerName: cust)); save(); }
   void updateChequeStatus(String id, String status, String reason) { int i = cheques.indexWhere((c) => c.id == id); if(i != -1) { cheques[i].status = status; cheques[i].remark = reason; save(); } }
 
-  // ===========================================================================
-  // INVENTORY INTEL (SHORTAGE 1.5x)
-  // ===========================================================================
-
-  double calculateAvgMonthlySale(String medicineId) {
-    DateTime thirtyDaysAgo = DateTime.now().subtract(const Duration(days: 30));
-    double monthlyQty = 0;
-    for (var sale in sales.where((s) => s.status == "Active" && s.date.isAfter(thirtyDaysAgo))) {
-      for (var item in sale.items.where((it) => it.medicineID == medicineId)) {
-        monthlyQty += (item.qty + item.freeQty);
-      }
-    }
-    return monthlyQty;
+  void finalizeSaleChallan({required String challanNo, required DateTime date, required Party party, required List<BillItem> items, required double total, String remarks = ""}) async { 
+    saleChallans.add(SaleChallan(id: DateTime.now().toString(), billNo: challanNo, date: date, partyName: party.name, partyGstin: party.gst, partyState: party.state, items: items, totalAmount: total, remarks: remarks)); 
+    save(); 
   }
 
-  void runAutoShortageScan() {
-    shortages.removeWhere((s) => s.source == "Auto");
-    for (var med in medicines) {
-      double avg = calculateAvgMonthlySale(med.id);
-      double required = avg * 1.5;
-      if (med.stock < required && required > 0) {
-        shortages.add(ShortageItem(id: "auto_${med.id}", medicineId: med.id, medicineName: med.name, companyName: med.companyId, qtyRequired: required - med.stock, currentStock: med.stock, date: DateTime.now(), source: "Auto"));
-      }
-    }
-    save();
+  void finalizePurchaseChallan({required String challanNo, required String internalNo, required DateTime date, required Party party, required List<PurchaseItem> items, required double total, String remarks = ""}) async { 
+    purchaseChallans.add(PurchaseChallan(id: DateTime.now().toString(), internalNo: internalNo, billNo: challanNo, date: date, distributorName: party.name, items: items, totalAmount: total, remarks: remarks)); 
+    if (activeCompany != null) await PharoahNumberingEngine.updateSeriesCounter(type: "CHALLAN_PUR", companyID: activeCompany!.id, usedNumber: internalNo, prefix: "PCH-");
+    save(); 
+  }
+
+  void finalizeSaleReturn({required String billNo, required DateTime date, required Party party, required List<BillItem> items, required double total, String type = "Sellable"}) async { 
+    saleReturns.add(SaleReturn(id: DateTime.now().toString(), billNo: billNo, date: date, partyName: party.name, items: items, totalAmount: total, returnType: type)); 
+    save(); 
+  }
+
+  void finalizePurchaseReturn({required String billNo, required DateTime date, required Party party, required List<PurchaseItem> items, required double total, String type = "Breakage"}) { 
+    purchaseReturns.add(PurchaseReturn(id: DateTime.now().toString(), billNo: billNo, distributorName: party.name, date: date, items: items, totalAmount: total, status: "Active", returnType: type)); 
+    save(); 
   }
 
   // ===========================================================================
@@ -479,14 +368,11 @@ class PharoahManager with ChangeNotifier {
     activeCompany = profile; 
     currentFY = initialFY;
     numberingSeries = [NumberingSeries(id: 's1', name: "Standard Retail", type: "SALE", prefix: "INV-", isDefault: true)];
-    
-    // Demo data inject karna
     medicines = DemoData.getMedicines();
     companies = MasterDataLibrary.getTopCompanies();
     salts = MasterDataLibrary.getTopSalts();
     drugTypes = MasterDataLibrary.getDrugTypes();
     parties = [DemoData.getDemoParty(), Party(id: 'cash', name: "CASH", group: "Cash in Hand")];
-    
     await save();
     if (!companiesRegistry.any((c) => c.id == profile.id)) { 
       companiesRegistry.add(profile); 
