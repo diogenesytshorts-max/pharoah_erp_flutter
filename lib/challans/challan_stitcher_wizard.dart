@@ -13,6 +13,7 @@ import '../pdf/purchase_pdf.dart';
 import '../pdf/bulk_pdf_service.dart';
 import '../billing_view.dart';
 import '../purchase/purchase_billing_view.dart';
+import 'package:file_saver/file_saver.dart'; // <--- NAYA IMPORT
 
 class ChallanStitcherWizard extends StatefulWidget {
   const ChallanStitcherWizard({super.key});
@@ -106,9 +107,11 @@ class _ChallanStitcherWizardState extends State<ChallanStitcherWizard> with Sing
   Future<void> _handleZipExport(PharoahManager ph) async {
     var selected = draftBills.where((b) => b['isSelected']).toList();
     if (selected.isEmpty) return;
+
     if (selected.any((b) => b['status'] == 'DRAFT')) await _handleBatchSave(ph);
 
-    setState(() { isProcessing = true; progressValue = 0.0; progressText = "Creating Zip Folder..."; });
+    setState(() { isProcessing = true; progressValue = 0.0; progressText = "Generating Zip..."; });
+    
     try {
       List<Map<String, dynamic>> payload = [];
       for (var d in selected) {
@@ -117,9 +120,48 @@ class _ChallanStitcherWizardState extends State<ChallanStitcherWizard> with Sing
           : ph.purchases.firstWhere((p) => p.internalNo == d['billNo']);
         payload.add({'saleObj': obj, 'party': d['party'], 'billNo': d['billNo']});
       }
-      String p = await BulkPdfService.createBillsZip(selectedDrafts: payload, shop: ph.activeCompany!, onProgress: (v, n) => setState(() { progressValue = v; progressText = "Zipping: $n"; }));
+
+      // 1. Zip Path nikalna
+      String path = await BulkPdfService.createBillsZip(
+        selectedDrafts: payload, 
+        shop: ph.activeCompany!, 
+        onProgress: (v, n) => setState(() { progressValue = v; progressText = "Packing: $n"; })
+      );
+
       setState(() => isProcessing = false);
-      await Share.shareXFiles([XFile(p)], subject: 'Batch_PDF_Export');
+
+      // 2. --- NAYA: SELECTION DIALOG (SHARE vs SAVE) ---
+      if (mounted) {
+        showDialog(
+          context: context,
+          builder: (c) => AlertDialog(
+            title: const Text("Batch Zip Ready!"),
+            content: const Text("Aap is folder ka kya karna chahte hain?"),
+            actions: [
+              // OPTION A: SHARE (WhatsApp etc)
+              TextButton.icon(
+                icon: const Icon(Icons.share), label: const Text("SHARE"),
+                onPressed: () { Navigator.pop(c); Share.shareXFiles([XFile(path)]); }
+              ),
+              // OPTION B: SAVE TO FILE MANAGER
+              ElevatedButton.icon(
+                icon: const Icon(Icons.download), label: const Text("SAVE TO DEVICE"),
+                onPressed: () async {
+                  Navigator.pop(c);
+                  final bytes = await File(path).readAsBytes();
+                  await FileSaver.instance.saveFile(
+                    name: "Bills_Batch_${DateFormat('ddMM_HHmm').format(DateTime.now())}",
+                    bytes: bytes,
+                    ext: "zip",
+                    mimeType: MimeType.zip,
+                  );
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("✅ Saved to Downloads!")));
+                }
+              ),
+            ],
+          ),
+        );
+      }
     } catch (e) { setState(() => isProcessing = false); }
   }
 
