@@ -357,46 +357,102 @@ class _ChallanStitcherWizardState extends State<ChallanStitcherWizard> with Sing
     final b = draftBills[index];
     if (b['status'] == 'SAVED') return;
 
-    setState(() { isProcessing = true; progressText = "Saving ${b['party'].name}..."; });
-
     bool isSale = _tabController.index == 0;
     String finalNo;
 
-    if (isSale) {
-      var series = ph.getDefaultSeries("SALE");
-      finalNo = await PharoahNumberingEngine.getNextNumber(type: "SALE", companyID: ph.activeCompany!.id, prefix: series.prefix, startFrom: series.startNumber, currentList: ph.sales);
-      ph.finalizeSale(billNo: finalNo, date: b['date'], party: b['party'], items: b['items'].cast<BillItem>(), total: b['total'], mode: "CREDIT", linkedIds: b['challanIds']);
-    } else {
-      finalNo = await PharoahNumberingEngine.getNextNumber(type: "PURCHASE", companyID: ph.activeCompany!.id, prefix: "PUR-", startFrom: 1, currentList: ph.purchases);
-      ph.finalizePurchase(internalNo: finalNo, billNo: "", date: b['date'], party: b['party'], items: b['items'].cast<PurchaseItem>(), total: b['total'], mode: "CREDIT");
-    }
+    try {
+      if (isSale) {
+        var series = ph.getDefaultSeries("SALE");
+        finalNo = await PharoahNumberingEngine.getNextNumber(
+          type: "SALE", 
+          companyID: ph.activeCompany!.id, 
+          prefix: series.prefix, 
+          startFrom: series.startNumber, 
+          currentList: ph.sales
+        );
+        
+        // Items ko manually list mein convert karna safety ke liye
+        List<BillItem> finalItems = [];
+        for (var item in b['items']) { finalItems.add(item as BillItem); }
 
-    setState(() {
-      draftBills[index]['status'] = 'SAVED';
-      draftBills[index]['billNo'] = finalNo;
-      isProcessing = false;
-    });
+        await ph.finalizeSale(
+          billNo: finalNo, 
+          date: b['date'], 
+          party: b['party'], 
+          items: finalItems, 
+          total: b['total'], 
+          mode: "CREDIT", 
+          linkedIds: b['challanIds']
+        );
+      } else {
+        finalNo = await PharoahNumberingEngine.getNextNumber(
+          type: "PURCHASE", 
+          companyID: ph.activeCompany!.id, 
+          prefix: "PUR-", 
+          startFrom: 1, 
+          currentList: ph.purchases
+        );
+
+        List<PurchaseItem> finalItems = [];
+        for (var item in b['items']) { finalItems.add(item as PurchaseItem); }
+
+        ph.finalizePurchase(
+          internalNo: finalNo, 
+          billNo: "", 
+          date: b['date'], 
+          party: b['party'], 
+          items: finalItems, 
+          total: b['total'], 
+          mode: "CREDIT"
+        );
+      }
+
+      setState(() {
+        draftBills[index]['status'] = 'SAVED';
+        draftBills[index]['billNo'] = finalNo;
+      });
+    } catch (e) {
+      debugPrint("Save Error for ${b['party'].name}: $e");
+    }
   }
 
   void _handleBulkAction(PharoahManager ph, String action) async {
-    var selected = draftBills.where((b) => b['isSelected'] && b['status'] == 'DRAFT').toList();
-    if (selected.isEmpty && action == "SAVE") return;
+    // Sirf unhe pakdein jo select hain aur abhi tak save nahi huye
+    var toProcess = draftBills.where((b) => b['isSelected'] && b['status'] == 'DRAFT').toList();
+    if (toProcess.isEmpty) return;
 
-    setState(() { isProcessing = true; progressValue = 0.0; });
+    setState(() { 
+      isProcessing = true; 
+      progressValue = 0.0; 
+      progressText = "Starting Bulk $action...";
+    });
 
     for (int i = 0; i < draftBills.length; i++) {
       if (draftBills[i]['isSelected'] && draftBills[i]['status'] == 'DRAFT') {
         setState(() { 
-          progressText = "$action-ing ${draftBills[i]['party'].name}..."; 
+          progressText = "$action-ing: ${draftBills[i]['party'].name}"; 
           progressValue = (i + 1) / draftBills.length;
         });
+
+        // 1. Bill Save Karo
         await _saveSingleDraft(ph, i);
+        
+        // 2. Agar Print command hai toh PDF generate karo
         if (action == "PRINT") await _printSingleDraft(ph, i);
+
+        // --- THE FIX: Chhota sa break taaki system hang na ho ---
+        await Future.delayed(const Duration(milliseconds: 300));
       }
     }
 
-    setState(() { isProcessing = false; progressValue = 0.0; });
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("✅ Bulk $action Complete!")));
+    setState(() { 
+      isProcessing = false; 
+      progressValue = 0.0; 
+    });
+    
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text("✅ Batch $action successfully completed!"), backgroundColor: Colors.green)
+    );
   }
 
   Future<void> _printSingleDraft(PharoahManager ph, int index) async {
