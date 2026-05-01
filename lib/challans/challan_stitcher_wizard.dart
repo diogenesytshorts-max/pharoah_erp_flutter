@@ -1,3 +1,5 @@
+// FILE: lib/challans/challan_stitcher_wizard.dart
+
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -26,14 +28,12 @@ class ChallanStitcherWizard extends StatefulWidget {
 class _ChallanStitcherWizardState extends State<ChallanStitcherWizard> with SingleTickerProviderStateMixin {
   late TabController _tabController;
   
-  // --- FLOW CONTROL ---
-  String funnelStep = "MODE"; // MODE, ROUTE, PARTY, REVIEW
+  String funnelStep = "MODE"; 
   String selectionMode = "NONE"; 
   bool isProcessing = false;
   double progressValue = 0.0;
   String progressText = "";
 
-  // --- DATA SELECTION ---
   DateTime batchBillDate = DateTime.now(); 
   DateTime fromDate = DateTime.now();
   DateTime toDate = DateTime.now();
@@ -56,7 +56,7 @@ class _ChallanStitcherWizardState extends State<ChallanStitcherWizard> with Sing
   }
 
   // ===========================================================================
-  // ⚡ LOGIC: BATCH SAVE & ZIP EXPORT
+  // ⚡ LOGIC: BATCH SAVE (FIXED FOR MERGED LABEL)
   // ===========================================================================
   
   Future<void> _handleBatchSave(PharoahManager ph) async {
@@ -67,7 +67,6 @@ class _ChallanStitcherWizardState extends State<ChallanStitcherWizard> with Sing
 
     bool isSale = _tabController.index == 0;
     if (isSale) {
-      // --- SALES BATCH ---
       List<Sale> batchToSave = [];
       var series = ph.getDefaultSeries("SALE");
       String startNoStr = await PharoahNumberingEngine.getNextNumber(type: "SALE", companyID: ph.activeCompany!.id, prefix: series.prefix, startFrom: series.startNumber, currentList: ph.sales);
@@ -85,24 +84,29 @@ class _ChallanStitcherWizardState extends State<ChallanStitcherWizard> with Sing
           items: b['items'].cast<BillItem>(),
           totalAmount: b['total'],
           paymentMode: "CREDIT",
-          linkedChallanIds: b['challanIds']
+          linkedChallanIds: List<String>.from(b['challanIds'])
         ));
         nextNum++;
       }
       await ph.finalizeBatchSales(batchToSave);
       _updateLocalStatus(batchToSave, true);
     } else {
-      // --- PURCHASE BATCH ---
+      // --- PURCHASE BATCH (FIXED) ---
       List<Purchase> purBatch = [];
       for (var b in selected) {
         String pNo = await PharoahNumberingEngine.getNextNumber(type: "PURCHASE", companyID: ph.activeCompany!.id, prefix: "PUR-", startFrom: 1, currentList: ph.purchases);
+        
         purBatch.add(Purchase(
           id: DateTime.now().millisecondsSinceEpoch.toString() + pNo,
-          internalNo: pNo, billNo: "CONV", 
-          date: b['date'], entryDate: DateTime.now(),
+          internalNo: pNo, 
+          billNo: "CH-CONV-${pNo.replaceAll("PUR-", "")}", // Unique Tracking ID
+          date: b['date'], 
+          entryDate: DateTime.now(),
           distributorName: b['party'].name,
           items: b['items'].cast<PurchaseItem>(),
-          totalAmount: b['total'], paymentMode: "CREDIT"
+          totalAmount: b['total'], 
+          paymentMode: "CREDIT",
+          linkedChallanIds: List<String>.from(b['challanIds']) // IDs Passed!
         ));
       }
       await ph.finalizeBatchPurchases(purBatch);
@@ -127,11 +131,13 @@ class _ChallanStitcherWizardState extends State<ChallanStitcherWizard> with Sing
     });
   }
 
+  // ===========================================================================
+  // 📁 ZIP EXPORT (FIXED SAVE AS PICKER)
+  // ===========================================================================
   Future<void> _handleZipExport(PharoahManager ph) async {
     var selected = draftBills.where((b) => b['isSelected']).toList();
     if (selected.isEmpty) return;
 
-    // Request Permissions
     if (Platform.isAndroid) {
       await Permission.storage.request();
       await Permission.manageExternalStorage.request();
@@ -163,10 +169,7 @@ class _ChallanStitcherWizardState extends State<ChallanStitcherWizard> with Sing
             title: const Text("Batch ZIP Ready!"),
             actions: [
               TextButton(
-                onPressed: () { 
-                  Navigator.pop(c); 
-                  Share.shareXFiles([XFile(path)]); 
-                }, 
+                onPressed: () { Navigator.pop(c); Share.shareXFiles([XFile(path)]); }, 
                 child: const Text("SHARE")
               ),
               ElevatedButton(
@@ -174,7 +177,6 @@ class _ChallanStitcherWizardState extends State<ChallanStitcherWizard> with Sing
                   Navigator.pop(c);
                   try {
                     final bytes = await File(path).readAsBytes();
-                    // FIXED: saveAs method call with proper brackets
                     await FileSaver.instance.saveAs(
                       name: "Batch_Bills_${DateFormat('ddMM_HHmm').format(DateTime.now())}", 
                       bytes: bytes, 
@@ -182,11 +184,7 @@ class _ChallanStitcherWizardState extends State<ChallanStitcherWizard> with Sing
                       mimeType: MimeType.zip
                     );
                   } catch (e) {
-                    if (mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text("Error saving: $e"), backgroundColor: Colors.red)
-                      );
-                    }
+                    if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error: $e")));
                   }
                 }, 
                 child: const Text("SAVE TO DEVICE")
@@ -195,13 +193,11 @@ class _ChallanStitcherWizardState extends State<ChallanStitcherWizard> with Sing
           ),
         );
       }
-    } catch (e) { 
-      setState(() => isProcessing = false); 
-    }
+    } catch (e) { setState(() => isProcessing = false); }
   }
 
   // ===========================================================================
-  // 🖥️ UI BUILDER
+  // 🖥️ UI BUILDER & HELPERS
   // ===========================================================================
 
   @override
@@ -293,10 +289,6 @@ class _ChallanStitcherWizardState extends State<ChallanStitcherWizard> with Sing
     ]);
   }
 
-  // ===========================================================================
-  // ⚡ WRAPPER HELPERS
-  // ===========================================================================
-
   void _generateDrafts(PharoahManager ph) {
     setState(() => isProcessing = true);
     List<Map<String, dynamic>> temp = []; bool isSale = _tabController.index == 0;
@@ -323,21 +315,19 @@ class _ChallanStitcherWizardState extends State<ChallanStitcherWizard> with Sing
     if(isSale) {
       var ser = ph.getDefaultSeries("SALE");
       finalNo = await PharoahNumberingEngine.getNextNumber(type: "SALE", companyID: ph.activeCompany!.id, prefix: ser.prefix, startFrom: ser.startNumber, currentList: ph.sales);
-      await ph.finalizeSale(billNo: finalNo, date: b['date'], party: b['party'], items: b['items'].cast<BillItem>(), total: b['total'], mode: "CREDIT", linkedIds: b['challanIds'].cast<String>());
+      await ph.finalizeSale(billNo: finalNo, date: b['date'], party: b['party'], items: b['items'].cast<BillItem>(), total: b['total'], mode: "CREDIT", linkedIds: List<String>.from(b['challanIds']));
     } else {
       finalNo = await PharoahNumberingEngine.getNextNumber(type: "PURCHASE", companyID: ph.activeCompany!.id, prefix: "PUR-", startFrom: 1, currentList: ph.purchases);
-      
-      // CALL UPDATED MANAGER FUNCTION
       ph.finalizePurchase(
         internalNo: finalNo, 
-        billNo: "CONV", 
+        billNo: "CH-CONV-${finalNo.replaceAll("PUR-", "")}", 
         date: b['date'], 
         entryDate: DateTime.now(), 
         party: b['party'], 
         items: b['items'].cast<PurchaseItem>(), 
         total: b['total'], 
         mode: "CREDIT",
-        linkedChallanIds: b['challanIds'].cast<String>() // <--- MATCHING PARAMETER NAME
+        linkedChallanIds: List<String>.from(b['challanIds'])
       );
     }
     setState(() { draftBills[i]['status'] = 'SAVED'; draftBills[i]['billNo'] = finalNo; isProcessing = false; });
@@ -357,8 +347,8 @@ class _ChallanStitcherWizardState extends State<ChallanStitcherWizard> with Sing
 
   void _editDraft(Map<String, dynamic> b, int i) async {
     bool isSale = _tabController.index == 0;
-    if (isSale) await Navigator.push(context, MaterialPageRoute(builder: (c) => BillingView(party: b['party'], billNo: "DRAFT", billDate: b['date'], mode: "CREDIT", existingItems: b['items'].cast<BillItem>(), linkedChallanIds: b['challanIds'].cast<String>())));
-    else await Navigator.push(context, MaterialPageRoute(builder: (c) => PurchaseBillingView(distributor: b['party'], internalNo: "DRAFT", distBillNo: "", billDate: b['date'], entryDate: DateTime.now(), mode: "CREDIT", existingItems: b['items'].cast<PurchaseItem>())));
+    if (isSale) await Navigator.push(context, MaterialPageRoute(builder: (c) => BillingView(party: b['party'], billNo: "DRAFT", billDate: b['date'], mode: "CREDIT", existingItems: b['items'].cast<BillItem>(), linkedChallanIds: List<String>.from(b['challanIds']))));
+    else await Navigator.push(context, MaterialPageRoute(builder: (c) => PurchaseBillingView(distributor: b['party'], internalNo: "DRAFT", distBillNo: "", billDate: b['date'], entryDate: DateTime.now(), mode: "CREDIT", existingItems: b['items'].cast<PurchaseItem>(), linkedChallanIds: List<String>.from(b['challanIds']))));
     setState(() { draftBills[i]['status'] = 'SAVED'; draftBills[i]['billNo'] = "MANUAL-DONE"; });
   }
 
@@ -367,7 +357,6 @@ class _ChallanStitcherWizardState extends State<ChallanStitcherWizard> with Sing
     else Navigator.push(context, MaterialPageRoute(builder: (c) => PurchaseBillingView(distributor: b['party'], internalNo: "DRAFT", distBillNo: "", billDate: b['date'], entryDate: DateTime.now(), mode: "CREDIT", existingItems: b['items'].cast<PurchaseItem>(), isReadOnly: true)));
   }
 
-  // --- HELPERS ---
   void _showMonthPicker(String fy) {
     showModalBottomSheet(context: context, builder: (c) => ListView(children: fyMonths.map((m) => ListTile(title: Text(m), onTap: () { Navigator.pop(c); _setDt(m, fy); })).toList()));
   }
