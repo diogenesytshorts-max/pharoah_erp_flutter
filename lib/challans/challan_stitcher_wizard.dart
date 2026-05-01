@@ -160,8 +160,20 @@ class _ChallanStitcherWizardState extends State<ChallanStitcherWizard> with Sing
             ElevatedButton(onPressed: () async {
               Navigator.pop(c);
               final bytes = await File(path).readAsBytes();
-              await FileSaver.instance.saveFile(name: "Invoices_Batch", bytes: bytes, ext: "zip", mimeType: MimeType.zip);
-              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("✅ Saved to Downloads!")));
+
+              // NAYA: saveAs use karne se folder picker khulega aur user khud jagah chun sakega
+              String fileName = "Batch_Bills_${DateFormat('ddMM_HHmm').format(DateTime.now())}";
+              
+              await FileSaver.instance.saveAs(
+                name: fileName, 
+                bytes: bytes, 
+                ext: "zip", 
+                mimeType: MimeType.zip
+              );
+
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("✅ Export process complete!")));
+              }
             }, child: const Text("SAVE TO DEVICE")),
           ],
         ));
