@@ -322,9 +322,24 @@ class _ChallanStitcherWizardState extends State<ChallanStitcherWizard> with Sing
     else Navigator.push(context, MaterialPageRoute(builder: (c) => PurchaseBillingView(distributor: b['party'], internalNo: "DRAFT", distBillNo: "", billDate: b['date'], entryDate: DateTime.now(), mode: "CREDIT", existingItems: b['items'].cast<PurchaseItem>(), isReadOnly: true)));
   }
 
-  void _editDraft(Map<String, dynamic> b) {
-    if (_tabController.index == 0) Navigator.push(context, MaterialPageRoute(builder: (c) => BillingView(party: b['party'], billNo: "DRAFT", billDate: b['date'], mode: "CREDIT", existingItems: b['items'].cast<BillItem>())));
-    else Navigator.push(context, MaterialPageRoute(builder: (c) => PurchaseBillingView(distributor: b['party'], internalNo: "DRAFT", distBillNo: "", billDate: b['date'], entryDate: DateTime.now(), mode: "CREDIT", existingItems: b['items'].cast<PurchaseItem>())));
+  void _editDraft(Map<String, dynamic> b, int index) async {
+    // Navigator.push ka result wait karenge
+    await Navigator.push(context, MaterialPageRoute(builder: (c) => BillingView(
+      party: b['party'], 
+      billNo: "DRAFT", // Indicator for smart nav
+      billDate: b['date'], 
+      mode: "CREDIT", 
+      existingItems: b['items'].cast<BillItem>(),
+      linkedChallanIds: b['challanIds'],
+    )));
+
+    // Jab user wapas aaye, toh check karo ki kya bill save ho gaya?
+    // Batch screen refresh karne ke liye:
+    setState(() {
+      // Hum status ko SAVED mark kar denge taaki card green ho jaye
+      draftBills[index]['status'] = 'SAVED';
+      draftBills[index]['billNo'] = "MANUAL-FIX"; 
+    });
   }
 
   void _showMonthPicker(String fy) {
