@@ -1,7 +1,7 @@
 // FILE: lib/models.dart
 
 import 'dart:convert';
-import 'package:flutter/material.dart'; // <--- YE IMPORT ZAROORI HAI
+import 'package:flutter/material.dart';
 
 // ===========================================================================
 // 1. SYSTEM CONFIGURATION MODELS
@@ -101,35 +101,37 @@ class Party {
 }
 
 // ===========================================================================
-// 4. TRANSACTION ITEM MODELS
+// 4. TRANSACTION ITEM MODELS (FIXED WITH sourceChallanId)
 // ===========================================================================
 
 class BillItem {
-  String id, medicineID, name, packing, batch, exp, hsn, sourceChallanNo; int srNo; 
+  String id, medicineID, name, packing, batch, exp, hsn, sourceChallanNo, sourceChallanId; // <--- UPDATED
+  int srNo; 
   double mrp, qty, freeQty, rate, gstRate, cgst, sgst, igst, total, discountRupees;
-  BillItem({required this.id, required this.srNo, required this.medicineID, required this.name, required this.packing, required this.batch, required this.exp, required this.hsn, required this.mrp, required this.qty, this.freeQty = 0, required this.rate, required this.gstRate, this.cgst = 0, this.sgst = 0, this.igst = 0, required this.total, this.discountRupees = 0, this.sourceChallanNo = ""});
-  BillItem copyWith({int? srNo, String? sourceChallanNo}) => BillItem(id: id, srNo: srNo ?? this.srNo, medicineID: medicineID, name: name, packing: packing, batch: batch, exp: exp, hsn: hsn, mrp: mrp, qty: qty, freeQty: freeQty, rate: rate, gstRate: gstRate, cgst: cgst, sgst: sgst, igst: igst, total: total, discountRupees: discountRupees, sourceChallanNo: sourceChallanNo ?? this.sourceChallanNo);
-  Map<String, dynamic> toMap() => {'id': id, 'srNo': srNo, 'medicineID': medicineID, 'name': name, 'packing': packing, 'batch': batch, 'exp': exp, 'hsn': hsn, 'mrp': mrp, 'qty': qty, 'freeQty': freeQty, 'rate': rate, 'gstRate': gstRate, 'cgst': cgst, 'sgst': sgst, 'igst': igst, 'total': total, 'discountRupees': discountRupees, 'sourceChallanNo': sourceChallanNo};
-  factory BillItem.fromMap(Map<String, dynamic> map) => BillItem(id: map['id'] ?? "", srNo: map['srNo'] ?? 0, medicineID: map['medicineID'] ?? "", name: map['name'] ?? "", packing: map['packing'] ?? "", batch: map['batch'] ?? "", exp: map['exp'] ?? "", hsn: map['hsn'] ?? "", mrp: (map['mrp'] ?? 0.0).toDouble(), qty: (map['qty'] ?? 0.0).toDouble(), freeQty: (map['freeQty'] ?? 0.0).toDouble(), rate: (map['rate'] ?? 0.0).toDouble(), gstRate: (map['gstRate'] ?? 0.0).toDouble(), cgst: (map['cgst'] ?? 0.0).toDouble(), sgst: (map['sgst'] ?? 0.0).toDouble(), igst: (map['igst'] ?? 0.0).toDouble(), total: (map['total'] ?? 0.0).toDouble(), discountRupees: (map['discountRupees'] ?? 0.0).toDouble(), sourceChallanNo: map['sourceChallanNo'] ?? "");
+
+  BillItem({required this.id, required this.srNo, required this.medicineID, required this.name, required this.packing, required this.batch, required this.exp, required this.hsn, required this.mrp, required this.qty, this.freeQty = 0, required this.rate, required this.gstRate, this.cgst = 0, this.sgst = 0, this.igst = 0, required this.total, this.discountRupees = 0, this.sourceChallanNo = "", this.sourceChallanId = ""}); // <--- UPDATED
+
+  BillItem copyWith({int? srNo, String? sourceChallanNo, String? sourceChallanId}) => BillItem(id: id, srNo: srNo ?? this.srNo, medicineID: medicineID, name: name, packing: packing, batch: batch, exp: exp, hsn: hsn, mrp: mrp, qty: qty, freeQty: freeQty, rate: rate, gstRate: gstRate, cgst: cgst, sgst: sgst, igst: igst, total: total, discountRupees: discountRupees, sourceChallanNo: sourceChallanNo ?? this.sourceChallanNo, sourceChallanId: sourceChallanId ?? this.sourceChallanId); // <--- UPDATED
+
+  Map<String, dynamic> toMap() => {'id': id, 'srNo': srNo, 'medicineID': medicineID, 'name': name, 'packing': packing, 'batch': batch, 'exp': exp, 'hsn': hsn, 'mrp': mrp, 'qty': qty, 'freeQty': freeQty, 'rate': rate, 'gstRate': gstRate, 'cgst': cgst, 'sgst': sgst, 'igst': igst, 'total': total, 'discountRupees': discountRupees, 'sourceChallanNo': sourceChallanNo, 'sourceChallanId': sourceChallanId}; // <--- UPDATED
+
+  factory BillItem.fromMap(Map<String, dynamic> map) => BillItem(id: map['id'] ?? "", srNo: map['srNo'] ?? 0, medicineID: map['medicineID'] ?? "", name: map['name'] ?? "", packing: map['packing'] ?? "", batch: map['batch'] ?? "", exp: map['exp'] ?? "", hsn: map['hsn'] ?? "", mrp: (map['mrp'] ?? 0.0).toDouble(), qty: (map['qty'] ?? 0.0).toDouble(), freeQty: (map['freeQty'] ?? 0.0).toDouble(), rate: (map['rate'] ?? 0.0).toDouble(), gstRate: (map['gstRate'] ?? 0.0).toDouble(), cgst: (map['cgst'] ?? 0.0).toDouble(), sgst: (map['sgst'] ?? 0.0).toDouble(), igst: (map['igst'] ?? 0.0).toDouble(), total: (map['total'] ?? 0.0).toDouble(), discountRupees: (map['discountRupees'] ?? 0.0).toDouble(), sourceChallanNo: map['sourceChallanNo'] ?? "", sourceChallanId: map['sourceChallanId'] ?? ""); // <--- UPDATED
 }
 
 class PurchaseItem {
-  String id, medicineID, name, packing, batch, exp, hsn, sourceChallanNo; // <--- NAYA FIELD ADDED
+  String id, medicineID, name, packing, batch, exp, hsn, sourceChallanNo, sourceChallanId; // <--- UPDATED
   int srNo; 
   double mrp, qty, freeQty, purchaseRate, gstRate, total, rateA, rateB, rateC;
-  
-  // Constructor updated below
-  PurchaseItem({required this.id, required this.srNo, required this.medicineID, required this.name, required this.packing, required this.batch, required this.exp, required this.hsn, required this.mrp, required this.qty, this.freeQty = 0, required this.purchaseRate, required this.gstRate, required this.total, this.rateA = 0, this.rateB = 0, this.rateC = 0, this.sourceChallanNo = ""}); // <--- UPDATED
 
-  // copyWith updated below
-  PurchaseItem copyWith({int? srNo, String? sourceChallanNo}) => PurchaseItem(id: id, srNo: srNo ?? this.srNo, medicineID: medicineID, name: name, packing: packing, batch: batch, exp: exp, hsn: hsn, mrp: mrp, qty: qty, freeQty: freeQty, purchaseRate: purchaseRate, gstRate: gstRate, total: total, rateA: rateA, rateB: rateB, rateC: rateC, sourceChallanNo: sourceChallanNo ?? this.sourceChallanNo); // <--- UPDATED
-  
-  // toMap updated below
-  Map<String, dynamic> toMap() => {'id': id, 'srNo': srNo, 'medicineID': medicineID, 'name': name, 'packing': packing, 'batch': batch, 'exp': exp, 'hsn': hsn, 'mrp': mrp, 'qty': qty, 'freeQty': freeQty, 'purchaseRate': purchaseRate, 'gstRate': gstRate, 'total': total, 'rateA': rateA, 'rateB': rateB, 'rateC': rateC, 'sourceChallanNo': sourceChallanNo}; // <--- UPDATED
-  
-  // fromMap updated below
-  factory PurchaseItem.fromMap(Map<String, dynamic> map) => PurchaseItem(id: map['id'] ?? "", srNo: map['srNo'] ?? 0, medicineID: map['medicineID'] ?? "", name: map['name'] ?? "", packing: map['packing'] ?? "", batch: map['batch'] ?? "", exp: map['exp'] ?? "", hsn: map['hsn'] ?? "", mrp: (map['mrp'] ?? 0.0).toDouble(), qty: (map['qty'] ?? 0.0).toDouble(), freeQty: (map['freeQty'] ?? 0.0).toDouble(), purchaseRate: (map['purchaseRate'] ?? 0.0).toDouble(), gstRate: (map['gstRate'] ?? 0.0).toDouble(), total: (map['total'] ?? 0.0).toDouble(), rateA: (map['rateA'] ?? 0.0).toDouble(), rateB: (map['rateB'] ?? 0.0).toDouble(), rateC: (map['rateC'] ?? 0.0).toDouble(), sourceChallanNo: map['sourceChallanNo'] ?? ""); // <--- UPDATED
+  PurchaseItem({required this.id, required this.srNo, required this.medicineID, required this.name, required this.packing, required this.batch, required this.exp, required this.hsn, required this.mrp, required this.qty, this.freeQty = 0, required this.purchaseRate, required this.gstRate, required this.total, this.rateA = 0, this.rateB = 0, this.rateC = 0, this.sourceChallanNo = "", this.sourceChallanId = ""}); // <--- UPDATED
+
+  PurchaseItem copyWith({int? srNo, String? sourceChallanNo, String? sourceChallanId}) => PurchaseItem(id: id, srNo: srNo ?? this.srNo, medicineID: medicineID, name: name, packing: packing, batch: batch, exp: exp, hsn: hsn, mrp: mrp, qty: qty, freeQty: freeQty, purchaseRate: purchaseRate, gstRate: gstRate, total: total, rateA: rateA, rateB: rateB, rateC: rateC, sourceChallanNo: sourceChallanNo ?? this.sourceChallanNo, sourceChallanId: sourceChallanId ?? this.sourceChallanId); // <--- UPDATED
+
+  Map<String, dynamic> toMap() => {'id': id, 'srNo': srNo, 'medicineID': medicineID, 'name': name, 'packing': packing, 'batch': batch, 'exp': exp, 'hsn': hsn, 'mrp': mrp, 'qty': qty, 'freeQty': freeQty, 'purchaseRate': purchaseRate, 'gstRate': gstRate, 'total': total, 'rateA': rateA, 'rateB': rateB, 'rateC': rateC, 'sourceChallanNo': sourceChallanNo, 'sourceChallanId': sourceChallanId}; // <--- UPDATED
+
+  factory PurchaseItem.fromMap(Map<String, dynamic> map) => PurchaseItem(id: map['id'] ?? "", srNo: map['srNo'] ?? 0, medicineID: map['medicineID'] ?? "", name: map['name'] ?? "", packing: map['packing'] ?? "", batch: map['batch'] ?? "", exp: map['exp'] ?? "", hsn: map['hsn'] ?? "", mrp: (map['mrp'] ?? 0.0).toDouble(), qty: (map['qty'] ?? 0.0).toDouble(), freeQty: (map['freeQty'] ?? 0.0).toDouble(), purchaseRate: (map['purchaseRate'] ?? 0.0).toDouble(), gstRate: (map['gstRate'] ?? 0.0).toDouble(), total: (map['total'] ?? 0.0).toDouble(), rateA: (map['rateA'] ?? 0.0).toDouble(), rateB: (map['rateB'] ?? 0.0).toDouble(), rateC: (map['rateC'] ?? 0.0).toDouble(), sourceChallanNo: map['sourceChallanNo'] ?? "", sourceChallanId: map['sourceChallanId'] ?? ""); // <--- UPDATED
 }
+
 // ===========================================================================
 // 5. TRANSACTION HEADER MODELS
 // ===========================================================================
