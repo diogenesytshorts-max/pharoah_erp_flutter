@@ -42,7 +42,7 @@ class BulkPdfService {
 
       // Naming Style: Party(5 chars) + BillNo
       String cleanName = party.name.replaceAll(RegExp(r'[^A-Z0-9]'), '');
-      String p5 = cleanName.length > 5 ? cleanName.substring(0, 5) : cleanName.padRight(5, '_');
+      String p5 = cleanName.padRight(5, 'X').substring(0, 5);
       String fileName = "${p5}_$billNo.pdf";
 
       archive.addFile(ArchiveFile(fileName, pdfBytes.length, pdfBytes));
