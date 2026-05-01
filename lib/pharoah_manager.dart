@@ -170,9 +170,40 @@ class PharoahManager with ChangeNotifier {
     await save(); InventoryLogicCenter.rebuildAllInventory(medicines: medicines, batchHistory: batchHistory, purchases: purchases, sales: sales);
     notifyListeners();
   }
-  void finalizePurchase({required String internalNo, required String billNo, required DateTime date, DateTime? entryDate, required Party party, required List<PurchaseItem> items, required double total, required String mode, List<String>? linkedChallanIds}) { 
-    purchases.add(Purchase(id: DateTime.now().toString(), internalNo: internalNo, billNo: billNo, date: date, entryDate: entryDate ?? DateTime.now(), distributorName: party.name, items: items, totalAmount: total, paymentMode: mode, linkedChallanIds: linkedChallanIds ?? [])); 
-    if (linkedChallanIds != null) { for (var id in linkedChallanIds) { int i = purchaseChallans.indexWhere((c) => c.id == id); if (i != -1) purchaseChallans[i].status = "Billed"; } }
+  // NAYA: 'linkedChallanIds' parameter add kiya gaya hai
+  void finalizePurchase({
+    required String internalNo, 
+    required String billNo, 
+    required DateTime date, 
+    DateTime? entryDate, 
+    required Party party, 
+    required List<PurchaseItem> items, 
+    required double total, 
+    required String mode,
+    List<String>? linkedChallanIds // <--- YE LINE JODI GAYI HAI
+  }) { 
+    // 1. Purchase record add karna IDs ke saath
+    purchases.add(Purchase(
+      id: DateTime.now().toString(), 
+      internalNo: internalNo, 
+      billNo: billNo, 
+      date: date, 
+      entryDate: entryDate ?? DateTime.now(), 
+      distributorName: party.name, 
+      items: items, 
+      totalAmount: total, 
+      paymentMode: mode,
+      linkedChallanIds: linkedChallanIds ?? [] // <--- YE DATA SAVE HOGA
+    )); 
+
+    // 2. Agar challan merge huye hain, toh unhe 'Billed' mark karna
+    if (linkedChallanIds != null && linkedChallanIds.isNotEmpty) {
+      for (var id in linkedChallanIds) {
+        int i = purchaseChallans.indexWhere((c) => c.id == id);
+        if (i != -1) purchaseChallans[i].status = "Billed";
+      }
+    }
+
     if (activeCompany != null) PharoahNumberingEngine.updateSeriesCounter(type: "PURCHASE", companyID: activeCompany!.id, usedNumber: internalNo, prefix: "PUR-"); 
     save().then((_) => loadAllData()); 
   }
