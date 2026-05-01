@@ -225,8 +225,24 @@ class _PurchaseBillingViewState extends State<PurchaseBillingView> {
 
   void _handleSave(PharoahManager ph) {
     if (widget.modifyPurchaseId != null) ph.deletePurchase(widget.modifyPurchaseId!);
-    ph.finalizePurchase(internalNo: internalNoC.text, billNo: distBillNoC.text.trim(), date: selectedBillDate, entryDate: widget.entryDate, party: widget.distributor, items: items, total: totalAmt, mode: widget.mode);
-    Navigator.of(context).popUntil((route) => route.isFirst);
+    
+    ph.finalizePurchase(
+      internalNo: internalNoC.text, 
+      billNo: distBillNoC.text.trim(), 
+      date: selectedBillDate, 
+      entryDate: widget.entryDate, 
+      party: widget.distributor, 
+      items: items, 
+      total: totalAmt, 
+      mode: widget.mode
+    );
+
+    // ---> NAYA: SMART NAVIGATION FOR PURCHASE --->
+    if (internalNoC.text == "DRAFT") {
+      Navigator.pop(context); // Wizard list mein wapas jao
+    } else {
+      Navigator.of(context).popUntil((route) => route.isFirst); // Normal mode
+    }
   }
 }
 
