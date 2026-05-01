@@ -324,10 +324,60 @@ class PharoahManager with ChangeNotifier {
   }
   // <--- YAHAN TAK PASTE KAREIN <---
 
-  void finalizePurchase({required String internalNo, required String billNo, required DateTime date, DateTime? entryDate, required Party party, required List<PurchaseItem> items, required double total, required String mode}) { 
-    purchases.add(Purchase(id: DateTime.now().toString(), internalNo: internalNo, billNo: billNo, date: date, entryDate: entryDate ?? DateTime.now(), distributorName: party.name, items: items, totalAmount: total, paymentMode: mode)); 
+  // ---> REPLACE FINALIZE PURCHASE --->
+  void finalizePurchase({
+    required String internalNo, 
+    required String billNo, 
+    required DateTime date, 
+    DateTime? entryDate, 
+    required Party party, 
+    required List<PurchaseItem> items, 
+    required double total, 
+    required String mode,
+    List<String>? linkedChallanIds // <--- NAYA PARAMETER
+  }) { 
+    purchases.add(Purchase(
+      id: DateTime.now().toString(), 
+      internalNo: internalNo, 
+      billNo: billNo, 
+      date: date, 
+      entryDate: entryDate ?? DateTime.now(), 
+      distributorName: party.name, 
+      items: items, 
+      totalAmount: total, 
+      paymentMode: mode,
+      linkedChallanIds: linkedChallanIds ?? [] // <--- SAVE TO MODEL
+    )); 
+
+    // --- NAYA: MARK PURCHASE CHALLANS AS BILLED ---
+    if (linkedChallanIds != null) {
+      for (var id in linkedChallanIds) {
+        int idx = purchaseChallans.indexWhere((c) => c.id == id);
+        if (idx != -1) purchaseChallans[idx].status = "Billed";
+      }
+    }
+
     if (activeCompany != null) PharoahNumberingEngine.updateSeriesCounter(type: "PURCHASE", companyID: activeCompany!.id, usedNumber: internalNo, prefix: "PUR-"); 
     save().then((_) => loadAllData()); 
+  }
+
+  // ---> REPLACE FINALIZE BATCH PURCHASES --->
+  Future<void> finalizeBatchPurchases(List<Purchase> batch) async {
+    purchases.addAll(batch);
+    
+    // Status Update for all linked challans in batch
+    for (var p in batch) {
+      if (p.linkedChallanIds.isNotEmpty) {
+        for (var id in p.linkedChallanIds) {
+          int idx = purchaseChallans.indexWhere((c) => c.id == id);
+          if (idx != -1) purchaseChallans[idx].status = "Billed";
+        }
+      }
+    }
+
+    await save();
+    InventoryLogicCenter.rebuildAllInventory(medicines: medicines, batchHistory: batchHistory, purchases: purchases, sales: sales);
+    notifyListeners();
   }
 
   void finalizeSaleChallan({required String challanNo, required DateTime date, required Party party, required List<BillItem> items, required double total, String remarks = ""}) async { 
