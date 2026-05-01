@@ -1,4 +1,5 @@
 // FILE: lib/purchase/purchase_billing_view.dart
+
 import '../pharoah_date_controller.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -16,7 +17,7 @@ class PurchaseBillingView extends StatefulWidget {
   final List<PurchaseItem>? existingItems;
   final String? modifyPurchaseId;
   final bool isReadOnly; 
-  final List<String>? linkedChallanIds; // <--- NAYA FIELD
+  final List<String>? linkedChallanIds; // NAYA: Bridge for challan conversion
 
   const PurchaseBillingView({
     super.key,
@@ -29,7 +30,7 @@ class PurchaseBillingView extends StatefulWidget {
     this.existingItems,
     this.modifyPurchaseId,
     this.isReadOnly = false,
-    this.linkedChallanIds, // <--- ISKO BHI ADD KAREIN
+    this.linkedChallanIds, // NAYA
   });
 
   @override
@@ -226,7 +227,12 @@ class _PurchaseBillingViewState extends State<PurchaseBillingView> {
   );
 
   void _handleSave(PharoahManager ph) {
-    if (widget.modifyPurchaseId != null) ph.deletePurchase(widget.modifyPurchaseId!);
+    // Edit Protection: Keep existing links if modifying
+    List<String> links = widget.linkedChallanIds ?? [];
+    
+    if (widget.modifyPurchaseId != null) {
+      ph.deletePurchase(widget.modifyPurchaseId!);
+    }
     
     ph.finalizePurchase(
       internalNo: internalNoC.text, 
@@ -237,20 +243,19 @@ class _PurchaseBillingViewState extends State<PurchaseBillingView> {
       items: items, 
       total: totalAmt, 
       mode: widget.mode,
-      linkedChallanIds: widget.linkedChallanIds // <--- YE DATA MANAGER KO BHEJEGA
+      linkedChallanIds: links // Link data preserved
     );
 
-    // ---> NAYA: SMART NAVIGATION FOR PURCHASE --->
     if (internalNoC.text == "DRAFT") {
-      Navigator.pop(context); // Wizard list mein wapas jao
+      Navigator.pop(context);
     } else {
-      Navigator.of(context).popUntil((route) => route.isFirst); // Normal mode
+      Navigator.of(context).popUntil((route) => route.isFirst);
     }
   }
 }
 
 // =============================================================================
-// 🛒 PURCHASE ITEM ENTRY CARD (FULL RESTORED)
+// 🛒 PURCHASE ITEM ENTRY CARD (FIXED WITH EXPIRY FORMATTER & RATE C DISC)
 // =============================================================================
 class PurchaseItemEntryCard extends StatefulWidget {
   final Medicine med; final int srNo; final PurchaseItem? existingItem; final Function(PurchaseItem) onAdd; final VoidCallback onCancel;
@@ -275,12 +280,30 @@ class _PurchaseItemEntryCardState extends State<PurchaseItemEntryCard> {
       batchC.text = i.batch; expC.text = i.exp; gstC.text = i.gstRate.toString();
       mrpC.text = i.mrp.toString(); purRateC.text = i.purchaseRate.toString();
       qtyC.text = i.qty.toString(); freeC.text = i.freeQty.toString();
-      rateAC.text = i.rateA.toString(); rateBC.text = i.rateB.toString(); rateCC.text = i.rateC.toString();
+      rateAC.text = i.rateA.toString(); rateBC.text = i.rateB.toString(); 
+      rateCC.text = i.rateC.toString();
     } else {
       gstC.text = widget.med.gst.toString(); mrpC.text = widget.med.mrp.toString();
       purRateC.text = widget.med.purRate.toString(); rateAC.text = widget.med.rateA.toString(); 
       rateBC.text = widget.med.rateB.toString(); _calcRateC();
     }
+  }
+
+  // NAYA: Smart Expiry Formatter (MM/YY)
+  void _formatExpiry(String val) {
+    String clean = val.replaceAll(RegExp(r'[^0-9]'), '');
+    String formatted = clean;
+    if (clean.length >= 2) {
+      formatted = '${clean.substring(0, 2)}/${clean.substring(2)}';
+    }
+    if (formatted.length > 5) formatted = formatted.substring(0, 5);
+    if (expC.text != formatted) {
+      expC.value = TextEditingValue(
+        text: formatted,
+        selection: TextSelection.collapsed(offset: formatted.length),
+      );
+    }
+    setState(() {});
   }
 
   void _calcRateC() {
@@ -302,7 +325,7 @@ class _PurchaseItemEntryCardState extends State<PurchaseItemEntryCard> {
           
           Row(children: [
             Expanded(child: _buildInput("BATCH", batchC)), const SizedBox(width: 8), 
-            Expanded(child: _buildInput("EXP", expC, isNum: true)), const SizedBox(width: 8), 
+            Expanded(child: _buildInput("EXP (MM/YY)", expC, isNum: true, onChanged: _formatExpiry)), const SizedBox(width: 8), 
             Expanded(child: _buildInput("GST%", gstC, isNum: true, onChanged: (v)=>_calcRateC()))
           ]),
           
@@ -319,13 +342,13 @@ class _PurchaseItemEntryCardState extends State<PurchaseItemEntryCard> {
             Expanded(child: _buildInput("FREE", freeC, isNum: true))
           ]),
           
+          const SizedBox(height: 10),
           Row(children: [
             Expanded(child: _buildInput("RATE A", rateAC, isNum: true)), const SizedBox(width: 8), 
             Expanded(child: _buildInput("RATE B", rateBC, isNum: true)), const SizedBox(width: 8), 
             Expanded(child: GestureDetector(onTap: () => setState(() => showDisc = !showDisc), child: _buildInput("RATE C", rateCC, isReadOnly: true, color: Colors.purple)))
           ]),
 
-          // NAYA: Rate C par tap karte hi ye input box niche dikhai dega
           if (showDisc)
             Padding(
               padding: const EdgeInsets.only(top: 10),
