@@ -298,9 +298,20 @@ class _ChallanStitcherWizardState extends State<ChallanStitcherWizard> with Sing
       if(chs.isEmpty) continue;
       List<dynamic> items = [];
       for(var c in chs) { 
-        if (isSale) { SaleChallan act = c as SaleChallan; for(var it in act.items) { items.add(it.copyWith(sourceChallanNo: act.billNo)); } } 
-        else { PurchaseChallan act = c as PurchaseChallan; for(var it in act.items) { items.add(it.copyWith(sourceChallanNo: act.billNo)); } }
-      }
+        if (isSale) { 
+          SaleChallan act = c as SaleChallan; 
+          for(var it in act.items) { 
+            // NAYA: ID aur Number dono copy honge
+            items.add(it.copyWith(sourceChallanNo: act.billNo, sourceChallanId: act.id)); 
+          } 
+        } 
+        else { 
+          PurchaseChallan act = c as PurchaseChallan; 
+          for(var it in act.items) { 
+            // NAYA: ID aur Number dono copy honge
+            items.add(it.copyWith(sourceChallanNo: act.billNo, sourceChallanId: act.id)); 
+          } 
+        }
       temp.add({'party': pObj, 'billNo': 'DRAFT', 'date': batchBillDate, 'items': items, 'total': items.fold(0.0, (s, i)=>s+i.total), 'status': 'DRAFT', 'isSelected': true, 'challanIds': chs.map((c)=> isSale ? (c as SaleChallan).id : (c as PurchaseChallan).id).toList()});
     }
     setState(() { draftBills = temp; funnelStep = "REVIEW"; isProcessing = false; });
