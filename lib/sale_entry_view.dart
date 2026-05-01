@@ -209,8 +209,18 @@ class _SaleEntryViewState extends State<SaleEntryView> {
 
   void _proceedToBilling(PharoahManager ph) {
     bool isStaff = ph.loggedInStaff != null;
+    
+    // NAYA: Agar existing sale hai toh uske links lo, nahi toh khali list
+    List<String> links = widget.existingSale?.linkedChallanIds ?? [];
+
     if (isStaff) {
-      Navigator.push(context, MaterialPageRoute(builder: (c) => StaffBillingView(party: selectedParty!, billNo: billNoC.text, billDate: selectedDate, mode: paymentMode)));
+      Navigator.push(context, MaterialPageRoute(builder: (c) => StaffBillingView(
+        party: selectedParty!, 
+        billNo: billNoC.text, 
+        billDate: selectedDate, 
+        mode: paymentMode,
+        // (Note: Staff view agar linked IDs support karta hai toh yahan bhi pass kar sakte hain)
+      )));
    } else {
       Navigator.push(context, MaterialPageRoute(builder: (c) => BillingView(
         party: selectedParty!, 
@@ -220,7 +230,7 @@ class _SaleEntryViewState extends State<SaleEntryView> {
         existingItems: widget.existingSale?.items, 
         modifySaleId: widget.existingSale?.id, 
         isReadOnly: widget.isReadOnly,
-        linkedChallanIds: const [], // Naya argument for normal sales
+        linkedChallanIds: links, // <--- NAYA: Links ab aage jayenge
       )));
     }
   }
