@@ -250,9 +250,17 @@ class _ItemEntryCardState extends State<ItemEntryCard> {
             Expanded(child: _buildInput("RATE", rateC, isNum: true, isReadOnly: selectedRateType == "C", color: selectedRateType == "C" ? Colors.purple : Colors.blue)),
           ]),
           const SizedBox(height: 8),
-          Row(children: [
-            Expanded(child: _buildInput("QTY", qtyC, isNum: true, onChanged: (v) => setState((){}))),
-            const SizedBox(width: 8),
+          Row(
+            children: [
+              Expanded(child: _buildInput(
+                "QTY", 
+                qtyC, 
+                isNum: true, 
+                // NAYA: Agar item Challan se aaya hai toh Qty lock rahegi
+                isReadOnly: widget.existingItem?.sourceChallanId.isNotEmpty ?? false,
+                onChanged: (v) => setState((){})
+              )),
+              const SizedBox(width: 8),
             Expanded(child: _buildInput("FREE", freeC, isNum: true)),
             const SizedBox(width: 8),
             Expanded(child: _buildInput("DISC %", normDiscC, isNum: true, onChanged: (v) => setState((){}))),
