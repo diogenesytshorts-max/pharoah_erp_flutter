@@ -261,7 +261,7 @@ class _ChallanStitcherWizardState extends State<ChallanStitcherWizard> with Sing
           const Divider(height: 1),
           Padding(padding: const EdgeInsets.symmetric(vertical: 8), child: Row(mainAxisAlignment: MainAxisAlignment.spaceAround, children: [
             _iconAct(Icons.remove_red_eye, "VIEW", Colors.blue, () => _viewDraft(b)),
-            _iconAct(Icons.edit_note, "EDIT", Colors.orange.shade800, () => _editDraft(b)),
+            _iconAct(Icons.edit_note, "EDIT", Colors.orange.shade800, () => _editDraft(b, i)),
             _iconAct(isSaved ? Icons.verified : Icons.save, "SAVE", isSaved ? Colors.green : Colors.grey, () => _saveSingle(ph, i)),
             _iconAct(Icons.print, "PDF", Colors.teal, () => _printSingle(ph, i)),
             _iconAct(Icons.delete_outline, "DEL", Colors.red, () => setState(() => draftBills.removeAt(i))),
@@ -323,22 +323,33 @@ class _ChallanStitcherWizardState extends State<ChallanStitcherWizard> with Sing
   }
 
   void _editDraft(Map<String, dynamic> b, int index) async {
-    // Navigator.push ka result wait karenge
-    await Navigator.push(context, MaterialPageRoute(builder: (c) => BillingView(
-      party: b['party'], 
-      billNo: "DRAFT", // Indicator for smart nav
-      billDate: b['date'], 
-      mode: "CREDIT", 
-      existingItems: b['items'].cast<BillItem>(),
-      linkedChallanIds: b['challanIds'],
-    )));
+    bool isSale = _tabController.index == 0;
+    
+    if (isSale) {
+      await Navigator.push(context, MaterialPageRoute(builder: (c) => BillingView(
+        party: b['party'], 
+        billNo: "DRAFT", 
+        billDate: b['date'], 
+        mode: "CREDIT", 
+        existingItems: b['items'].cast<BillItem>(),
+        linkedChallanIds: b['challanIds'].cast<String>(),
+      )));
+    } else {
+      await Navigator.push(context, MaterialPageRoute(builder: (c) => PurchaseBillingView(
+        distributor: b['party'], 
+        internalNo: "DRAFT", 
+        distBillNo: "", 
+        billDate: b['date'], 
+        entryDate: DateTime.now(), 
+        mode: "CREDIT", 
+        existingItems: b['items'].cast<PurchaseItem>(),
+      )));
+    }
 
-    // Jab user wapas aaye, toh check karo ki kya bill save ho gaya?
-    // Batch screen refresh karne ke liye:
+    // Jab user "Finish" karke wapas aaye, toh state update karke card green kar do
     setState(() {
-      // Hum status ko SAVED mark kar denge taaki card green ho jaye
       draftBills[index]['status'] = 'SAVED';
-      draftBills[index]['billNo'] = "MANUAL-FIX"; 
+      draftBills[index]['billNo'] = "MANUAL-DONE";
     });
   }
 
