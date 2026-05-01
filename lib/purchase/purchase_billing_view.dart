@@ -227,25 +227,38 @@ class _PurchaseBillingViewState extends State<PurchaseBillingView> {
   );
 
   void _handleSave(PharoahManager ph) {
-    // Edit Protection: Keep existing links if modifying
     List<String> links = widget.linkedChallanIds ?? [];
-    
-    if (widget.modifyPurchaseId != null) {
-      ph.deletePurchase(widget.modifyPurchaseId!);
-    }
-    
-    ph.finalizePurchase(
-      internalNo: internalNoC.text, 
-      billNo: distBillNoC.text.trim(), 
-      date: selectedBillDate, 
-      entryDate: widget.entryDate, 
-      party: widget.distributor, 
-      items: items, 
-      total: totalAmt, 
-      mode: widget.mode,
-      linkedChallanIds: links // Link data preserved
-    );
 
+    if (widget.modifyPurchaseId != null) {
+      // CASE 1: AGAR EDIT KAR RAHE HAIN (Update Logic - No Reversal)
+      ph.updatePurchase(
+        id: widget.modifyPurchaseId!,
+        internalNo: internalNoC.text,
+        billNo: distBillNoC.text.trim(),
+        date: selectedBillDate,
+        entryDate: widget.entryDate,
+        party: widget.distributor,
+        items: items,
+        total: totalAmt,
+        mode: widget.mode,
+        linkedChallanIds: links
+      );
+    } else {
+      // CASE 2: AGAR NAYA BILL HAI (Normal Finalize)
+      ph.finalizePurchase(
+        internalNo: internalNoC.text, 
+        billNo: distBillNoC.text.trim(), 
+        date: selectedBillDate, 
+        entryDate: widget.entryDate, 
+        party: widget.distributor, 
+        items: items, 
+        total: totalAmt, 
+        mode: widget.mode,
+        linkedChallanIds: links
+      );
+    }
+
+    // Smart Navigation
     if (internalNoC.text == "DRAFT") {
       Navigator.pop(context);
     } else {
