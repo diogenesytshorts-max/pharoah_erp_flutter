@@ -333,16 +333,24 @@ class _BillingViewState extends State<BillingView> {
 
   void _handleSave(PharoahManager ph) {
     if (widget.modifySaleId != null) ph.deleteBill(widget.modifySaleId!);
+    
     ph.finalizeSale(
-      billNo: billNoC.text, // <--- Controller se uthayega
-      date: selectedBillDate, // <--- Selected date lega
+      billNo: billNoC.text, 
+      date: selectedBillDate, 
       party: widget.party, 
       items: items, 
       total: totalAmt, 
       mode: widget.mode,
       linkedIds: widget.linkedChallanIds, 
     );
-    Navigator.of(context).popUntil((route) => route.isFirst);
+
+    // ---> NAYA: SMART NAVIGATION START --->
+    if (billNoC.text == "DRAFT" || (widget.linkedChallanIds != null && widget.linkedChallanIds!.isNotEmpty)) {
+      Navigator.pop(context); // Sirf wapas Batch List par le jao
+    } else {
+      Navigator.of(context).popUntil((route) => route.isFirst); // Dashboard jao
+    }
+    // <--- SMART NAVIGATION END <---
   }
 
   void _printBill(PharoahManager ph) async {
