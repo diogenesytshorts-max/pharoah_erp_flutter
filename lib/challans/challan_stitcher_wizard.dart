@@ -159,24 +159,23 @@ class _ChallanStitcherWizardState extends State<ChallanStitcherWizard> with Sing
             TextButton(onPressed: () { Navigator.pop(c); Share.shareXFiles([XFile(path)]); }, child: const Text("SHARE")),
             ElevatedButton(onPressed: () async {
               Navigator.pop(c);
-              final bytes = await File(path).readAsBytes();
-
-              // NAYA: saveAs use karne se folder picker khulega aur user khud jagah chun sakega
-              String fileName = "Batch_Bills_${DateFormat('ddMM_HHmm').format(DateTime.now())}";
-              
-              await FileSaver.instance.saveAs(
-                name: fileName, 
-                bytes: bytes, 
-                ext: "zip", 
-                mimeType: MimeType.zip
-              );
-
-              if (mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("✅ Export process complete!")));
+              try {
+                final bytes = await File(path).readAsBytes();
+                
+                // NAYA: saveAs method use kiya hai jo folder picker kholega
+                // Isse user Downloads ya SD Card kahin bhi save kar sakega
+                await FileSaver.instance.saveAs(
+                  name: "Invoices_Batch_${DateFormat('ddMM_HHmm').format(DateTime.now())}", 
+                  bytes: bytes, 
+                  ext: "zip", 
+                  mimeType: MimeType.zip
+                );
+              } catch (e) {
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error saving: $e"), backgroundColor: Colors.red));
+                }
               }
             }, child: const Text("SAVE TO DEVICE")),
-          ],
-        ));
       }
     } catch (e) { setState(() => isProcessing = false); }
   }
