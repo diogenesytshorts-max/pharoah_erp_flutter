@@ -149,22 +149,24 @@ class _PurchaseEntryViewState extends State<PurchaseEntryView> {
             child: ElevatedButton(
               style: ElevatedButton.styleFrom(minimumSize: const Size(double.infinity, 60), backgroundColor: widget.isReadOnly ? Colors.purple : Colors.orange.shade800, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15))), 
               onPressed: () {
-                if (supplierBillNoC.text.isEmpty) {
-                   ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Supplier Bill No is required!"), backgroundColor: Colors.red));
-                   return;
-                }
-                Navigator.push(context, MaterialPageRoute(builder: (c) => PurchaseBillingView(
-                  distributor: selectedDistributor!, 
-                  internalNo: internalEntryNoC.text, 
-                  distBillNo: supplierBillNoC.text.trim(), 
-                  billDate: selectedBillDate, 
-                  entryDate: selectedEntryDate, 
-                  mode: paymentMode, 
-                  existingItems: widget.existingPurchase?.items, 
-                  modifyPurchaseId: widget.existingPurchase?.id,
-                  isReadOnly: widget.isReadOnly,
-                )));
-              }, 
+                  if (supplierBillNoC.text.isEmpty) {
+                     ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Supplier Bill No is required!"), backgroundColor: Colors.red));
+                     return;
+                  }
+                  Navigator.push(context, MaterialPageRoute(builder: (c) => PurchaseBillingView(
+                    distributor: selectedDistributor!, 
+                    internalNo: internalEntryNoC.text, 
+                    distBillNo: supplierBillNoC.text.trim(), 
+                    billDate: selectedBillDate, 
+                    entryDate: selectedEntryDate, 
+                    mode: paymentMode, 
+                    existingItems: widget.existingPurchase?.items, 
+                    modifyPurchaseId: widget.existingPurchase?.id,
+                    isReadOnly: widget.isReadOnly,
+                    // NAYA: Purane bill se challan links utha kar aage bhej rahe hain
+                    linkedChallanIds: widget.existingPurchase?.linkedChallanIds, 
+                  )));
+                }, 
               child: Text(widget.isReadOnly ? "VIEW PURCHASED ITEMS" : "PROCEED TO ITEM ENTRY", style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16))
             )
           )
