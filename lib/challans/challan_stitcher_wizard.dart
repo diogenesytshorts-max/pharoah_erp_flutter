@@ -25,14 +25,14 @@ class _ChallanStitcherWizardState extends State<ChallanStitcherWizard> with Sing
   late TabController _tabController;
   
   // --- FLOW CONTROL ---
-  String funnelStep = "MODE"; 
+  String funnelStep = "MODE"; // MODE, ROUTE, PARTY, REVIEW
   String selectionMode = "NONE"; 
   bool isProcessing = false;
   double progressValue = 0.0;
   String progressText = "";
 
   // --- DATA ---
-  DateTime batchBillDate = DateTime.now(); // <--- NAYA: Global date for all bills
+  DateTime batchBillDate = DateTime.now(); 
   DateTime fromDate = DateTime.now();
   DateTime toDate = DateTime.now();
   String? selectedRoute;
@@ -54,93 +54,61 @@ class _ChallanStitcherWizardState extends State<ChallanStitcherWizard> with Sing
   }
 
   // ===========================================================================
-  // ⚡ LOGIC WRAPPERS
+  // ⚡ LOGIC: BATCH SAVE & ZIP
   // ===========================================================================
 
-  void _generateDrafts(PharoahManager ph) {
-    setState(() => isProcessing = true);
-    List<Map<String, dynamic>> temp = []; 
+  Future<void> _handleBatchSave(PharoahManager ph) async {
+    var selected = draftBills.where((b) => b['isSelected'] && b['status'] == 'DRAFT').toList();
+    if (selected.isEmpty) return;
+
+    setState(() { isProcessing = true; progressText = "Finalizing Batch..."; progressValue = 0.1; });
+
     bool isSale = _tabController.index == 0;
+    if (isSale) {
+      List<Sale> batchToSave = [];
+      var series = ph.getDefaultSeries("SALE");
+      String startNoStr = await PharoahNumberingEngine.getNextNumber(type: "SALE", companyID: ph.activeCompany!.id, prefix: series.prefix, startFrom: series.startNumber, currentList: ph.sales);
+      int nextNum = int.parse(startNoStr.replaceAll(series.prefix, ""));
 
-    for (var pName in selectedPartyNames) {
-      var pObj = ph.parties.firstWhere((p) => p.name == pName);
-      
-      var chs = isSale 
-          ? ph.saleChallans.where((c) => c.partyName == pName && c.status == "Pending" && c.date.isAfter(fromDate.subtract(const Duration(days: 1))) && c.date.isBefore(toDate.add(const Duration(days: 1)))).toList()
-          : ph.purchaseChallans.where((c) => c.distributorName == pName && c.status == "Pending" && c.date.isAfter(fromDate.subtract(const Duration(days: 1))) && c.date.isBefore(toDate.add(const Duration(days: 1)))).toList();
+      for (var b in selected) {
+        String bNo = "${series.prefix}$nextNum";
+        batchToSave.add(Sale(id: DateTime.now().toString() + bNo, billNo: bNo, date: b['date'], partyName: b['party'].name, partyGstin: b['party'].gst, partyState: b['party'].state, items: b['items'].cast<BillItem>(), totalAmount: b['total'], paymentMode: "CREDIT", linkedChallanIds: b['challanIds']));
+        nextNum++;
+      }
+      await ph.finalizeBatchSales(batchToSave);
+      _updateStatusAfterSave(batchToSave, true);
+    } else {
+      List<Purchase> purBatch = [];
+      for (var b in selected) {
+        String pNo = await PharoahNumberingEngine.getNextNumber(type: "PURCHASE", companyID: ph.activeCompany!.id, prefix: "PUR-", startFrom: 1, currentList: ph.purchases);
+        purBatch.add(Purchase(id: DateTime.now().toString()+pNo, internalNo: pNo, billNo: "BATCH-CONV", date: b['date'], entryDate: DateTime.now(), distributorName: b['party'].name, items: b['items'].cast<PurchaseItem>(), totalAmount: b['total'], paymentMode: "CREDIT"));
+      }
+      await ph.finalizeBatchPurchases(purBatch);
+      _updateStatusAfterSave(purBatch, false);
+    }
 
-      if(chs.isEmpty) continue;
+    setState(() { isProcessing = false; });
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("✅ Batch Successfully Saved!"), backgroundColor: Colors.green));
+  }
 
-      List<dynamic> items = [];
-      for(var c in chs) { 
-        if (isSale) {
-          SaleChallan actual = c as SaleChallan;
-          for(var it in actual.items) { items.add(it.copyWith(sourceChallanNo: actual.billNo)); }
-        } else {
-          PurchaseChallan actual = c as PurchaseChallan;
-          for(var it in actual.items) { items.add(it.copyWith(sourceChallanNo: actual.billNo)); }
+  void _updateStatusAfterSave(List<dynamic> saved, bool isSale) {
+    setState(() {
+      for (var b in draftBills) {
+        if (b['isSelected'] && b['status'] == 'DRAFT') {
+          b['status'] = 'SAVED';
+          var match = saved.firstWhere((s) => (isSale ? s.partyName : s.distributorName) == b['party'].name);
+          b['billNo'] = isSale ? match.billNo : match.internalNo;
         }
       }
-
-      temp.add({
-        'party': pObj, 
-        'billNo': 'DRAFT', 
-        'date': toDate, 
-        'items': items, 
-        'total': items.fold(0.0, (s, i) => s + i.total), 
-        'status': 'DRAFT', 
-        'isSelected': true, 
-        'challanIds': chs.map((c) => isSale ? (c as SaleChallan).id : (c as PurchaseChallan).id).toList()
-      });
-    }
-
-    setState(() { 
-      draftBills = temp; 
-      funnelStep = "REVIEW"; 
-      isProcessing = false; 
     });
-  }
-
-  Future<void> _saveSingle(PharoahManager ph, int i) async {
-    var b = draftBills[i]; 
-    if (b['status'] == 'SAVED') return;
-    
-    bool isSale = _tabController.index == 0;
-    String finalNo;
-
-    if(isSale) {
-      var ser = ph.getDefaultSeries("SALE");
-      finalNo = await PharoahNumberingEngine.getNextNumber(type: "SALE", companyID: ph.activeCompany!.id, prefix: ser.prefix, startFrom: ser.startNumber, currentList: ph.sales);
-      await ph.finalizeSale(billNo: finalNo, date: b['date'], party: b['party'], items: b['items'].cast<BillItem>(), total: b['total'], mode: "CREDIT", linkedIds: b['challanIds'].cast<String>());
-    } else {
-      finalNo = await PharoahNumberingEngine.getNextNumber(type: "PURCHASE", companyID: ph.activeCompany!.id, prefix: "PUR-", startFrom: 1, currentList: ph.purchases);
-      ph.finalizePurchase(internalNo: finalNo, billNo: "CONV", date: b['date'], entryDate: DateTime.now(), party: b['party'], items: b['items'].cast<PurchaseItem>(), total: b['total'], mode: "CREDIT");
-    }
-
-    setState(() { 
-      draftBills[i]['status'] = 'SAVED'; 
-      draftBills[i]['billNo'] = finalNo; 
-    });
-  }
-
-  Future<void> _handleBatchSave(PharoahManager ph) async {
-    setState(() { isProcessing = true; progressText = "Saving all..."; });
-    for(int i = 0; i < draftBills.length; i++) { 
-      if(draftBills[i]['isSelected'] && draftBills[i]['status'] == 'DRAFT') {
-        await _saveSingle(ph, i);
-      }
-    }
-    setState(() => isProcessing = false);
-    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("✅ Batch Save Done!")));
   }
 
   Future<void> _handleZipExport(PharoahManager ph) async {
     var selected = draftBills.where((b) => b['isSelected']).toList();
     if (selected.isEmpty) return;
-
     if (selected.any((b) => b['status'] == 'DRAFT')) await _handleBatchSave(ph);
 
-    setState(() { isProcessing = true; progressValue = 0.0; progressText = "Generating PDFs..."; });
+    setState(() { isProcessing = true; progressValue = 0.0; progressText = "Creating Zip Folder..."; });
     try {
       List<Map<String, dynamic>> payload = [];
       for (var d in selected) {
@@ -149,9 +117,9 @@ class _ChallanStitcherWizardState extends State<ChallanStitcherWizard> with Sing
           : ph.purchases.firstWhere((p) => p.internalNo == d['billNo']);
         payload.add({'saleObj': obj, 'party': d['party'], 'billNo': d['billNo']});
       }
-      String p = await BulkPdfService.createBillsZip(selectedDrafts: payload, shop: ph.activeCompany!, onProgress: (v, n) => setState(() { progressValue = v; progressText = "Packing: $n"; }));
+      String p = await BulkPdfService.createBillsZip(selectedDrafts: payload, shop: ph.activeCompany!, onProgress: (v, n) => setState(() { progressValue = v; progressText = "Zipping: $n"; }));
       setState(() => isProcessing = false);
-      await Share.shareXFiles([XFile(p)], subject: 'Batch_Print_Folder');
+      await Share.shareXFiles([XFile(p)], subject: 'Batch_PDF_Export');
     } catch (e) { setState(() => isProcessing = false); }
   }
 
@@ -170,17 +138,16 @@ class _ChallanStitcherWizardState extends State<ChallanStitcherWizard> with Sing
       appBar: AppBar(
         title: Text(isSale ? "SALE CONVERTER" : "PURCHASE CONVERTER", style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 14)),
         backgroundColor: Colors.white, foregroundColor: Colors.black, elevation: 0.5,
-        leading: funnelStep == "MODE" ? null : IconButton(icon: const Icon(Icons.arrow_back_ios_new, size: 20), onPressed: () => setState(() => funnelStep = "MODE")),
         bottom: TabBar(controller: _tabController, labelColor: color, indicatorColor: color, tabs: const [Tab(text: "OUTWARD"), Tab(text: "INWARD")]),
       ),
       body: Stack(children: [
-        _buildStepContent(ph, color),
+        _buildStepRouter(ph, color),
         if (isProcessing) _buildOverlay(color),
       ]),
     );
   }
 
-  Widget _buildStepContent(PharoahManager ph, Color color) {
+  Widget _buildStepRouter(PharoahManager ph, Color color) {
     if (funnelStep == "MODE") return _stepMode(ph, color);
     if (funnelStep == "ROUTE") return _stepRoute(ph, color);
     if (funnelStep == "PARTY") return _stepParty(ph, color);
@@ -189,14 +156,14 @@ class _ChallanStitcherWizardState extends State<ChallanStitcherWizard> with Sing
   }
 
   Widget _stepMode(PharoahManager ph, Color color) => Center(child: Padding(padding: const EdgeInsets.all(30.0), child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-    _modeCard("MONTHLY BATCH", "Automatic Apr-Mar logic", Icons.calendar_month, color, () => _showMonthPicker(ph.currentFY)),
+    _modeCard("MONTHLY BATCH", "Select a month from Apr to Mar", Icons.calendar_month, color, () => _showMonthPicker(ph.currentFY)),
     const SizedBox(height: 20),
-    _modeCard("RANDOM RANGE", "Custom selection", Icons.date_range, Colors.blueGrey, () => _pickRandom(ph.currentFY)),
+    _modeCard("RANDOM RANGE", "Custom selection in current FY", Icons.date_range, Colors.blueGrey, () => _pickRandom(ph.currentFY)),
   ])));
 
   Widget _stepRoute(PharoahManager ph, Color color) => Column(children: [
-    _header("STEP 2: FILTER BY ROUTE"),
-    ListTile(tileColor: Colors.white, leading: const Icon(Icons.done_all, color: Colors.green), title: const Text("SKIP / ALL ROUTES"), onTap: () => setState(() { selectedRoute = null; funnelStep = "PARTY"; })),
+    _header("STEP 2: FILTER BY ROUTE (OR SKIP)"),
+    ListTile(tileColor: Colors.white, leading: const Icon(Icons.done_all, color: Colors.green), title: const Text("SKIP & SHOW ALL ROUTES", style: TextStyle(fontWeight: FontWeight.bold)), onTap: () => setState(() { selectedRoute = null; funnelStep = "PARTY"; })),
     Expanded(child: ListView.builder(itemCount: ph.routes.length, itemBuilder: (c, i) => ListTile(tileColor: Colors.white, title: Text(ph.routes[i].name, style: const TextStyle(fontWeight: FontWeight.bold)), onTap: () => setState(() { selectedRoute = ph.routes[i].name; funnelStep = "PARTY"; }))))
   ]);
 
@@ -217,48 +184,38 @@ class _ChallanStitcherWizardState extends State<ChallanStitcherWizard> with Sing
     ]);
   }
 
-  Widget _stepBatchReview(PharoahManager ph, Color color) {
+  Widget _stepReview(PharoahManager ph, Color color) {
     bool allSel = draftBills.every((b) => b['isSelected']);
     return Column(children: [
-      // --- NAYA: GLOBAL DATE SELECTION BAR ---
       Container(
         padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 10),
         color: color.withOpacity(0.05),
         child: InkWell(
           onTap: () async {
             DateTime? p = await PharoahDateController.pickDate(context: context, currentFY: ph.currentFY, initialDate: batchBillDate);
-            if (p != null) {
-              setState(() {
-                batchBillDate = p;
-                // Saare DRAFT bills ki date update kar do
-                for (var b in draftBills) {
-                  if (b['status'] == 'DRAFT') b['date'] = p;
-                }
-              });
-            }
+            if (p != null) { setState(() { batchBillDate = p; for (var b in draftBills) { if (b['status'] == 'DRAFT') b['date'] = p; } }); }
           },
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(Icons.calendar_today, size: 16, color: Colors.blueGrey),
-              const SizedBox(width: 10),
-              Text("SET BILLING DATE FOR ALL: ", style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.blueGrey)),
-              Text(DateFormat('dd/MM/yyyy').format(batchBillDate), style: TextStyle(fontSize: 13, fontWeight: FontWeight.w900, color: color)),
-              const Icon(Icons.edit, size: 14, color: Colors.grey),
-            ],
-          ),
+          child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+            const Icon(Icons.calendar_today, size: 16, color: Colors.blueGrey),
+            const SizedBox(width: 10),
+            Text("BILLING DATE FOR ALL: ", style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.blueGrey)),
+            Text(DateFormat('dd/MM/yyyy').format(batchBillDate), style: TextStyle(fontSize: 13, fontWeight: FontWeight.w900, color: color)),
+            const Icon(Icons.edit, size: 14, color: Colors.grey),
+          ]),
         ),
       ),
-      // --- Baki ka Bulk Action Bar ---
       Container(padding: const EdgeInsets.all(12), color: Colors.white, child: Row(children: [
-          // ... (Select All aur Save All buttons wahi rahenge)
+        Checkbox(value: allSel, onChanged: (v) => setState(() { for(var b in draftBills) { if(b['status']=='DRAFT') b['isSelected'] = v; } })),
+        const Text("SEL ALL", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 10)),
+        const Spacer(),
+        _bulkBtn("SAVE ALL", Icons.save, Colors.blue.shade700, () => _handleBatchSave(ph)),
         const SizedBox(width: 8),
         _bulkBtn("ZIP PDF", Icons.folder_zip, Colors.green.shade700, () => _handleZipExport(ph)),
       ])),
       Expanded(child: ListView.builder(itemCount: draftBills.length, padding: const EdgeInsets.all(12), itemBuilder: (c, i) {
         final b = draftBills[i]; bool isSaved = b['status'] == 'SAVED';
         return Container(margin: const EdgeInsets.only(bottom: 12), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(15), border: Border.all(color: isSaved ? Colors.green : Colors.grey.shade300, width: 1.5)), child: Column(children: [
-          ListTile(leading: Checkbox(value: b['isSelected'], onChanged: isSaved ? null : (v) => setState(() => b['isSelected'] = v)), title: Text(b['party'].name, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13)), subtitle: Text("${isSaved ? b['billNo'] : 'DRAFT'} | ₹${b['total'].toStringAsFixed(0)}", style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.blueGrey)), trailing: Icon(isSaved ? Icons.check_circle : Icons.pending, color: isSaved ? Colors.green : Colors.orange)),
+          ListTile(leading: Checkbox(value: b['isSelected'], onChanged: isSaved ? null : (v) => setState(() => b['isSelected'] = v)), title: Text(b['party'].name, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13)), subtitle: Text("${isSaved ? b['billNo'] : 'DRAFT'} | ${DateFormat('dd/MM/yy').format(b['date'])} | ₹${b['total'].toStringAsFixed(0)}", style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.blueGrey)), trailing: Icon(isSaved ? Icons.check_circle : Icons.pending, color: isSaved ? Colors.green : Colors.orange)),
           const Divider(height: 1),
           Padding(padding: const EdgeInsets.symmetric(vertical: 8), child: Row(mainAxisAlignment: MainAxisAlignment.spaceAround, children: [
             _iconAct(Icons.remove_red_eye, "VIEW", Colors.blue, () => _viewDraft(b)),
@@ -272,12 +229,39 @@ class _ChallanStitcherWizardState extends State<ChallanStitcherWizard> with Sing
     ]);
   }
 
-  // --- HELPERS ---
-  Widget _modeCard(String t, String s, IconData i, Color c, VoidCallback onTap) => InkWell(onTap: onTap, child: Container(padding: const EdgeInsets.all(25), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20), border: Border.all(color: c.withOpacity(0.1), width: 2)), child: Row(children: [Icon(i, size: 40, color: c), const SizedBox(width: 20), Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(t, style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: c)), Text(s, style: const TextStyle(fontSize: 12, color: Colors.grey))])), const Icon(Icons.arrow_forward_ios, size: 16)])));
-  Widget _header(String t) => Container(width: double.infinity, padding: const EdgeInsets.all(12), color: Colors.grey.shade200, child: Text(t, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.blueGrey)));
-  Widget _iconAct(IconData i, String l, Color c, VoidCallback onTap) => InkWell(onTap: onTap, child: Column(children: [Icon(i, color: c, size: 22), Text(l, style: TextStyle(fontSize: 8, color: c, fontWeight: FontWeight.bold))]));
-  Widget _bulkBtn(String l, IconData i, Color c, VoidCallback onTap) => ElevatedButton.icon(onPressed: onTap, icon: Icon(i, size: 14), label: Text(l, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold)), style: ElevatedButton.styleFrom(backgroundColor: c, foregroundColor: Colors.white));
-  Widget _buildOverlay(Color c) => Container(color: Colors.black87, child: Center(child: Column(mainAxisSize: MainAxisSize.min, children: [CircularProgressIndicator(value: progressValue > 0 ? progressValue : null, color: c), const SizedBox(height: 20), Text(progressText, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold))])));
+  // --- HELPERS & LOGIC ---
+  void _generateDrafts(PharoahManager ph) {
+    setState(() => isProcessing = true);
+    List<Map<String, dynamic>> temp = []; bool isSale = _tabController.index == 0;
+    for (var pName in selectedPartyNames) {
+      var pObj = ph.parties.firstWhere((p) => p.name == pName);
+      var chs = isSale ? ph.saleChallans.where((c)=>c.partyName==pName && c.status=="Pending").toList() : ph.purchaseChallans.where((c)=>c.distributorName==pName && c.status=="Pending").toList();
+      if(chs.isEmpty) continue;
+      List<dynamic> items = [];
+      for(var c in chs) { 
+        if (isSale) { SaleChallan act = c as SaleChallan; for(var it in act.items) { items.add(it.copyWith(sourceChallanNo: act.billNo)); } } 
+        else { PurchaseChallan act = c as PurchaseChallan; for(var it in act.items) { items.add(it.copyWith(sourceChallanNo: act.billNo)); } }
+      }
+      temp.add({'party': pObj, 'billNo': 'DRAFT', 'date': batchBillDate, 'items': items, 'total': items.fold(0.0, (s, i)=>s+i.total), 'status': 'DRAFT', 'isSelected': true, 'challanIds': chs.map((c)=> isSale ? (c as SaleChallan).id : (c as PurchaseChallan).id).toList()});
+    }
+    setState(() { draftBills = temp; funnelStep = "REVIEW"; isProcessing = false; });
+  }
+
+  Future<void> _saveSingle(PharoahManager ph, int i) async {
+    setState(() => isProcessing = true);
+    var b = draftBills[i]; bool isSale = _tabController.index == 0;
+    if(isSale) {
+      var ser = ph.getDefaultSeries("SALE");
+      String no = await PharoahNumberingEngine.getNextNumber(type: "SALE", companyID: ph.activeCompany!.id, prefix: ser.prefix, startFrom: ser.startNumber, currentList: ph.sales);
+      await ph.finalizeSale(billNo: no, date: b['date'], party: b['party'], items: b['items'].cast<BillItem>(), total: b['total'], mode: "CREDIT", linkedIds: b['challanIds'].cast<String>());
+      setState(() { draftBills[i]['status'] = 'SAVED'; draftBills[i]['billNo'] = no; });
+    } else {
+      String no = await PharoahNumberingEngine.getNextNumber(type: "PURCHASE", companyID: ph.activeCompany!.id, prefix: "PUR-", startFrom: 1, currentList: ph.purchases);
+      ph.finalizePurchase(internalNo: no, billNo: "CONV", date: b['date'], entryDate: DateTime.now(), party: b['party'], items: b['items'].cast<PurchaseItem>(), total: b['total'], mode: "CREDIT");
+      setState(() { draftBills[i]['status'] = 'SAVED'; draftBills[i]['billNo'] = no; });
+    }
+    setState(() => isProcessing = false);
+  }
 
   void _printSingle(PharoahManager ph, int i) async {
     if(draftBills[i]['status'] == 'DRAFT') await _saveSingle(ph, i);
@@ -313,8 +297,14 @@ class _ChallanStitcherWizardState extends State<ChallanStitcherWizard> with Sing
 
   void _pickRandom(String fy) async {
     DateTime? s = await PharoahDateController.pickDate(context: context, currentFY: fy, initialDate: DateTime.now());
-    if(s==null) return;
-    DateTime? e = await PharoahDateController.pickDate(context: context, currentFY: fy, initialDate: s);
-    if(e!=null) setState(() { fromDate = s; toDate = e; funnelStep = "ROUTE"; selectionMode = "RANDOM"; });
+    if(s!=null) { DateTime? e = await PharoahDateController.pickDate(context: context, currentFY: fy, initialDate: s);
+      if(e!=null) setState(() { fromDate = s; toDate = e; funnelStep = "ROUTE"; selectionMode = "RANDOM"; });
+    }
   }
+
+  Widget _modeCard(String t, String s, IconData i, Color c, VoidCallback onTap) => InkWell(onTap: onTap, child: Container(padding: const EdgeInsets.all(25), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20), border: Border.all(color: c.withOpacity(0.1), width: 2)), child: Row(children: [Icon(i, size: 40, color: c), const SizedBox(width: 20), Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(t, style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: c)), Text(s, style: const TextStyle(fontSize: 12, color: Colors.grey))])), const Icon(Icons.arrow_forward_ios, size: 16)])));
+  Widget _header(String t) => Container(width: double.infinity, padding: const EdgeInsets.all(12), color: Colors.grey.shade200, child: Text(t, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.blueGrey)));
+  Widget _iconAct(IconData i, String l, Color c, VoidCallback onTap) => InkWell(onTap: onTap, child: Column(children: [Icon(i, color: c, size: 22), Text(l, style: TextStyle(fontSize: 8, color: c, fontWeight: FontWeight.bold))]));
+  Widget _bulkBtn(String l, IconData i, Color c, VoidCallback onTap) => ElevatedButton.icon(onPressed: onTap, icon: Icon(i, size: 14), label: Text(l, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold)), style: ElevatedButton.styleFrom(backgroundColor: c, foregroundColor: Colors.white));
+  Widget _buildOverlay(Color c) => Container(color: Colors.black87, child: Center(child: Column(mainAxisSize: MainAxisSize.min, children: [CircularProgressIndicator(value: progressValue > 0 ? progressValue : null, color: c), const SizedBox(height: 20), Text(progressText, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold))])));
 }
