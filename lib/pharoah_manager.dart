@@ -208,6 +208,9 @@ class PharoahManager with ChangeNotifier {
     save().then((_) => loadAllData()); 
   }
   // NAYA: Silent Update (Isme Reversal trigger nahi hoga)
+  // ===========================================================================
+  // 🚀 SMART UPDATE: PURCHASE (With Item-Level Reversal)
+  // ===========================================================================
   void updatePurchase({
     required String id, 
     required String internalNo, 
@@ -218,28 +221,90 @@ class PharoahManager with ChangeNotifier {
     required List<PurchaseItem> items, 
     required double total, 
     required String mode,
-    required List<String> linkedChallanIds
+    required List<String> linkedChallanIds,
   }) {
-    // 1. List mein us bill ka index dhoondo
     int idx = purchases.indexWhere((p) => p.id == id);
-    
-    if (idx != -1) {
-      // 2. Usi index par naya data overwrite kar do
-      purchases[idx] = Purchase(
-        id: id, // ID purani hi rahegi
-        internalNo: internalNo,
-        billNo: billNo,
-        date: date,
-        entryDate: entryDate ?? DateTime.now(),
-        distributorName: party.name,
-        items: items,
-        totalAmount: total,
-        paymentMode: mode,
-        linkedChallanIds: linkedChallanIds // Links safe rahenge
-      );
-      
-      save().then((_) => loadAllData());
+    if (idx == -1) return;
+
+    // 1. Identify which Challans STILL have items in this bill
+    List<String> activeChallanIds = items
+        .where((it) => it.sourceChallanId.isNotEmpty)
+        .map((it) => it.sourceChallanId)
+        .toSet()
+        .toList();
+
+    // 2. REVERSAL: Jo challan pehle linked the par ab unka ek bhi item nahi bacha, unhe "Pending" karo
+    for (var oldId in linkedChallanIds) {
+      if (!activeChallanIds.contains(oldId)) {
+        int cIdx = purchaseChallans.indexWhere((c) => c.id == oldId);
+        if (cIdx != -1) purchaseChallans[cIdx].status = "Pending";
+      }
     }
+
+    // 3. Update Bill Record
+    purchases[idx] = Purchase(
+      id: id,
+      internalNo: internalNo,
+      billNo: billNo,
+      date: date,
+      entryDate: entryDate ?? DateTime.now(),
+      distributorName: party.name,
+      items: items,
+      totalAmount: total,
+      paymentMode: mode,
+      linkedChallanIds: activeChallanIds, // Only keep IDs of items that actually exist
+    );
+
+    save().then((_) => loadAllData());
+  }
+
+  // ===========================================================================
+  // 🚀 SMART UPDATE: SALE (With Item-Level Reversal)
+  // ===========================================================================
+  void updateSale({
+    required String id,
+    required String billNo,
+    required DateTime date,
+    required Party party,
+    required List<BillItem> items,
+    required double total,
+    required String mode,
+    required List<String> linkedChallanIds,
+  }) {
+    int idx = sales.indexWhere((s) => s.id == id);
+    if (idx == -1) return;
+
+    // 1. Identify active links from current items
+    List<String> activeChallanIds = items
+        .where((it) => it.sourceChallanId.isNotEmpty)
+        .map((it) => it.sourceChallanId)
+        .toSet()
+        .toList();
+
+    // 2. REVERSAL: If a challan's items are all deleted, mark it "Pending"
+    for (var oldId in linkedChallanIds) {
+      if (!activeChallanIds.contains(oldId)) {
+        int cIdx = saleChallans.indexWhere((c) => c.id == oldId);
+        if (cIdx != -1) saleChallans[cIdx].status = "Pending";
+      }
+    }
+
+    // 3. Update Sale Record
+    sales[idx] = Sale(
+      id: id,
+      billNo: billNo,
+      date: date,
+      partyName: party.name,
+      partyGstin: party.gst,
+      partyState: party.state,
+      items: items,
+      totalAmount: total,
+      paymentMode: mode,
+      linkedChallanIds: activeChallanIds,
+    );
+
+    save().then((_) => loadAllData());
+  }
   }
   Future<void> finalizeBatchPurchases(List<Purchase> b) async {
     purchases.addAll(b);
