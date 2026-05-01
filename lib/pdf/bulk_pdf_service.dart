@@ -1,3 +1,5 @@
+// FILE: lib/pdf/bulk_pdf_service.dart
+
 import 'dart:io';
 import 'dart:typed_data';
 import 'package:archive/archive.dart';
@@ -23,7 +25,7 @@ class BulkPdfService {
 
     for (int i = 0; i < selectedDrafts.length; i++) {
       var draft = selectedDrafts[i];
-      dynamic billObj = draft['saleObj']; // Could be Sale or Purchase object
+      dynamic billObj = draft['saleObj']; 
       Party party = draft['party'];
 
       onProgress((i + 1) / selectedDrafts.length, party.name);
@@ -31,7 +33,6 @@ class BulkPdfService {
       Uint8List pdfBytes;
       String billNo;
 
-      // Detect Mode and use correct Clone Template
       if (billObj is Sale) {
         pdfBytes = await _generateSaleCloneBytes(billObj, party, shop);
         billNo = billObj.billNo;
@@ -40,7 +41,6 @@ class BulkPdfService {
         billNo = (billObj as Purchase).billNo;
       }
 
-      // Naming Style: Party(5 chars) + BillNo
       String cleanName = party.name.replaceAll(RegExp(r'[^A-Z0-9]'), '');
       String p5 = cleanName.padRight(5, 'X').substring(0, 5);
       String fileName = "${p5}_$billNo.pdf";
@@ -57,17 +57,20 @@ class BulkPdfService {
   }
 
   // ===========================================================================
-  // 2. SALE INVOICE CLONE (100% Matching Layout)
+  // 2. PROFESSIONAL SALE INVOICE CLONE (LANDSCAPE + 13 COLUMNS)
   // ===========================================================================
   static Future<Uint8List> _generateSaleCloneBytes(Sale sale, Party party, CompanyProfile shop) async {
     final pdf = pw.Document();
-    final itemsPerPage = 22;
+    const int itemsPerPage = 22; 
     int totalPages = (sale.items.length / itemsPerPage).ceil();
+
+    String formatQty(double val) => val == val.toInt() ? val.toInt().toString() : val.toStringAsFixed(1);
 
     for (int pageNum = 0; pageNum < totalPages; pageNum++) {
       int start = pageNum * itemsPerPage;
       int end = (start + itemsPerPage < sale.items.length) ? start + itemsPerPage : sale.items.length;
       List<BillItem> pageItems = sale.items.sublist(start, end);
+      bool isLastPage = (pageNum == totalPages - 1);
 
       pdf.addPage(pw.Page(
         pageFormat: PdfPageFormat.a4.landscape,
@@ -75,44 +78,55 @@ class BulkPdfService {
         build: (context) => pw.Container(
           decoration: pw.BoxDecoration(border: pw.Border.all(width: 1)),
           child: pw.Column(children: [
-            // --- HEADER (3 BOX DESIGN) ---
+            // --- PROFESSIONAL 3-BOX HEADER ---
             pw.Row(children: [
               _hBox(280, pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
                 pw.Text(shop.name.toUpperCase(), style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold, color: PdfColors.blue900)),
                 pw.Text(shop.address, style: const pw.TextStyle(fontSize: 8)),
-                pw.Text("GSTIN: ${shop.gstin} | Ph: ${shop.phone}", style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold)),
+                pw.Text("Phone: ${shop.phone} | GSTIN: ${shop.gstin}", style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold)),
+                pw.Text("D.L.No.: ${shop.dlNo}", style: const pw.TextStyle(fontSize: 7.5)),
               ])),
               _hBox(170, pw.Column(children: [
-                pw.Text("TAX INVOICE", style: pw.TextStyle(fontSize: 13, fontWeight: pw.FontWeight.bold)),
+                pw.Text("GST INVOICE", style: pw.TextStyle(fontSize: 13, fontWeight: pw.FontWeight.bold)),
+                pw.Text(sale.paymentMode.toUpperCase(), style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold)),
                 pw.Divider(thickness: 0.5),
-                pw.Text("Inv: ${sale.billNo}", style: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold)),
-                pw.Text("Date: ${DateFormat('dd/MM/yy').format(sale.date)}", style: const pw.TextStyle(fontSize: 8)),
-                pw.Text("Page ${pageNum + 1}/$totalPages", style: const pw.TextStyle(fontSize: 7)),
+                pw.Text("Inv No: ${sale.billNo}", style: pw.TextStyle(fontSize: 8.5, fontWeight: pw.FontWeight.bold)),
+                pw.Text("Date: ${DateFormat('dd/MM/yyyy').format(sale.date)}", style: const pw.TextStyle(fontSize: 8.5)),
+                pw.Text("Page ${pageNum + 1} of $totalPages", style: const pw.TextStyle(fontSize: 7, color: PdfColors.blue)),
               ])),
               _hBox(330, pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
-                pw.Text("BILL TO:", style: pw.TextStyle(fontSize: 7, color: PdfColors.grey)),
-                pw.Text(party.name, style: pw.TextStyle(fontSize: 11, fontWeight: pw.FontWeight.bold)),
+                pw.Text("PARTY DETAILS:", style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold, color: PdfColors.grey)),
+                pw.Text(party.name, style: pw.TextStyle(fontSize: 11, fontWeight: pw.FontWeight.bold, color: PdfColors.blue900)),
                 pw.Text(party.address, style: const pw.TextStyle(fontSize: 8)),
                 pw.Text("GSTIN: ${party.gst} | DL: ${party.dl}", style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold)),
               ])),
             ]),
-            // --- TABLE HEADER ---
+
+            // --- 13 COLUMN TABLE HEADER ---
             pw.Container(color: PdfColors.grey100, child: pw.Row(children: [
-              _tCol("S.N", 25), _tCol("Qty+Free", 50), _tCol("Pack", 40), _tCol("Item Description", 185, align: pw.Alignment.centerLeft),
-              _tCol("Batch", 75), _tCol("Exp", 45), _tCol("HSN", 50), _tCol("MRP", 55), _tCol("Rate", 55), _tCol("GST%", 40), _tCol("Net Amt", 80),
+              _tCol("S.N", 25), _tCol("Qty + Free", 50), _tCol("Pack", 40), _tCol("Product Name", 185, align: pw.Alignment.centerLeft),
+              _tCol("Batch", 75), _tCol("Exp", 45), _tCol("HSN", 50), _tCol("MRP", 55), _tCol("Rate", 55), 
+              _tCol("DIS%", 30), _tCol("SGST%", 40), _tCol("CGST%", 40), _tCol("Net Amt", 80),
             ])),
+
             // --- ITEM ROWS ---
-            pw.Expanded(child: pw.Column(children: pageItems.map((i) => pw.Container(
-              decoration: const pw.BoxDecoration(border: pw.Border(bottom: pw.BorderSide(width: 0.1, color: PdfColors.grey400))),
-              child: pw.Row(children: [
-                _cell("${i.srNo}", 25), _cell("${i.qty.toInt()}+${i.freeQty.toInt()}", 50), _cell(i.packing, 40), 
-                _cell(i.name, 185, align: pw.Alignment.centerLeft), _cell(i.batch, 75), _cell(i.exp, 45), 
-                _cell(i.hsn, 50), _cell(i.mrp.toStringAsFixed(2), 55), _cell(i.rate.toStringAsFixed(2), 55), 
-                _cell("${i.gstRate}%", 40), _cell(i.total.toStringAsFixed(2), 80),
-              ]),
-            )).toList())),
-            // --- FOOTER (ONLY ON LAST PAGE) ---
-            if (pageNum == totalPages - 1) _buildFooter(shop.name, sale.totalAmount)
+            pw.Expanded(child: pw.Column(children: pageItems.map((i) {
+              String displayQty = i.freeQty > 0 ? "${formatQty(i.qty)} + ${formatQty(i.freeQty)}" : formatQty(i.qty);
+              return pw.Container(
+                decoration: const pw.BoxDecoration(border: pw.Border(bottom: pw.BorderSide(width: 0.1, color: PdfColors.grey400))),
+                child: pw.Row(children: [
+                  _cell("${i.srNo}", 25), _cell(displayQty, 50), _cell(i.packing, 40), 
+                  _cell(i.name, 185, align: pw.Alignment.centerLeft), _cell(i.batch, 75), _cell(i.exp, 45), 
+                  _cell(i.hsn, 50), _cell(i.mrp.toStringAsFixed(2), 55), _cell(i.rate.toStringAsFixed(2), 55), 
+                  _cell(i.discountRupees.toStringAsFixed(1), 30), _cell("${(i.gstRate/2).toStringAsFixed(1)}%", 40),
+                  _cell("${(i.gstRate/2).toStringAsFixed(1)}%", 40), _cell(i.total.toStringAsFixed(2), 80),
+                ]),
+              );
+            }).toList())),
+
+            // --- FOOTER ---
+            if (isLastPage) _buildFooter(shop.name, sale.totalAmount)
+            else pw.Padding(padding: const pw.EdgeInsets.all(5), child: pw.Text("Continued to next page...", style: pw.TextStyle(fontStyle: pw.FontStyle.italic, fontSize: 10))),
           ]),
         )
       ));
@@ -121,17 +135,18 @@ class BulkPdfService {
   }
 
   // ===========================================================================
-  // 3. PURCHASE CLONE (100% Matching Layout)
+  // 3. PROFESSIONAL PURCHASE CLONE (LANDSCAPE)
   // ===========================================================================
   static Future<Uint8List> _generatePurchaseCloneBytes(Purchase pur, Party supplier, CompanyProfile shop) async {
     final pdf = pw.Document();
-    final itemsPerPage = 12;
+    const int itemsPerPage = 12;
     int totalPages = (pur.items.length / itemsPerPage).ceil();
 
     for (int pageNum = 0; pageNum < totalPages; pageNum++) {
       int start = pageNum * itemsPerPage;
       int end = (start + itemsPerPage < pur.items.length) ? start + itemsPerPage : pur.items.length;
       List<PurchaseItem> pageItems = pur.items.sublist(start, end);
+      bool isLastPage = (pageNum == totalPages - 1);
 
       pdf.addPage(pw.Page(
         pageFormat: PdfPageFormat.a4.landscape,
@@ -139,39 +154,47 @@ class BulkPdfService {
         build: (context) => pw.Container(
           decoration: pw.BoxDecoration(border: pw.Border.all(width: 1)),
           child: pw.Column(children: [
-            // --- HEADER ---
             pw.Row(children: [
               _hBox(280, pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
-                pw.Text(shop.name.toUpperCase(), style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold, color: PdfColors.blue900)),
-                pw.Text("STOCK INWARD RECORD", style: const pw.TextStyle(fontSize: 8)),
+                pw.Text(shop.name.toUpperCase(), style: pw.TextStyle(fontSize: 15, fontWeight: pw.FontWeight.bold, color: PdfColors.blue900)),
+                pw.Text(shop.address, style: const pw.TextStyle(fontSize: 8)),
+                pw.Text("Phone: ${shop.phone} | GSTIN: ${shop.gstin}", style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold)),
+                pw.Text("Type: STOCK INWARD RECORD", style: const pw.TextStyle(fontSize: 7, color: PdfColors.grey700)),
               ])),
               _hBox(170, pw.Column(children: [
-                pw.Text("PURCHASE BILL", style: pw.TextStyle(fontSize: 13, fontWeight: pw.FontWeight.bold, color: PdfColors.orange900)),
+                pw.Text("PURCHASE BILL", style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold, color: PdfColors.orange900)),
+                pw.Text(pur.paymentMode.toUpperCase(), style: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold)),
                 pw.Divider(thickness: 0.5),
                 pw.Text("Bill No: ${pur.billNo}", style: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold)),
-                pw.Text("ID: ${pur.internalNo}", style: const pw.TextStyle(fontSize: 8)),
-                pw.Text("Date: ${DateFormat('dd/MM/yy').format(pur.date)}", style: const pw.TextStyle(fontSize: 8)),
+                pw.Text("Internal ID: ${pur.internalNo}", style: const pw.TextStyle(fontSize: 8)),
+                pw.Text("Date: ${DateFormat('dd/MM/yyyy').format(pur.date)}", style: pw.TextStyle(fontSize: 9)),
               ])),
               _hBox(330, pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
-                pw.Text("SUPPLIER:", style: pw.TextStyle(fontSize: 7, color: PdfColors.grey)),
-                pw.Text(supplier.name, style: pw.TextStyle(fontSize: 11, fontWeight: pw.FontWeight.bold)),
-                pw.Text("GSTIN: ${supplier.gst}", style: const pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold)),
+                pw.Text("SUPPLIER / DISTRIBUTOR DETAILS:", style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold, color: PdfColors.grey)),
+                pw.Text(supplier.name, style: pw.TextStyle(fontSize: 12, fontWeight: pw.FontWeight.bold, color: PdfColors.blue900)),
+                pw.Text(supplier.address, style: const pw.TextStyle(fontSize: 8)),
+                pw.Text("GSTIN: ${supplier.gst} | DL: ${supplier.dl}", style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold)),
               ])),
             ]),
-            // --- TABLE ---
+
             pw.Container(color: PdfColors.grey200, child: pw.Row(children: [
-              _tCol("S.N", 25), _tCol("Qty", 40), _tCol("Free", 30), _tCol("Pack", 45), _tCol("Product Name", 190, align: pw.Alignment.centerLeft),
-              _tCol("Batch", 75), _tCol("Exp", 45), _tCol("HSN", 50), _tCol("MRP", 55), _tCol("Pur.Rate", 55), _tCol("GST%", 35), _tCol("Net Amt", 85),
+              _tCol("S.N", 25), _tCol("Qty", 40), _tCol("Free", 30), _tCol("Pack", 45),
+              _tCol("Product Name", 190, align: pw.Alignment.centerLeft),
+              _tCol("Batch", 75), _tCol("Exp", 45), _tCol("HSN", 50),
+              _tCol("MRP", 55), _tCol("Pur.Rate", 55), _tCol("GST%", 35), _tCol("Net Amt", 85),
             ])),
+
             pw.Expanded(child: pw.Column(children: pageItems.map((i) => pw.Container(
               decoration: const pw.BoxDecoration(border: pw.Border(bottom: pw.BorderSide(width: 0.1))),
               child: pw.Row(children: [
-                _cell("${i.srNo}", 25), _cell("${i.qty.toInt()}", 40), _cell("${i.freeQty.toInt()}", 30), _cell(i.packing, 45),
+                _cell("${i.srNo}", 25), _cell(i.qty.toStringAsFixed(0), 40),
+                _cell(i.freeQty.toStringAsFixed(0), 30), _cell(i.packing, 45),
                 _cell(i.name, 190, align: pw.Alignment.centerLeft), _cell(i.batch, 75), _cell(i.exp, 45), _cell(i.hsn, 50),
                 _cell(i.mrp.toStringAsFixed(2), 55), _cell(i.purchaseRate.toStringAsFixed(2), 55), _cell("${i.gstRate}%", 35), _cell(i.total.toStringAsFixed(2), 85),
               ]),
             )).toList())),
-            if (pageNum == totalPages - 1) _buildFooter(shop.name, pur.totalAmount)
+
+            if (isLastPage) _buildFooter(shop.name, pur.totalAmount)
           ]),
         )
       ));
@@ -182,7 +205,6 @@ class BulkPdfService {
   // ===========================================================================
   // UI HELPERS (EXACT MATCHING ORIGINAL SPECS)
   // ===========================================================================
-
   static pw.Widget _hBox(double w, pw.Widget child) => pw.Container(width: w, height: 85, padding: const pw.EdgeInsets.all(5), decoration: pw.BoxDecoration(border: pw.Border.all(width: 0.5)), child: child);
   
   static pw.Widget _tCol(String text, double width, {pw.Alignment align = pw.Alignment.center}) => pw.Container(width: width, height: 20, alignment: align, decoration: pw.BoxDecoration(border: pw.Border.all(width: 0.5)), child: pw.Text(text, style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold)));
@@ -200,7 +222,7 @@ class BulkPdfService {
             pw.Text("NET PAYABLE AMOUNT", style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold)),
             pw.Text("Rs. ${total.toStringAsFixed(2)}", style: pw.TextStyle(fontSize: 12, fontWeight: pw.FontWeight.bold)),
           ]),
-          pw.SizedBox(height: 5),
+          pw.SizedBox(height: 10),
           pw.Align(alignment: pw.Alignment.centerRight, child: pw.Text("For $shopName", style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold))),
         ])),
     ]);
