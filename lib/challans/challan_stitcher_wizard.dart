@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:file_saver/file_saver.dart';
+import 'package:permission_handler/permission_handler.dart';
 import '../pharoah_manager.dart';
 import '../models.dart';
 import '../app_date_logic.dart';
@@ -13,7 +15,6 @@ import '../pdf/purchase_pdf.dart';
 import '../pdf/bulk_pdf_service.dart';
 import '../billing_view.dart';
 import '../purchase/purchase_billing_view.dart';
-import 'package:file_saver/file_saver.dart'; // <--- NAYA IMPORT
 
 class ChallanStitcherWizard extends StatefulWidget {
   const ChallanStitcherWizard({super.key});
@@ -32,7 +33,7 @@ class _ChallanStitcherWizardState extends State<ChallanStitcherWizard> with Sing
   double progressValue = 0.0;
   String progressText = "";
 
-  // --- DATA ---
+  // --- DATA SELECTION ---
   DateTime batchBillDate = DateTime.now(); 
   DateTime fromDate = DateTime.now();
   DateTime toDate = DateTime.now();
@@ -55,9 +56,9 @@ class _ChallanStitcherWizardState extends State<ChallanStitcherWizard> with Sing
   }
 
   // ===========================================================================
-  // ⚡ LOGIC: BATCH SAVE & ZIP
+  // ⚡ LOGIC: BATCH SAVE & ZIP EXPORT
   // ===========================================================================
-
+  
   Future<void> _handleBatchSave(PharoahManager ph) async {
     var selected = draftBills.where((b) => b['isSelected'] && b['status'] == 'DRAFT').toList();
     if (selected.isEmpty) return;
@@ -66,39 +67,61 @@ class _ChallanStitcherWizardState extends State<ChallanStitcherWizard> with Sing
 
     bool isSale = _tabController.index == 0;
     if (isSale) {
+      // --- SALES BATCH ---
       List<Sale> batchToSave = [];
       var series = ph.getDefaultSeries("SALE");
       String startNoStr = await PharoahNumberingEngine.getNextNumber(type: "SALE", companyID: ph.activeCompany!.id, prefix: series.prefix, startFrom: series.startNumber, currentList: ph.sales);
       int nextNum = int.parse(startNoStr.replaceAll(series.prefix, ""));
 
       for (var b in selected) {
-        String bNo = "${series.prefix}$nextNum";
-        batchToSave.add(Sale(id: DateTime.now().toString() + bNo, billNo: bNo, date: b['date'], partyName: b['party'].name, partyGstin: b['party'].gst, partyState: b['party'].state, items: b['items'].cast<BillItem>(), totalAmount: b['total'], paymentMode: "CREDIT", linkedChallanIds: b['challanIds']));
+        String finalBillNo = "${series.prefix}$nextNum";
+        batchToSave.add(Sale(
+          id: DateTime.now().millisecondsSinceEpoch.toString() + finalBillNo,
+          billNo: finalBillNo,
+          date: b['date'],
+          partyName: b['party'].name,
+          partyGstin: b['party'].gst,
+          partyState: b['party'].state,
+          items: b['items'].cast<BillItem>(),
+          totalAmount: b['total'],
+          paymentMode: "CREDIT",
+          linkedChallanIds: b['challanIds']
+        ));
         nextNum++;
       }
       await ph.finalizeBatchSales(batchToSave);
-      _updateStatusAfterSave(batchToSave, true);
+      _updateLocalStatus(batchToSave, true);
     } else {
+      // --- PURCHASE BATCH ---
       List<Purchase> purBatch = [];
       for (var b in selected) {
         String pNo = await PharoahNumberingEngine.getNextNumber(type: "PURCHASE", companyID: ph.activeCompany!.id, prefix: "PUR-", startFrom: 1, currentList: ph.purchases);
-        purBatch.add(Purchase(id: DateTime.now().toString()+pNo, internalNo: pNo, billNo: "BATCH-CONV", date: b['date'], entryDate: DateTime.now(), distributorName: b['party'].name, items: b['items'].cast<PurchaseItem>(), totalAmount: b['total'], paymentMode: "CREDIT"));
+        purBatch.add(Purchase(
+          id: DateTime.now().millisecondsSinceEpoch.toString() + pNo,
+          internalNo: pNo, billNo: "CONV", 
+          date: b['date'], entryDate: DateTime.now(),
+          distributorName: b['party'].name,
+          items: b['items'].cast<PurchaseItem>(),
+          totalAmount: b['total'], paymentMode: "CREDIT"
+        ));
       }
       await ph.finalizeBatchPurchases(purBatch);
-      _updateStatusAfterSave(purBatch, false);
+      _updateLocalStatus(purBatch, false);
     }
 
     setState(() { isProcessing = false; });
-    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("✅ Batch Successfully Saved!"), backgroundColor: Colors.green));
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("✅ Batch Saved Successfully!"), backgroundColor: Colors.green));
   }
 
-  void _updateStatusAfterSave(List<dynamic> saved, bool isSale) {
+  void _updateLocalStatus(List<dynamic> savedBatch, bool isSale) {
     setState(() {
       for (var b in draftBills) {
         if (b['isSelected'] && b['status'] == 'DRAFT') {
           b['status'] = 'SAVED';
-          var match = saved.firstWhere((s) => (isSale ? s.partyName : s.distributorName) == b['party'].name);
-          b['billNo'] = isSale ? match.billNo : match.internalNo;
+          try {
+            var saved = savedBatch.firstWhere((s) => (isSale ? s.partyName : s.distributorName) == b['party'].name);
+            b['billNo'] = isSale ? saved.billNo : saved.internalNo;
+          } catch(e) {}
         }
       }
     });
@@ -108,59 +131,40 @@ class _ChallanStitcherWizardState extends State<ChallanStitcherWizard> with Sing
     var selected = draftBills.where((b) => b['isSelected']).toList();
     if (selected.isEmpty) return;
 
+    // Request Permissions
+    if (Platform.isAndroid) {
+      await Permission.storage.request();
+      await Permission.manageExternalStorage.request();
+    }
+
     if (selected.any((b) => b['status'] == 'DRAFT')) await _handleBatchSave(ph);
 
-    setState(() { isProcessing = true; progressValue = 0.0; progressText = "Generating Zip..."; });
-    
+    setState(() { isProcessing = true; progressValue = 0.0; progressText = "Preparing Zip..."; });
     try {
+      bool isSale = _tabController.index == 0;
       List<Map<String, dynamic>> payload = [];
       for (var d in selected) {
-        final obj = _tabController.index == 0 
+        final obj = isSale 
           ? ph.sales.firstWhere((s) => s.billNo == d['billNo'])
           : ph.purchases.firstWhere((p) => p.internalNo == d['billNo']);
         payload.add({'saleObj': obj, 'party': d['party'], 'billNo': d['billNo']});
       }
-
-      // 1. Zip Path nikalna
-      String path = await BulkPdfService.createBillsZip(
-        selectedDrafts: payload, 
-        shop: ph.activeCompany!, 
-        onProgress: (v, n) => setState(() { progressValue = v; progressText = "Packing: $n"; })
-      );
-
+      String path = await BulkPdfService.createBillsZip(selectedDrafts: payload, shop: ph.activeCompany!, onProgress: (v, n) => setState(() { progressValue = v; progressText = "Packing: $n"; }));
       setState(() => isProcessing = false);
 
-      // 2. --- NAYA: SELECTION DIALOG (SHARE vs SAVE) ---
       if (mounted) {
-        showDialog(
-          context: context,
-          builder: (c) => AlertDialog(
-            title: const Text("Batch Zip Ready!"),
-            content: const Text("Aap is folder ka kya karna chahte hain?"),
-            actions: [
-              // OPTION A: SHARE (WhatsApp etc)
-              TextButton.icon(
-                icon: const Icon(Icons.share), label: const Text("SHARE"),
-                onPressed: () { Navigator.pop(c); Share.shareXFiles([XFile(path)]); }
-              ),
-              // OPTION B: SAVE TO FILE MANAGER
-              ElevatedButton.icon(
-                icon: const Icon(Icons.download), label: const Text("SAVE TO DEVICE"),
-                onPressed: () async {
-                  Navigator.pop(c);
-                  final bytes = await File(path).readAsBytes();
-                  await FileSaver.instance.saveFile(
-                    name: "Bills_Batch_${DateFormat('ddMM_HHmm').format(DateTime.now())}",
-                    bytes: bytes,
-                    ext: "zip",
-                    mimeType: MimeType.zip,
-                  );
-                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("✅ Saved to Downloads!")));
-                }
-              ),
-            ],
-          ),
-        );
+        showDialog(context: context, builder: (c) => AlertDialog(
+          title: const Text("Batch ZIP Ready!"),
+          actions: [
+            TextButton(onPressed: () { Navigator.pop(c); Share.shareXFiles([XFile(path)]); }, child: const Text("SHARE")),
+            ElevatedButton(onPressed: () async {
+              Navigator.pop(c);
+              final bytes = await File(path).readAsBytes();
+              await FileSaver.instance.saveFile(name: "Invoices_Batch", bytes: bytes, ext: "zip", mimeType: MimeType.zip);
+              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("✅ Saved to Downloads!")));
+            }, child: const Text("SAVE TO DEVICE")),
+          ],
+        ));
       }
     } catch (e) { setState(() => isProcessing = false); }
   }
@@ -199,13 +203,13 @@ class _ChallanStitcherWizardState extends State<ChallanStitcherWizard> with Sing
 
   Widget _stepMode(PharoahManager ph, Color color) => Center(child: Padding(padding: const EdgeInsets.all(30.0), child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
     _modeCard("MONTHLY BATCH", "Select a month from Apr to Mar", Icons.calendar_month, color, () => _showMonthPicker(ph.currentFY)),
-    const SizedBox(height: 20),
+    const SizedBox(height: 25),
     _modeCard("RANDOM RANGE", "Custom selection in current FY", Icons.date_range, Colors.blueGrey, () => _pickRandom(ph.currentFY)),
   ])));
 
   Widget _stepRoute(PharoahManager ph, Color color) => Column(children: [
-    _header("STEP 2: FILTER BY ROUTE (OR SKIP)"),
-    ListTile(tileColor: Colors.white, leading: const Icon(Icons.done_all, color: Colors.green), title: const Text("SKIP & SHOW ALL ROUTES", style: TextStyle(fontWeight: FontWeight.bold)), onTap: () => setState(() { selectedRoute = null; funnelStep = "PARTY"; })),
+    _header("STEP 2: FILTER BY ROUTE"),
+    ListTile(tileColor: Colors.white, leading: const Icon(Icons.done_all, color: Colors.green), title: const Text("SKIP & SHOW ALL ROUTES"), onTap: () => setState(() { selectedRoute = null; funnelStep = "PARTY"; })),
     Expanded(child: ListView.builder(itemCount: ph.routes.length, itemBuilder: (c, i) => ListTile(tileColor: Colors.white, title: Text(ph.routes[i].name, style: const TextStyle(fontWeight: FontWeight.bold)), onTap: () => setState(() { selectedRoute = ph.routes[i].name; funnelStep = "PARTY"; }))))
   ]);
 
@@ -229,23 +233,10 @@ class _ChallanStitcherWizardState extends State<ChallanStitcherWizard> with Sing
   Widget _stepReview(PharoahManager ph, Color color) {
     bool allSel = draftBills.every((b) => b['isSelected']);
     return Column(children: [
-      Container(
-        padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 10),
-        color: color.withOpacity(0.05),
-        child: InkWell(
-          onTap: () async {
-            DateTime? p = await PharoahDateController.pickDate(context: context, currentFY: ph.currentFY, initialDate: batchBillDate);
-            if (p != null) { setState(() { batchBillDate = p; for (var b in draftBills) { if (b['status'] == 'DRAFT') b['date'] = p; } }); }
-          },
-          child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-            const Icon(Icons.calendar_today, size: 16, color: Colors.blueGrey),
-            const SizedBox(width: 10),
-            Text("BILLING DATE FOR ALL: ", style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.blueGrey)),
-            Text(DateFormat('dd/MM/yyyy').format(batchBillDate), style: TextStyle(fontSize: 13, fontWeight: FontWeight.w900, color: color)),
-            const Icon(Icons.edit, size: 14, color: Colors.grey),
-          ]),
-        ),
-      ),
+      Container(padding: const EdgeInsets.all(10), color: color.withOpacity(0.05), child: InkWell(onTap: () async {
+        DateTime? p = await PharoahDateController.pickDate(context: context, currentFY: ph.currentFY, initialDate: batchBillDate);
+        if (p != null) setState(() { batchBillDate = p; for (var b in draftBills) { if (b['status'] == 'DRAFT') b['date'] = p; } });
+      }, child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [const Icon(Icons.calendar_today, size: 14), const SizedBox(width: 8), Text("BILLING DATE FOR ALL: ${DateFormat('dd/MM/yyyy').format(batchBillDate)}", style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold)), const Icon(Icons.edit, size: 14)]))),
       Container(padding: const EdgeInsets.all(12), color: Colors.white, child: Row(children: [
         Checkbox(value: allSel, onChanged: (v) => setState(() { for(var b in draftBills) { if(b['status']=='DRAFT') b['isSelected'] = v; } })),
         const Text("SEL ALL", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 10)),
@@ -271,7 +262,10 @@ class _ChallanStitcherWizardState extends State<ChallanStitcherWizard> with Sing
     ]);
   }
 
-  // --- HELPERS & LOGIC ---
+  // ===========================================================================
+  // ⚡ WRAPPER HELPERS
+  // ===========================================================================
+
   void _generateDrafts(PharoahManager ph) {
     setState(() => isProcessing = true);
     List<Map<String, dynamic>> temp = []; bool isSale = _tabController.index == 0;
@@ -290,19 +284,17 @@ class _ChallanStitcherWizardState extends State<ChallanStitcherWizard> with Sing
   }
 
   Future<void> _saveSingle(PharoahManager ph, int i) async {
-    setState(() => isProcessing = true);
-    var b = draftBills[i]; bool isSale = _tabController.index == 0;
+    var b = draftBills[i]; if (b['status'] == 'SAVED') return;
+    bool isSale = _tabController.index == 0; String finalNo;
     if(isSale) {
       var ser = ph.getDefaultSeries("SALE");
-      String no = await PharoahNumberingEngine.getNextNumber(type: "SALE", companyID: ph.activeCompany!.id, prefix: ser.prefix, startFrom: ser.startNumber, currentList: ph.sales);
-      await ph.finalizeSale(billNo: no, date: b['date'], party: b['party'], items: b['items'].cast<BillItem>(), total: b['total'], mode: "CREDIT", linkedIds: b['challanIds'].cast<String>());
-      setState(() { draftBills[i]['status'] = 'SAVED'; draftBills[i]['billNo'] = no; });
+      finalNo = await PharoahNumberingEngine.getNextNumber(type: "SALE", companyID: ph.activeCompany!.id, prefix: ser.prefix, startFrom: ser.startNumber, currentList: ph.sales);
+      await ph.finalizeSale(billNo: finalNo, date: b['date'], party: b['party'], items: b['items'].cast<BillItem>(), total: b['total'], mode: "CREDIT", linkedIds: b['challanIds'].cast<String>());
     } else {
-      String no = await PharoahNumberingEngine.getNextNumber(type: "PURCHASE", companyID: ph.activeCompany!.id, prefix: "PUR-", startFrom: 1, currentList: ph.purchases);
-      ph.finalizePurchase(internalNo: no, billNo: "CONV", date: b['date'], entryDate: DateTime.now(), party: b['party'], items: b['items'].cast<PurchaseItem>(), total: b['total'], mode: "CREDIT");
-      setState(() { draftBills[i]['status'] = 'SAVED'; draftBills[i]['billNo'] = no; });
+      finalNo = await PharoahNumberingEngine.getNextNumber(type: "PURCHASE", companyID: ph.activeCompany!.id, prefix: "PUR-", startFrom: 1, currentList: ph.purchases);
+      ph.finalizePurchase(internalNo: finalNo, billNo: "CONV", date: b['date'], entryDate: DateTime.now(), party: b['party'], items: b['items'].cast<PurchaseItem>(), total: b['total'], mode: "CREDIT", linkedChallanIds: b['challanIds'].cast<String>());
     }
-    setState(() => isProcessing = false);
+    setState(() { draftBills[i]['status'] = 'SAVED'; draftBills[i]['billNo'] = finalNo; });
   }
 
   void _printSingle(PharoahManager ph, int i) async {
@@ -317,47 +309,24 @@ class _ChallanStitcherWizardState extends State<ChallanStitcherWizard> with Sing
     }
   }
 
+  void _editDraft(Map<String, dynamic> b, int i) async {
+    bool isSale = _tabController.index == 0;
+    if (isSale) await Navigator.push(context, MaterialPageRoute(builder: (c) => BillingView(party: b['party'], billNo: "DRAFT", billDate: b['date'], mode: "CREDIT", existingItems: b['items'].cast<BillItem>(), linkedChallanIds: b['challanIds'].cast<String>())));
+    else await Navigator.push(context, MaterialPageRoute(builder: (c) => PurchaseBillingView(distributor: b['party'], internalNo: "DRAFT", distBillNo: "", billDate: b['date'], entryDate: DateTime.now(), mode: "CREDIT", existingItems: b['items'].cast<PurchaseItem>())));
+    setState(() { draftBills[i]['status'] = 'SAVED'; draftBills[i]['billNo'] = "MANUAL-DONE"; });
+  }
+
   void _viewDraft(Map<String, dynamic> b) {
     if (_tabController.index == 0) Navigator.push(context, MaterialPageRoute(builder: (c) => BillingView(party: b['party'], billNo: "DRAFT", billDate: b['date'], mode: "CREDIT", existingItems: b['items'].cast<BillItem>(), isReadOnly: true)));
     else Navigator.push(context, MaterialPageRoute(builder: (c) => PurchaseBillingView(distributor: b['party'], internalNo: "DRAFT", distBillNo: "", billDate: b['date'], entryDate: DateTime.now(), mode: "CREDIT", existingItems: b['items'].cast<PurchaseItem>(), isReadOnly: true)));
   }
 
-  void _editDraft(Map<String, dynamic> b, int index) async {
-    bool isSale = _tabController.index == 0;
-    
-    if (isSale) {
-      await Navigator.push(context, MaterialPageRoute(builder: (c) => BillingView(
-        party: b['party'], 
-        billNo: "DRAFT", 
-        billDate: b['date'], 
-        mode: "CREDIT", 
-        existingItems: b['items'].cast<BillItem>(),
-        linkedChallanIds: b['challanIds'].cast<String>(),
-      )));
-    } else {
-      await Navigator.push(context, MaterialPageRoute(builder: (c) => PurchaseBillingView(
-        distributor: b['party'], 
-        internalNo: "DRAFT", 
-        distBillNo: "", 
-        billDate: b['date'], 
-        entryDate: DateTime.now(), 
-        mode: "CREDIT", 
-        existingItems: b['items'].cast<PurchaseItem>(),
-      )));
-    }
-
-    // Jab user "Finish" karke wapas aaye, toh state update karke card green kar do
-    setState(() {
-      draftBills[index]['status'] = 'SAVED';
-      draftBills[index]['billNo'] = "MANUAL-DONE";
-    });
-  }
-
+  // --- HELPERS ---
   void _showMonthPicker(String fy) {
-    showModalBottomSheet(context: context, builder: (c) => ListView(children: fyMonths.map((m) => ListTile(title: Text(m), onTap: () { Navigator.pop(c); _setDates(m, fy); })).toList()));
+    showModalBottomSheet(context: context, builder: (c) => ListView(children: fyMonths.map((m) => ListTile(title: Text(m), onTap: () { Navigator.pop(c); _setDt(m, fy); })).toList()));
   }
 
-  void _setDates(String m, String fy) {
+  void _setDt(String m, String fy) {
     int yr = int.parse(fy.split('-')[0]); if(yr < 2000) yr+=2000;
     int idx = fyMonths.indexOf(m); int tM = idx+4; if(tM>12) { tM-=12; yr++; }
     setState(() { fromDate = DateTime(yr, tM, 1); toDate = DateTime(yr, tM+1, 0); funnelStep = "ROUTE"; selectionMode = "MONTHLY"; });
