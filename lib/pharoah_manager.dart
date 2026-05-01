@@ -271,6 +271,58 @@ class PharoahManager with ChangeNotifier {
     );
     notifyListeners(); 
   }
+  // ===========================================================================
+  // 🚀 ADVANCED BATCH PROCESSING (FOR NO-FREEZE CONVERSION)
+  // ===========================================================================
+  
+  // ---> YAHAN SE PASTE KAREIN --->
+  Future<void> finalizeBatchSales(List<Sale> batch) async {
+    // 1. Bulk Collect: Saare bills ek saath memory mein jorein
+    sales.addAll(batch);
+
+    // 2. Status Update: Saare linked challans ko ek saath 'Billed' mark karein
+    for (var sale in batch) {
+      if (sale.linkedChallanIds.isNotEmpty) {
+        for (var id in sale.linkedChallanIds) {
+          int idx = saleChallans.indexWhere((c) => c.id == id);
+          if (idx != -1) saleChallans[idx].status = "Billed";
+        }
+      }
+    }
+
+    // 3. Serial Number Sync: Sirf aakhri bill number ke basis par counter update karein
+    if (batch.isNotEmpty && activeCompany != null) {
+      String lastNo = batch.last.billNo;
+      String prefix = lastNo.split(RegExp(r'\d')).first;
+      await PharoahNumberingEngine.updateSeriesCounter(
+        type: "SALE", 
+        companyID: activeCompany!.id, 
+        usedNumber: lastNo, 
+        prefix: prefix
+      );
+    }
+
+    // 4. Atomic Save: Poori dukan ka data sirf EK BAAR disk par likhein
+    await save();
+    
+    // 5. Single Rebuild: Inventory calculation sirf ek baar trigger karein
+    InventoryLogicCenter.rebuildAllInventory(
+      medicines: medicines, 
+      batchHistory: batchHistory, 
+      purchases: purchases, 
+      sales: sales
+    );
+    notifyListeners();
+  }
+
+  // Same logic for Purchases
+  Future<void> finalizeBatchPurchases(List<Purchase> batch) async {
+    purchases.addAll(batch);
+    await save();
+    InventoryLogicCenter.rebuildAllInventory(medicines: medicines, batchHistory: batchHistory, purchases: purchases, sales: sales);
+    notifyListeners();
+  }
+  // <--- YAHAN TAK PASTE KAREIN <---
 
   void finalizePurchase({required String internalNo, required String billNo, required DateTime date, DateTime? entryDate, required Party party, required List<PurchaseItem> items, required double total, required String mode}) { 
     purchases.add(Purchase(id: DateTime.now().toString(), internalNo: internalNo, billNo: billNo, date: date, entryDate: entryDate ?? DateTime.now(), distributorName: party.name, items: items, totalAmount: total, paymentMode: mode)); 
