@@ -75,12 +75,17 @@ class _ChallanStitcherWizardState extends State<ChallanStitcherWizard> with Sing
       }
 
       await ph.finalizeBatchSales(batchToSave);
-      setState(() {
-        for (var b in draftBills) { if (b['isSelected'] && b['status'] == 'DRAFT') { b['status'] = 'SAVED'; b['billNo'] = batchToSave.firstWhere((s) => s.partyName == b['party'].name).billNo; } }
-      });
+    } else {
+      // --- NAYA: PURCHASE BATCH LOGIC ---
+      List<Purchase> purBatch = [];
+      for (var b in selected) {
+        String pNo = await PharoahNumberingEngine.getNextNumber(type: "PURCHASE", companyID: ph.activeCompany!.id, prefix: "PUR-", startFrom: 1, currentList: ph.purchases);
+        purBatch.add(Purchase(id: DateTime.now().toString()+pNo, internalNo: pNo, billNo: "BATCH-CONV", date: b['date'], entryDate: DateTime.now(), distributorName: b['party'].name, items: b['items'].cast<PurchaseItem>(), totalAmount: b['total'], paymentMode: "CREDIT"));
+        // Note: Batch save for purchase is simple atomic save
+      }
+      await ph.finalizeBatchPurchases(purBatch);
     }
-    setState(() { isProcessing = false; });
-  }
+    // ... UI updates
 
   Future<void> _handleZipExport(PharoahManager ph) async {
     var selected = draftBills.where((b) => b['isSelected']).toList();
