@@ -1,4 +1,4 @@
-// FILE: lib/pharoah_manager.dart (FULLY UPDATED & FIXED)
+// FILE: lib/pharoah_manager.dart
 
 import 'dart:convert';
 import 'dart:io';
@@ -214,7 +214,7 @@ class PharoahManager with ChangeNotifier {
   }
 
   // ===========================================================================
-  // ⚡ FINALIZATION LOGIC (UPDATED FOR MERGED BILLS)
+  // ⚡ FINALIZATION LOGIC (UPDATED)
   // ===========================================================================
 
   Future<void> finalizeSale({
@@ -234,7 +234,6 @@ class PharoahManager with ChangeNotifier {
         if (idx != -1) saleChallans[idx].status = "Billed";
       }
     }
-
     if (activeCompany != null) {
       String prefix = billNo.split(RegExp(r'\d')).first;
       await PharoahNumberingEngine.updateSeriesCounter(type: "SALE", companyID: activeCompany!.id, usedNumber: billNo, prefix: prefix);
@@ -339,25 +338,41 @@ class PharoahManager with ChangeNotifier {
   void addManualShortage({required Medicine med, required double qty, String cust = ""}) { shortages.add(ShortageItem(id: DateTime.now().toString(), medicineId: med.id, medicineName: med.name, companyName: med.companyId, qtyRequired: qty, currentStock: med.stock, date: DateTime.now(), customerName: cust)); save(); }
   void updateChequeStatus(String id, String status, String reason) { int i = cheques.indexWhere((c) => c.id == id); if(i != -1) { cheques[i].status = status; cheques[i].remark = reason; save(); } }
 
-  void finalizeSaleChallan({required String challanNo, required DateTime date, required Party party, required List<BillItem> items, required double total, String remarks = ""}) async { 
-    saleChallans.add(SaleChallan(id: DateTime.now().toString(), billNo: challanNo, date: date, partyName: party.name, partyGstin: party.gst, partyState: party.state, items: items, totalAmount: total, remarks: remarks)); 
-    save(); 
+  // ===========================================================================
+  // ⚡ INVENTORY INTEL (SHORTAGE 1.5x) - RESTORED REAL LOGIC
+  // ===========================================================================
+
+  double calculateAvgMonthlySale(String medicineId) {
+    DateTime thirtyDaysAgo = DateTime.now().subtract(const Duration(days: 30));
+    double monthlyQty = 0;
+    // Sirf Active Sales scan karein pichle 30 din ki
+    for (var sale in sales.where((s) => s.status == "Active" && s.date.isAfter(thirtyDaysAgo))) {
+      for (var item in sale.items.where((it) => it.medicineID == medicineId)) {
+        monthlyQty += (item.qty + item.freeQty);
+      }
+    }
+    return monthlyQty;
   }
 
-  void finalizePurchaseChallan({required String challanNo, required String internalNo, required DateTime date, required Party party, required List<PurchaseItem> items, required double total, String remarks = ""}) async { 
-    purchaseChallans.add(PurchaseChallan(id: DateTime.now().toString(), internalNo: internalNo, billNo: challanNo, date: date, distributorName: party.name, items: items, totalAmount: total, remarks: remarks)); 
-    if (activeCompany != null) await PharoahNumberingEngine.updateSeriesCounter(type: "CHALLAN_PUR", companyID: activeCompany!.id, usedNumber: internalNo, prefix: "PCH-");
-    save(); 
-  }
-
-  void finalizeSaleReturn({required String billNo, required DateTime date, required Party party, required List<BillItem> items, required double total, String type = "Sellable"}) async { 
-    saleReturns.add(SaleReturn(id: DateTime.now().toString(), billNo: billNo, date: date, partyName: party.name, items: items, totalAmount: total, returnType: type)); 
-    save(); 
-  }
-
-  void finalizePurchaseReturn({required String billNo, required DateTime date, required Party party, required List<PurchaseItem> items, required double total, String type = "Breakage"}) { 
-    purchaseReturns.add(PurchaseReturn(id: DateTime.now().toString(), billNo: billNo, distributorName: party.name, date: date, items: items, totalAmount: total, status: "Active", returnType: type)); 
-    save(); 
+  void runAutoShortageScan() {
+    shortages.removeWhere((s) => s.source == "Auto"); // Purani auto list saaf karein
+    for (var med in medicines) {
+      double avg = calculateAvgMonthlySale(med.id);
+      double required = avg * 1.5; // Smart 1.5x formula
+      if (med.stock < required && required > 0) {
+        shortages.add(ShortageItem(
+          id: "auto_${med.id}", 
+          medicineId: med.id, 
+          medicineName: med.name, 
+          companyName: med.companyId, 
+          qtyRequired: required - med.stock, 
+          currentStock: med.stock, 
+          date: DateTime.now(), 
+          source: "Auto"
+        ));
+      }
+    }
+    save();
   }
 
   // ===========================================================================
