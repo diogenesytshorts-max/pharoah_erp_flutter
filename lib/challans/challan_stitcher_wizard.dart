@@ -149,35 +149,55 @@ class _ChallanStitcherWizardState extends State<ChallanStitcherWizard> with Sing
           : ph.purchases.firstWhere((p) => p.internalNo == d['billNo']);
         payload.add({'saleObj': obj, 'party': d['party'], 'billNo': d['billNo']});
       }
-      String path = await BulkPdfService.createBillsZip(selectedDrafts: payload, shop: ph.activeCompany!, onProgress: (v, n) => setState(() { progressValue = v; progressText = "Packing: $n"; }));
+      String path = await BulkPdfService.createBillsZip(
+          selectedDrafts: payload, 
+          shop: ph.activeCompany!, 
+          onProgress: (v, n) => setState(() { progressValue = v; progressText = "Packing: $n"; })
+      );
       setState(() => isProcessing = false);
 
       if (mounted) {
-        showDialog(context: context, builder: (c) => AlertDialog(
-          title: const Text("Batch ZIP Ready!"),
-          actions: [
-            TextButton(onPressed: () { Navigator.pop(c); Share.shareXFiles([XFile(path)]); }, child: const Text("SHARE")),
-            ElevatedButton(onPressed: () async {
-              Navigator.pop(c);
-              try {
-                final bytes = await File(path).readAsBytes();
-                
-                // NAYA: saveAs method use kiya hai jo folder picker kholega
-                // Isse user Downloads ya SD Card kahin bhi save kar sakega
-                await FileSaver.instance.saveAs(
-                  name: "Invoices_Batch_${DateFormat('ddMM_HHmm').format(DateTime.now())}", 
-                  bytes: bytes, 
-                  ext: "zip", 
-                  mimeType: MimeType.zip
-                );
-              } catch (e) {
-                if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error saving: $e"), backgroundColor: Colors.red));
-                }
-              }
-            }, child: const Text("SAVE TO DEVICE")),
+        showDialog(
+          context: context, 
+          builder: (c) => AlertDialog(
+            title: const Text("Batch ZIP Ready!"),
+            actions: [
+              TextButton(
+                onPressed: () { 
+                  Navigator.pop(c); 
+                  Share.shareXFiles([XFile(path)]); 
+                }, 
+                child: const Text("SHARE")
+              ),
+              ElevatedButton(
+                onPressed: () async {
+                  Navigator.pop(c);
+                  try {
+                    final bytes = await File(path).readAsBytes();
+                    // FIXED: saveAs method call with proper brackets
+                    await FileSaver.instance.saveAs(
+                      name: "Batch_Bills_${DateFormat('ddMM_HHmm').format(DateTime.now())}", 
+                      bytes: bytes, 
+                      ext: "zip", 
+                      mimeType: MimeType.zip
+                    );
+                  } catch (e) {
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text("Error saving: $e"), backgroundColor: Colors.red)
+                      );
+                    }
+                  }
+                }, 
+                child: const Text("SAVE TO DEVICE")
+              ),
+            ],
+          ),
+        );
       }
-    } catch (e) { setState(() => isProcessing = false); }
+    } catch (e) { 
+      setState(() => isProcessing = false); 
+    }
   }
 
   // ===========================================================================
