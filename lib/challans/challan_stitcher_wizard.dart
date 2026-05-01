@@ -284,17 +284,32 @@ class _ChallanStitcherWizardState extends State<ChallanStitcherWizard> with Sing
   }
 
   Future<void> _saveSingle(PharoahManager ph, int i) async {
-    var b = draftBills[i]; if (b['status'] == 'SAVED') return;
-    bool isSale = _tabController.index == 0; String finalNo;
+    setState(() => isProcessing = true);
+    var b = draftBills[i]; 
+    bool isSale = _tabController.index == 0; 
+    String finalNo;
+
     if(isSale) {
       var ser = ph.getDefaultSeries("SALE");
       finalNo = await PharoahNumberingEngine.getNextNumber(type: "SALE", companyID: ph.activeCompany!.id, prefix: ser.prefix, startFrom: ser.startNumber, currentList: ph.sales);
       await ph.finalizeSale(billNo: finalNo, date: b['date'], party: b['party'], items: b['items'].cast<BillItem>(), total: b['total'], mode: "CREDIT", linkedIds: b['challanIds'].cast<String>());
     } else {
       finalNo = await PharoahNumberingEngine.getNextNumber(type: "PURCHASE", companyID: ph.activeCompany!.id, prefix: "PUR-", startFrom: 1, currentList: ph.purchases);
-      ph.finalizePurchase(internalNo: finalNo, billNo: "CONV", date: b['date'], entryDate: DateTime.now(), party: b['party'], items: b['items'].cast<PurchaseItem>(), total: b['total'], mode: "CREDIT", linkedChallanIds: b['challanIds'].cast<String>());
+      
+      // CALL UPDATED MANAGER FUNCTION
+      ph.finalizePurchase(
+        internalNo: finalNo, 
+        billNo: "CONV", 
+        date: b['date'], 
+        entryDate: DateTime.now(), 
+        party: b['party'], 
+        items: b['items'].cast<PurchaseItem>(), 
+        total: b['total'], 
+        mode: "CREDIT",
+        linkedChallanIds: b['challanIds'].cast<String>() // <--- MATCHING PARAMETER NAME
+      );
     }
-    setState(() { draftBills[i]['status'] = 'SAVED'; draftBills[i]['billNo'] = finalNo; });
+    setState(() { draftBills[i]['status'] = 'SAVED'; draftBills[i]['billNo'] = finalNo; isProcessing = false; });
   }
 
   void _printSingle(PharoahManager ph, int i) async {
