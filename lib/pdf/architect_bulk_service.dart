@@ -1,8 +1,7 @@
 // FILE: lib/pdf/architect_bulk_service.dart
 
 import 'dart:io';
-import 'dart:typed_material.dart'; // Added for bytes safety
-import 'dart:typed_data';
+import 'dart:typed_data'; // ✅ Correct library for Uint8List
 import 'package:archive/archive.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:pdf/pdf.dart';
@@ -265,11 +264,10 @@ class ArchitectBulkService {
   }
 
   static pw.Widget _fRow(String l, double v) => pw.Row(mainAxisAlignment: pw.MainAxisAlignment.spaceBetween, children: [pw.Text(l, style: const pw.TextStyle(fontSize: 7.5)), pw.Text(v.toStringAsFixed(2), style: pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold))]);
+
+  static pw.Widget _hBox(double w, pw.Widget child, {bool isLast = false}) => pw.Container(width: w, height: 90, padding: const pw.EdgeInsets.all(5), decoration: pw.BoxDecoration(border: pw.Border(right: pw.BorderSide(width: isLast ? 0 : 0.5, color: PdfColors.black), bottom: const pw.BorderSide(width: 0.5))), child: child);
   
-  // FIX: Added pw. prefix to BorderSide inside helpers
-  static pw.Widget _hBox(double w, pw.Widget child, {bool isLast = false}) => pw.Container(width: w, height: 90, padding: const pw.EdgeInsets.all(5), decoration: pw.BoxDecoration(border: pw.Border(right: pw.BorderSide(width: isLast ? 0 : 0.5), bottom: const pw.BorderSide(width: 0.5))), child: child);
+  static pw.Widget _tCol(String t, double w, {bool isLast = false, pw.Alignment align = pw.Alignment.center}) => pw.Container(width: w, height: 20, alignment: align, padding: pw.EdgeInsets.only(left: align == pw.Alignment.centerLeft ? 8 : 0), decoration: pw.BoxDecoration(border: pw.Border(right: pw.BorderSide(width: isLast ? 0 : 0.5, color: PdfColors.black), bottom: const pw.BorderSide(width: 0.5))), child: pw.Text(t, style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold)));
   
-  static pw.Widget _tCol(String t, double w, {bool isLast = false, pw.Alignment align = pw.Alignment.center}) => pw.Container(width: w, height: 20, alignment: align, padding: pw.EdgeInsets.only(left: align == pw.Alignment.centerLeft ? 8 : 0), decoration: pw.BoxDecoration(border: pw.Border(right: pw.BorderSide(width: isLast ? 0 : 0.5), bottom: const pw.BorderSide(width: 0.5))), child: pw.Text(t, style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold)));
-  
-  static pw.Widget _cell(String t, double w) => pw.Container(width: w, alignment: pw.Alignment.center, decoration: const pw.BoxDecoration(border: pw.Border(right: pw.BorderSide(width: 0.2, color: PdfColors.grey))), child: pw.Text(t, style: const pw.TextStyle(fontSize: 7.5)));
+  static pw.Widget _cell(String t, double w) => pw.Container(width: w, alignment: pw.Alignment.center, decoration: pw.BoxDecoration(border: pw.Border(right: pw.BorderSide(width: 0.2, color: PdfColors.grey))), child: pw.Text(t, style: const pw.TextStyle(fontSize: 7.5)));
 }
