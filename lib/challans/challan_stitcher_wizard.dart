@@ -92,22 +92,38 @@ class _ChallanStitcherWizardState extends State<ChallanStitcherWizard> with Sing
       _updateLocalStatus(batchToSave, true);
     } else {
       List<Purchase> purBatch = [];
+      
+      // ✅ FIX: Loop se pehle sirf EK baar engine se agla number mango
+      String startPNoStr = await PharoahNumberingEngine.getNextNumber(
+          type: "PURCHASE",
+          companyID: ph.activeCompany!.id,
+          prefix: "PUR-",
+          startFrom: 1,
+          currentList: ph.purchases);
+
+      // ✅ Number nikaalo (e.g., "PUR-11" se sirf 11 lo)
+      int nextPurNum = int.parse(startPNoStr.replaceAll("PUR-", ""));
+
       for (var b in selected) {
-        String pNo = await PharoahNumberingEngine.getNextNumber(type: "PURCHASE", companyID: ph.activeCompany!.id, prefix: "PUR-", startFrom: 1, currentList: ph.purchases);
-        
+        // ✅ Har party ke liye naya sequential number banao
+        String finalPurNo = "PUR-$nextPurNum";
+
         purBatch.add(Purchase(
-          id: DateTime.now().millisecondsSinceEpoch.toString() + pNo,
-          internalNo: pNo, 
-          billNo: "CH-CONV-${pNo.replaceAll("PUR-", "")}", 
-          date: b['date'], 
-          entryDate: DateTime.now(),
-          distributorName: b['party'].name,
-          items: b['items'].cast<PurchaseItem>(),
-          totalAmount: b['total'], 
-          paymentMode: "CREDIT",
-          linkedChallanIds: List<String>.from(b['challanIds'])
-        ));
+            id: DateTime.now().millisecondsSinceEpoch.toString() + finalPurNo,
+            internalNo: finalPurNo,
+            billNo: "CH-CONV-$nextPurNum", // Ref No mein bhi wahi digit
+            date: b['date'],
+            entryDate: DateTime.now(),
+            distributorName: b['party'].name,
+            items: b['items'].cast<PurchaseItem>(),
+            totalAmount: b['total'],
+            paymentMode: "CREDIT",
+            linkedChallanIds: List<String>.from(b['challanIds'])));
+
+        // ✅ IMPORTANT: Agli party ke liye number ko ek badha do
+        nextPurNum++;
       }
+      
       await ph.finalizeBatchPurchases(purBatch);
       _updateLocalStatus(purBatch, false);
     }
