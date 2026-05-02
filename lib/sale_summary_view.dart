@@ -6,7 +6,7 @@ import 'package:intl/intl.dart';
 import 'pharoah_manager.dart';
 import 'models.dart';
 import 'pdf/sale_report_pdf.dart'; 
-import 'pdf/sale_invoice_pdf.dart'; 
+import 'pdf/pdf_router_service.dart'; 
 import 'sale_entry_view.dart';
 import 'app_date_logic.dart'; 
 import 'pharoah_date_controller.dart'; 
@@ -136,9 +136,14 @@ class _SaleSummaryViewState extends State<SaleSummaryView> {
   ),
                   trailing: Row(mainAxisSize: MainAxisSize.min, children: [
                     IconButton(
-                      icon: const Icon(Icons.print, color: Colors.blueGrey), 
-                      onPressed: activeShop == null ? null : () => SaleInvoicePdf.generate(s, p, activeShop)
-                    ),
+                      IconButton(
+  icon: const Icon(Icons.print, color: Colors.blueGrey), 
+  onPressed: activeShop == null ? null : () => PdfRouterService.printSale(
+    sale: s, 
+    party: p, 
+    ph: ph
+  )
+),
                     IconButton(
                       icon: const Icon(Icons.edit, color: Colors.blue), 
                       onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (c) => SaleEntryView(existingSale: s)))
