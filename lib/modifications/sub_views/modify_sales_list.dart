@@ -6,6 +6,7 @@ import 'package:intl/intl.dart';
 import '../../../pharoah_manager.dart';
 import '../../../models.dart';
 import '../../../sale_entry_view.dart';
+import '../../../pdf/pdf_router_service.dart'; // NAYA IMPORT
 
 class ModifySalesList extends StatelessWidget {
   final String searchQuery;
@@ -48,12 +49,37 @@ class ModifySalesList extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         const ListTile(title: Text("Bill Actions", style: TextStyle(fontWeight: FontWeight.bold))),
+        
+        // 1. EDIT OPTION
         ListTile(leading: const Icon(Icons.edit, color: Colors.blue), title: const Text("Edit / Modify Bill"), onTap: () {
           Navigator.pop(c);
           Navigator.push(context, MaterialPageRoute(builder: (c) => SaleEntryView(existingSale: s)));
         }),
+
+        // 2. NAYA: PRINT OPTION (Router Integrated)
+        ListTile(
+          leading: const Icon(Icons.print, color: Colors.teal), 
+          title: const Text("Print / Share PDF"), 
+          onTap: () {
+            Navigator.pop(c);
+            // Party details fetch karna PDF ke liye
+            final p = ph.parties.firstWhere(
+              (x) => x.name == s.partyName, 
+              orElse: () => Party(id: 'temp', name: s.partyName, gst: s.partyGstin, state: s.partyState)
+            );
+            
+            // Universal Router call jo Settings automatic check karega
+            PdfRouterService.printSale(
+              sale: s, 
+              party: p, 
+              ph: ph
+            );
+          }
+        ),
         
-        // Conditional Delete Button
+        const Divider(),
+
+        // 3. DELETE OPTION
         if (canDelete)
           ListTile(leading: const Icon(Icons.delete, color: Colors.red), title: const Text("Delete Bill Permanent"), onTap: () {
             ph.deleteBill(s.id); Navigator.pop(c);
