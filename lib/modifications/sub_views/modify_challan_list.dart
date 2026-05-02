@@ -7,8 +7,7 @@ import '../../../pharoah_manager.dart';
 import '../../../models.dart';
 import '../../../challans/sale_challan_view.dart';
 import '../../../challans/purchase_challan_view.dart';
-import '../../../pdf/sale_challan_pdf.dart';
-import '../../../pdf/purchase_challan_pdf.dart';
+import '../../../pdf/pdf_router_service.dart'; // NAYA IMPORT
 
 class ModifyChallanList extends StatelessWidget {
   final String searchQuery;
@@ -107,17 +106,24 @@ class ModifyChallanList extends StatelessWidget {
               ));
             }),
 
-            // 3. PRINT
+            // 3. PRINT (Via Universal Router)
             _menuTile(Icons.print, "Print PDF", Colors.teal, () {
               Navigator.pop(c);
               if (ph.activeCompany != null) {
-                if (isSale) {
-                  final party = ph.parties.firstWhere((p) => p.name == challan.partyName, orElse: () => Party(id: '0', name: challan.partyName));
-                  SaleChallanPdf.generate(challan, party, ph.activeCompany!);
-                } else {
-                  final party = ph.parties.firstWhere((p) => p.name == challan.distributorName, orElse: () => Party(id: '0', name: challan.distributorName));
-                  PurchaseChallanPdf.generate(challan, party, ph.activeCompany!);
-                }
+                // Party find karna (Sale ke liye customer, Purchase ke liye supplier)
+                String partyName = isSale ? challan.partyName : challan.distributorName;
+                final partyObj = ph.parties.firstWhere(
+                  (p) => p.name == partyName, 
+                  orElse: () => Party(id: '0', name: partyName)
+                );
+
+                // Central Router call
+                PdfRouterService.printChallan(
+                  challan: challan, 
+                  party: partyObj, 
+                  ph: ph, 
+                  isSaleChallan: isSale
+                );
               }
             }),
 
