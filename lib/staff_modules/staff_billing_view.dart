@@ -237,19 +237,20 @@ class _StaffBillingViewState extends State<StaffBillingView> {
     ),
   );
 
+  // REPLACE IN lib/staff_modules/staff_billing_view.dart -> _handleFinish() function
   void _handleFinish(PharoahManager ph) async {
-    // 1. Create Sale Object for Printer
     final newSale = Sale(
       id: DateTime.now().toString(),
       billNo: widget.billNo,
       date: widget.billDate,
       partyName: widget.party.name,
-      partyGtin: widget.party.gst,
+      partyGstin: widget.party.gst, // FIXED TYPO
       partyState: widget.party.state,
       items: items,
       totalAmount: totalAmt,
       paymentMode: widget.mode,
     );
+    // ... baki code same rahega
 
     // 2. Finalize in Database
     await ph.finalizeSale(
