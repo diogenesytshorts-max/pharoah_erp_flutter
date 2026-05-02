@@ -5,7 +5,7 @@ import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import '../pharoah_manager.dart';
 import '../models.dart';
-import '../pdf/purchase_pdf.dart';
+import '../pdf/pdf_router_service.dart';
 import '../pdf/purchase_report_pdf.dart'; 
 import 'purchase_entry_view.dart'; 
 import '../app_date_logic.dart'; 
@@ -136,9 +136,13 @@ class _PurchaseSummaryViewState extends State<PurchaseSummaryView> {
   ),
                   trailing: Row(mainAxisSize: MainAxisSize.min, children: [
                     IconButton(
-                      icon: const Icon(Icons.print, color: Colors.blueGrey), 
-                      onPressed: activeShop == null ? null : () => PurchasePdf.generate(p, supplier, activeShop)
-                    ),
+  icon: const Icon(Icons.print, color: Colors.blueGrey), 
+  onPressed: activeShop == null ? null : () => PdfRouterService.printPurchase(
+    purchase: p, 
+    supplier: supplier, 
+    ph: ph
+  )
+),
                     IconButton(
                       icon: const Icon(Icons.edit, color: Colors.blue), 
                       onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (c) => PurchaseEntryView(existingPurchase: p)))
