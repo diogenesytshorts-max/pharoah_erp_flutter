@@ -6,6 +6,7 @@ import 'package:intl/intl.dart';
 import '../pharoah_manager.dart';
 import '../models.dart';
 import 'staff_item_entry_card.dart';
+import '../pdf/pdf_router_service.dart'; // NAYA: Central Router Import
 
 class StaffBillingView extends StatefulWidget {
   final Party party;
@@ -142,10 +143,7 @@ class _StaffBillingViewState extends State<StaffBillingView> {
       body: Column(
         children: [
           _buildHeader(),
-          
-          // --- NAYA: Search Bar Trigger (Replaced FAB) ---
           _buildSearchBarTrigger(ph),
-
           Expanded(
             child: items.isEmpty
                 ? const Center(child: Text("Cart is empty. Tap above to add items."))
@@ -155,7 +153,6 @@ class _StaffBillingViewState extends State<StaffBillingView> {
                     itemBuilder: (c, i) => _buildItemCard(items[i], i, ph),
                   ),
           ),
-          
           _buildFooter(),
         ],
       ),
@@ -163,7 +160,6 @@ class _StaffBillingViewState extends State<StaffBillingView> {
   }
 
   // --- UI COMPONENTS ---
-
   Widget _buildHeader() => Container(
     padding: const EdgeInsets.all(15), margin: const EdgeInsets.fromLTRB(10, 10, 10, 5),
     decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12)),
@@ -212,10 +208,9 @@ class _StaffBillingViewState extends State<StaffBillingView> {
       ),
     );
 
-    // NAYA: Swipe to Delete Widget for Staff
     return Dismissible(
       key: Key(it.id),
-      direction: DismissDirection.endToStart, // Only Right to Left swipe
+      direction: DismissDirection.endToStart,
       background: Container(
         margin: const EdgeInsets.symmetric(vertical: 4),
         decoration: BoxDecoration(color: Colors.red, borderRadius: BorderRadius.circular(12)),
@@ -242,8 +237,22 @@ class _StaffBillingViewState extends State<StaffBillingView> {
     ),
   );
 
-  void _handleFinish(PharoahManager ph) {
-    ph.finalizeSale(
+  void _handleFinish(PharoahManager ph) async {
+    // 1. Create Sale Object for Printer
+    final newSale = Sale(
+      id: DateTime.now().toString(),
+      billNo: widget.billNo,
+      date: widget.billDate,
+      partyName: widget.party.name,
+      partyGtin: widget.party.gst,
+      partyState: widget.party.state,
+      items: items,
+      totalAmount: totalAmt,
+      paymentMode: widget.mode,
+    );
+
+    // 2. Finalize in Database
+    await ph.finalizeSale(
       billNo: widget.billNo,
       date: widget.billDate,
       party: widget.party,
@@ -251,8 +260,38 @@ class _StaffBillingViewState extends State<StaffBillingView> {
       total: totalAmt,
       mode: widget.mode,
     );
+
+    // 3. NAYA: Prompt for Immediate Print (Router Integrated)
+    if (mounted) {
+      bool? doPrint = await showDialog<bool>(
+        context: context,
+        builder: (c) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: const Text("Bill Saved!"),
+          content: const Text("Do you want to print/share the invoice now?"),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(c, false), child: const Text("NO, LATER")),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.teal.shade700, foregroundColor: Colors.white),
+              onPressed: () => Navigator.pop(c, true), 
+              child: const Text("YES, PRINT")
+            ),
+          ],
+        ),
+      );
+
+      if (doPrint == true) {
+        // Universal Router Call: Automatically handles Thermal/Architect
+        await PdfRouterService.printSale(
+          sale: newSale, 
+          party: widget.party, 
+          ph: ph
+        );
+      }
+    }
+
     Navigator.pop(context); // Close billing view
     Navigator.pop(context); // Close entry setup view
-    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("✅ Bill Saved Successfully!"), backgroundColor: Colors.green));
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("✅ Bill Processed Successfully!"), backgroundColor: Colors.green));
   }
 }
