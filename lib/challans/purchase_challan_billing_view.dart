@@ -7,7 +7,7 @@ import '../pharoah_manager.dart';
 import '../models.dart';
 import '../purchase/purchase_billing_view.dart'; // Yahan se PurchaseItemEntryCard lenge
 import '../product_master.dart';
-import '../pdf/purchase_challan_pdf.dart';
+import '../pdf/pdf_router_service.dart'; // NAYA: Central Router Import
 
 class PurchaseChallanBillingView extends StatefulWidget {
   final Party distributor;
@@ -178,21 +178,31 @@ class _PurchaseChallanBillingViewState extends State<PurchaseChallanBillingView>
         backgroundColor: widget.isReadOnly ? Colors.purple.shade700 : Colors.amber.shade900,
         foregroundColor: Colors.white,
         actions: [
+          // NAYA: Print Action updated via Router
           IconButton(
             icon: const Icon(Icons.print_rounded),
-            onPressed: items.isEmpty ? null : () {
-  if (ph.activeCompany != null) {
-    PurchaseChallanPdf.generate(
-      PurchaseChallan(
-        id: "temp", internalNo: widget.internalNo, billNo: widget.supplierChallanNo, 
-        date: widget.challanDate, distributorName: widget.distributor.name, 
-        items: items, totalAmount: totalAmt, remarks: remarksC.text.trim()
-      ), 
-      widget.distributor, 
-      ph.activeCompany!
-    );
-  }
-},
+            onPressed: items.isEmpty ? null : () async {
+              if (ph.activeCompany != null) {
+                final tempChallan = PurchaseChallan(
+                  id: "temp", 
+                  internalNo: widget.internalNo, 
+                  billNo: widget.supplierChallanNo, 
+                  date: widget.challanDate, 
+                  distributorName: widget.distributor.name, 
+                  items: items, 
+                  totalAmount: totalAmt, 
+                  remarks: remarksC.text.trim()
+                );
+
+                // Central Router ko Inward Challan print karne ko bolna
+                await PdfRouterService.printChallan(
+                  challan: tempChallan, 
+                  party: widget.distributor, 
+                  ph: ph, 
+                  isSaleChallan: false // False means Inward/Purchase
+                );
+              }
+            },
           ),
           if (!widget.isReadOnly)
             TextButton(
