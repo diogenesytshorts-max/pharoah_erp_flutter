@@ -8,7 +8,7 @@ import '../models.dart';
 import '../pharoah_date_controller.dart';
 import '../app_date_logic.dart';
 import 'purchase_challan_view.dart';
-import '../pdf/purchase_challan_pdf.dart';
+import '../pdf/pdf_router_service.dart';
 import '../pdf/purchase_challan_report_pdf.dart'; // <--- Report Import
 
 class PurchaseChallanRegister extends StatefulWidget {
@@ -220,14 +220,21 @@ class _PurchaseChallanRegisterState extends State<PurchaseChallanRegister> {
             }),
 
             // 3. PRINT PDF
-            _menuTile(Icons.print_rounded, "Print / Share PDF", Colors.teal, () async {
-              Navigator.pop(c);
-              if(ph.activeCompany != null) {
-                final party = ph.parties.firstWhere((p) => p.name == ch.distributorName, orElse: () => Party(id: '0', name: ch.distributorName));
-                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Preparing PDF...")));
-                await PurchaseChallanPdf.generate(ch, party, ph.activeCompany!);
-              }
-            }),
+            // 3. PRINT PDF (Via Universal Router)
+_menuTile(Icons.print_rounded, "Print / Share PDF", Colors.teal, () async {
+  Navigator.pop(c);
+  if(ph.activeCompany != null) {
+    final party = ph.parties.firstWhere((p) => p.name == ch.distributorName, orElse: () => Party(id: '0', name: ch.distributorName));
+    
+    // Router ab decide karega ki Inward Challan kaisa dikhna chahiye
+    await PdfRouterService.printChallan(
+      challan: ch, 
+      party: party, 
+      ph: ph, 
+      isSaleChallan: false // False matlab Inward/Purchase Challan
+    );
+  }
+}),
 
             // 4. DELETE
             _menuTile(Icons.delete_forever_rounded, "Delete Permanently", Colors.red, () {
