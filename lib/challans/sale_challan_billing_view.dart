@@ -7,7 +7,7 @@ import '../pharoah_manager.dart';
 import '../models.dart';
 import '../item_entry_card.dart';
 import '../product_master.dart';
-import '../pdf/sale_challan_pdf.dart';
+import '../pdf/pdf_router_service.dart';
 
 class SaleChallanBillingView extends StatefulWidget {
   final Party party;
@@ -177,22 +177,31 @@ class _SaleChallanBillingViewState extends State<SaleChallanBillingView> {
         foregroundColor: Colors.white,
         actions: [
           IconButton(
-            icon: const Icon(Icons.print_rounded),
-            onPressed: items.isEmpty ? null : () {
-  if (ph.activeCompany != null) {
-    SaleChallanPdf.generate(
-      SaleChallan(
-        id: "temp", billNo: widget.challanNo, date: widget.challanDate, 
-        partyName: widget.party.name, partyGstin: widget.party.gst, 
-        partyState: widget.party.state, items: items, totalAmount: totalAmt, 
-        remarks: remarksC.text.trim()
-      ), 
-      widget.party, 
-      ph.activeCompany!
-    );
-  }
-},
-          ),
+        icon: const Icon(Icons.print_rounded),
+        onPressed: items.isEmpty ? null : () async {
+          if (ph.activeCompany != null) {
+            final tempChallan = SaleChallan(
+              id: "temp", 
+              billNo: widget.challanNo, 
+              date: widget.challanDate, 
+              partyName: widget.party.name, 
+              partyGstin: widget.party.gst, 
+              partyState: widget.party.state, 
+              items: items, 
+              totalAmount: totalAmt, 
+              remarks: remarksC.text.trim()
+            );
+
+            // Router Call
+            await PdfRouterService.printChallan(
+              challan: tempChallan, 
+              party: widget.party, 
+              ph: ph, 
+              isSaleChallan: true
+            );
+          }
+        },
+      ),
           if (!widget.isReadOnly)
             TextButton(
               onPressed: items.isEmpty ? null : () => _handleSave(ph),
