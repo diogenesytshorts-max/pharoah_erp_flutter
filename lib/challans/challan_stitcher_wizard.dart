@@ -14,10 +14,10 @@ import '../pharoah_date_controller.dart';
 import '../logic/pharoah_numbering_engine.dart';
 import '../pdf/sale_invoice_pdf.dart';
 import '../pdf/purchase_pdf.dart';
-import '../pdf/bulk_pdf_service.dart';
+
 import '../billing_view.dart';
 import '../purchase/purchase_billing_view.dart';
-import '../pdf/architect_bulk_service.dart';
+import '../pdf/pdf_router_service.dart'; // Naya Central Router
 
 class ChallanStitcherWizard extends StatefulWidget {
   const ChallanStitcherWizard({super.key});
@@ -149,47 +149,49 @@ class _ChallanStitcherWizardState extends State<ChallanStitcherWizard> with Sing
   // ===========================================================================
   // 📁 ZIP EXPORT
   // ===========================================================================
+  // ===========================================================================
+  // 📁 UNIVERSAL ZIP EXPORT (Via Router)
+  // ===========================================================================
   Future<void> _handleZipExport(PharoahManager ph) async {
     var selected = draftBills.where((b) => b['isSelected']).toList();
     if (selected.isEmpty) return;
 
+    // Storage Permissions
     if (Platform.isAndroid) {
       await Permission.storage.request();
       await Permission.manageExternalStorage.request();
     }
 
+    // Agar koi bill abhi bhi DRAFT hai, toh pehle save karo
     if (selected.any((b) => b['status'] == 'DRAFT')) await _handleBatchSave(ph);
 
     setState(() { isProcessing = true; progressValue = 0.0; progressText = "Preparing Zip..."; });
+
     try {
       bool isSale = _tabController.index == 0;
       List<Map<String, dynamic>> payload = [];
+
       for (var d in selected) {
         final obj = isSale 
           ? ph.sales.firstWhere((s) => s.billNo == d['billNo'])
           : ph.purchases.firstWhere((p) => p.internalNo == d['billNo']);
-        payload.add({'saleObj': obj, 'party': d['party'], 'billNo': d['billNo']});
+        
+        payload.add({
+          'saleObj': obj, 
+          'party': d['party'], 
+          'billNo': d['billNo']
+        });
       }
 
-      String path;
-
-      // ✅ NAYA SWITCH LOGIC:
-      if (ph.config.isArchitectMode) {
-        // Architect Layout use karega
-        path = await ArchitectBulkService.createBillsZip(
-            selectedDrafts: payload, 
-            shop: ph.activeCompany!, 
-            config: ph.config, // Pass settings for Logo/QR/Zebra
-            onProgress: (v, n) => setState(() { progressValue = v; progressText = "Packing: $n"; })
-        );
-      } else {
-        // Purana Standard Layout use karega
-        path = await BulkPdfService.createBillsZip(
-            selectedDrafts: payload, 
-            shop: ph.activeCompany!, 
-            onProgress: (v, n) => setState(() { progressValue = v; progressText = "Packing: $n"; })
-        );
-      }
+      // 🚀 THE NEW ROUTER CALL: Ek hi line mein poora bulk logic
+      String zipPath = await PdfRouterService.createBulkZip(
+        selectedDrafts: payload, 
+        ph: ph, 
+        onProgress: (v, n) => setState(() { 
+          progressValue = v; 
+          progressText = "Packing: $n"; 
+        })
+      );
 
       setState(() => isProcessing = false);
 
@@ -198,16 +200,17 @@ class _ChallanStitcherWizardState extends State<ChallanStitcherWizard> with Sing
           context: context, 
           builder: (c) => AlertDialog(
             title: const Text("Batch ZIP Ready!"),
+            content: const Text("All bills have been converted to professional landscape PDF and packed in a ZIP file."),
             actions: [
               TextButton(
-                onPressed: () { Navigator.pop(c); Share.shareXFiles([XFile(path)]); }, 
-                child: const Text("SHARE")
+                onPressed: () { Navigator.pop(c); Share.shareXFiles([XFile(zipPath)]); }, 
+                child: const Text("SHARE ZIP")
               ),
               ElevatedButton(
                 onPressed: () async {
                   Navigator.pop(c);
                   try {
-                    final bytes = await File(path).readAsBytes();
+                    final bytes = await File(zipPath).readAsBytes();
                     await FileSaver.instance.saveAs(
                       name: "Invoices_Batch_${DateFormat('ddMM_HHmm').format(DateTime.now())}", 
                       bytes: bytes, 
@@ -215,7 +218,7 @@ class _ChallanStitcherWizardState extends State<ChallanStitcherWizard> with Sing
                       mimeType: MimeType.zip
                     );
                   } catch (e) {
-                    if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error: $e")));
+                    if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Save Error: $e")));
                   }
                 }, 
                 child: const Text("SAVE TO DEVICE")
@@ -224,7 +227,10 @@ class _ChallanStitcherWizardState extends State<ChallanStitcherWizard> with Sing
           ),
         );
       }
-    } catch (e) { setState(() => isProcessing = false); }
+    } catch (e) { 
+      setState(() => isProcessing = false); 
+      debugPrint("Zip Error: $e");
+    }
   }
 
   // ===========================================================================
