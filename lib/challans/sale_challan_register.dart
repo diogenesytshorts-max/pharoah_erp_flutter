@@ -1,5 +1,5 @@
 // FILE: lib/challans/sale_challan_register.dart
-import '../pdf/pdf_router_service.dart'
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
@@ -8,7 +8,8 @@ import '../models.dart';
 import '../pharoah_date_controller.dart';
 import '../app_date_logic.dart';
 import 'sale_challan_view.dart';
-import '../pdf/sale_challan_pdf.dart';
+import '../pdf/pdf_router_service.dart'; // FIXED: Added Semicolon
+import '../pdf/sale_challan_report_pdf.dart'; // FIXED: Added missing import for report
 
 class SaleChallanRegister extends StatefulWidget {
   const SaleChallanRegister({super.key});
@@ -63,7 +64,6 @@ class _SaleChallanRegisterState extends State<SaleChallanRegister> {
             onPressed: () async {
               if (ph.activeCompany != null && list.isNotEmpty) {
                 ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Generating Summary Report...")));
-                // Hum wahi 'list' bhej rahe hain jo screen par filtered dikh rahi hai
                 await SaleChallanReportPdf.generate(list, fromDate, toDate, ph.activeCompany!);
               } else {
                 ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("No data to export!")));
@@ -222,29 +222,23 @@ class _SaleChallanRegisterState extends State<SaleChallanRegister> {
               Navigator.pop(c);
               Navigator.push(context, MaterialPageRoute(builder: (c) => SaleChallanView(existingRecord: ch)));
             }),
-            // 3. PRINT (Fixed & Verified Logic)
             // 3. PRINT (Via Universal Router)
-_menuTile(Icons.print, "Print / Share PDF", Colors.teal, () async {
-  Navigator.pop(c); // Menu band karein
-  
-  if (ph.activeCompany == null) return;
-
-  // Party details nikalna
-  Party targetParty;
-  try {
-    targetParty = ph.parties.firstWhere((p) => p.name == ch.partyName);
-  } catch (e) {
-    targetParty = Party(id: 'temp', name: ch.partyName, gst: ch.partyGstin, state: ch.partyState);
-  }
-
-  // Router ko call karein (Ye naya professional design use karega)
-  await PdfRouterService.printChallan(
-    challan: ch, 
-    party: targetParty, 
-    ph: ph, 
-    isSaleChallan: true
-  );
-}),
+            _menuTile(Icons.print, "Print / Share PDF", Colors.teal, () async {
+              Navigator.pop(c); 
+              if (ph.activeCompany == null) return;
+              Party targetParty;
+              try {
+                targetParty = ph.parties.firstWhere((p) => p.name == ch.partyName);
+              } catch (e) {
+                targetParty = Party(id: 'temp', name: ch.partyName, gst: ch.partyGstin, state: ch.partyState);
+              }
+              await PdfRouterService.printChallan(
+                challan: ch, 
+                party: targetParty, 
+                ph: ph, 
+                isSaleChallan: true
+              );
+            }),
             _menuTile(Icons.delete_forever, "Delete Challan", Colors.red, () => _confirmDelete(ch, ph)),
           ],
         ),
@@ -265,7 +259,6 @@ _menuTile(Icons.print, "Print / Share PDF", Colors.teal, () async {
           ElevatedButton(style: ElevatedButton.styleFrom(backgroundColor: Colors.red), onPressed: () {
             ph.deleteSaleChallan(ch.id);
             Navigator.pop(c); // Close Dialog
-            Navigator.pop(context); // Close Bottom Sheet
           }, child: const Text("YES, DELETE", style: TextStyle(color: Colors.white))),
         ],
       ),
