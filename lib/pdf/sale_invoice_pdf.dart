@@ -10,8 +10,8 @@ class SaleInvoicePdf {
   static Future<void> generate(Sale sale, Party party, CompanyProfile shop) async {
     final pdf = pw.Document();
 
-    // 📐 CONFIGURATION: Master Width for A4 Landscape
-    const double masterWidth = 780;
+    // 📐 CONFIGURATION: Master Width for A4 Landscape (800pts fills the page perfectly)
+    const double masterWidth = 800;
 
     // Data Mapping from Shop Profile
     String compName = shop.name.toUpperCase();
@@ -43,19 +43,19 @@ class SaleInvoicePdf {
       pdf.addPage(
         pw.Page(
           pageFormat: PdfPageFormat.a4.landscape, 
-          margin: const pw.EdgeInsets.all(15),
+          margin: const pw.EdgeInsets.symmetric(horizontal: 21, vertical: 15), // Balanced Margins
           build: (pw.Context context) {
             return pw.Container(
               width: masterWidth,
               decoration: pw.BoxDecoration(
-                border: pw.Border.all(width: 1, color: PdfColors.black), // MAIN OUTER BORDER
+                border: pw.Border.all(width: 1, color: PdfColors.black), // MAIN OUTER FRAME
               ),
               child: pw.Column(
                 children: [
-                  // --- 1. HEADER SECTION (Total: 780) ---
+                  // --- 1. HEADER SECTION (Total: 290 + 175 + 335 = 800) ---
                   pw.Row(
                     children: [
-                      PdfMasterService.headerBox(width: 280, height: 85, child: pw.Column(
+                      PdfMasterService.headerBox(width: 290, height: 85, child: pw.Column(
                         crossAxisAlignment: pw.CrossAxisAlignment.start,
                         children: [
                           pw.Text(compName, style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold, color: PdfColors.blue900)),
@@ -64,7 +64,7 @@ class SaleInvoicePdf {
                           pw.Text("D.L.No.: $compDL", style: const pw.TextStyle(fontSize: 7.5)),
                         ],
                       )),
-                      PdfMasterService.headerBox(width: 170, height: 85, child: pw.Column(
+                      PdfMasterService.headerBox(width: 175, height: 85, child: pw.Column(
                         children: [
                           pw.Text("GST INVOICE", style: pw.TextStyle(fontSize: 13, fontWeight: pw.FontWeight.bold)),
                           pw.Text(sale.paymentMode.toUpperCase(), style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold)),
@@ -74,7 +74,7 @@ class SaleInvoicePdf {
                           pw.Text("Page ${pageNum + 1} of $totalPages", style: const pw.TextStyle(fontSize: 7, color: PdfColors.blue)),
                         ],
                       )),
-                      PdfMasterService.headerBox(width: 330, height: 85, child: pw.Column(
+                      PdfMasterService.headerBox(width: 335, height: 85, child: pw.Column(
                         crossAxisAlignment: pw.CrossAxisAlignment.start,
                         children: [
                           pw.Text("PARTY DETAILS:", style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold, color: PdfColors.grey)),
@@ -86,7 +86,7 @@ class SaleInvoicePdf {
                     ],
                   ),
 
-                  // --- 2. TABLE HEADER (Total: 780) ---
+                  // --- 2. TABLE HEADER (Total: 25+55+45+210+75+45+50+55+55+30+50+50+55 = 800) ---
                   pw.Container(
                     color: PdfColors.grey100,
                     child: pw.Row(
@@ -94,16 +94,16 @@ class SaleInvoicePdf {
                         PdfMasterService.tableCol("S.N", 25), 
                         PdfMasterService.tableCol("Qty+Free", 55),
                         PdfMasterService.tableCol("Pack", 45),
-                        PdfMasterService.tableCol("Product Name", 200, align: pw.Alignment.centerLeft), // Widened
+                        PdfMasterService.tableCol("Product Name", 210, align: pw.Alignment.centerLeft), // Left Aligned
                         PdfMasterService.tableCol("Batch", 75), 
                         PdfMasterService.tableCol("Exp", 45), 
-                        PdfMasterService.tableCol("HSN", 45),
+                        PdfMasterService.tableCol("HSN", 50),
                         PdfMasterService.tableCol("MRP", 55), 
                         PdfMasterService.tableCol("Rate", 55), 
                         PdfMasterService.tableCol("DIS%", 30),
-                        PdfMasterService.tableCol("SGST%", 50), // Increased for label
-                        PdfMasterService.tableCol("CGST%", 50), // Increased for label
-                        PdfMasterService.tableCol("Net Amt", 80), // Flush right
+                        PdfMasterService.tableCol("SGST%", 50), 
+                        PdfMasterService.tableCol("CGST%", 50), 
+                        PdfMasterService.tableCol("Net Amt", 55), // Final column flush to right
                       ],
                     ),
                   ),
@@ -120,16 +120,22 @@ class SaleInvoicePdf {
                               _cell("${i.srNo}", 25), 
                               _cell(displayQty, 55), 
                               _cell(i.packing, 45), 
-                              _cell(i.name, 200, align: pw.Alignment.centerLeft),
+                              // 💡 FIX: Added horizontal padding to Product Name
+                              pw.Container(
+                                width: 210,
+                                padding: const pw.EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                                alignment: pw.Alignment.centerLeft,
+                                child: pw.Text(i.name, style: const pw.TextStyle(fontSize: 7.5)),
+                              ),
                               _cell(i.batch, 75), 
                               _cell(i.exp, 45), 
-                              _cell(i.hsn, 45),
+                              _cell(i.hsn, 50),
                               _cell(i.mrp.toStringAsFixed(2), 55), 
                               _cell(i.rate.toStringAsFixed(2), 55),
                               _cell(i.discountRupees.toStringAsFixed(1), 30),
                               _cell("${(i.gstRate / 2).toStringAsFixed(1)}%", 50), 
                               _cell("${(i.gstRate / 2).toStringAsFixed(1)}%", 50),
-                              _cell(i.total.toStringAsFixed(2), 80),
+                              _cell(i.total.toStringAsFixed(2), 55),
                             ],
                           ),
                         );
@@ -137,7 +143,7 @@ class SaleInvoicePdf {
                     ),
                   ),
 
-                  // --- 4. FOOTER SECTION (Total: 780) ---
+                  // --- 4. FOOTER SECTION (Total: 340 + 260 + 200 = 800) ---
                   if (isLastPage) _buildFooter(compName, sale, totalGross, totalSGST, totalCGST, roundedGrandTotal)
                   else pw.Padding(
                     padding: const pw.EdgeInsets.all(5), 
@@ -158,7 +164,7 @@ class SaleInvoicePdf {
   static pw.Widget _cell(String t, double w, {pw.Alignment align = pw.Alignment.center}) => 
     pw.Container(
       width: w, 
-      padding: const pw.EdgeInsets.symmetric(vertical: 2), 
+      padding: const pw.EdgeInsets.symmetric(vertical: 2, horizontal: 2), 
       alignment: align, 
       child: pw.Text(t, style: const pw.TextStyle(fontSize: 7.5))
     );
@@ -168,9 +174,9 @@ class SaleInvoicePdf {
     return pw.Row(
       crossAxisAlignment: pw.CrossAxisAlignment.start,
       children: [
-        // BOX 1: Words & Terms
+        // BOX 1: Words & Terms (Width: 340)
         pw.Container(
-          width: 325, 
+          width: 340, 
           padding: const pw.EdgeInsets.all(5), 
           decoration: const pw.BoxDecoration(border: pw.Border(top: pw.BorderSide(width: 0.5), right: pw.BorderSide(width: 0.5))), 
           child: pw.Column(
@@ -183,9 +189,9 @@ class SaleInvoicePdf {
             ],
           ),
         ),
-        // BOX 2: Totals
+        // BOX 2: Totals (Width: 260)
         pw.Container(
-          width: 255, 
+          width: 260, 
           padding: const pw.EdgeInsets.all(5), 
           decoration: const pw.BoxDecoration(border: pw.Border(top: pw.BorderSide(width: 0.5), right: pw.BorderSide(width: 0.5))), 
           child: pw.Column(
@@ -204,10 +210,10 @@ class SaleInvoicePdf {
             ],
           ),
         ),
-        // BOX 3: Signature
+        // BOX 3: Signature (Width: 200)
         pw.Container(
           width: 200, 
-          height: 62.5, // Matches the height of sibling boxes
+          height: 65, 
           padding: const pw.EdgeInsets.all(5), 
           decoration: const pw.BoxDecoration(border: pw.Border(top: pw.BorderSide(width: 0.5))), 
           child: pw.Column(
