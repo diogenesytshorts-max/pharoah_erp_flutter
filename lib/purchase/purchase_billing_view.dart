@@ -219,14 +219,17 @@ class _PurchaseBillingViewState extends State<PurchaseBillingView> {
     );
   }
 
-  Widget _buildHeader() => Container(
+  // REPLACE IN lib/purchase/purchase_billing_view.dart -> _buildHeader() function logic
+Widget _buildHeader() => Container(
     padding: const EdgeInsets.all(15), margin: const EdgeInsets.fromLTRB(10, 10, 10, 5),
     decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12)),
     child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
       Text(widget.distributor.name, style: TextStyle(fontWeight: FontWeight.bold, color: Colors.orange.shade900)),
       InkWell(
         onTap: widget.isReadOnly ? null : () async {
-          DateTime? p = await PharoahDateController.pickDate(context: context, currentFY: ph.currentFY, initialDate: selectedBillDate);
+          // FIXED: Fetching PharoahManager from context correctly
+          final phManager = Provider.of<PharoahManager>(context, listen: false);
+          DateTime? p = await PharoahDateController.pickDate(context: context, currentFY: phManager.currentFY, initialDate: selectedBillDate);
           if (p != null) setState(() => selectedBillDate = p);
         },
         child: Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), decoration: BoxDecoration(border: Border.all(color: Colors.grey.shade300), borderRadius: BorderRadius.circular(5)), child: Text(DateFormat('dd/MM/yy').format(selectedBillDate), style: const TextStyle(fontWeight: FontWeight.bold))),
