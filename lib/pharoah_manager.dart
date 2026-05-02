@@ -170,7 +170,11 @@ class PharoahManager with ChangeNotifier {
   Future<void> save() async {
     final dir = await getWorkingPath(); 
     if (dir.isEmpty) return;
+
+    // Helper function to write lists to JSON
     Future _w(String n, List data) async => await File('$dir/$n').writeAsString(jsonEncode(data.map((e) => e.toMap()).toList()));
+
+    // --- SAVING ALL MASTER & TRANSACTION DATA ---
     await _w('meds.json', medicines); 
     await _w('parts.json', parties); 
     await _w('sales.json', sales);
@@ -189,10 +193,12 @@ class PharoahManager with ChangeNotifier {
     await _w('comps.json', companies); 
     await _w('salts.json', salts); 
     await _w('dtypes.json', drugTypes); 
-    await File('$dir/banks.json').writeAsString(jsonEncode(banks.map((e) => e.toMap()).toList()));
+    await _w('banks.json', banks); // FIXED: Added to helper for consistency
+
+    // Batch history handles a Map, so it stays separate
     await File('$dir/bats.json').writeAsString(jsonEncode(batchHistory.map((k, v) => MapEntry(k, v.map((b) => b.toMap()).toList()))));
     
-    // NAYA: Advanced Settings ko is dukan ke folder mein save karna
+    // NAYA: Architect settings ko save karne ke liye
     await File('$dir/config.json').writeAsString(jsonEncode(config.toMap()));
     
     notifyListeners();
