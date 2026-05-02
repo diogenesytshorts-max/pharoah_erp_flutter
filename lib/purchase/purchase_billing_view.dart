@@ -9,6 +9,7 @@ import '../product_master.dart';
 import '../batch_sync_engine.dart'; 
 import '../expiry_master.dart';    
 import 'package:intl/intl.dart';
+import '../pdf/pdf_router_service.dart'; // NAYA: Central Router Import
 
 class PurchaseBillingView extends StatefulWidget {
   final Party distributor;
@@ -179,6 +180,32 @@ class _PurchaseBillingViewState extends State<PurchaseBillingView> {
           Text(widget.isReadOnly ? "PURCHASE VIEW" : (widget.distBillNo.isEmpty ? "CONVERTING: ${widget.internalNo}" : "Bill: ${widget.distBillNo}"), style: const TextStyle(fontSize: 10))
         ]),
         actions: [
+          // NAYA: Print Action updated via Router
+          IconButton(
+            icon: const Icon(Icons.print_rounded),
+            onPressed: items.isEmpty ? null : () async {
+              if (ph.activeCompany != null) {
+                final tempPurchase = Purchase(
+                  id: "temp", 
+                  internalNo: internalNoC.text, 
+                  billNo: distBillNoC.text.trim(), 
+                  date: selectedBillDate, 
+                  entryDate: widget.entryDate, 
+                  distributorName: widget.distributor.name, 
+                  items: items, 
+                  totalAmount: totalAmt, 
+                  paymentMode: widget.mode,
+                  linkedChallanIds: widget.linkedChallanIds ?? [],
+                );
+
+                await PdfRouterService.printPurchase(
+                  purchase: tempPurchase, 
+                  supplier: widget.distributor, 
+                  ph: ph
+                );
+              }
+            },
+          ),
           if (!widget.isReadOnly) 
             TextButton(onPressed: items.isEmpty ? null : () => _handleSave(ph), child: const Text("FINISH", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)))
         ],
@@ -199,7 +226,7 @@ class _PurchaseBillingViewState extends State<PurchaseBillingView> {
       Text(widget.distributor.name, style: TextStyle(fontWeight: FontWeight.bold, color: Colors.orange.shade900)),
       InkWell(
         onTap: widget.isReadOnly ? null : () async {
-          DateTime? p = await PharoahDateController.pickDate(context: context, currentFY: Provider.of<PharoahManager>(context, listen: false).currentFY, initialDate: selectedBillDate);
+          DateTime? p = await PharoahDateController.pickDate(context: context, currentFY: ph.currentFY, initialDate: selectedBillDate);
           if (p != null) setState(() => selectedBillDate = p);
         },
         child: Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), decoration: BoxDecoration(border: Border.all(color: Colors.grey.shade300), borderRadius: BorderRadius.circular(5)), child: Text(DateFormat('dd/MM/yy').format(selectedBillDate), style: const TextStyle(fontWeight: FontWeight.bold))),
@@ -247,7 +274,7 @@ class _PurchaseBillingViewState extends State<PurchaseBillingView> {
 }
 
 // =============================================================================
-// 🛒 PURCHASE ITEM ENTRY CARD
+// 🛒 PURCHASE ITEM ENTRY CARD (No changes needed here)
 // =============================================================================
 class PurchaseItemEntryCard extends StatefulWidget {
   final Medicine med; final int srNo; final PurchaseItem? existingItem; final Function(PurchaseItem) onAdd; final VoidCallback onCancel;
