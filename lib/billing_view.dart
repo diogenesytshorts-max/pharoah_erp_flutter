@@ -9,6 +9,7 @@ import 'pdf/sale_invoice_pdf.dart';
 import 'pdf/thermal_invoice_pdf.dart'; 
 import 'item_entry_card.dart';
 import 'product_master.dart'; 
+import 'pdf/architect_sale_pdf.dart';
 
 class BillingView extends StatefulWidget {
   final Party party;
@@ -358,8 +359,8 @@ class _BillingViewState extends State<BillingView> {
     
     final sale = Sale(
       id: widget.modifySaleId ?? DateTime.now().toString(), 
-      billNo: widget.billNo, 
-      date: widget.billDate, 
+      billNo: billNoC.text, // Fixed to use current text controller
+      date: selectedBillDate, // Fixed to use current picker date
       partyName: widget.party.name, 
       partyGstin: widget.party.gst, 
       partyState: widget.party.state, 
@@ -368,9 +369,17 @@ class _BillingViewState extends State<BillingView> {
       paymentMode: widget.mode
     );
 
+    // --- SMART PRINT SWITCH LOGIC ---
     if (ph.config.printFormat == "Thermal") {
+      // 1. Thermal Receipt (POS)
       await ThermalInvoicePdf.generate(sale, widget.party, ph.activeCompany!, ph.config);
-    } else {
+    } 
+    else if (ph.config.isArchitectMode) {
+      // 2. Premium Architect Layout (New 800pt Math)
+      await ArchitectSalePdf.generate(sale, widget.party, ph.activeCompany!, ph.config);
+    } 
+    else {
+      // 3. Standard Layout (Old 780pt Math)
       await SaleInvoicePdf.generate(sale, widget.party, ph.activeCompany!);
     }
   }
