@@ -4,7 +4,7 @@ import 'dart:io';
 import 'dart:typed_data';
 import 'package:archive/archive.dart';
 import 'package:path_provider/path_provider.dart';
-import 'package:pdf/widgets.dart' as pw; // FIXED: Added this import
+import 'package:pdf/widgets.dart' as pw; 
 import 'package:pdf/pdf.dart';
 import 'package:printing/printing.dart';
 import 'package:intl/intl.dart';
@@ -21,6 +21,7 @@ import 'purchase_challan_pdf.dart';
 
 class PdfRouterService {
   
+  // 1. SINGLE SALE PRINT
   static Future<void> printSale({required Sale sale, required Party party, required PharoahManager ph}) async {
     final config = ph.config;
     final shop = ph.activeCompany!;
@@ -33,10 +34,12 @@ class PdfRouterService {
     }
   }
 
+  // 2. SINGLE PURCHASE PRINT
   static Future<void> printPurchase({required Purchase purchase, required Party supplier, required PharoahManager ph}) async {
     await PurchasePdf.generate(purchase, supplier, ph.activeCompany!);
   }
 
+  // 3. SINGLE CHALLAN PRINT
   static Future<void> printChallan({required dynamic challan, required Party party, required PharoahManager ph, required bool isSaleChallan}) async {
     if (isSaleChallan) {
       await SaleChallanPdf.generate(challan, party, ph.activeCompany!);
@@ -45,6 +48,7 @@ class PdfRouterService {
     }
   }
 
+  // 4. BULK ZIP GENERATOR (Fixed Brackets)
   static Future<String> createBulkZip({
     required List<Map<String, dynamic>> selectedDrafts,
     required PharoahManager ph,
@@ -86,20 +90,4 @@ class PdfRouterService {
     
     return zipPath;
   }
-}
-
-  // Internal helpers to get bytes without opening Print Dialog
-  static Future<Uint8List> _getSaleBytes(Sale sale, Party party, CompanyProfile shop, config) async {
-     final pdf = pw.Document();
-     // Same Design logic as ArchitectSalePdf but without layoutPdf call
-     // This is just to centralize.
-     return await ArchitectSalePdf.generateBytes(sale, party, shop, config);
-  }
-
-  static Future<Uint8List> _getPurchaseBytes(Purchase p, Party s, CompanyProfile shop, config) async {
-     return await PurchasePdf.generateBytes(p, s, shop);
-  }
-}
-
-// 💡 Error Fix Warning: Aapko 'ArchitectSalePdf.generateBytes' aur 'PurchasePdf.generateBytes' 
-// apne Engines mein add karne honge (Jo main agle message mein dunga).
+} // Class ends here correctly
