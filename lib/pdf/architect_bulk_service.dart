@@ -1,7 +1,7 @@
 // FILE: lib/pdf/architect_bulk_service.dart
 
 import 'dart:io';
-import 'dart:typed_data'; // ✅ Correct library for Uint8List
+import 'dart:typed_data';
 import 'package:archive/archive.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:pdf/pdf.dart';
@@ -30,11 +30,13 @@ class ArchitectBulkService {
       dynamic billObj = draft['saleObj']; 
       Party party = draft['party'];
 
+      // UI Progress Update
       onProgress((i + 1) / selectedDrafts.length, party.name);
 
       Uint8List pdfBytes;
       String billNo;
 
+      // Logic to distinguish Sale vs Purchase in Bulk
       if (billObj is Sale) {
         pdfBytes = await _generateSaleCloneBytes(billObj, party, shop, config);
         billNo = billObj.billNo;
@@ -59,20 +61,18 @@ class ArchitectBulkService {
   }
 
   // ===========================================================================
-  // 2. ARCHITECT SALE CLONE (800pt FIXED)
+  // 2. ARCHITECT SALE CLONE (800pt PRECISION)
   // ===========================================================================
   static Future<Uint8List> _generateSaleCloneBytes(Sale sale, Party party, CompanyProfile shop, AppConfig config) async {
     final pdf = pw.Document();
     const double masterWidth = 800;
-    const int itemsPerPage = 22; 
+    const int itemsPerPage = 20; 
     int totalPages = (sale.items.length / itemsPerPage).ceil();
 
     double totalGross = sale.items.fold(0, (sum, i) => sum + (i.qty * i.rate));
     double totalSGST = sale.items.fold(0, (sum, i) => sum + i.sgst);
     double totalCGST = sale.items.fold(0, (sum, i) => sum + i.cgst);
     int roundedTotal = sale.totalAmount.round();
-
-    String formatQty(double val) => val == val.toInt() ? val.toInt().toString() : val.toStringAsFixed(1);
 
     for (int pageNum = 0; pageNum < totalPages; pageNum++) {
       int start = pageNum * itemsPerPage;
@@ -82,13 +82,14 @@ class ArchitectBulkService {
 
       pdf.addPage(pw.Page(
         pageFormat: PdfPageFormat.a4.landscape,
-        margin: const pw.EdgeInsets.symmetric(horizontal: 21, vertical: 15),
+        margin: const pw.EdgeInsets.symmetric(horizontal: 20, vertical: 15),
         build: (context) => pw.Container(
           width: masterWidth,
           decoration: pw.BoxDecoration(border: pw.Border.all(width: 1)),
           child: pw.Column(children: [
+            // --- HEADER ---
             pw.Row(children: [
-              _hBox(290, pw.Row(children: [
+              _hBox(290, true, pw.Row(children: [
                 if (config.showLogo && config.logoPath != null && File(config.logoPath!).existsSync())
                   pw.Container(width: 45, height: 45, margin: const pw.EdgeInsets.only(right: 8), child: pw.Image(pw.MemoryImage(File(config.logoPath!).readAsBytesSync()))),
                 pw.Expanded(child: pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
@@ -97,42 +98,45 @@ class ArchitectBulkService {
                   pw.Text("GST: ${shop.gstin}", style: pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold)),
                 ])),
               ])),
-              _hBox(175, pw.Column(children: [
-                pw.Text("GST INVOICE", style: pw.TextStyle(fontSize: 12, fontWeight: pw.FontWeight.bold)),
+              _hBox(175, true, pw.Column(children: [
+                pw.Text("GST INVOICE", style: pw.TextStyle(fontSize: 11, fontWeight: pw.FontWeight.bold)),
                 pw.Divider(thickness: 0.5),
                 pw.Text(sale.billNo, style: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold)),
-                pw.Text("Date: ${DateFormat('dd/MM/yyyy').format(sale.date)}", style: const pw.TextStyle(fontSize: 8)),
+                pw.Text(DateFormat('dd/MM/yyyy').format(sale.date), style: const pw.TextStyle(fontSize: 8)),
               ])),
-              _hBox(335, pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
+              _hBox(335, false, pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
                 pw.Text("PARTY DETAILS:", style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold, color: PdfColors.grey700)),
                 pw.Text(party.name, style: pw.TextStyle(fontSize: 11, fontWeight: pw.FontWeight.bold, color: PdfColors.blue900)),
                 pw.Text("GSTIN: ${party.gst} | DL: ${party.dl}", style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold)),
-              ]), isLast: true),
+              ])),
             ]),
 
+            // --- TABLE HEADER ---
             pw.Container(color: PdfColors.grey100, child: pw.Row(children: [
-              _tCol("S.N", 25), _tCol("Qty", 55), _tCol("Pack", 45), _tCol("Product Description", 205, align: pw.Alignment.centerLeft),
-              _tCol("Batch", 75), _tCol("Exp", 45), _tCol("HSN", 45), _tCol("MRP", 55), _tCol("Rate", 55), 
-              _tCol("DIS%", 30), _tCol("SGST%", 50), _tCol("CGST%", 50), _tCol("NET", 65, isLast: true),
+              _tCol("S.N", 25), _tCol("Qty", 50), _tCol("Pack", 45), _tCol("Product Description", 250, isLeft: true),
+              _tCol("Batch", 70), _tCol("Exp", 40), _tCol("HSN", 40), _tCol("MRP", 50), _tCol("Rate", 50), 
+              _tCol("D%", 30), _tCol("SGST", 45), _tCol("CGST", 45), _tCol("NET", 60, isLast: true),
             ])),
 
-            pw.Expanded(child: pw.Column(children: pageItems.asMap().entries.map((entry) {
+            // --- ITEMS (Fixed Height Container) ---
+            pw.Container(height: 320, child: pw.Column(children: pageItems.asMap().entries.map((entry) {
               int idx = entry.key; var i = entry.value;
               bool isShaded = config.useZebraShading && (idx % 2 != 0);
               return pw.Container(
                 color: isShaded ? PdfColors.grey50 : PdfColors.white,
                 decoration: const pw.BoxDecoration(border: pw.Border(bottom: pw.BorderSide(width: 0.1, color: PdfColors.grey400))),
                 child: pw.Row(children: [
-                  _cell("${start + idx + 1}", 25), _cell(formatQty(i.qty + i.freeQty), 55), _cell(i.packing, 45), 
-                  pw.Container(width: 205, padding: const pw.EdgeInsets.only(left: 8), alignment: pw.Alignment.centerLeft, child: pw.Text(i.name, style: const pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold))),
-                  _cell(i.batch, 75), _cell(i.exp, 45), _cell(i.hsn, 45), _cell(i.mrp.toStringAsFixed(2), 55), _cell(i.rate.toStringAsFixed(2), 55), 
-                  _cell(i.discountRupees.toStringAsFixed(1), 30), _cell("${(i.gstRate/2).toStringAsFixed(1)}%", 50),
-                  _cell("${(i.gstRate/2).toStringAsFixed(1)}%", 50), _cell(i.total.toStringAsFixed(2), 65),
+                  _cell("${start + idx + 1}", 25), _cell((i.qty + i.freeQty).toInt().toString(), 50), _cell(i.packing, 45), 
+                  pw.Container(width: 250, padding: const pw.EdgeInsets.only(left: 8), alignment: pw.Alignment.centerLeft, child: pw.Text(i.name, style: const pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold))),
+                  _cell(i.batch, 70), _cell(i.exp, 40), _cell(i.hsn, 40), _cell(i.mrp.toStringAsFixed(2), 50), _cell(i.rate.toStringAsFixed(2), 50), 
+                  _cell(i.discountRupees.toStringAsFixed(1), 30), _cell("${(i.gstRate/2).toStringAsFixed(1)}%", 45), _cell("${(i.gstRate/2).toStringAsFixed(1)}%", 45), 
+                  _cell(i.total.toStringAsFixed(2), 60),
                 ]),
               );
             }).toList())),
 
             if (isLastPage) _buildSmartFooter(shop.name, totalGross, totalSGST, totalCGST, roundedTotal, config)
+            else pw.Container(padding: const pw.EdgeInsets.all(5), alignment: pw.Alignment.centerRight, child: pw.Text("Continued...", style: pw.TextStyle(fontSize: 8, fontStyle: pw.FontStyle.italic))),
           ]),
         )
       ));
@@ -141,7 +145,7 @@ class ArchitectBulkService {
   }
 
   // ===========================================================================
-  // 3. ARCHITECT PURCHASE CLONE (800pt FIXED)
+  // 3. ARCHITECT PURCHASE CLONE (800pt PRECISION)
   // ===========================================================================
   static Future<Uint8List> _generatePurchaseCloneBytes(Purchase pur, Party supplier, CompanyProfile shop, AppConfig config) async {
     final pdf = pw.Document();
@@ -161,38 +165,38 @@ class ArchitectBulkService {
 
       pdf.addPage(pw.Page(
         pageFormat: PdfPageFormat.a4.landscape,
-        margin: const pw.EdgeInsets.symmetric(horizontal: 21, vertical: 15),
+        margin: const pw.EdgeInsets.symmetric(horizontal: 20, vertical: 15),
         build: (context) => pw.Container(
           width: masterWidth,
           decoration: pw.BoxDecoration(border: pw.Border.all(width: 1)),
           child: pw.Column(children: [
             pw.Row(children: [
-              _hBox(290, pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
+              _hBox(290, true, pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
                 pw.Text(shop.name.toUpperCase(), style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold, color: PdfColors.blue900)),
                 pw.Text(shop.address, style: const pw.TextStyle(fontSize: 8)),
                 pw.Text("Type: STOCK INWARD", style: const pw.TextStyle(fontSize: 7, color: PdfColors.grey700)),
               ])),
-              _hBox(175, pw.Column(children: [
-                pw.Text("PURCHASE BILL", style: pw.TextStyle(fontSize: 13, fontWeight: pw.FontWeight.bold, color: PdfColors.orange900)),
+              _hBox(175, true, pw.Column(children: [
+                pw.Text("PURCHASE BILL", style: pw.TextStyle(fontSize: 12, fontWeight: pw.FontWeight.bold, color: PdfColors.orange900)),
                 pw.Divider(thickness: 0.5),
                 pw.Text(pur.billNo, style: pw.TextStyle(fontSize: 8.5, fontWeight: pw.FontWeight.bold)),
-                pw.Text("Date: ${DateFormat('dd/MM/yyyy').format(pur.date)}", style: const pw.TextStyle(fontSize: 8.5)),
+                pw.Text(DateFormat('dd/MM/yyyy').format(pur.date), style: const pw.TextStyle(fontSize: 8.5)),
               ])),
-              _hBox(335, pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
-                pw.Text("SUPPLIER DETAILS:", style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold, color: PdfColors.grey700)),
+              _hBox(335, false, pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
+                pw.Text("SUPPLIER:", style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold, color: PdfColors.grey700)),
                 pw.Text(supplier.name, style: pw.TextStyle(fontSize: 11, fontWeight: pw.FontWeight.bold, color: PdfColors.blue900)),
                 pw.Text("GSTIN: ${supplier.gst} | DL: ${supplier.dl}", style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold)),
-              ]), isLast: true),
+              ])),
             ]),
 
             pw.Container(color: PdfColors.grey200, child: pw.Row(children: [
               _tCol("S.N", 25), _tCol("Qty", 45), _tCol("Free", 35), _tCol("Pack", 45),
-              _tCol("Product Name", 215, align: pw.Alignment.centerLeft),
+              _tCol("Product Name", 215, isLeft: true),
               _tCol("Batch", 80), _tCol("Exp", 45), _tCol("HSN", 50),
-              _tCol("MRP", 60), _tCol("Pur.Rate", 60), _tCol("GST%", 50), _tCol("Net Amt", 90, isLast: true),
+              _tCol("MRP", 60), _tCol("Rate", 60), _tCol("GST%", 50), _tCol("Net Amt", 90, isLast: true),
             ])),
 
-            pw.Expanded(child: pw.Column(children: pageItems.asMap().entries.map((entry) {
+            pw.Container(height: 250, child: pw.Column(children: pageItems.asMap().entries.map((entry) {
               int idx = entry.key; var i = entry.value;
               bool isShaded = config.useZebraShading && (idx % 2 != 0);
               return pw.Container(
@@ -217,13 +221,13 @@ class ArchitectBulkService {
   }
 
   // ===========================================================================
-  // 4. SHARED SMART FOOTER (800pt FIXED)
+  // 4. SHARED ARCHITECT FOOTER
   // ===========================================================================
   static pw.Widget _buildSmartFooter(String shopName, double gross, double sgst, double cgst, int total, AppConfig config, {bool isPur = false}) {
     return pw.Row(
       crossAxisAlignment: pw.CrossAxisAlignment.start,
       children: [
-        pw.Container(width: 340, padding: const pw.EdgeInsets.all(8), decoration: pw.BoxDecoration(border: pw.Border(top: const pw.BorderSide(width: 0.5), right: const pw.BorderSide(width: 0.5))), child: pw.Column(
+        pw.Container(width: 340, padding: const pw.EdgeInsets.all(8), decoration: const pw.BoxDecoration(border: pw.Border(top: pw.BorderSide(width: 0.5), right: pw.BorderSide(width: 0.5))), child: pw.Column(
           crossAxisAlignment: pw.CrossAxisAlignment.start,
           children: [
             pw.Text("Amount in Words:", style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold, color: PdfColors.grey700)),
@@ -242,7 +246,7 @@ class ArchitectBulkService {
             ])
           ],
         )),
-        pw.Container(width: 260, padding: const pw.EdgeInsets.all(8), decoration: pw.BoxDecoration(border: pw.Border(top: const pw.BorderSide(width: 0.5), right: const pw.BorderSide(width: 0.5))), child: pw.Column(
+        pw.Container(width: 260, padding: const pw.EdgeInsets.all(8), decoration: const pw.BoxDecoration(border: pw.Border(top: pw.BorderSide(width: 0.5), right: pw.BorderSide(width: 0.5))), child: pw.Column(
           children: [
             _fRow(isPur ? "TAXABLE TOTAL" : "GROSS TOTAL", gross), _fRow("TOTAL SGST", sgst), _fRow("TOTAL CGST", cgst),
             pw.Divider(thickness: 0.5),
@@ -252,7 +256,7 @@ class ArchitectBulkService {
             ]),
           ],
         )),
-        pw.Container(width: 200, height: 100, padding: const pw.EdgeInsets.all(8), decoration: pw.BoxDecoration(border: pw.Border(top: const pw.BorderSide(width: 0.5))), child: pw.Column(
+        pw.Container(width: 200, height: 100, padding: const pw.EdgeInsets.all(8), decoration: const pw.BoxDecoration(border: pw.Border(top: pw.BorderSide(width: 0.5))), child: pw.Column(
           mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
           children: [
             pw.Text("For $shopName", style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold)),
@@ -264,10 +268,7 @@ class ArchitectBulkService {
   }
 
   static pw.Widget _fRow(String l, double v) => pw.Row(mainAxisAlignment: pw.MainAxisAlignment.spaceBetween, children: [pw.Text(l, style: const pw.TextStyle(fontSize: 7.5)), pw.Text(v.toStringAsFixed(2), style: pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold))]);
-
-  static pw.Widget _hBox(double w, pw.Widget child, {bool isLast = false}) => pw.Container(width: w, height: 90, padding: const pw.EdgeInsets.all(5), decoration: pw.BoxDecoration(border: pw.Border(right: pw.BorderSide(width: isLast ? 0 : 0.5, color: PdfColors.black), bottom: const pw.BorderSide(width: 0.5))), child: child);
-  
-  static pw.Widget _tCol(String t, double w, {bool isLast = false, pw.Alignment align = pw.Alignment.center}) => pw.Container(width: w, height: 20, alignment: align, padding: pw.EdgeInsets.only(left: align == pw.Alignment.centerLeft ? 8 : 0), decoration: pw.BoxDecoration(border: pw.Border(right: pw.BorderSide(width: isLast ? 0 : 0.5, color: PdfColors.black), bottom: const pw.BorderSide(width: 0.5))), child: pw.Text(t, style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold)));
-  
-  static pw.Widget _cell(String t, double w) => pw.Container(width: w, alignment: pw.Alignment.center, decoration: pw.BoxDecoration(border: pw.Border(right: pw.BorderSide(width: 0.2, color: PdfColors.grey))), child: pw.Text(t, style: const pw.TextStyle(fontSize: 7.5)));
+  static pw.Widget _hBox(double w, bool rBord, pw.Widget child) => pw.Container(width: w, height: 90, padding: const pw.EdgeInsets.all(5), decoration: pw.BoxDecoration(border: pw.Border(right: pw.BorderSide(width: rBord ? 0.5 : 0), bottom: const pw.BorderSide(width: 0.5))), child: child);
+  static pw.Widget _tCol(String t, double w, {bool isLast = false, bool isLeft = false}) => pw.Container(width: w, height: 20, alignment: isLeft ? pw.Alignment.centerLeft : pw.Alignment.center, padding: pw.EdgeInsets.only(left: isLeft ? 8 : 0), decoration: pw.BoxDecoration(border: pw.Border(right: pw.BorderSide(width: isLast ? 0 : 0.5), bottom: const pw.BorderSide(width: 0.5))), child: pw.Text(t, style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold)));
+  static pw.Widget _cell(String t, double w) => pw.Container(width: w, height: 16, alignment: pw.Alignment.center, decoration: const pw.BoxDecoration(border: pw.Border(right: pw.BorderSide(width: 0.2, color: PdfColors.grey))), child: pw.Text(t, style: const pw.TextStyle(fontSize: 7.5)));
 }
