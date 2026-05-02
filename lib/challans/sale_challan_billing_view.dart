@@ -7,7 +7,7 @@ import '../pharoah_manager.dart';
 import '../models.dart';
 import '../item_entry_card.dart';
 import '../product_master.dart';
-import '../pdf/pdf_router_service.dart';
+import '../pdf/pdf_router_service.dart'; // NAYA: Router Service
 
 class SaleChallanBillingView extends StatefulWidget {
   final Party party;
@@ -176,32 +176,27 @@ class _SaleChallanBillingViewState extends State<SaleChallanBillingView> {
         backgroundColor: widget.isReadOnly ? Colors.purple.shade700 : Colors.blueGrey.shade800,
         foregroundColor: Colors.white,
         actions: [
+          // PRINT BUTTON INTEGRATED WITH ROUTER
           IconButton(
-        icon: const Icon(Icons.print_rounded),
-        onPressed: items.isEmpty ? null : () async {
-          if (ph.activeCompany != null) {
-            final tempChallan = SaleChallan(
-              id: "temp", 
-              billNo: widget.challanNo, 
-              date: widget.challanDate, 
-              partyName: widget.party.name, 
-              partyGstin: widget.party.gst, 
-              partyState: widget.party.state, 
-              items: items, 
-              totalAmount: totalAmt, 
-              remarks: remarksC.text.trim()
-            );
-
-            // Router Call
-            await PdfRouterService.printChallan(
-              challan: tempChallan, 
-              party: widget.party, 
-              ph: ph, 
-              isSaleChallan: true
-            );
-          }
-        },
-      ),
+            icon: const Icon(Icons.print_rounded),
+            onPressed: items.isEmpty ? null : () async {
+              if (ph.activeCompany != null) {
+                final tempChallan = SaleChallan(
+                  id: "temp", billNo: widget.challanNo, date: widget.challanDate, 
+                  partyName: widget.party.name, partyGstin: widget.party.gst, 
+                  partyState: widget.party.state, items: items, totalAmount: totalAmt, 
+                  remarks: remarksC.text.trim()
+                );
+                // NAYA: Router ko call karna
+                await PdfRouterService.printChallan(
+                  challan: tempChallan, 
+                  party: widget.party, 
+                  ph: ph, 
+                  isSaleChallan: true
+                );
+              }
+            },
+          ),
           if (!widget.isReadOnly)
             TextButton(
               onPressed: items.isEmpty ? null : () => _handleSave(ph),
@@ -212,9 +207,7 @@ class _SaleChallanBillingViewState extends State<SaleChallanBillingView> {
       body: Column(
         children: [
           _buildHeader(),
-
           if (!widget.isReadOnly) _buildSearchBarTrigger(ph),
-
           Expanded(
             child: items.isEmpty
                 ? const Center(child: Text("Cart is empty"))
@@ -224,7 +217,6 @@ class _SaleChallanBillingViewState extends State<SaleChallanBillingView> {
                     itemBuilder: (c, i) => _buildItemCard(items[i], i, ph),
                   ),
           ),
-          
           _buildFooter(),
         ],
       ),
@@ -261,7 +253,7 @@ class _SaleChallanBillingViewState extends State<SaleChallanBillingView> {
             children: [
               Icon(Icons.search, color: Colors.blueGrey.shade700),
               const SizedBox(width: 10),
-              Text("Tap here to search & add product...", style: TextStyle(color: Colors.grey.shade600, fontSize: 14)),
+              Text("Tap here to add product...", style: TextStyle(color: Colors.grey.shade600, fontSize: 14)),
               const Spacer(),
               Icon(Icons.add_circle, color: Colors.blueGrey.shade700),
             ],
