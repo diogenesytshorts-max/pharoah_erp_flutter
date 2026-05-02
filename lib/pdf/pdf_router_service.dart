@@ -2,8 +2,11 @@
 
 import 'dart:io';
 import 'dart:typed_data';
-import 'package:archive/archive.dart'; // NAYA
-import 'package:path_provider/path_provider.dart'; // NAYA
+import 'package:archive/archive.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:pdf/widgets.dart' as pw; // FIXED: Added this import
+import 'package:pdf/pdf.dart';
+import 'package:printing/printing.dart';
 import 'package:intl/intl.dart';
 import '../models.dart';
 import '../pharoah_manager.dart';
@@ -18,7 +21,6 @@ import 'purchase_challan_pdf.dart';
 
 class PdfRouterService {
   
-  // 1. SINGLE SALE PRINT
   static Future<void> printSale({required Sale sale, required Party party, required PharoahManager ph}) async {
     final config = ph.config;
     final shop = ph.activeCompany!;
@@ -31,12 +33,10 @@ class PdfRouterService {
     }
   }
 
-  // 2. SINGLE PURCHASE PRINT
   static Future<void> printPurchase({required Purchase purchase, required Party supplier, required PharoahManager ph}) async {
     await PurchasePdf.generate(purchase, supplier, ph.activeCompany!);
   }
 
-  // 3. SINGLE CHALLAN PRINT
   static Future<void> printChallan({required dynamic challan, required Party party, required PharoahManager ph, required bool isSaleChallan}) async {
     if (isSaleChallan) {
       await SaleChallanPdf.generate(challan, party, ph.activeCompany!);
@@ -45,10 +45,6 @@ class PdfRouterService {
     }
   }
 
-  // ===========================================================================
-  // 🚀 NAYA: UNIVERSAL BULK ZIP GENERATOR
-  // Ye function purani 'bulk_service' files ko replace karega.
-  // ===========================================================================
   static Future<String> createBulkZip({
     required List<Map<String, dynamic>> selectedDrafts,
     required PharoahManager ph,
@@ -65,21 +61,14 @@ class PdfRouterService {
 
       onProgress((i + 1) / selectedDrafts.length, party.name);
 
-      // Design Engine call for individual bytes
-      // Note: We use the direct layout generator here.
-      // We will assume Architect format for bulk as it's for Wholesale.
       Uint8List pdfBytes;
       String billNo;
 
       if (billObj is Sale) {
-        // Internal Bytes generator logic
-        final doc = pw.Document();
-        // (Temporary logic: We call the generate logic but return bytes)
-        // For simplicity, we keep using existing bulk logic but centralized
-        pdfBytes = await _getSaleBytes(billObj, party, shop, config);
+        pdfBytes = await ArchitectSalePdf.generateBytes(billObj, party, shop, config);
         billNo = billObj.billNo;
       } else {
-        pdfBytes = await _getPurchaseBytes(billObj, party, shop, config);
+        pdfBytes = await PurchasePdf.generateBytes(billObj as Purchase, party, shop);
         billNo = (billObj as Purchase).billNo;
       }
 
@@ -97,6 +86,7 @@ class PdfRouterService {
     
     return zipPath;
   }
+}
 
   // Internal helpers to get bytes without opening Print Dialog
   static Future<Uint8List> _getSaleBytes(Sale sale, Party party, CompanyProfile shop, config) async {
