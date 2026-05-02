@@ -1,5 +1,5 @@
 // FILE: lib/challans/sale_challan_register.dart
-import '../pdf/sale_challan_report_pdf.dart';
+import '../pdf/pdf_router_service.dart'
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
@@ -223,35 +223,28 @@ class _SaleChallanRegisterState extends State<SaleChallanRegister> {
               Navigator.push(context, MaterialPageRoute(builder: (c) => SaleChallanView(existingRecord: ch)));
             }),
             // 3. PRINT (Fixed & Verified Logic)
-            _menuTile(Icons.print, "Print / Share PDF", Colors.teal, () async {
-              Navigator.pop(c); // Sabse pehle menu band karein
-              
-              if (ph.activeCompany == null) {
-                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Error: Company Profile not loaded!")));
-                return;
-              }
+            // 3. PRINT (Via Universal Router)
+_menuTile(Icons.print, "Print / Share PDF", Colors.teal, () async {
+  Navigator.pop(c); // Menu band karein
+  
+  if (ph.activeCompany == null) return;
 
-              // Party details nikalna (Safety ke saath)
-              Party targetParty;
-              try {
-                targetParty = ph.parties.firstWhere((p) => p.name == ch.partyName);
-              } catch (e) {
-                // Agar party master mein nahi milti (Old record), toh temporary object bhejenge
-                targetParty = Party(
-                  id: 'temp', 
-                  name: ch.partyName, 
-                  gst: ch.partyGstin, 
-                  state: ch.partyState
-                );
-              }
+  // Party details nikalna
+  Party targetParty;
+  try {
+    targetParty = ph.parties.firstWhere((p) => p.name == ch.partyName);
+  } catch (e) {
+    targetParty = Party(id: 'temp', name: ch.partyName, gst: ch.partyGstin, state: ch.partyState);
+  }
 
-              // PDF Generate karna
-              try {
-                await SaleChallanPdf.generate(ch, targetParty, ph.activeCompany!);
-              } catch (pdfError) {
-                debugPrint("PDF Generation Failed: $pdfError");
-              }
-            }),
+  // Router ko call karein (Ye naya professional design use karega)
+  await PdfRouterService.printChallan(
+    challan: ch, 
+    party: targetParty, 
+    ph: ph, 
+    isSaleChallan: true
+  );
+}),
             _menuTile(Icons.delete_forever, "Delete Challan", Colors.red, () => _confirmDelete(ch, ph)),
           ],
         ),
