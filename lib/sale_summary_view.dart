@@ -6,7 +6,7 @@ import 'package:intl/intl.dart';
 import 'pharoah_manager.dart';
 import 'models.dart';
 import 'pdf/sale_report_pdf.dart'; 
-import 'pdf/pdf_router_service.dart'; 
+import 'pdf/pdf_router_service.dart'; // Naya Central Router
 import 'sale_entry_view.dart';
 import 'app_date_logic.dart'; 
 import 'pharoah_date_controller.dart'; 
@@ -116,34 +116,34 @@ class _SaleSummaryViewState extends State<SaleSummaryView> {
                 child: ListTile(
                   title: Text(s.partyName, style: const TextStyle(fontWeight: FontWeight.bold)),
                   subtitle: Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      Row(
-        children: [
-          Text("Bill: ${s.billNo} | ${AppDateLogic.format(s.date)}", style: const TextStyle(fontSize: 12)),
-          if (s.linkedChallanIds.isNotEmpty) ...[
-            const SizedBox(width: 8),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
-              decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(4), border: Border.all(color: Colors.blue.shade200)),
-              child: Text("MERGED", style: TextStyle(color: Colors.blue.shade900, fontSize: 8, fontWeight: FontWeight.bold)),
-            ),
-          ],
-        ],
-      ),
-      Text("Total: ₹${s.totalAmount.toStringAsFixed(2)}", style: const TextStyle(fontWeight: FontWeight.bold)),
-    ],
-  ),
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Text("Bill: ${s.billNo} | ${AppDateLogic.format(s.date)}", style: const TextStyle(fontSize: 12)),
+                          if (s.linkedChallanIds.isNotEmpty) ...[
+                            const SizedBox(width: 8),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                              decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(4), border: Border.all(color: Colors.blue.shade200)),
+                              child: const Text("MERGED", style: TextStyle(color: Colors.blue, fontSize: 8, fontWeight: FontWeight.bold)),
+                            ),
+                          ],
+                        ],
+                      ),
+                      Text("Total: ₹${s.totalAmount.toStringAsFixed(2)}", style: const TextStyle(fontWeight: FontWeight.bold)),
+                    ],
+                  ),
                   trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+                    // FIXED: PRINT BUTTON CALL
                     IconButton(
-                      IconButton(
-  icon: const Icon(Icons.print, color: Colors.blueGrey), 
-  onPressed: activeShop == null ? null : () => PdfRouterService.printSale(
-    sale: s, 
-    party: p, 
-    ph: ph
-  )
-),
+                      icon: const Icon(Icons.print, color: Colors.blueGrey), 
+                      onPressed: activeShop == null ? null : () => PdfRouterService.printSale(
+                        sale: s, 
+                        party: p, 
+                        ph: ph
+                      )
+                    ),
                     IconButton(
                       icon: const Icon(Icons.edit, color: Colors.blue), 
                       onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (c) => SaleEntryView(existingSale: s)))
