@@ -1,6 +1,7 @@
 // FILE: lib/pdf/architect_bulk_service.dart
 
 import 'dart:io';
+import 'dart:typed_material.dart'; // Added for bytes safety
 import 'dart:typed_data';
 import 'package:archive/archive.dart';
 import 'package:path_provider/path_provider.dart';
@@ -20,7 +21,7 @@ class ArchitectBulkService {
   static Future<String> createBillsZip({
     required List<Map<String, dynamic>> selectedDrafts,
     required CompanyProfile shop,
-    required AppConfig config, // Setting pass hogi
+    required AppConfig config, 
     required Function(double progress, String filename) onProgress,
   }) async {
     final archive = Archive();
@@ -35,7 +36,6 @@ class ArchitectBulkService {
       Uint8List pdfBytes;
       String billNo;
 
-      // Logic check: Sale hai ya Purchase
       if (billObj is Sale) {
         pdfBytes = await _generateSaleCloneBytes(billObj, party, shop, config);
         billNo = billObj.billNo;
@@ -88,7 +88,6 @@ class ArchitectBulkService {
           width: masterWidth,
           decoration: pw.BoxDecoration(border: pw.Border.all(width: 1)),
           child: pw.Column(children: [
-            // Header
             pw.Row(children: [
               _hBox(290, pw.Row(children: [
                 if (config.showLogo && config.logoPath != null && File(config.logoPath!).existsSync())
@@ -112,14 +111,12 @@ class ArchitectBulkService {
               ]), isLast: true),
             ]),
 
-            // Table Header
             pw.Container(color: PdfColors.grey100, child: pw.Row(children: [
               _tCol("S.N", 25), _tCol("Qty", 55), _tCol("Pack", 45), _tCol("Product Description", 205, align: pw.Alignment.centerLeft),
               _tCol("Batch", 75), _tCol("Exp", 45), _tCol("HSN", 45), _tCol("MRP", 55), _tCol("Rate", 55), 
               _tCol("DIS%", 30), _tCol("SGST%", 50), _tCol("CGST%", 50), _tCol("NET", 65, isLast: true),
             ])),
 
-            // Item Rows with Zebra Shading
             pw.Expanded(child: pw.Column(children: pageItems.asMap().entries.map((entry) {
               int idx = entry.key; var i = entry.value;
               bool isShaded = config.useZebraShading && (idx % 2 != 0);
@@ -183,7 +180,7 @@ class ArchitectBulkService {
                 pw.Text("Date: ${DateFormat('dd/MM/yyyy').format(pur.date)}", style: const pw.TextStyle(fontSize: 8.5)),
               ])),
               _hBox(335, pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
-                pw.Text("SUPPLIER DETAILS:", style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold, color: PdfColors.grey)),
+                pw.Text("SUPPLIER DETAILS:", style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold, color: PdfColors.grey700)),
                 pw.Text(supplier.name, style: pw.TextStyle(fontSize: 11, fontWeight: pw.FontWeight.bold, color: PdfColors.blue900)),
                 pw.Text("GSTIN: ${supplier.gst} | DL: ${supplier.dl}", style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold)),
               ]), isLast: true),
@@ -227,7 +224,7 @@ class ArchitectBulkService {
     return pw.Row(
       crossAxisAlignment: pw.CrossAxisAlignment.start,
       children: [
-        pw.Container(width: 340, padding: const pw.EdgeInsets.all(8), decoration: const pw.BoxDecoration(border: pw.Border(top: pw.BorderSide(width: 0.5), right: pw.BorderSide(width: 0.5))), child: pw.Column(
+        pw.Container(width: 340, padding: const pw.EdgeInsets.all(8), decoration: pw.BoxDecoration(border: pw.Border(top: const pw.BorderSide(width: 0.5), right: const pw.BorderSide(width: 0.5))), child: pw.Column(
           crossAxisAlignment: pw.CrossAxisAlignment.start,
           children: [
             pw.Text("Amount in Words:", style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold, color: PdfColors.grey700)),
@@ -246,7 +243,7 @@ class ArchitectBulkService {
             ])
           ],
         )),
-        pw.Container(width: 260, padding: const pw.EdgeInsets.all(8), decoration: const pw.BoxDecoration(border: pw.Border(top: pw.BorderSide(width: 0.5), right: pw.BorderSide(width: 0.5))), child: pw.Column(
+        pw.Container(width: 260, padding: const pw.EdgeInsets.all(8), decoration: pw.BoxDecoration(border: pw.Border(top: const pw.BorderSide(width: 0.5), right: const pw.BorderSide(width: 0.5))), child: pw.Column(
           children: [
             _fRow(isPur ? "TAXABLE TOTAL" : "GROSS TOTAL", gross), _fRow("TOTAL SGST", sgst), _fRow("TOTAL CGST", cgst),
             pw.Divider(thickness: 0.5),
@@ -256,7 +253,7 @@ class ArchitectBulkService {
             ]),
           ],
         )),
-        pw.Container(width: 200, height: 100, padding: const pw.EdgeInsets.all(8), decoration: const pw.BoxDecoration(border: pw.Border(top: pw.BorderSide(width: 0.5))), child: pw.Column(
+        pw.Container(width: 200, height: 100, padding: const pw.EdgeInsets.all(8), decoration: pw.BoxDecoration(border: pw.Border(top: const pw.BorderSide(width: 0.5))), child: pw.Column(
           mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
           children: [
             pw.Text("For $shopName", style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold)),
@@ -268,7 +265,11 @@ class ArchitectBulkService {
   }
 
   static pw.Widget _fRow(String l, double v) => pw.Row(mainAxisAlignment: pw.MainAxisAlignment.spaceBetween, children: [pw.Text(l, style: const pw.TextStyle(fontSize: 7.5)), pw.Text(v.toStringAsFixed(2), style: pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold))]);
-  static pw.Widget _hBox(double w, pw.Widget child, {bool isLast = false}) => pw.Container(width: w, height: 90, padding: const pw.EdgeInsets.all(5), decoration: pw.BoxDecoration(border: pw.Border(right: BorderSide(width: isLast ? 0 : 0.5), bottom: const pw.BorderSide(width: 0.5))), child: child);
-  static pw.Widget _tCol(String t, double w, {bool isLast = false, pw.Alignment align = pw.Alignment.center}) => pw.Container(width: w, height: 20, alignment: align, padding: pw.EdgeInsets.only(left: align == pw.Alignment.centerLeft ? 8 : 0), decoration: pw.BoxDecoration(border: pw.Border(right: BorderSide(width: isLast ? 0 : 0.5), bottom: const pw.BorderSide(width: 0.5))), child: pw.Text(t, style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold)));
+  
+  // FIX: Added pw. prefix to BorderSide inside helpers
+  static pw.Widget _hBox(double w, pw.Widget child, {bool isLast = false}) => pw.Container(width: w, height: 90, padding: const pw.EdgeInsets.all(5), decoration: pw.BoxDecoration(border: pw.Border(right: pw.BorderSide(width: isLast ? 0 : 0.5), bottom: const pw.BorderSide(width: 0.5))), child: child);
+  
+  static pw.Widget _tCol(String t, double w, {bool isLast = false, pw.Alignment align = pw.Alignment.center}) => pw.Container(width: w, height: 20, alignment: align, padding: pw.EdgeInsets.only(left: align == pw.Alignment.centerLeft ? 8 : 0), decoration: pw.BoxDecoration(border: pw.Border(right: pw.BorderSide(width: isLast ? 0 : 0.5), bottom: const pw.BorderSide(width: 0.5))), child: pw.Text(t, style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold)));
+  
   static pw.Widget _cell(String t, double w) => pw.Container(width: w, alignment: pw.Alignment.center, decoration: const pw.BoxDecoration(border: pw.Border(right: pw.BorderSide(width: 0.2, color: PdfColors.grey))), child: pw.Text(t, style: const pw.TextStyle(fontSize: 7.5)));
 }
