@@ -17,6 +17,7 @@ import '../pdf/purchase_pdf.dart';
 import '../pdf/bulk_pdf_service.dart';
 import '../billing_view.dart';
 import '../purchase/purchase_billing_view.dart';
+import '../pdf/architect_bulk_service.dart';
 
 class ChallanStitcherWizard extends StatefulWidget {
   const ChallanStitcherWizard({super.key});
@@ -169,11 +170,27 @@ class _ChallanStitcherWizardState extends State<ChallanStitcherWizard> with Sing
           : ph.purchases.firstWhere((p) => p.internalNo == d['billNo']);
         payload.add({'saleObj': obj, 'party': d['party'], 'billNo': d['billNo']});
       }
-      String path = await BulkPdfService.createBillsZip(
-          selectedDrafts: payload, 
-          shop: ph.activeCompany!, 
-          onProgress: (v, n) => setState(() { progressValue = v; progressText = "Packing: $n"; })
-      );
+
+      String path;
+
+      // ✅ NAYA SWITCH LOGIC:
+      if (ph.config.isArchitectMode) {
+        // Architect Layout use karega
+        path = await ArchitectBulkService.createBillsZip(
+            selectedDrafts: payload, 
+            shop: ph.activeCompany!, 
+            config: ph.config, // Pass settings for Logo/QR/Zebra
+            onProgress: (v, n) => setState(() { progressValue = v; progressText = "Packing: $n"; })
+        );
+      } else {
+        // Purana Standard Layout use karega
+        path = await BulkPdfService.createBillsZip(
+            selectedDrafts: payload, 
+            shop: ph.activeCompany!, 
+            onProgress: (v, n) => setState(() { progressValue = v; progressText = "Packing: $n"; })
+        );
+      }
+
       setState(() => isProcessing = false);
 
       if (mounted) {
