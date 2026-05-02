@@ -11,16 +11,17 @@ import '../logic/app_settings_model.dart';
 import 'pdf_master_service.dart';
 
 class ArchitectSalePdf {
+  // NAYA: parameter mein 'AppConfig config' add kiya gaya hai
   static Future<void> generate(Sale sale, Party party, CompanyProfile shop, AppConfig config) async {
     final pdf = pw.Document();
 
-    // 📐 PRECISION MEASUREMENTS (A4 Landscape)
-    const double masterWidth = 800; // Total Content Width
-    const double pageHeightLimit = 550; // Total Content Height (Safe under 565)
+    // 📐 PRECISION MEASUREMENTS (800pt Width for A4 Landscape)
+    const double masterWidth = 800; 
+    const double pageHeightLimit = 550; // Content page boundary
     const int itemsPerPage = 20; 
     int totalPages = (sale.items.length / itemsPerPage).ceil();
 
-    // Calculations for Footer
+    // Totals for Footer logic
     double totalGross = sale.items.fold(0, (sum, i) => sum + (i.qty * i.rate));
     double totalSGST = sale.items.fold(0, (sum, i) => sum + i.sgst);
     double totalCGST = sale.items.fold(0, (sum, i) => sum + i.cgst);
@@ -52,11 +53,12 @@ class ArchitectSalePdf {
                         pw.Text(shop.name.toUpperCase(), style: pw.TextStyle(fontSize: 13, fontWeight: pw.FontWeight.bold, color: PdfColors.blue900)),
                         pw.Text(shop.address, style: const pw.TextStyle(fontSize: 7.5), maxLines: 2),
                         pw.Text("GST: ${shop.gstin} | DL: ${shop.dlNo}", style: pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold)),
+                        pw.Text("Phone: ${shop.phone}", style: const pw.TextStyle(fontSize: 7.5)),
                       ])),
                     ])),
                     _headerBox(175, true, pw.Column(children: [
                       pw.Text("GST INVOICE", style: pw.TextStyle(fontSize: 11, fontWeight: pw.FontWeight.bold)),
-                      pw.Text(sale.paymentMode, style: const pw.TextStyle(fontSize: 8)),
+                      pw.Text(sale.paymentMode.toUpperCase(), style: const pw.TextStyle(fontSize: 8)),
                       pw.Divider(thickness: 0.5),
                       pw.Text(sale.billNo, style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold)),
                       pw.Text(DateFormat('dd/MM/yyyy').format(sale.date), style: const pw.TextStyle(fontSize: 8)),
@@ -69,7 +71,7 @@ class ArchitectSalePdf {
                     ])),
                   ]),
 
-                  // --- 2. TABLE HEADER (Height: 20) ---
+                  // --- 2. TABLE HEADER ---
                   pw.Container(
                     color: PdfColors.grey200,
                     child: pw.Row(children: [
@@ -79,8 +81,8 @@ class ArchitectSalePdf {
                     ]),
                   ),
 
-                  // --- 3. ITEMS AREA (Locked Height: 330) ---
-                  pw.SizedBox(
+                  // --- 3. ITEMS AREA (Locked Height 330 prevents footer drop) ---
+                  pw.Container(
                     height: 330,
                     child: pw.Column(children: pageItems.asMap().entries.map((entry) {
                       int idx = entry.key; var i = entry.value;
@@ -99,7 +101,7 @@ class ArchitectSalePdf {
                     }).toList()),
                   ),
 
-                  // --- 4. SMART FOOTER (Locked Height: 115) ---
+                  // --- 4. SMART FOOTER (Fixed Height: 115) ---
                   if (isLastPage) _buildSmartFooter(shop.name, totalGross, totalSGST, totalCGST, roundedTotal, config)
                   else pw.Container(
                     height: 115, 
@@ -116,7 +118,7 @@ class ArchitectSalePdf {
       );
     }
 
-    // FINAL PRINT CALL WITH LANDSCAPE FORMAT LOCK
+    // 🚀 FIXED: System print dialog will now always open in Landscape
     await Printing.layoutPdf(
       onLayout: (format) async => pdf.save(), 
       name: 'Bill_Architect_${sale.billNo}',
@@ -124,11 +126,9 @@ class ArchitectSalePdf {
     );
   }
 
-  // UI HELPERS
+  // UI ATOMS
   static pw.Widget _headerBox(double w, bool rBorder, pw.Widget child) => pw.Container(width: w, height: 85, padding: const pw.EdgeInsets.all(6), decoration: pw.BoxDecoration(border: pw.Border(right: pw.BorderSide(width: rBorder ? 0.5 : 0), bottom: const pw.BorderSide(width: 0.5))), child: child);
-  
   static pw.Widget _tCol(String t, double w, {bool isLast = false, bool isLeft = false}) => pw.Container(width: w, height: 20, alignment: isLeft ? pw.Alignment.centerLeft : pw.Alignment.center, padding: pw.EdgeInsets.only(left: isLeft ? 8 : 0), decoration: pw.BoxDecoration(border: pw.Border(right: pw.BorderSide(width: isLast ? 0 : 0.5), bottom: const pw.BorderSide(width: 0.5))), child: pw.Text(t, style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold)));
-  
   static pw.Widget _cell(String t, double w) => pw.Container(width: w, height: 16, alignment: pw.Alignment.center, decoration: const pw.BoxDecoration(border: pw.Border(right: pw.BorderSide(width: 0.2, color: PdfColors.grey))), child: pw.Text(t, style: const pw.TextStyle(fontSize: 7.5)));
 
   static pw.Widget _buildSmartFooter(String shopName, double gross, double sgst, double cgst, int total, AppConfig config) {
@@ -137,10 +137,9 @@ class ArchitectSalePdf {
       child: pw.Row(
         crossAxisAlignment: pw.CrossAxisAlignment.start,
         children: [
-          // Box 1: Words & Bank (340 pts)
+          // Box 1: Bank & Terms & QR
           pw.Container(width: 340, padding: const pw.EdgeInsets.all(5), decoration: const pw.BoxDecoration(border: pw.Border(top: pw.BorderSide(width: 0.5), right: pw.BorderSide(width: 0.5))), child: pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
-            pw.Text("Amount in Words:", style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold)),
-            pw.Text("RUPEES ${PdfMasterService.numberToWords(total)} ONLY", style: pw.TextStyle(fontSize: 8.5, fontWeight: pw.FontWeight.bold, color: PdfColors.blue800)),
+            pw.Text("Amount in Words: RUPEES ${PdfMasterService.numberToWords(total)} ONLY", style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold, color: PdfColors.blue800)),
             pw.Spacer(),
             pw.Row(children: [
               pw.Expanded(child: pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
@@ -154,7 +153,7 @@ class ArchitectSalePdf {
                 pw.Container(width: 45, height: 45, child: pw.Image(pw.MemoryImage(File(config.qrCodePath!).readAsBytesSync()))),
             ])
           ])),
-          // Box 2: Totals (260 pts)
+          // Box 2: Taxes & Net
           pw.Container(width: 260, padding: const pw.EdgeInsets.all(5), decoration: const pw.BoxDecoration(border: pw.Border(top: pw.BorderSide(width: 0.5), right: pw.BorderSide(width: 0.5))), child: pw.Column(children: [
             _fRow("GROSS TOTAL", gross), _fRow("TOTAL SGST", sgst), _fRow("TOTAL CGST", cgst),
             pw.Divider(thickness: 0.5),
@@ -163,7 +162,7 @@ class ArchitectSalePdf {
               pw.Text("Rs. $total.00", style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold)),
             ]),
           ])),
-          // Box 3: Signature (200 pts)
+          // Box 3: Signature
           pw.Container(width: 200, padding: const pw.EdgeInsets.all(5), decoration: const pw.BoxDecoration(border: pw.Border(top: pw.BorderSide(width: 0.5))), child: pw.Column(mainAxisAlignment: pw.MainAxisAlignment.spaceBetween, children: [
             pw.Text("For $shopName", style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold)),
             if (config.showStaffSign) pw.Text(config.signLabel, style: const pw.TextStyle(fontSize: 7.5)),
