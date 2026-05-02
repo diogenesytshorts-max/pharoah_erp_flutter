@@ -5,7 +5,7 @@ import 'package:provider/provider.dart'; // NAYA
 import 'package:intl/intl.dart';
 import 'pharoah_manager.dart'; // NAYA
 import 'models.dart';
-import 'pdf/sale_invoice_pdf.dart';
+import 'pdf/pdf_router_service.dart';
 
 class BillViewOnly extends StatelessWidget {
   final Sale sale;
@@ -26,14 +26,18 @@ class BillViewOnly extends StatelessWidget {
         foregroundColor: Colors.white,
         actions: [
           IconButton(
-            icon: const Icon(Icons.print),
-            onPressed: () {
-              // NAYA: Check active shop and pass to PDF engine
-              if (ph.activeCompany != null) {
-                SaleInvoicePdf.generate(sale, party, ph.activeCompany!);
-              }
-            },
-          )
+  icon: const Icon(Icons.print),
+  onPressed: () {
+    if (ph.activeCompany != null) {
+      // Router settings check karke automatic sahi format chala dega
+      PdfRouterService.printSale(
+        sale: sale, 
+        party: party, 
+        ph: ph
+      );
+    }
+  },
+)
         ],
       ),
       body: Column(
