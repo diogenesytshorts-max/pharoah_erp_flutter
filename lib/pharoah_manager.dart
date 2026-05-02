@@ -189,8 +189,12 @@ class PharoahManager with ChangeNotifier {
     await _w('comps.json', companies); 
     await _w('salts.json', salts); 
     await _w('dtypes.json', drugTypes); 
-    await _w('banks.json', banks);
+    await File('$dir/banks.json').writeAsString(jsonEncode(banks.map((e) => e.toMap()).toList()));
     await File('$dir/bats.json').writeAsString(jsonEncode(batchHistory.map((k, v) => MapEntry(k, v.map((b) => b.toMap()).toList()))));
+    
+    // NAYA: Advanced Settings ko is dukan ke folder mein save karna
+    await File('$dir/config.json').writeAsString(jsonEncode(config.toMap()));
+    
     notifyListeners();
   }
 
@@ -198,6 +202,12 @@ class PharoahManager with ChangeNotifier {
     final dir = await getWorkingPath(); 
     if (dir.isEmpty) return;
     dynamic _l(String n) { final f = File('$dir/$n'); return f.existsSync() ? jsonDecode(f.readAsStringSync()) : null; }
+
+    // NAYA: Pehle is dukan ki saved settings uthao
+    var cData = _l('config.json');
+    if (cData != null) config = AppConfig.fromMap(cData);
+    else config = AppConfig(); // Defaults agar naya setup hai
+
     medicines = (_l('meds.json') as List?)?.map((e) => Medicine.fromMap(e)).toList() ?? DemoData.getMedicines();
     parties = (_l('parts.json') as List?)?.map((e) => Party.fromMap(e)).toList() ?? [Party(id:'cash',name:"CASH",group:"Cash in Hand")];
     companies = (_l('comps.json') as List?)?.map((e) => Company.fromMap(e)).toList() ?? MasterDataLibrary.getTopCompanies();
@@ -308,7 +318,11 @@ class PharoahManager with ChangeNotifier {
   void updateChequeStatus(String id, String s, String r) { int i = cheques.indexWhere((c) => c.id == id); if(i != -1) { cheques[i].status = s; cheques[i].remark = r; save(); } }
   void updateSystemUser(SystemUser u) { int i = systemUsers.indexWhere((x) => x.id == u.id); if(i != -1) { systemUsers[i] = u; save(); } }
   void updateNumberingSeries(NumberingSeries ns) { int i = numberingSeries.indexWhere((x) => x.id == ns.id); if(i != -1) { numberingSeries[i] = ns; save(); } }
-  void updateAppConfig(AppConfig c) { config = c; notifyListeners(); }
+  void updateAppConfig(AppConfig c) { 
+    config = c; 
+    save(); // NAYA: Toggle dabate hi file mein save ho jaye
+    notifyListeners(); 
+  }
   void deleteShortage(String id) { shortages.removeWhere((s) => s.id == id); save(); }
   void addManualShortage({required Medicine med, required double qty, String cust = ""}) { shortages.add(ShortageItem(id: DateTime.now().toString(), medicineId: med.id, medicineName: med.name, companyName: med.companyId, qtyRequired: qty, currentStock: med.stock, date: DateTime.now(), customerName: cust)); save(); }
 
