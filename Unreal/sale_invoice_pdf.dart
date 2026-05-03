@@ -142,37 +142,43 @@ class SaleInvoicePdf {
 
   static pw.Widget _cell(String t, double w, {pw.Alignment align = pw.Alignment.center}) => pw.Container(width: w, padding: const pw.EdgeInsets.symmetric(vertical: 2), alignment: align, child: pw.Text(t, style: const pw.TextStyle(fontSize: 7.5)));
 
-  static pw.Widget _buildFooter(String shopName, Sale sale, double gross, double sgst, double cgst, int total) {
-    return pw.Row(
-      crossAxisAlignment: pw.CrossAxisAlignment.start,
-      children: [
-        pw.Container(width: 320, padding: const pw.EdgeInsets.all(5), decoration: pw.BoxDecoration(border: pw.Border.all(width: 0.5)), child: pw.Column(
-          crossAxisAlignment: pw.CrossAxisAlignment.start,
-          children: [
-            pw.Text("Amount in Words:", style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold)),
-            pw.Text("RUPEES ${PdfMasterService.numberToWords(total)} ONLY", style: pw.TextStyle(fontSize: 8.5, fontWeight: pw.FontWeight.bold, color: PdfColors.blue800)),
-            pw.SizedBox(height: 5),
-            pw.Text("Terms & Conditions: 1. Goods once sold will not be taken back. 2. All disputes subject to local Jurisdiction only.", style: const pw.TextStyle(fontSize: 6.5)),
-          ],
-        )),
-        pw.Container(width: 250, padding: const pw.EdgeInsets.all(5), decoration: pw.BoxDecoration(border: pw.Border.all(width: 0.5)), child: pw.Column(
-          children: [
-            _fRow("GROSS TOTAL", gross), _fRow("TOTAL SGST", sgst), _fRow("TOTAL CGST", cgst),
-            pw.Divider(thickness: 0.5),
-            pw.Row(mainAxisAlignment: pw.MainAxisAlignment.spaceBetween, children: [
-              pw.Text("NET AMOUNT", style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold)),
-              pw.Text("Rs. $total.00", style: pw.TextStyle(fontSize: 13, fontWeight: pw.FontWeight.bold)),
-            ]),
-          ],
-        )),
-        pw.Container(width: 210, height: 60, padding: const pw.EdgeInsets.all(5), decoration: pw.BoxDecoration(border: pw.Border.all(width: 0.5)), child: pw.Column(
-          mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-          children: [
-            pw.Text("For $shopName", style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold)),
-            pw.Text("Authorised Signatory", style: const pw.TextStyle(fontSize: 7.5)),
-          ],
-        )),
-      ],
+  static pw.Widget _buildFooter(String shopName, Sale sale, CompanyProfile shop) {
+    double taxableTotal = sale.items.fold(0, (sum, i) => sum + (i.qty * i.rate));
+    double totalGst = sale.items.fold(0, (sum, i) => sum + (i.cgst + i.sgst + i.igst));
+    bool isLocal = shop.state.trim().toLowerCase() == sale.partyState.trim().toLowerCase();
+
+    return pw.Container(
+      height: 110,
+      decoration: const pw.BoxDecoration(border: pw.Border(top: pw.BorderSide(width: 0.5))),
+      child: pw.Row(children: [
+        // Box 1: Words
+        pw.Container(width: 320, padding: const pw.EdgeInsets.all(5), decoration: const pw.BoxDecoration(border: pw.Border(right: pw.BorderSide(width: 0.5))), child: pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
+          pw.Text("Amount: RUPEES ${PdfMasterService.numberToWords(sale.totalAmount.round())} ONLY", style: pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold, color: PdfColors.blue800)),
+          pw.Spacer(),
+          pw.Text("Terms: 1. Goods once sold will not be taken back. 2. All disputes subject to local jurisdiction.", style: const pw.TextStyle(fontSize: 6.5)),
+        ])),
+        // Box 2: NEW PROFESSIONAL TOTALS
+        pw.Container(width: 250, padding: const pw.EdgeInsets.all(5), decoration: const pw.BoxDecoration(border: pw.Border(right: pw.BorderSide(width: 0.5))), child: pw.Column(children: [
+          _fRow("TAXABLE AMT", taxableTotal),
+          if (isLocal) ...[
+            _fRow("CGST TOTAL", totalGst / 2),
+            _fRow("SGST TOTAL", totalGst / 2),
+          ] else
+            _fRow("IGST TOTAL", totalGst),
+          if (sale.extraDiscount > 0) _fRow("DISCOUNT (-)", sale.extraDiscount),
+          _fRow("ROUND OFF", sale.roundOff),
+          pw.Divider(thickness: 0.5),
+          pw.Row(mainAxisAlignment: pw.MainAxisAlignment.spaceBetween, children: [
+            pw.Text("GRAND TOTAL", style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold)),
+            pw.Text("Rs. ${sale.totalAmount.toStringAsFixed(2)}", style: pw.TextStyle(fontSize: 13, fontWeight: pw.FontWeight.bold)),
+          ]),
+        ])),
+        // Box 3: Sign
+        pw.Container(width: 230, padding: const pw.EdgeInsets.all(5), child: pw.Column(mainAxisAlignment: pw.MainAxisAlignment.spaceBetween, children: [
+          pw.Text("For $shopName", style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold)),
+          pw.Text("Authorised Signatory", style: const pw.TextStyle(fontSize: 7.5)),
+        ])),
+      ]),
     );
   }
   static pw.Widget _fRow(String l, double v) => pw.Row(mainAxisAlignment: pw.MainAxisAlignment.spaceBetween, children: [pw.Text(l, style: const pw.TextStyle(fontSize: 7.5)), pw.Text(v.toStringAsFixed(2), style: pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold))]);
