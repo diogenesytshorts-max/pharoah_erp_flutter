@@ -138,14 +138,76 @@ class PurchaseItem {
 
 class Sale { 
   String id, billNo, partyName, partyGstin, partyState, status, invoiceType, paymentMode, transporterName, transporterId, vehicleNo, salesmanName; 
-  DateTime date; List<BillItem> items; double totalAmount;
+  DateTime date; 
+  List<BillItem> items; 
+  double totalAmount;
   List<String> linkedChallanIds; 
+  // --- NAYE FIELDS ---
+  double extraDiscount; 
+  double roundOff;
 
-  Sale({required this.id, required this.billNo, required this.date, required this.partyName, required this.partyGstin, required this.partyState, required this.items, required this.totalAmount, required this.paymentMode, this.status = "Active", this.invoiceType = "B2C", this.transporterName = "", this.transporterId = "", this.vehicleNo = "", this.salesmanName = "", this.linkedChallanIds = const []});
+  Sale({
+    required this.id, 
+    required this.billNo, 
+    required this.date, 
+    required this.partyName, 
+    required this.partyGstin, 
+    required this.partyState, 
+    required this.items, 
+    required this.totalAmount, 
+    required this.paymentMode, 
+    this.status = "Active", 
+    this.invoiceType = "B2C", 
+    this.transporterName = "", 
+    this.transporterId = "", 
+    this.vehicleNo = "", 
+    this.salesmanName = "", 
+    this.linkedChallanIds = const [],
+    this.extraDiscount = 0.0, // Default 0
+    this.roundOff = 0.0,      // Default 0
+  });
   
-  Map<String, dynamic> toMap() => {'id': id, 'billNo': billNo, 'date': date.toIso8601String(), 'partyName': partyName, 'partyGstin': partyGstin, 'partyState': partyState, 'paymentMode': paymentMode, 'totalAmount': totalAmount, 'status': status, 'invoiceType': invoiceType, 'transporterName': transporterName, 'transporterId': transporterId, 'vehicleNo': vehicleNo, 'salesmanName': salesmanName, 'items': items.map((i) => i.toMap()).toList(), 'linkedChallanIds': linkedChallanIds};
+  Map<String, dynamic> toMap() => {
+    'id': id, 
+    'billNo': billNo, 
+    'date': date.toIso8601String(), 
+    'partyName': partyName, 
+    'partyGstin': partyGstin, 
+    'partyState': partyState, 
+    'paymentMode': paymentMode, 
+    'totalAmount': totalAmount, 
+    'status': status, 
+    'invoiceType': invoiceType, 
+    'transporterName': transporterName, 
+    'transporterId': transporterId, 
+    'vehicleNo': vehicleNo, 
+    'salesmanName': salesmanName, 
+    'items': items.map((i) => i.toMap()).toList(), 
+    'linkedChallanIds': linkedChallanIds,
+    'extraDiscount': extraDiscount, // JSON mein save hoga
+    'roundOff': roundOff,           // JSON mein save hoga
+  };
   
-  factory Sale.fromMap(Map<String, dynamic> map) => Sale(id: map['id'], billNo: map['billNo'], date: DateTime.parse(map['date']), partyName: map['partyName'], partyGstin: map['partyGstin'] ?? "", partyState: map['partyState'] ?? "Rajasthan", paymentMode: map['paymentMode'] ?? "CASH", totalAmount: (map['totalAmount'] ?? 0.0).toDouble(), status: map['status'] ?? "Active", invoiceType: map['invoiceType'] ?? "B2C", transporterName: map['transporterName'] ?? "", transporterId: map['transporterId'] ?? "", vehicleNo: map['vehicleNo'] ?? "", salesmanName: map['salesmanName'] ?? "", items: (map['items'] as List).map((i) => BillItem.fromMap(i)).toList(), linkedChallanIds: List<String>.from(map['linkedChallanIds'] ?? [])); 
+  factory Sale.fromMap(Map<String, dynamic> map) => Sale(
+    id: map['id'], 
+    billNo: map['billNo'], 
+    date: DateTime.parse(map['date']), 
+    partyName: map['partyName'], 
+    partyGstin: map['partyGstin'] ?? "", 
+    partyState: map['partyState'] ?? "Rajasthan", 
+    paymentMode: map['paymentMode'] ?? "CASH", 
+    totalAmount: (map['totalAmount'] ?? 0.0).toDouble(), 
+    status: map['status'] ?? "Active", 
+    invoiceType: map['invoiceType'] ?? "B2C", 
+    transporterName: map['transporterName'] ?? "", 
+    transporterId: map['transporterId'] ?? "", 
+    vehicleNo: map['vehicleNo'] ?? "", 
+    salesmanName: map['salesmanName'] ?? "", 
+    items: (map['items'] as List).map((i) => BillItem.fromMap(i)).toList(), 
+    linkedChallanIds: List<String>.from(map['linkedChallanIds'] ?? []),
+    extraDiscount: (map['extraDiscount'] ?? 0.0).toDouble(), // Database se load hoga
+    roundOff: (map['roundOff'] ?? 0.0).toDouble(),           // Database se load hoga
+  ); 
 }
 
 class Purchase { 
