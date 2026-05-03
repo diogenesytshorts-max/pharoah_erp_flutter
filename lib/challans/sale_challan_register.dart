@@ -3,13 +3,15 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
+import 'dart:io'; // NAYA: Signature file read karne ke liye
 import '../pharoah_manager.dart';
 import '../models.dart';
 import '../pharoah_date_controller.dart';
 import '../app_date_logic.dart';
 import 'sale_challan_view.dart';
-import '../pdf/pdf_router_service.dart'; // FIXED: Added Semicolon
-import '../pdf/sale_challan_report_pdf.dart'; // FIXED: Added missing import for report
+import 'challan_signature_view.dart'; // NAYA: Signature screen ke liye
+import '../pdf/pdf_router_service.dart';
+import '../pdf/sale_challan_report_pdf.dart';
 
 class SaleChallanRegister extends StatefulWidget {
   const SaleChallanRegister({super.key});
@@ -29,7 +31,6 @@ class _SaleChallanRegisterState extends State<SaleChallanRegister> {
     super.didChangeDependencies();
     if (!_isInit) {
       final ph = Provider.of<PharoahManager>(context, listen: false);
-      // FY ke hisab se default date range set karna
       toDate = AppDateLogic.getSmartDate(ph.currentFY);
       fromDate = toDate.subtract(const Duration(days: 30));
       DateTime fyStart = AppDateLogic.getFYStart(ph.currentFY);
@@ -42,7 +43,6 @@ class _SaleChallanRegisterState extends State<SaleChallanRegister> {
   Widget build(BuildContext context) {
     final ph = Provider.of<PharoahManager>(context);
 
-    // LOGIC: Filter list based on Search and Date Range
     final list = ph.saleChallans.reversed.where((ch) {
       bool matchesSearch = ch.partyName.toLowerCase().contains(searchQuery.toLowerCase()) || 
                            ch.billNo.toLowerCase().contains(searchQuery.toLowerCase());
@@ -63,10 +63,7 @@ class _SaleChallanRegisterState extends State<SaleChallanRegister> {
             tooltip: "Export Summary Report",
             onPressed: () async {
               if (ph.activeCompany != null && list.isNotEmpty) {
-                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Generating Summary Report...")));
                 await SaleChallanReportPdf.generate(list, fromDate, toDate, ph.activeCompany!);
-              } else {
-                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("No data to export!")));
               }
             }
           ),
@@ -77,7 +74,7 @@ class _SaleChallanRegisterState extends State<SaleChallanRegister> {
           _buildFilterPanel(ph),
           Expanded(
             child: list.isEmpty 
-              ? const Center(child: Text("No Challans found in this range."))
+              ? const Center(child: Text("No Challans found."))
               : ListView.builder(
                   padding: const EdgeInsets.all(16),
                   itemCount: list.length,
@@ -151,9 +148,20 @@ class _SaleChallanRegisterState extends State<SaleChallanRegister> {
 
   Widget _buildChallanCard(SaleChallan ch, PharoahManager ph) {
     bool isPending = ch.status == "Pending";
+    
+    // --- INTEGRITY LOGIC ---
+    bool hasSign = ch.isSigned && ch.sigHistory.isNotEmpty;
+    bool isTampered = false;
+    if (hasSign) {
+      isTampered = ch.totalAmount.toStringAsFixed(2) != ch.sigHistory.last.signedAmount.toStringAsFixed(2);
+    }
+
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(18),
+        side: BorderSide(color: isTampered ? Colors.orange : Colors.transparent, width: 1.5)
+      ),
       child: InkWell(
         onTap: () => _showActionMenu(ch, ph),
         borderRadius: BorderRadius.circular(18),
@@ -163,8 +171,14 @@ class _SaleChallanRegisterState extends State<SaleChallanRegister> {
             children: [
               Container(
                 padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(color: const Color(0xFF1A237E).withOpacity(0.05), borderRadius: BorderRadius.circular(12)),
-                child: const Icon(Icons.local_shipping_rounded, color: Color(0xFF1A237E)),
+                decoration: BoxDecoration(
+                  color: isTampered ? Colors.orange.withOpacity(0.1) : const Color(0xFF1A237E).withOpacity(0.05), 
+                  borderRadius: BorderRadius.circular(12)
+                ),
+                child: Icon(
+                  isTampered ? Icons.warning_amber_rounded : Icons.local_shipping_rounded, 
+                  color: isTampered ? Colors.orange : const Color(0xFF1A237E)
+                ),
               ),
               const SizedBox(width: 15),
               Expanded(
@@ -173,6 +187,7 @@ class _SaleChallanRegisterState extends State<SaleChallanRegister> {
                   children: [
                     Text(ch.partyName, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 15)),
                     Text("${ch.billNo} • ${DateFormat('dd/MM/yyyy').format(ch.date)}", style: const TextStyle(color: Colors.grey, fontSize: 11)),
+                    if (isTampered) const Text("⚠️ EDITED AFTER SIGNING", style: TextStyle(color: Colors.orange, fontSize: 8, fontWeight: FontWeight.bold)),
                   ],
                 ),
               ),
@@ -180,7 +195,13 @@ class _SaleChallanRegisterState extends State<SaleChallanRegister> {
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
                   Text("₹${ch.totalAmount.toStringAsFixed(2)}", style: const TextStyle(fontWeight: FontWeight.w900, color: Color(0xFF1A237E))),
-                  _statusBadge(ch.status, isPending),
+                  Row(
+                    children: [
+                      if (hasSign) Icon(Icons.verified, size: 14, color: isTampered ? Colors.orange : Colors.green),
+                      const SizedBox(width: 4),
+                      _statusBadge(ch.status, isPending),
+                    ],
+                  ),
                 ],
               )
             ],
@@ -200,6 +221,12 @@ class _SaleChallanRegisterState extends State<SaleChallanRegister> {
   }
 
   void _showActionMenu(SaleChallan ch, PharoahManager ph) {
+    bool hasSign = ch.isSigned && ch.sigHistory.isNotEmpty;
+    bool isTampered = false;
+    if (hasSign) {
+      isTampered = ch.totalAmount.toStringAsFixed(2) != ch.sigHistory.last.signedAmount.toStringAsFixed(2);
+    }
+
     showModalBottomSheet(
       context: context,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(25))),
@@ -209,11 +236,28 @@ class _SaleChallanRegisterState extends State<SaleChallanRegister> {
           mainAxisSize: MainAxisSize.min,
           children: [
             Text(ch.partyName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+            if (isTampered) const Text("⚠️ DETAILS CHANGED AFTER SIGNING", style: TextStyle(color: Colors.red, fontSize: 9, fontWeight: FontWeight.bold)),
             const Divider(),
+            
+            // 1. VIEW SIGNATURE PROOF
+            if (hasSign)
+              _menuTile(Icons.assignment_turned_in, "View Signature Proof", Colors.green, () {
+                Navigator.pop(c);
+                _showSignaturePreview(ch);
+              }),
+
+            // 2. RE-SIGN (Only if Tampered)
+            if (isTampered && ch.status != "Billed")
+              _menuTile(Icons.draw_rounded, "Re-Verify (Re-Sign)", Colors.orange, () {
+                Navigator.pop(c);
+                _reSignChallan(ch, ph);
+              }),
+
             _menuTile(Icons.visibility, "View Items", Colors.blue, () {
               Navigator.pop(c);
               Navigator.push(context, MaterialPageRoute(builder: (c) => SaleChallanView(existingRecord: ch, isReadOnly: true)));
             }),
+
             _menuTile(Icons.edit, "Modify Challan", ch.status == "Billed" ? Colors.grey : Colors.orange, () {
               if (ch.status == "Billed") {
                 ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Locked: Bill has already been generated!")));
@@ -222,7 +266,7 @@ class _SaleChallanRegisterState extends State<SaleChallanRegister> {
               Navigator.pop(c);
               Navigator.push(context, MaterialPageRoute(builder: (c) => SaleChallanView(existingRecord: ch)));
             }),
-            // 3. PRINT (Via Universal Router)
+
             _menuTile(Icons.print, "Print / Share PDF", Colors.teal, () async {
               Navigator.pop(c); 
               if (ph.activeCompany == null) return;
@@ -239,7 +283,11 @@ class _SaleChallanRegisterState extends State<SaleChallanRegister> {
                 isSaleChallan: true
               );
             }),
-            _menuTile(Icons.delete_forever, "Delete Challan", Colors.red, () => _confirmDelete(ch, ph)),
+
+            _menuTile(Icons.delete_forever, "Delete Challan", Colors.red, () {
+              Navigator.pop(c);
+              _confirmDelete(ch, ph);
+            }),
           ],
         ),
       ),
@@ -247,6 +295,39 @@ class _SaleChallanRegisterState extends State<SaleChallanRegister> {
   }
 
   Widget _menuTile(IconData icon, String t, Color c, VoidCallback onTap) => ListTile(leading: Icon(icon, color: c), title: Text(t, style: const TextStyle(fontWeight: FontWeight.bold)), onTap: onTap);
+
+  void _showSignaturePreview(SaleChallan ch) {
+    showDialog(
+      context: context,
+      builder: (c) => AlertDialog(
+        title: Text("Digital Seal: ${ch.sigHistory.last.verificationCode}"),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text("Verified on: ${DateFormat('dd/MM/yy HH:mm').format(ch.sigHistory.last.signDate)}", style: const TextStyle(fontSize: 10)),
+            const SizedBox(height: 15),
+            Container(
+              decoration: BoxDecoration(border: Border.all(color: Colors.grey.shade300)),
+              child: Image.file(File(ch.sigHistory.last.imagePath)),
+            ),
+            const Divider(height: 30),
+            Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+              const Text("Signed At Amount:", style: TextStyle(fontSize: 11)),
+              Text("₹${ch.sigHistory.last.signedAmount.toStringAsFixed(2)}", style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.green)),
+            ]),
+          ],
+        ),
+        actions: [TextButton(onPressed: () => Navigator.pop(c), child: const Text("CLOSE"))],
+      ),
+    );
+  }
+
+  void _reSignChallan(SaleChallan ch, PharoahManager ph) {
+    Party party = ph.parties.firstWhere((p) => p.name == ch.partyName, orElse: () => Party(id:'0', name: ch.partyName));
+    Navigator.push(context, MaterialPageRoute(
+      builder: (c) => ChallanSignatureView(challan: ch, party: party)
+    ));
+  }
 
   void _confirmDelete(SaleChallan ch, PharoahManager ph) {
     showDialog(
@@ -258,7 +339,7 @@ class _SaleChallanRegisterState extends State<SaleChallanRegister> {
           TextButton(onPressed: () => Navigator.pop(c), child: const Text("NO")),
           ElevatedButton(style: ElevatedButton.styleFrom(backgroundColor: Colors.red), onPressed: () {
             ph.deleteSaleChallan(ch.id);
-            Navigator.pop(c); // Close Dialog
+            Navigator.pop(c);
           }, child: const Text("YES, DELETE", style: TextStyle(color: Colors.white))),
         ],
       ),
