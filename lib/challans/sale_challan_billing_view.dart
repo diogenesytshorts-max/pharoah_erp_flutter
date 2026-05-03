@@ -1,5 +1,5 @@
 // FILE: lib/challans/sale_challan_billing_view.dart
-
+import 'challan_signature_view.dart'; // NAYA IMPORT
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
@@ -324,19 +324,54 @@ class _SaleChallanBillingViewState extends State<SaleChallanBillingView> {
         ),
       );
 
-  void _handleSave(PharoahManager ph) {
+  void _handleSave(PharoahManager ph) async {
+    // 1. Pehle purana record delete karo agar modify mode hai
     if (widget.existingRecord != null) {
       ph.deleteSaleChallan(widget.existingRecord!.id);
     }
-    ph.finalizeSaleChallan(
-      challanNo: widget.challanNo,
+
+    // 2. Naya Challan Object prepare karo
+    final newChallan = SaleChallan(
+      id: DateTime.now().toString(),
+      billNo: widget.challanNo,
       date: widget.challanDate,
-      party: widget.party,
+      partyName: widget.party.name,
+      partyGstin: widget.party.gst,
+      partyState: widget.party.state,
       items: items,
-      total: totalAmt,
+      totalAmount: totalAmt,
       remarks: remarksC.text.trim(),
+      sigHistory: [], // Khali shuruat
+      isSigned: false,
     );
-    Navigator.of(context).popUntil((route) => route.isFirst);
-    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("✅ Sale Challan Saved Successfully!"), backgroundColor: Colors.green));
+
+    // 3. ARCHITECT CHECK: Kya receiver ke sign lene hain?
+    if (ph.config.showCustomerSignChallan == true) {
+      // Step A: Pehle data save karo background mein
+      ph.saleChallans.add(newChallan);
+      await ph.save();
+
+      // Step B: Signature Screen par bhej do
+      if (mounted) {
+        Navigator.pushReplacement(
+          context, 
+          MaterialPageRoute(builder: (c) => ChallanSignatureView(
+            challan: newChallan, 
+            party: widget.party
+          ))
+        );
+      }
+    } else {
+      // AGAR SETTING OFF HAI: Toh normal purane tarike se save karke bahar aa jao
+      ph.saleChallans.add(newChallan);
+      await ph.save();
+      
+      if (mounted) {
+        Navigator.of(context).popUntil((route) => route.isFirst);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("✅ Sale Challan Saved Successfully!"), backgroundColor: Colors.green)
+        );
+      }
+    }
   }
 }
