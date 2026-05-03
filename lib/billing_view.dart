@@ -38,6 +38,7 @@ class BillingView extends StatefulWidget {
 class _BillingViewState extends State<BillingView> {
   // NEW: Editable Header States
   late TextEditingController billNoC;
+  final discountC = TextEditingController(text: "0"); // NAYA DISCOUNT BOX
   late DateTime selectedBillDate;
   List<BillItem> items = [];
   double get totalAmt => items.fold(0, (sum, it) => sum + it.total);
@@ -50,7 +51,15 @@ class _BillingViewState extends State<BillingView> {
     selectedBillDate = widget.billDate;
     
     if (widget.existingItems != null) items = List.from(widget.existingItems!);
-  }
+    
+    // Agar bill modify kar rahe hain toh purana discount dikhao
+    if (widget.modifySaleId != null) {
+      final ph = Provider.of<PharoahManager>(context, listen: false);
+      try {
+        final exSale = ph.sales.firstWhere((s) => s.id == widget.modifySaleId);
+        discountC.text = exSale.extraDiscount.toString();
+      } catch (e) {}
+    }
 
   void _recalculateSR() {
     setState(() {
@@ -319,18 +328,72 @@ class _BillingViewState extends State<BillingView> {
     );
   }
 
-  Widget _buildFooter() => Container(
-    padding: const EdgeInsets.all(20), color: Colors.white,
-    child: Column(children: [
-      _row("Gross Amount", "₹${totalAmt.toStringAsFixed(2)}"),
-      const Divider(),
-      _row("NET TOTAL", "₹${totalAmt.toStringAsFixed(2)}", bold: true, size: 20, color: widget.isReadOnly ? Colors.purple.shade900 : Colors.teal.shade900),
-    ]),
-  );
+  Widget _buildFooter() {
+    // --- 100% AUTOMATIC CALCULATION LOGIC ---
+    double itemTotal = items.fold(0, (sum, it) => sum + it.total);
+    double extraDisc = double.tryParse(discountC.text) ?? 0.0;
+    
+    // Sab kuch jodne-ghatane ke baad jo amount aaya
+    double rawBillTotal = itemTotal - extraDisc;
+    
+    // Rounding logic: nearest integer (e.g. 100.40 -> 100, 100.60 -> 101)
+    double roundedGrandTotal = rawBillTotal.roundToDouble();
+    double autoRoundOff = roundedGrandTotal - rawBillTotal;
+
+    return Container(
+      padding: const EdgeInsets.all(15), 
+      decoration: const BoxDecoration(color: Colors.white, boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 10)]),
+      child: Column(
+        children: [
+          _row("Items Total (Gross + GST)", "₹${itemTotal.toStringAsFixed(2)}"),
+          const SizedBox(height: 8),
+          
+          // EXTRA DISCOUNT INPUT ROW
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text("Extra Discount (-)", style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
+              SizedBox(
+                width: 100,
+                child: TextField(
+                  controller: discountC,
+                  keyboardType: TextInputType.number,
+                  textAlign: TextAlign.right,
+                  onChanged: (v) => setState(() {}), // Refresh totals on type
+                  decoration: const InputDecoration(isDense: true, contentPadding: EdgeInsets.all(8), border: OutlineInputBorder()),
+                  style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.red),
+                ),
+              ),
+            ],
+          ),
+          
+          const SizedBox(height: 8),
+          _row("Round Off (+/-)", autoRoundOff.toStringAsFixed(2)),
+          
+          const Divider(height: 20),
+          
+          // FINAL GRAND TOTAL
+          _row(
+            "GRAND TOTAL", 
+            "₹${roundedGrandTotal.toStringAsFixed(0)}.00", 
+            bold: true, size: 22, 
+            color: widget.isReadOnly ? Colors.purple.shade900 : Colors.teal.shade900
+          ),
+        ],
+      ),
+    );
+  }
 
   Widget _row(String l, String v, {bool bold = false, double size = 15, Color? color}) => Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [Text(l, style: TextStyle(fontWeight: bold ? FontWeight.bold : FontWeight.normal)), Text(v, style: TextStyle(fontWeight: bold ? FontWeight.bold : FontWeight.normal, fontSize: size, color: color))]);
 
   void _handleSave(PharoahManager ph) {
+    // Calculations for saving
+    double itemTotal = items.fold(0, (sum, it) => sum + it.total);
+    double extraDisc = double.tryParse(discountC.text) ?? 0.0;
+    double rawTotal = itemTotal - extraDisc;
+    double finalGrandTotal = rawTotal.roundToDouble();
+    double roundOffVal = finalGrandTotal - rawTotal;
+
     if (widget.modifySaleId != null) ph.deleteBill(widget.modifySaleId!);
     
     ph.finalizeSale(
@@ -338,9 +401,11 @@ class _BillingViewState extends State<BillingView> {
       date: selectedBillDate, 
       party: widget.party, 
       items: items, 
-      total: totalAmt, 
+      total: finalGrandTotal, // NAYA: Rounded Total save hoga
       mode: widget.mode,
-      linkedIds: widget.linkedChallanIds, 
+      linkedIds: widget.linkedChallanIds,
+      extraDiscount: extraDisc, // NAYA
+      roundOff: roundOffVal,     // NAYA
     );
 
     // ---> NAYA: SMART NAVIGATION START --->
