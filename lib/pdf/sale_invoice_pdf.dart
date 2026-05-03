@@ -109,7 +109,7 @@ class SaleInvoicePdf {
                   ),
 
                   // --- 4. SMART FOOTER (Locked Height: 110) ---
-                  if (isLastPage) _buildFooter(shop.name, sale)
+                  if (isLastPage) _buildFooter(shop.name, sale, shop)
                   else pw.Container(
                     height: 110, alignment: pw.Alignment.centerRight, padding: const pw.EdgeInsets.all(10),
                     decoration: const pw.BoxDecoration(border: pw.Border(top: pw.BorderSide(width: 0.5))),
