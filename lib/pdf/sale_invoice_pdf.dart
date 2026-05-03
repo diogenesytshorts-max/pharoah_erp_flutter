@@ -16,15 +16,14 @@ class SaleInvoicePdf {
     await Printing.layoutPdf(
       onLayout: (format) async => bytes,
       name: 'Invoice_${sale.billNo}',
-      format: PdfPageFormat.a4.landscape, // 🚀 FORCED LANDSCAPE
+      format: PdfPageFormat.a4.landscape, 
     );
   }
 
-  // --- ACTION 2: GENERATE BYTES (Required for Router & ZIP) ---
+  // --- ACTION 2: GENERATE BYTES ---
   static Future<Uint8List> generateBytes(Sale sale, Party party, CompanyProfile shop) async {
     final pdf = pw.Document();
 
-    // 📐 PRECISION MATH (Total: 800)
     const double masterWidth = 800;
     const double pageHeightLimit = 550;
     const int itemsPerPage = 20; 
@@ -47,7 +46,7 @@ class SaleInvoicePdf {
               decoration: pw.BoxDecoration(border: pw.Border.all(width: 1, color: PdfColors.black)),
               child: pw.Column(
                 children: [
-                  // --- 1. HEADER SECTION (Total: 290 + 175 + 335 = 800) ---
+                  // --- 1. HEADER SECTION ---
                   pw.Row(children: [
                     _headerBox(290, true, pw.Column(
                       crossAxisAlignment: pw.CrossAxisAlignment.start,
@@ -73,7 +72,7 @@ class SaleInvoicePdf {
                     ])),
                   ]),
 
-                  // --- 2. TABLE HEADER (Total: 800) ---
+                  // --- 2. TABLE HEADER ---
                   pw.Container(
                     color: PdfColors.grey100,
                     child: pw.Row(children: [
@@ -86,7 +85,7 @@ class SaleInvoicePdf {
                     ]),
                   ),
 
-                  // --- 3. DYNAMIC ROWS (Locked height prevents footer drop) ---
+                  // --- 3. DYNAMIC ROWS ---
                   pw.Container(
                     height: 330,
                     child: pw.Column(children: pageItems.map((i) {
@@ -108,7 +107,7 @@ class SaleInvoicePdf {
                     }).toList()),
                   ),
 
-                  // --- 4. SMART FOOTER (Locked Height: 110) ---
+                  // --- 4. SMART FOOTER ---
                   if (isLastPage) _buildFooter(shop.name, sale, shop)
                   else pw.Container(
                     height: 110, alignment: pw.Alignment.centerRight, padding: const pw.EdgeInsets.all(10),
@@ -125,17 +124,17 @@ class SaleInvoicePdf {
     return pdf.save();
   }
 
-  // --- UI BUILDING BLOCKS ---
   static pw.Widget _headerBox(double w, bool rBorder, pw.Widget child) => pw.Container(width: w, height: 85, padding: const pw.EdgeInsets.all(6), decoration: pw.BoxDecoration(border: pw.Border(right: pw.BorderSide(width: rBorder ? 0.5 : 0), bottom: const pw.BorderSide(width: 0.5))), child: child);
   static pw.Widget _tCol(String t, double w, {bool isLast = false, bool isLeft = false}) => pw.Container(width: w, height: 20, alignment: isLeft ? pw.Alignment.centerLeft : pw.Alignment.center, padding: pw.EdgeInsets.only(left: isLeft ? 8 : 0), decoration: pw.BoxDecoration(border: pw.Border(right: pw.BorderSide(width: isLast ? 0 : 0.5), bottom: const pw.BorderSide(width: 0.5))), child: pw.Text(t, style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold)));
-  
-  // FIXED: Added vertical borders to cells to align with table headers
   static pw.Widget _cell(String t, double w) => pw.Container(width: w, height: 16, alignment: pw.Alignment.center, decoration: const pw.BoxDecoration(border: pw.Border(right: pw.BorderSide(width: 0.2, color: PdfColors.grey))), child: pw.Text(t, style: const pw.TextStyle(fontSize: 7.5)));
 
-  static pw.Widget _buildFooter(String shopName, Sale sale) {
-    double gross = sale.items.fold(0, (sum, i) => sum + (i.qty * i.rate));
-    double tax = sale.totalAmount - gross;
-    int total = sale.totalAmount.round();
+  static pw.Widget _buildFooter(String shopName, Sale sale, CompanyProfile shop) {
+    // 1. Calculations
+    double taxableTotal = sale.items.fold(0.0, (sum, i) => sum + (i.qty * i.rate));
+    double totalTax = sale.items.fold(0.0, (sum, i) => sum + (i.cgst + i.sgst + i.igst));
+    
+    // 2. Local vs Interstate Logic
+    bool isLocal = shop.state.trim().toLowerCase() == sale.partyState.trim().toLowerCase();
 
     return pw.Container(
       height: 110,
@@ -143,17 +142,24 @@ class SaleInvoicePdf {
       child: pw.Row(children: [
         // Box 1: Words & Terms
         pw.Container(width: 320, padding: const pw.EdgeInsets.all(5), decoration: const pw.BoxDecoration(border: pw.Border(right: pw.BorderSide(width: 0.5))), child: pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
-          pw.Text("Amount: RUPEES ${PdfMasterService.numberToWords(total)} ONLY", style: pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold, color: PdfColors.blue800)),
+          pw.Text("Amount: RUPEES ${PdfMasterService.numberToWords(sale.totalAmount.round())} ONLY", style: pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold, color: PdfColors.blue800)),
           pw.Spacer(),
           pw.Text("Terms: 1. Goods once sold will not be taken back. 2. All disputes subject to local jurisdiction.", style: const pw.TextStyle(fontSize: 6.5)),
         ])),
-        // Box 2: Totals
+        // Box 2: Professional Totals
         pw.Container(width: 250, padding: const pw.EdgeInsets.all(5), decoration: const pw.BoxDecoration(border: pw.Border(right: pw.BorderSide(width: 0.5))), child: pw.Column(children: [
-          _fRow("GROSS TOTAL", gross), _fRow("TOTAL GST", tax),
+          _fRow("TAXABLE TOTAL", taxableTotal),
+          if (isLocal) ...[
+            _fRow("CGST TOTAL", totalTax / 2),
+            _fRow("SGST TOTAL", totalTax / 2),
+          ] else
+            _fRow("IGST TOTAL", totalTax),
+          if (sale.extraDiscount > 0) _fRow("EXTRA DISCOUNT (-)", sale.extraDiscount),
+          _fRow("ROUND OFF", sale.roundOff),
           pw.Divider(thickness: 0.5),
           pw.Row(mainAxisAlignment: pw.MainAxisAlignment.spaceBetween, children: [
-            pw.Text("NET AMOUNT", style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold)),
-            pw.Text("Rs. $total.00", style: pw.TextStyle(fontSize: 13, fontWeight: pw.FontWeight.bold)),
+            pw.Text("GRAND TOTAL", style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold)),
+            pw.Text("Rs. ${sale.totalAmount.toStringAsFixed(2)}", style: pw.TextStyle(fontSize: 13, fontWeight: pw.FontWeight.bold)),
           ]),
         ])),
         // Box 3: Sign
