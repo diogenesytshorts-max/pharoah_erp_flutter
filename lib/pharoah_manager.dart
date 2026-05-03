@@ -239,8 +239,32 @@ class PharoahManager with ChangeNotifier {
   }
 
   // --- FINALIZATION ---
-  Future<void> finalizeSale({required String billNo, required DateTime date, required Party party, required List<BillItem> items, required double total, required String mode, List<String>? linkedIds}) async { 
-    sales.add(Sale(id: DateTime.now().toString(), billNo: billNo, date: date, partyName: party.name, partyGstin: party.gst, partyState: party.state, items: items, totalAmount: total, paymentMode: mode, linkedChallanIds: linkedIds ?? [])); 
+  Future<void> finalizeSale({
+    required String billNo, 
+    required DateTime date, 
+    required Party party, 
+    required List<BillItem> items, 
+    required double total, 
+    required String mode, 
+    List<String>? linkedIds,
+    double extraDiscount = 0.0, // NAYA
+    double roundOff = 0.0       // NAYA
+  }) async { 
+    sales.add(Sale(
+      id: DateTime.now().toString(), 
+      billNo: billNo, 
+      date: date, 
+      partyName: party.name, 
+      partyGstin: party.gst, 
+      partyState: party.state, 
+      items: items, 
+      totalAmount: total, 
+      paymentMode: mode, 
+      linkedChallanIds: linkedIds ?? [],
+      extraDiscount: extraDiscount, // SAVE DISCOUNT
+      roundOff: roundOff,           // SAVE ROUND OFF
+    )); 
+
     if (linkedIds != null) { for (var id in linkedIds) { int idx = saleChallans.indexWhere((c) => c.id == id); if (idx != -1) saleChallans[idx].status = "Billed"; } }
     if (activeCompany != null) { String p = billNo.split(RegExp(r'\d')).first; await PharoahNumberingEngine.updateSeriesCounter(type: "SALE", companyID: activeCompany!.id, usedNumber: billNo, prefix: p); }
     await save(); InventoryLogicCenter.rebuildAllInventory(medicines: medicines, batchHistory: batchHistory, purchases: purchases, sales: sales);
@@ -279,11 +303,24 @@ class PharoahManager with ChangeNotifier {
     save().then((_) => loadAllData());
   }
 
-  void updateSale({required String id, required String billNo, required DateTime date, required Party party, required List<BillItem> items, required double total, required String mode, required List<String> linkedChallanIds}) {
+  void updateSale({
+    required String id, required String billNo, required DateTime date, required Party party, 
+    required List<BillItem> items, required double total, required String mode, 
+    required List<String> linkedChallanIds,
+    double extraDiscount = 0.0, // NAYA
+    double roundOff = 0.0       // NAYA
+  }) {
     int idx = sales.indexWhere((s) => s.id == id); if (idx == -1) return;
     List<String> activeIds = items.where((it) => it.sourceChallanId.isNotEmpty).map((it) => it.sourceChallanId).toSet().toList();
     for (var oldId in linkedChallanIds) { if (!activeIds.contains(oldId)) { int cIdx = saleChallans.indexWhere((c) => c.id == oldId); if (cIdx != -1) saleChallans[cIdx].status = "Pending"; } }
-    sales[idx] = Sale(id: id, billNo: billNo, date: date, partyName: party.name, partyGstin: party.gst, partyState: party.state, items: items, totalAmount: total, paymentMode: mode, linkedChallanIds: activeIds);
+    
+    sales[idx] = Sale(
+      id: id, billNo: billNo, date: date, partyName: party.name, partyGstin: party.gst, 
+      partyState: party.state, items: items, totalAmount: total, paymentMode: mode, 
+      linkedChallanIds: activeIds,
+      extraDiscount: extraDiscount, // UPDATE DISCOUNT
+      roundOff: roundOff,           // UPDATE ROUND OFF
+    );
     save().then((_) => loadAllData());
   }
 
