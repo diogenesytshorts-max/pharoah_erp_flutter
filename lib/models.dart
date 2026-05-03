@@ -29,7 +29,38 @@ class NumberingSeries {
     isDefault: map['isDefault'] ?? false, isActive: map['isActive'] ?? true
   );
 }
+// --- NEW CLASS FOR SIGNATURE HISTORY ---
+class ChallanSignature {
+  String id;
+  String imagePath;        // Mobile mein saved signature image ka path
+  String verificationCode; // Woh unique random code (RX-9921)
+  double signedAmount;     // Kis amount par sign hua tha (Integrity check ke liye)
+  DateTime signDate;
 
+  ChallanSignature({
+    required this.id,
+    required this.imagePath,
+    required this.verificationCode,
+    required this.signedAmount,
+    required this.signDate,
+  });
+
+  Map<String, dynamic> toMap() => {
+    'id': id,
+    'imagePath': imagePath,
+    'verificationCode': verificationCode,
+    'signedAmount': signedAmount,
+    'signDate': signDate.toIso8601String(),
+  };
+
+  factory ChallanSignature.fromMap(Map<String, dynamic> map) => ChallanSignature(
+    id: map['id'] ?? '',
+    imagePath: map['imagePath'] ?? '',
+    verificationCode: map['verificationCode'] ?? '',
+    signedAmount: (map['signedAmount'] ?? 0.0).toDouble(),
+    signDate: DateTime.parse(map['signDate'] ?? DateTime.now().toIso8601String()),
+  );
+}
 // ===========================================================================
 // 2. MASTER MODELS
 // ===========================================================================
@@ -223,10 +254,62 @@ class Purchase {
 
 class SaleChallan { 
   String id, billNo, partyName, partyGstin, partyState, status, salesmanName, remarks; 
-  DateTime date; List<BillItem> items; double totalAmount;
-  SaleChallan({required this.id, required this.billNo, required this.date, required this.partyName, required this.partyGstin, required this.partyState, required this.items, required this.totalAmount, this.status = "Pending", this.salesmanName = "", this.remarks = ""});
-  Map<String, dynamic> toMap() => {'id': id, 'billNo': billNo, 'date': date.toIso8601String(), 'partyName': partyName, 'partyGstin': partyGstin, 'partyState': partyState, 'totalAmount': totalAmount, 'status': status, 'salesmanName': salesmanName, 'remarks': remarks, 'items': items.map((i) => i.toMap()).toList()};
-  factory SaleChallan.fromMap(Map<String, dynamic> map) => SaleChallan(id: map['id'], billNo: map['billNo'], date: DateTime.parse(map['date']), partyName: map['partyName'], partyGstin: map['partyGstin'] ?? "", partyState: map['partyState'] ?? "Rajasthan", totalAmount: (map['totalAmount'] ?? 0.0).toDouble(), status: map['status'] ?? "Pending", salesmanName: map['salesmanName'] ?? "", remarks: map['remarks'] ?? "", items: (map['items'] as List).map((i) => BillItem.fromMap(i)).toList()); 
+  DateTime date; 
+  List<BillItem> items; 
+  double totalAmount;
+  
+  // --- NAYE FIELDS FOR SECURE SIGN ---
+  List<ChallanSignature> sigHistory; // Purane signatures ka record
+  bool isSigned;                     // Kya ye signed hai?
+
+  SaleChallan({
+    required this.id, 
+    required this.billNo, 
+    required this.date, 
+    required this.partyName, 
+    required this.partyGstin, 
+    required this.partyState, 
+    required this.items, 
+    required this.totalAmount, 
+    this.status = "Pending", 
+    this.salesmanName = "", 
+    this.remarks = "",
+    this.sigHistory = const [], // Default khali list
+    this.isSigned = false,      // Default false
+  });
+
+  Map<String, dynamic> toMap() => {
+    'id': id, 
+    'billNo': billNo, 
+    'date': date.toIso8601String(), 
+    'partyName': partyName, 
+    'partyGstin': partyGstin, 
+    'partyState': partyState, 
+    'totalAmount': totalAmount, 
+    'status': status, 
+    'salesmanName': salesmanName, 
+    'remarks': remarks, 
+    'items': items.map((i) => i.toMap()).toList(),
+    'sigHistory': sigHistory.map((s) => s.toMap()).toList(), // JSON mein save hoga
+    'isSigned': isSigned,
+  };
+
+  factory SaleChallan.fromMap(Map<String, dynamic> map) => SaleChallan(
+    id: map['id'], 
+    billNo: map['billNo'], 
+    date: DateTime.parse(map['date']), 
+    partyName: map['partyName'], 
+    partyGstin: map['partyGstin'] ?? "", 
+    partyState: map['partyState'] ?? "Rajasthan", 
+    totalAmount: (map['totalAmount'] ?? 0.0).toDouble(), 
+    status: map['status'] ?? "Pending", 
+    salesmanName: map['salesmanName'] ?? "", 
+    remarks: map['remarks'] ?? "", 
+    items: (map['items'] as List).map((i) => BillItem.fromMap(i)).toList(),
+    // Naye data ko load karna
+    isSigned: map['isSigned'] ?? false,
+    sigHistory: (map['sigHistory'] as List?)?.map((s) => ChallanSignature.fromMap(s)).toList() ?? [],
+  ); 
 }
 
 class PurchaseChallan { 
