@@ -88,7 +88,7 @@ class ArchitectSalePdf {
               ]));
             }).toList())),
             // Footer
-            if (isLastPage) _buildSmartFooter(shop.name, sale, config)
+            if (isLastPage) _buildSmartFooter(shop.name, sale, config, shop)
             else pw.Container(height: 115, alignment: pw.Alignment.centerRight, padding: const pw.EdgeInsets.all(10), child: pw.Text("Continued...", style: pw.TextStyle(fontStyle: pw.FontStyle.italic, fontSize: 10))),
           ]),
         )
