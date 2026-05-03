@@ -102,14 +102,15 @@ class ArchitectSalePdf {
   static pw.Widget _tCol(String t, double w, {bool isLast = false, bool isLeft = false}) => pw.Container(width: w, height: 20, alignment: isLeft ? pw.Alignment.centerLeft : pw.Alignment.center, padding: pw.EdgeInsets.only(left: isLeft ? 8 : 0), decoration: pw.BoxDecoration(border: pw.Border(right: pw.BorderSide(width: isLast ? 0 : 0.5), bottom: const pw.BorderSide(width: 0.5))), child: pw.Text(t, style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold)));
   static pw.Widget _cell(String t, double w) => pw.Container(width: w, height: 16, alignment: pw.Alignment.center, decoration: const pw.BoxDecoration(border: pw.Border(right: pw.BorderSide(width: 0.2, color: PdfColors.grey))), child: pw.Text(t, style: const pw.TextStyle(fontSize: 7.5)));
 
-  static pw.Widget _buildSmartFooter(String shopName, Sale sale, AppConfig config) {
-    double totalGross = sale.items.fold(0, (sum, i) => sum + (i.qty * i.rate));
-    double totalGST = sale.totalAmount - totalGross;
-    int total = sale.totalAmount.round();
+  static pw.Widget _buildSmartFooter(String shopName, Sale sale, AppConfig config, CompanyProfile shop) {
+    double taxableTotal = sale.items.fold(0, (sum, i) => sum + (i.qty * i.rate));
+    double totalGst = sale.items.fold(0, (sum, i) => sum + (i.cgst + i.sgst + i.igst));
+    bool isLocal = shop.state.trim().toLowerCase() == sale.partyState.trim().toLowerCase();
 
     return pw.Container(height: 115, child: pw.Row(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
+      // Box 1... (Wahi rahega)
       pw.Container(width: 340, padding: const pw.EdgeInsets.all(5), decoration: const pw.BoxDecoration(border: pw.Border(top: pw.BorderSide(width: 0.5), right: pw.BorderSide(width: 0.5))), child: pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
-        pw.Text("Amount: RUPEES ${PdfMasterService.numberToWords(total)} ONLY", style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold, color: PdfColors.blue800)),
+        pw.Text("Amount: RUPEES ${PdfMasterService.numberToWords(sale.totalAmount.round())} ONLY", style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold, color: PdfColors.blue800)),
         pw.Spacer(),
         pw.Row(children: [
           pw.Expanded(child: pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
@@ -120,14 +121,23 @@ class ArchitectSalePdf {
             pw.Container(width: 45, height: 45, child: pw.Image(pw.MemoryImage(File(config.qrCodePath!).readAsBytesSync()))),
         ])
       ])),
+      // Box 2: NEW TOTALS LOGIC
       pw.Container(width: 260, padding: const pw.EdgeInsets.all(5), decoration: const pw.BoxDecoration(border: pw.Border(top: pw.BorderSide(width: 0.5), right: pw.BorderSide(width: 0.5))), child: pw.Column(children: [
-        _fRow("GROSS TOTAL", totalGross), _fRow("TOTAL GST", totalGST),
+        _fRow("TAXABLE TOTAL", taxableTotal),
+        if (isLocal) ...[
+          _fRow("SGST TOTAL", totalGst / 2),
+          _fRow("CGST TOTAL", totalGst / 2),
+        ] else
+          _fRow("IGST TOTAL", totalGst),
+        if (sale.extraDiscount > 0) _fRow("DISCOUNT (-)", sale.extraDiscount),
+        _fRow("ROUND OFF", sale.roundOff),
         pw.Divider(thickness: 0.5),
         pw.Row(mainAxisAlignment: pw.MainAxisAlignment.spaceBetween, children: [
-          pw.Text("NET PAYABLE", style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold)),
-          pw.Text("Rs. $total.00", style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold)),
+          pw.Text("GRAND TOTAL", style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold)),
+          pw.Text("Rs. ${sale.totalAmount.toStringAsFixed(2)}", style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold)),
         ]),
       ])),
+      // Box 3: Sign
       pw.Container(width: 200, padding: const pw.EdgeInsets.all(5), decoration: const pw.BoxDecoration(border: pw.Border(top: pw.BorderSide(width: 0.5))), child: pw.Column(mainAxisAlignment: pw.MainAxisAlignment.spaceBetween, children: [
         pw.Text("For $shopName", style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold)),
         if (config.showStaffSign) pw.Text(config.signLabel, style: const pw.TextStyle(fontSize: 7.5)),
