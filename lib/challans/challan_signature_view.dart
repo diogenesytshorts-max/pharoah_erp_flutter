@@ -28,7 +28,7 @@ class ChallanSignatureView extends StatefulWidget {
 class _ChallanSignatureViewState extends State<ChallanSignatureView> {
   bool isSignMode = false;
   bool isProcessing = false;
-  bool _isZoomed = false; // Zoom status track karne ke liye
+  bool _isZoomed = false; 
   String uniqueCode = "";
   List<Offset?> points = [];
   int currentPage = 0;
@@ -37,6 +37,9 @@ class _ChallanSignatureViewState extends State<ChallanSignatureView> {
 
   final PageController _pageController = PageController();
   final GlobalKey _signBoundaryKey = GlobalKey(); 
+  
+  // NAYA: TransformationController zoom levels ko track karne ke liye
+  final TransformationController _transformationController = TransformationController();
 
   @override
   void initState() {
@@ -45,23 +48,24 @@ class _ChallanSignatureViewState extends State<ChallanSignatureView> {
       DeviceOrientation.landscapeRight, 
       DeviceOrientation.landscapeLeft
     ]);
+
+    // Zoom listener setup
+    _transformationController.addListener(() {
+      double scale = _transformationController.value.storage[0];
+      if (scale > 1.0 && !_isZoomed) {
+        setState(() => _isZoomed = true);
+      } else if (scale <= 1.0 && _isZoomed) {
+        setState(() => _isZoomed = false);
+      }
+    });
   }
 
   @override
   void dispose() {
     SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
     _pageController.dispose();
+    _transformationController.dispose(); // Controller ko band karna zaroori hai
     super.dispose();
-  }
-
-  // --- LOGIC: ZOOM STATUS DETECTOR ---
-  // Ye function detect karta hai ki user ne zoom kiya hai ya nahi
-  void _handleTransformation(Matrix4 matrix) {
-    double currentScale = matrix.storage[0];
-    bool zoomed = currentScale > 1.0;
-    if (zoomed != _isZoomed) {
-      setState(() => _isZoomed = zoomed);
-    }
   }
 
   void _generateCode(Offset touchPoint) {
@@ -104,7 +108,6 @@ class _ChallanSignatureViewState extends State<ChallanSignatureView> {
       builder: (c) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: const Text("Challan Verified & Locked"),
-        content: const Text("Challan process complete. Choose an action:"),
         actions: [
           ElevatedButton.icon(
             onPressed: () async {
@@ -144,7 +147,6 @@ class _ChallanSignatureViewState extends State<ChallanSignatureView> {
         backgroundColor: Colors.black,
         title: Text("Receiver Review: Page ${currentPage + 1} / $totalPages", style: const TextStyle(fontSize: 14)),
         actions: [
-          // SIGN BUTTON: Sirf last page par hi active hoga
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
             child: ElevatedButton.icon(
@@ -154,8 +156,9 @@ class _ChallanSignatureViewState extends State<ChallanSignatureView> {
               onPressed: () {
                 if (!isAtLastPage) {
                   _pageController.animateToPage(totalPages - 1, duration: const Duration(milliseconds: 600), curve: Curves.easeInOut);
-                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Please go to the Last Page to Sign"), duration: Duration(seconds: 1)));
                 } else {
+                  // Signature mode on karne par zoom reset kar dena chahiye logic ki safety ke liye
+                  _transformationController.value = Matrix4.identity();
                   setState(() => isSignMode = !isSignMode);
                 }
               },
@@ -170,17 +173,24 @@ class _ChallanSignatureViewState extends State<ChallanSignatureView> {
           Expanded(
             child: PageView.builder(
               controller: _pageController,
-              // NAYA: Agar zoomed hai ya Sign Mode on hai, toh swipe disable kar do
+              // Agar zoomed hai ya Sign Mode on hai, toh PageView ko hile nahi dena
               physics: (_isZoomed || isSignMode) ? const NeverScrollableScrollPhysics() : const BouncingScrollPhysics(),
               itemCount: totalPages,
-              onPageChanged: (i) => setState(() => currentPage = i),
+              onPageChanged: (i) {
+                setState(() {
+                  currentPage = i;
+                  _isZoomed = false;
+                  _transformationController.value = Matrix4.identity(); // Page change par zoom reset
+                });
+              },
               itemBuilder: (context, index) {
                 bool isActualLastPage = (index == totalPages - 1);
                 
                 return InteractiveViewer(
+                  transformationController: _transformationController,
                   minScale: 1.0, 
                   maxScale: 4.0,
-                  onInteractionUpdate: (details) => _handleTransformation(details.localTransform),
+                  // onInteractionUpdate hatakar transformationController handle karega automation
                   child: Center(
                     child: FittedBox(
                       fit: BoxFit.contain,
@@ -193,7 +203,6 @@ class _ChallanSignatureViewState extends State<ChallanSignatureView> {
                             _buildBillLayout(index, totalPages, isActualLastPage, ph),
                             if (uniqueCode.isNotEmpty) _buildWatermarkSeal(),
                             
-                            // SIGNATURE PAD: Sirf last page aur sign mode mein active
                             if (isActualLastPage && isSignMode)
                               RepaintBoundary(
                                 key: _signBoundaryKey,
@@ -216,7 +225,6 @@ class _ChallanSignatureViewState extends State<ChallanSignatureView> {
               },
             ),
           ),
-          _buildBottomInfoBar(isAtLastPage),
           _buildBottomActionPanel(ph, isAtLastPage),
         ],
       ),
@@ -269,22 +277,11 @@ class _ChallanSignatureViewState extends State<ChallanSignatureView> {
   
   Widget _buildSecurityDisclaimer() => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
     if (uniqueCode.isNotEmpty) Text("SEAL: $uniqueCode", style: const TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.red)), 
-    const SizedBox(width: 320, child: Text("SECURE DOCUMENT: This challan is digitally verified. Any change in items or amount will invalidate the digital seal.", style: TextStyle(fontSize: 7, color: Colors.blueGrey, fontWeight: FontWeight.bold)))
+    const SizedBox(width: 320, child: Text("SECURE DOCUMENT: Digitally verified challan. Integrity locked.", style: TextStyle(fontSize: 7, color: Colors.blueGrey, fontWeight: FontWeight.bold)))
   ]);
   
   Widget _buildWatermarkSeal() => Positioned.fill(child: Center(child: IgnorePointer(child: Transform.rotate(angle: -0.4, child: Opacity(opacity: 0.1, child: Container(padding: const EdgeInsets.all(20), decoration: BoxDecoration(border: Border.all(color: Colors.red, width: 5)), child: Text(uniqueCode, style: const TextStyle(fontSize: 60, fontWeight: FontWeight.bold, color: Colors.red))))))));
   
-  Widget _buildBottomInfoBar(bool isLastPage) => Container(
-    width: double.infinity,
-    color: isLastPage ? Colors.green.withOpacity(0.1) : Colors.white10,
-    padding: const EdgeInsets.all(8),
-    child: Text(
-      isLastPage ? "READY TO SIGN" : "SWIPE LEFT TO REACH THE END OF DOCUMENT",
-      textAlign: TextAlign.center,
-      style: TextStyle(color: isLastPage ? Colors.greenAccent : Colors.white60, fontSize: 10, fontWeight: FontWeight.bold),
-    ),
-  );
-
   Widget _buildBottomActionPanel(PharoahManager ph, bool isLastPage) => Container(
     padding: const EdgeInsets.all(15), 
     color: Colors.black, 
