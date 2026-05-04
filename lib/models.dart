@@ -30,12 +30,17 @@ class NumberingSeries {
   );
 }
 // --- NEW CLASS FOR SIGNATURE HISTORY ---
+// --- FINAL UPDATED CLASS FOR SIGNATURE ---
 class ChallanSignature {
   String id;
-  String imagePath;        // Mobile mein saved signature image ka path
-  String verificationCode; // Woh unique random code (RX-9921)
-  double signedAmount;     // Kis amount par sign hua tha (Integrity check ke liye)
+  String imagePath;
+  String verificationCode;
+  double signedAmount;
   DateTime signDate;
+  
+  // NAYA: Coordinates (Percentage based mapping)
+  double signX; // Left se kitni door (0.0 to 1.0)
+  double signY; // Top se kitna niche (0.0 to 1.0)
 
   ChallanSignature({
     required this.id,
@@ -43,6 +48,8 @@ class ChallanSignature {
     required this.verificationCode,
     required this.signedAmount,
     required this.signDate,
+    this.signX = 0.0, // Default position
+    this.signY = 0.0,
   });
 
   Map<String, dynamic> toMap() => {
@@ -51,6 +58,8 @@ class ChallanSignature {
     'verificationCode': verificationCode,
     'signedAmount': signedAmount,
     'signDate': signDate.toIso8601String(),
+    'signX': signX,
+    'signY': signY,
   };
 
   factory ChallanSignature.fromMap(Map<String, dynamic> map) => ChallanSignature(
@@ -59,6 +68,8 @@ class ChallanSignature {
     verificationCode: map['verificationCode'] ?? '',
     signedAmount: (map['signedAmount'] ?? 0.0).toDouble(),
     signDate: DateTime.parse(map['signDate'] ?? DateTime.now().toIso8601String()),
+    signX: (map['signX'] ?? 0.0).toDouble(),
+    signY: (map['signY'] ?? 0.0).toDouble(),
   );
 }
 // ===========================================================================
