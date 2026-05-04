@@ -10,7 +10,8 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import 'package:share_plus/share_plus.dart'; 
-import 'package:file_saver/file_saver.dart'; // NAYA: Device save ke liye
+import 'package:path_provider/path_provider.dart'; // <--- YAHAN ERROR THA (Ab theek hai)
+import 'package:file_saver/file_saver.dart'; 
 import '../pharoah_manager.dart';
 import '../models.dart';
 import '../pdf/sale_challan_pdf.dart';
@@ -82,9 +83,6 @@ class _ChallanSignatureViewState extends State<ChallanSignatureView> {
     setState(() => isProcessing = false);
   }
 
-  // ===========================================================================
-  // 🚀 ACTION HUB: SHARE ZIP / SAVE TO MOBILE
-  // ===========================================================================
   void _showActionHub(PharoahManager ph, SaleChallan latest) {
     showDialog(
       context: context,
@@ -94,17 +92,15 @@ class _ChallanSignatureViewState extends State<ChallanSignatureView> {
         title: const Text("Challan Verified & Locked"),
         content: const Text("Select how you want to handle the signed document:"),
         actions: [
-          // 1. SAVE TO MOBILE
           OutlinedButton.icon(
             onPressed: () async {
               final bytes = await SaleChallanPdf.generateBytes(latest, widget.party, ph.activeCompany!);
               await FileSaver.instance.saveAs(name: "Challan_${latest.billNo}", bytes: bytes, ext: "pdf", mimeType: MimeType.pdf);
-              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("✅ PDF Saved to Downloads")));
+              if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("✅ PDF Saved to Downloads")));
             },
             icon: const Icon(Icons.download_rounded),
             label: const Text("SAVE TO PHONE"),
           ),
-          // 2. SHARE (Like Converter Screen)
           ElevatedButton.icon(
             style: ElevatedButton.styleFrom(backgroundColor: Colors.green, foregroundColor: Colors.white),
             onPressed: () async {
@@ -117,11 +113,9 @@ class _ChallanSignatureViewState extends State<ChallanSignatureView> {
             icon: const Icon(Icons.share),
             label: const Text("SHARE PDF"),
           ),
-          // 3. EXIT (Direct to Dashboard)
           TextButton(
             onPressed: () {
               Navigator.pop(c);
-              // FIXED: Navigation back to home, avoiding setup screens
               Navigator.of(context).popUntil((route) => route.isFirst);
             },
             child: const Text("DONE / EXIT", style: TextStyle(color: Colors.red)),
