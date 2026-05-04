@@ -28,12 +28,9 @@ class _ChallanSignatureViewState extends State<ChallanSignatureView> {
   String uniqueCode = "";
   List<Offset?> points = [];
   int currentPage = 0;
-  
-  // Normalized Coords
   double signXPercent = 0.5;
   double signYPercent = 0.8;
 
-  final TransformationController _zoomController = TransformationController();
   final PageController _pageController = PageController();
   final GlobalKey _signBoundaryKey = GlobalKey(); 
 
@@ -46,6 +43,7 @@ class _ChallanSignatureViewState extends State<ChallanSignatureView> {
   @override
   void dispose() {
     SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
+    _pageController.dispose();
     super.dispose();
   }
 
@@ -54,7 +52,6 @@ class _ChallanSignatureViewState extends State<ChallanSignatureView> {
       const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
       setState(() {
         uniqueCode = "VR-${List.generate(5, (i) => chars[Random().nextInt(chars.length)]).join()}";
-        // FIX: Mapping based on internal canvas size (800 x 550)
         signXPercent = touchPoint.dx / 800;
         signYPercent = touchPoint.dy / 550;
       });
@@ -70,8 +67,6 @@ class _ChallanSignatureViewState extends State<ChallanSignatureView> {
       Uint8List sigBytes = byteData!.buffer.asUint8List();
 
       String savedImgPath = await ph.saveSignatureFile(widget.challan.billNo, sigBytes);
-      
-      // Update database
       await ph.addSignatureToChallan(
         challanId: widget.challan.id,
         imagePath: savedImgPath,
@@ -82,9 +77,7 @@ class _ChallanSignatureViewState extends State<ChallanSignatureView> {
       );
 
       if (mounted) {
-        // --- FIX: Fetch LATEST challan from manager to ensure it has isSigned = true ---
         final updatedChallan = ph.saleChallans.firstWhere((c) => c.id == widget.challan.id);
-        
         _showSuccessActions(ph, updatedChallan);
       }
     } catch (e) {
@@ -100,20 +93,19 @@ class _ChallanSignatureViewState extends State<ChallanSignatureView> {
       builder: (c) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: const Text("Success! Verification Locked"),
-        content: const Text("Choose what to do with the signed PDF:"),
+        content: const Text("Challan is now secured. Share the professional signed PDF:"),
         actions: [
           ElevatedButton.icon(
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.green, foregroundColor: Colors.white),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.green, foregroundColor: Colors.white, padding: const EdgeInsets.all(15)),
             onPressed: () async {
-              // Pass the UPDATED challan to PDF generator
               await SaleChallanPdf.generate(latestChallan, widget.party, ph.activeCompany!);
               Navigator.pop(c);
               Navigator.pop(context);
             },
             icon: const Icon(Icons.share),
-            label: const Text("SHARE / SAVE PDF"),
+            label: const Text("SHARE ON WHATSAPP"),
           ),
-          TextButton(onPressed: () { Navigator.pop(c); Navigator.pop(context); }, child: const Text("CLOSE"))
+          TextButton(onPressed: () { Navigator.pop(c); Navigator.pop(context); }, child: const Text("EXIT"))
         ],
       ),
     );
@@ -129,32 +121,31 @@ class _ChallanSignatureViewState extends State<ChallanSignatureView> {
     return Scaffold(
       backgroundColor: const Color(0xFF1E1E1E),
       appBar: AppBar(
-        title: Text("Challan Review: Page ${currentPage + 1}"),
+        title: Text("Receiver Review: Page ${currentPage + 1} of $totalPages"),
         backgroundColor: Colors.black,
         actions: [
           Padding(padding: const EdgeInsets.all(8.0), child: ElevatedButton.icon(
             style: ElevatedButton.styleFrom(backgroundColor: isSignMode ? Colors.red : Colors.blueAccent),
             onPressed: () => setState(() => isSignMode = !isSignMode),
             icon: Icon(isSignMode ? Icons.done : Icons.draw),
-            label: Text(isSignMode ? "DONE" : "SIGN"),
+            label: Text(isSignMode ? "DONE SIGNING" : "SIGN NOW"),
           ))
         ],
       ),
       body: Column(
         children: [
           Expanded(
-            child: InteractiveViewer(
-              transformationController: _zoomController,
-              panEnabled: !isSignMode,
-              scaleEnabled: !isSignMode,
-              child: PageView.builder(
-                controller: _pageController,
-                physics: isSignMode ? const NeverScrollableScrollPhysics() : const BouncingScrollPhysics(),
-                itemCount: totalPages,
-                onPageChanged: (i) => setState(() => currentPage = i),
-                itemBuilder: (context, index) {
-                  bool isLastPage = (index == totalPages - 1);
-                  return Center(
+            child: PageView.builder(
+              controller: _pageController,
+              physics: isSignMode ? const NeverScrollableScrollPhysics() : const BouncingScrollPhysics(),
+              itemCount: totalPages,
+              onPageChanged: (i) => setState(() => currentPage = i),
+              itemBuilder: (context, index) {
+                bool isLastPage = (index == totalPages - 1);
+                // --- FIX: Zoom inside each page ---
+                return InteractiveViewer(
+                  minScale: 1.0, maxScale: 4.0,
+                  child: Center(
                     child: FittedBox(
                       fit: BoxFit.contain,
                       child: Container(
@@ -179,9 +170,9 @@ class _ChallanSignatureViewState extends State<ChallanSignatureView> {
                         ),
                       ),
                     ),
-                  );
-                },
-              ),
+                  ),
+                );
+              },
             ),
           ),
           _buildBottomActionPanel(ph),
@@ -197,18 +188,18 @@ class _ChallanSignatureViewState extends State<ChallanSignatureView> {
       child: Column(
         children: [
           Row(children: [
-            _headerBox(3, [
+            _headerBox(290, [
               Text(shop.name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: Colors.blue)),
               Text(shop.address, style: const TextStyle(fontSize: 9)),
               Text("GST: ${shop.gstin}", style: const TextStyle(fontSize: 9, fontWeight: FontWeight.bold)),
             ]),
-            _headerBox(2, [
+            _headerBox(175, [
               const Center(child: Text("DELIVERY CHALLAN", style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold))),
               const Divider(),
               Text("No: ${widget.challan.billNo}", style: const TextStyle(fontSize: 9, fontWeight: FontWeight.bold)),
               Text("Date: ${DateFormat('dd/MM/yyyy').format(widget.challan.date)}", style: const TextStyle(fontSize: 9)),
             ]),
-            _headerBox(3, [
+            _headerBox(335, [
               const Text("CONSIGNEE:", style: TextStyle(fontSize: 8, color: Colors.grey, fontWeight: FontWeight.bold)),
               Text(widget.party.name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
               Text("${widget.party.city} | GST: ${widget.party.gst}", style: const TextStyle(fontSize: 9)),
@@ -230,38 +221,31 @@ class _ChallanSignatureViewState extends State<ChallanSignatureView> {
     );
   }
 
-  // --- NAYA: Full Columns for Review Screen ---
   Widget _buildFullTable(int pageIdx) {
     int start = pageIdx * 12;
     int end = (start + 12 < widget.challan.items.length) ? start + 12 : widget.challan.items.length;
     var pageItems = widget.challan.items.sublist(start, end);
-
     return Column(children: [
-      Container(
-        color: Colors.grey[100],
-        child: Row(children: [
-          _cell("S.N", 35, true), _cell("Item Description", 220, true, true),
-          _cell("Batch", 80, true), _cell("Exp", 55, true),
-          _cell("Qty+Free", 70, true), _cell("MRP", 65, true),
-          _cell("Rate", 70, true), _cell("Net Total", 90, true),
-        ]),
-      ),
+      Container(color: Colors.grey[100], child: Row(children: [
+        _cell("S.N", 25, true), _cell("Qty+Free", 55, true), _cell("Pack", 45, true),
+        _cell("Product Description", 210, true, true), _cell("Batch", 75, true),
+        _cell("Exp", 45, true), _cell("HSN", 50, true), _cell("MRP", 55, true),
+        _cell("Rate", 55, true), _cell("GST%", 30, true), _cell("Net Total", 155, true),
+      ])),
       ...pageItems.map((it) => Row(children: [
-        _cell(it.srNo.toString(), 35, false), _cell(it.name, 220, false, true),
-        _cell(it.batch, 80, false), _cell(it.exp, 55, false),
-        _cell("${it.qty.toInt()} + ${it.freeQty.toInt()}", 70, false),
-        _cell(it.mrp.toStringAsFixed(2), 65, false),
-        _cell(it.rate.toStringAsFixed(2), 70, false),
-        _cell(it.total.toStringAsFixed(2), 90, false),
+        _cell(it.srNo.toString(), 25, false), _cell("${it.qty.toInt()} + ${it.freeQty.toInt()}", 55, false),
+        _cell(it.packing, 45, false), _cell(it.name, 210, false, true), _cell(it.batch, 75, false),
+        _cell(it.exp, 45, false), _cell(it.hsn, 50, false), _cell(it.mrp.toStringAsFixed(2), 55, false),
+        _cell(it.rate.toStringAsFixed(2), 55, false), _cell("${it.gstRate.toInt()}%", 30, false), _cell(it.total.toStringAsFixed(2), 155, false),
       ])).toList(),
     ]);
   }
 
   Widget _cell(String t, double w, bool b, [bool isLeft = false]) => Container(width: w, padding: const EdgeInsets.all(6), decoration: BoxDecoration(border: Border.all(color: Colors.black12, width: 0.4)), child: Text(t, textAlign: isLeft ? TextAlign.left : TextAlign.center, style: TextStyle(fontSize: 9, fontWeight: b ? FontWeight.bold : FontWeight.normal)));
-  Widget _headerBox(int f, List<Widget> ch) => Expanded(flex: f, child: Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(border: Border.all(width: 0.5, color: Colors.black38)), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: ch)));
+  Widget _headerBox(double w, List<Widget> ch) => Container(width: w, padding: const EdgeInsets.all(8), decoration: BoxDecoration(border: Border.all(width: 0.5, color: Colors.black38)), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: ch));
   Widget _buildSecurityDisclaimer() => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
     if (uniqueCode.isNotEmpty) Text("DIGITAL SEAL: $uniqueCode", style: const TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.red)),
-    const SizedBox(width: 300, child: Text("SECURITY NOTICE: Locked with unique digital seal. Any unauthorized modification will permanently invalidate this code.", style: TextStyle(fontSize: 7, color: Colors.blueGrey, fontWeight: FontWeight.bold))),
+    const SizedBox(width: 320, child: Text("SECURITY NOTICE: Locked with unique digital seal. Any unauthorized modification will permanently invalidate this code.", style: TextStyle(fontSize: 7, color: Colors.blueGrey, fontWeight: FontWeight.bold))),
   ]);
   Widget _buildWatermarkSeal() => Positioned.fill(child: Center(child: IgnorePointer(child: Transform.rotate(angle: -0.4, child: Opacity(opacity: 0.1, child: Container(padding: const EdgeInsets.all(20), decoration: BoxDecoration(border: Border.all(color: Colors.red, width: 5)), child: Text(uniqueCode, style: const TextStyle(fontSize: 60, fontWeight: FontWeight.bold, color: Colors.red))))))));
   Widget _buildBottomActionPanel(PharoahManager ph) => Container(padding: const EdgeInsets.all(15), color: Colors.black, child: Row(children: [
