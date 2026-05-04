@@ -1,176 +1,285 @@
-// FILE: lib/pdf/sale_challan_pdf.dart
+// FILE: lib/challans/challan_signature_view.dart
 
-import 'dart:io'; // NAYA: Signature file read karne ke liye
-import 'package:pdf/pdf.dart';
-import 'package:pdf/widgets.dart' as pw;
-import 'package:printing/printing.dart';
+import 'dart:math';
+import 'dart:typed_data';
+import 'dart:ui' as ui;
+import 'dart:io';
+import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
+import 'package:flutter/services.dart'; 
+import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
+import '../pharoah_manager.dart';
 import '../models.dart';
-import '../gateway/company_registry_model.dart';
-import 'pdf_master_service.dart';
+import '../pdf/sale_challan_pdf.dart';
 
-class SaleChallanPdf {
-  static Future<void> generate(SaleChallan challan, Party party, CompanyProfile shop) async {
-    final pdf = pw.Document();
+class ChallanSignatureView extends StatefulWidget {
+  final SaleChallan challan;
+  final Party party;
+  const ChallanSignatureView({super.key, required this.challan, required this.party});
 
-    const double masterWidth = 800;
-    const double pageHeightLimit = 550;
-    const int itemsPerPage = 18; 
-    int totalPages = (challan.items.length / itemsPerPage).ceil();
-    if (totalPages == 0) totalPages = 1;
+  @override
+  State<ChallanSignatureView> createState() => _ChallanSignatureViewState();
+}
 
-    // --- NAYA: Signature Image taiyar karna (Agar signed hai) ---
-    pw.MemoryImage? sigImage;
-    ChallanSignature? lastSig;
-    if (challan.isSigned && challan.sigHistory.isNotEmpty) {
-      lastSig = challan.sigHistory.last;
-      if (File(lastSig.imagePath).existsSync()) {
-        sigImage = pw.MemoryImage(File(lastSig.imagePath).readAsBytesSync());
-      }
-    }
+class _ChallanSignatureViewState extends State<ChallanSignatureView> {
+  bool isSignMode = false;
+  bool isProcessing = false;
+  String uniqueCode = "";
+  List<Offset?> points = [];
+  int currentPage = 0;
+  
+  // Normalized Coords
+  double signXPercent = 0.5;
+  double signYPercent = 0.8;
 
-    for (int pageNum = 0; pageNum < totalPages; pageNum++) {
-      int start = pageNum * itemsPerPage;
-      int end = (start + itemsPerPage < challan.items.length) ? start + itemsPerPage : challan.items.length;
-      List<BillItem> pageItems = challan.items.sublist(start, end);
-      bool isLastPage = (pageNum == totalPages - 1);
+  final TransformationController _zoomController = TransformationController();
+  final PageController _pageController = PageController();
+  final GlobalKey _signBoundaryKey = GlobalKey(); 
 
-      pdf.addPage(
-        pw.Page(
-          pageFormat: PdfPageFormat.a4.landscape, 
-          margin: const pw.EdgeInsets.all(15),
-          build: (pw.Context context) {
-            return pw.Container(
-              width: masterWidth,
-              height: pageHeightLimit,
-              decoration: pw.BoxDecoration(border: pw.Border.all(width: 1)),
-              child: pw.Stack(children: [
-                
-                // --- LAYER 1: BASE CONTENT (Header + Table + Footer) ---
-                pw.Column(children: [
-                  // Header
-                  pw.Row(children: [
-                    _hBox(280, true, pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
-                      pw.Text(shop.name.toUpperCase(), style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold, color: PdfColors.blue900)),
-                      pw.Text(shop.address, style: const pw.TextStyle(fontSize: 8)),
-                      pw.Text("GST: ${shop.gstin}", style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold)),
-                    ])),
-                    _hBox(170, true, pw.Column(children: [
-                      pw.Text("DELIVERY CHALLAN", style: pw.TextStyle(fontSize: 12, fontWeight: pw.FontWeight.bold, color: PdfColors.red900)),
-                      pw.Divider(thickness: 0.5),
-                      pw.Text("No: ${challan.billNo}", style: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold)),
-                      pw.Text("Date: ${DateFormat('dd/MM/yyyy').format(challan.date)}", style: const pw.TextStyle(fontSize: 8.5)),
-                    ])),
-                    _hBox(330, false, pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
-                      pw.Text("CONSIGNEE DETAILS:", style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold, color: PdfColors.grey)),
-                      pw.Text(party.name, style: pw.TextStyle(fontSize: 11, fontWeight: pw.FontWeight.bold, color: PdfColors.blue900)),
-                      pw.Text("GSTIN: ${party.gst} | City: ${party.city}", style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold)),
-                    ])),
-                  ]),
-
-                  // Table
-                  pw.Container(color: PdfColors.grey200, child: pw.Row(children: [
-                    _tCol("S.N", 30), _tCol("Product Description", 300, isLeft: true), _tCol("Packing", 60),
-                    _tCol("Batch", 90), _tCol("Expiry", 60), _tCol("Qty", 60), _tCol("Rate", 100), _tCol("Total", 100, isLast: true),
-                  ])),
-
-                  pw.Container(height: 320, child: pw.Column(children: pageItems.map((i) {
-                    return pw.Container(
-                      decoration: const pw.BoxDecoration(border: pw.Border(bottom: pw.BorderSide(width: 0.1))),
-                      child: pw.Row(children: [
-                        _cell("${challan.items.indexOf(i) + 1}", 30), _cell(i.name, 300, isLeft: true), _cell(i.packing, 60),
-                        _cell(i.batch, 90), _cell(i.exp, 60), _cell(i.qty.toInt().toString(), 60),
-                        _cell(i.rate.toStringAsFixed(2), 100), _cell(i.total.toStringAsFixed(2), 100),
-                      ]),
-                    );
-                  }).toList())),
-
-                  // --- NAYA: DYNAMIC FOOTER LOGIC ---
-                  if (isLastPage) 
-                    _buildFinalFooter(shop.name, challan.totalAmount, challan.remarks, lastSig)
-                  else 
-                    _buildIntermediateFooter(pageNum + 1, lastSig),
-                ]),
-
-                // --- LAYER 2: SECURITY WATERMARK (Har Page Par) ---
-                if (lastSig != null)
-                  pw.Center(
-                    child: pw.Opacity(
-                      opacity: 0.1,
-                      child: pw.Transform.rotate(
-                        angle: -0.5,
-                        child: pw.Text(lastSig.verificationCode, style: pw.TextStyle(fontSize: 60, fontWeight: pw.FontWeight.bold, color: PdfColors.red900)),
-                      ),
-                    ),
-                  ),
-
-                // --- LAYER 3: SIGNATURE INJECTION (Sirf Last Page Par) ---
-                if (isLastPage && sigImage != null && lastSig != null)
-                  pw.Positioned(
-                    // Mapping coordinates from screen % to PDF points
-                    left: lastSig.signX * masterWidth - 50, 
-                    top: lastSig.signY * pageHeightLimit - 25,
-                    child: pw.Image(sigImage, width: 120), // Standard Size signature
-                  ),
-              ]),
-            );
-          },
-        ),
-      );
-    }
-
-    await Printing.layoutPdf(onLayout: (format) async => pdf.save(), name: 'Challan_${challan.billNo}', format: PdfPageFormat.a4.landscape);
+  @override
+  void initState() {
+    super.initState();
+    SystemChrome.setPreferredOrientations([DeviceOrientation.landscapeRight, DeviceOrientation.landscapeLeft]);
   }
 
-  // --- UI ATOMS ---
-  static pw.Widget _hBox(double w, bool b, pw.Widget child) => pw.Container(width: w, height: 80, padding: const pw.EdgeInsets.all(5), decoration: pw.BoxDecoration(border: pw.Border(right: pw.BorderSide(width: b ? 0.5 : 0), bottom: const pw.BorderSide(width: 0.5))), child: child);
-  static pw.Widget _tCol(String t, double w, {bool isLast = false, bool isLeft = false}) => pw.Container(width: w, height: 20, alignment: isLeft ? pw.Alignment.centerLeft : pw.Alignment.center, padding: pw.EdgeInsets.only(left: isLeft ? 8 : 0), decoration: pw.BoxDecoration(border: pw.Border(right: pw.BorderSide(width: isLast ? 0 : 0.5), bottom: const pw.BorderSide(width: 0.5))), child: pw.Text(t, style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold)));
-  static pw.Widget _cell(String t, double w, {bool isLeft = false}) => pw.Container(width: w, height: 18, padding: const pw.EdgeInsets.symmetric(horizontal: 5), alignment: isLeft ? pw.Alignment.centerLeft : pw.Alignment.center, decoration: const pw.BoxDecoration(border: pw.Border(right: pw.BorderSide(width: 0.2, color: PdfColors.grey))), child: pw.Text(t, style: const pw.TextStyle(fontSize: 8)));
+  @override
+  void dispose() {
+    SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
+    super.dispose();
+  }
 
-  // --- NAYA: INTERMEDIATE FOOTER (Page 1, 2...) ---
-  static pw.Widget _buildIntermediateFooter(int pageNum, ChallanSignature? sig) {
-    return pw.Container(
-      height: 100, 
-      padding: const pw.EdgeInsets.all(10),
-      decoration: const pw.BoxDecoration(border: pw.Border(top: pw.BorderSide(width: 0.5))),
-      child: pw.Row(mainAxisAlignment: pw.MainAxisAlignment.spaceBetween, children: [
-        if (sig != null) _buildSecurityMessage(sig.verificationCode),
-        pw.Text("Continued to Page ${pageNum + 1}...", style: pw.TextStyle(fontSize: 10, fontStyle: pw.FontStyle.italic)),
-      ])
+  void _generateCode(Offset touchPoint) {
+    if (uniqueCode.isEmpty) {
+      const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+      setState(() {
+        uniqueCode = "VR-${List.generate(5, (i) => chars[Random().nextInt(chars.length)]).join()}";
+        // FIX: Mapping based on internal canvas size (800 x 550)
+        signXPercent = touchPoint.dx / 800;
+        signYPercent = touchPoint.dy / 550;
+      });
+    }
+  }
+
+  Future<void> _handleFinalize(PharoahManager ph) async {
+    setState(() => isProcessing = true);
+    try {
+      RenderRepaintBoundary boundary = _signBoundaryKey.currentContext!.findRenderObject() as RenderRepaintBoundary;
+      ui.Image image = await boundary.toImage(pixelRatio: 2.0);
+      ByteData? byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+      Uint8List sigBytes = byteData!.buffer.asUint8List();
+
+      String savedImgPath = await ph.saveSignatureFile(widget.challan.billNo, sigBytes);
+      
+      // Update database
+      await ph.addSignatureToChallan(
+        challanId: widget.challan.id,
+        imagePath: savedImgPath,
+        code: uniqueCode,
+        amount: widget.challan.totalAmount,
+        x: signXPercent,
+        y: signYPercent,
+      );
+
+      if (mounted) {
+        // --- FIX: Fetch LATEST challan from manager to ensure it has isSigned = true ---
+        final updatedChallan = ph.saleChallans.firstWhere((c) => c.id == widget.challan.id);
+        
+        _showSuccessActions(ph, updatedChallan);
+      }
+    } catch (e) {
+      debugPrint("Finalize Error: $e");
+    }
+    setState(() => isProcessing = false);
+  }
+
+  void _showSuccessActions(PharoahManager ph, SaleChallan latestChallan) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (c) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text("Success! Verification Locked"),
+        content: const Text("Choose what to do with the signed PDF:"),
+        actions: [
+          ElevatedButton.icon(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.green, foregroundColor: Colors.white),
+            onPressed: () async {
+              // Pass the UPDATED challan to PDF generator
+              await SaleChallanPdf.generate(latestChallan, widget.party, ph.activeCompany!);
+              Navigator.pop(c);
+              Navigator.pop(context);
+            },
+            icon: const Icon(Icons.share),
+            label: const Text("SHARE / SAVE PDF"),
+          ),
+          TextButton(onPressed: () { Navigator.pop(c); Navigator.pop(context); }, child: const Text("CLOSE"))
+        ],
+      ),
     );
   }
 
-  // --- NAYA: FINAL FOOTER (Last Page) ---
-  static pw.Widget _buildFinalFooter(String shopName, double total, String remarks, ChallanSignature? sig) {
-    return pw.Container(height: 100, decoration: const pw.BoxDecoration(border: pw.Border(top: pw.BorderSide(width: 0.5))), child: pw.Row(children: [
-      pw.Container(width: 480, padding: const pw.EdgeInsets.all(8), decoration: const pw.BoxDecoration(border: pw.Border(right: pw.BorderSide(width: 0.5))), child: pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
-        if (sig != null) _buildSecurityMessage(sig.verificationCode),
-        pw.SizedBox(height: 5),
-        pw.Text("REMARKS:", style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold)),
-        pw.Text(remarks.isEmpty ? "Goods delivered as per order." : remarks, style: const pw.TextStyle(fontSize: 8)),
-        pw.Spacer(),
-        pw.Text("Note: This is a Delivery Challan, not a Tax Invoice.", style: const pw.TextStyle(fontSize: 7, color: PdfColors.grey700)),
-      ])),
-      pw.Container(width: 320, padding: const pw.EdgeInsets.all(8), child: pw.Column(children: [
-        pw.Row(mainAxisAlignment: pw.MainAxisAlignment.spaceBetween, children: [
-          pw.Text("TOTAL VALUE", style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold)),
-          pw.Text("Rs. ${total.toStringAsFixed(2)}", style: pw.TextStyle(fontSize: 12, fontWeight: pw.FontWeight.bold)),
-        ]),
-        pw.Spacer(),
-        pw.Align(alignment: pw.Alignment.bottomRight, child: pw.Column(children: [
-          pw.Text("For $shopName", style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold)),
-          pw.SizedBox(height: 15),
-          pw.Text("Authorised Signatory", style: const pw.TextStyle(fontSize: 7)),
-        ])),
-      ])),
-    ]));
+  @override
+  Widget build(BuildContext context) {
+    final ph = Provider.of<PharoahManager>(context);
+    int itemsPerPage = 12;
+    int totalPages = (widget.challan.items.length / itemsPerPage).ceil();
+    if (totalPages == 0) totalPages = 1;
+
+    return Scaffold(
+      backgroundColor: const Color(0xFF1E1E1E),
+      appBar: AppBar(
+        title: Text("Challan Review: Page ${currentPage + 1}"),
+        backgroundColor: Colors.black,
+        actions: [
+          Padding(padding: const EdgeInsets.all(8.0), child: ElevatedButton.icon(
+            style: ElevatedButton.styleFrom(backgroundColor: isSignMode ? Colors.red : Colors.blueAccent),
+            onPressed: () => setState(() => isSignMode = !isSignMode),
+            icon: Icon(isSignMode ? Icons.done : Icons.draw),
+            label: Text(isSignMode ? "DONE" : "SIGN"),
+          ))
+        ],
+      ),
+      body: Column(
+        children: [
+          Expanded(
+            child: InteractiveViewer(
+              transformationController: _zoomController,
+              panEnabled: !isSignMode,
+              scaleEnabled: !isSignMode,
+              child: PageView.builder(
+                controller: _pageController,
+                physics: isSignMode ? const NeverScrollableScrollPhysics() : const BouncingScrollPhysics(),
+                itemCount: totalPages,
+                onPageChanged: (i) => setState(() => currentPage = i),
+                itemBuilder: (context, index) {
+                  bool isLastPage = (index == totalPages - 1);
+                  return Center(
+                    child: FittedBox(
+                      fit: BoxFit.contain,
+                      child: Container(
+                        width: 800, height: 550,
+                        margin: const EdgeInsets.all(20),
+                        color: Colors.white,
+                        child: Stack(
+                          children: [
+                            _buildBillLayout(index, totalPages, isLastPage, ph),
+                            if (uniqueCode.isNotEmpty) _buildWatermarkSeal(),
+                            if (isLastPage && isSignMode)
+                              RepaintBoundary(
+                                key: _signBoundaryKey,
+                                child: GestureDetector(
+                                  onPanStart: (d) => _generateCode(d.localPosition),
+                                  onPanUpdate: (d) => setState(() => points.add(d.localPosition)),
+                                  onPanEnd: (d) => setState(() => points.add(null)),
+                                  child: CustomPaint(painter: SignaturePainter(points: points), size: Size.infinite),
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ),
+          _buildBottomActionPanel(ph),
+        ],
+      ),
+    );
   }
 
-  // --- NAYA: SECURITY MESSAGE (Disclaimer) ---
-  static pw.Widget _buildSecurityMessage(String code) {
-    return pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
-      pw.Text("DIGITAL SEAL: $code", style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold, color: PdfColors.red900)),
-      pw.SizedBox(width: 200, child: pw.Text("SECURITY NOTICE: This document is locked with code $code. Any unauthorized modification to this record will permanently invalidate this digital seal.", style: const pw.TextStyle(fontSize: 5, color: PdfColors.grey700))),
+  Widget _buildBillLayout(int pageIdx, int totalPages, bool isLastPage, PharoahManager ph) {
+    final shop = ph.activeCompany!;
+    return Padding(
+      padding: const EdgeInsets.all(25),
+      child: Column(
+        children: [
+          Row(children: [
+            _headerBox(3, [
+              Text(shop.name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: Colors.blue)),
+              Text(shop.address, style: const TextStyle(fontSize: 9)),
+              Text("GST: ${shop.gstin}", style: const TextStyle(fontSize: 9, fontWeight: FontWeight.bold)),
+            ]),
+            _headerBox(2, [
+              const Center(child: Text("DELIVERY CHALLAN", style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold))),
+              const Divider(),
+              Text("No: ${widget.challan.billNo}", style: const TextStyle(fontSize: 9, fontWeight: FontWeight.bold)),
+              Text("Date: ${DateFormat('dd/MM/yyyy').format(widget.challan.date)}", style: const TextStyle(fontSize: 9)),
+            ]),
+            _headerBox(3, [
+              const Text("CONSIGNEE:", style: TextStyle(fontSize: 8, color: Colors.grey, fontWeight: FontWeight.bold)),
+              Text(widget.party.name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+              Text("${widget.party.city} | GST: ${widget.party.gst}", style: const TextStyle(fontSize: 9)),
+            ]),
+          ]),
+          const SizedBox(height: 20),
+          _buildFullTable(pageIdx),
+          const Spacer(),
+          if (isLastPage) ...[
+            const Divider(),
+            Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+              _buildSecurityDisclaimer(),
+              Text("GRAND TOTAL: ₹${widget.challan.totalAmount.toStringAsFixed(2)}", style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900)),
+            ]),
+          ] else
+             Row(mainAxisAlignment: MainAxisAlignment.end, children: [Text("Continued to Page ${pageIdx + 2}...", style: const TextStyle(fontSize: 11, fontStyle: FontStyle.italic))]),
+        ],
+      ),
+    );
+  }
+
+  // --- NAYA: Full Columns for Review Screen ---
+  Widget _buildFullTable(int pageIdx) {
+    int start = pageIdx * 12;
+    int end = (start + 12 < widget.challan.items.length) ? start + 12 : widget.challan.items.length;
+    var pageItems = widget.challan.items.sublist(start, end);
+
+    return Column(children: [
+      Container(
+        color: Colors.grey[100],
+        child: Row(children: [
+          _cell("S.N", 35, true), _cell("Item Description", 220, true, true),
+          _cell("Batch", 80, true), _cell("Exp", 55, true),
+          _cell("Qty+Free", 70, true), _cell("MRP", 65, true),
+          _cell("Rate", 70, true), _cell("Net Total", 90, true),
+        ]),
+      ),
+      ...pageItems.map((it) => Row(children: [
+        _cell(it.srNo.toString(), 35, false), _cell(it.name, 220, false, true),
+        _cell(it.batch, 80, false), _cell(it.exp, 55, false),
+        _cell("${it.qty.toInt()} + ${it.freeQty.toInt()}", 70, false),
+        _cell(it.mrp.toStringAsFixed(2), 65, false),
+        _cell(it.rate.toStringAsFixed(2), 70, false),
+        _cell(it.total.toStringAsFixed(2), 90, false),
+      ])).toList(),
     ]);
   }
+
+  Widget _cell(String t, double w, bool b, [bool isLeft = false]) => Container(width: w, padding: const EdgeInsets.all(6), decoration: BoxDecoration(border: Border.all(color: Colors.black12, width: 0.4)), child: Text(t, textAlign: isLeft ? TextAlign.left : TextAlign.center, style: TextStyle(fontSize: 9, fontWeight: b ? FontWeight.bold : FontWeight.normal)));
+  Widget _headerBox(int f, List<Widget> ch) => Expanded(flex: f, child: Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(border: Border.all(width: 0.5, color: Colors.black38)), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: ch)));
+  Widget _buildSecurityDisclaimer() => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+    if (uniqueCode.isNotEmpty) Text("DIGITAL SEAL: $uniqueCode", style: const TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.red)),
+    const SizedBox(width: 300, child: Text("SECURITY NOTICE: Locked with unique digital seal. Any unauthorized modification will permanently invalidate this code.", style: TextStyle(fontSize: 7, color: Colors.blueGrey, fontWeight: FontWeight.bold))),
+  ]);
+  Widget _buildWatermarkSeal() => Positioned.fill(child: Center(child: IgnorePointer(child: Transform.rotate(angle: -0.4, child: Opacity(opacity: 0.1, child: Container(padding: const EdgeInsets.all(20), decoration: BoxDecoration(border: Border.all(color: Colors.red, width: 5)), child: Text(uniqueCode, style: const TextStyle(fontSize: 60, fontWeight: FontWeight.bold, color: Colors.red))))))));
+  Widget _buildBottomActionPanel(PharoahManager ph) => Container(padding: const EdgeInsets.all(15), color: Colors.black, child: Row(children: [
+      if (uniqueCode.isNotEmpty) Text("CODE: $uniqueCode", style: const TextStyle(color: Colors.orange, fontWeight: FontWeight.bold, fontSize: 18)),
+      const Spacer(),
+      ElevatedButton.icon(style: ElevatedButton.styleFrom(backgroundColor: Colors.green, padding: const EdgeInsets.symmetric(horizontal: 25, vertical: 15)), onPressed: (points.isEmpty || isProcessing) ? null : () => _handleFinalize(ph), icon: isProcessing ? const SizedBox(width: 15, height: 15, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)) : const Icon(Icons.lock), label: const Text("LOCK & FINISH"))
+  ]));
+}
+
+class SignaturePainter extends CustomPainter {
+  final List<Offset?> points;
+  SignaturePainter({required this.points});
+  @override
+  void paint(Canvas canvas, Size size) {
+    Paint paint = Paint()..color = Colors.blue[900]!..strokeCap = StrokeCap.round..strokeWidth = 4.0;
+    for (int i = 0; i < points.length - 1; i++) {
+      if (points[i] != null && points[i + 1] != null) canvas.drawLine(points[i]!, points[i + 1]!, paint);
+    }
+  }
+  @override bool shouldRepaint(SignaturePainter oldDelegate) => true;
 }
