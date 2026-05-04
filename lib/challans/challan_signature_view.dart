@@ -28,6 +28,7 @@ class ChallanSignatureView extends StatefulWidget {
 class _ChallanSignatureViewState extends State<ChallanSignatureView> {
   bool isSignMode = false;
   bool isProcessing = false;
+  bool _isZoomed = false; // Zoom status track karne ke liye
   String uniqueCode = "";
   List<Offset?> points = [];
   int currentPage = 0;
@@ -40,8 +41,10 @@ class _ChallanSignatureViewState extends State<ChallanSignatureView> {
   @override
   void initState() {
     super.initState();
-    // Landscape mode for better document viewing
-    SystemChrome.setPreferredOrientations([DeviceOrientation.landscapeRight, DeviceOrientation.landscapeLeft]);
+    SystemChrome.setPreferredOrientations([
+      DeviceOrientation.landscapeRight, 
+      DeviceOrientation.landscapeLeft
+    ]);
   }
 
   @override
@@ -51,12 +54,21 @@ class _ChallanSignatureViewState extends State<ChallanSignatureView> {
     super.dispose();
   }
 
+  // --- LOGIC: ZOOM STATUS DETECTOR ---
+  // Ye function detect karta hai ki user ne zoom kiya hai ya nahi
+  void _handleTransformation(Matrix4 matrix) {
+    double currentScale = matrix.storage[0];
+    bool zoomed = currentScale > 1.0;
+    if (zoomed != _isZoomed) {
+      setState(() => _isZoomed = zoomed);
+    }
+  }
+
   void _generateCode(Offset touchPoint) {
     if (uniqueCode.isEmpty) {
       const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
       setState(() {
         uniqueCode = "VR-${List.generate(5, (i) => chars[Random().nextInt(chars.length)]).join()}";
-        // Mapping coordinates for PDF placement
         signXPercent = touchPoint.dx / 800;
         signYPercent = touchPoint.dy / 550;
       });
@@ -92,36 +104,27 @@ class _ChallanSignatureViewState extends State<ChallanSignatureView> {
       builder: (c) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: const Text("Challan Verified & Locked"),
-        content: const Text("Select how you want to handle the signed document:"),
+        content: const Text("Challan process complete. Choose an action:"),
         actions: [
-          OutlinedButton.icon(
+          ElevatedButton.icon(
             onPressed: () async {
               final bytes = await SaleChallanPdf.generateBytes(latest, widget.party, ph.activeCompany!);
               await FileSaver.instance.saveAs(name: "Challan_${latest.billNo}", bytes: bytes, ext: "pdf", mimeType: MimeType.pdf);
-              if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("✅ PDF Saved to Downloads")));
             },
-            icon: const Icon(Icons.download_rounded),
-            label: const Text("SAVE"),
+            icon: const Icon(Icons.download), label: const Text("SAVE"),
           ),
           ElevatedButton.icon(
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.green, foregroundColor: Colors.white),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
             onPressed: () async {
               final bytes = await SaleChallanPdf.generateBytes(latest, widget.party, ph.activeCompany!);
               final dir = await getTemporaryDirectory();
               final file = File('${dir.path}/Challan_${latest.billNo}.pdf');
               await file.writeAsBytes(bytes);
-              await Share.shareXFiles([XFile(file.path)], text: "Signed Challan: ${latest.billNo}");
+              await Share.shareXFiles([XFile(file.path)]);
             },
-            icon: const Icon(Icons.share),
-            label: const Text("SHARE"),
+            icon: const Icon(Icons.share), label: const Text("SHARE"),
           ),
-          TextButton(
-            onPressed: () {
-              Navigator.pop(c);
-              Navigator.of(context).popUntil((route) => route.isFirst);
-            },
-            child: const Text("EXIT", style: TextStyle(color: Colors.red)),
-          ),
+          TextButton(onPressed: () => Navigator.of(context).popUntil((route) => route.isFirst), child: const Text("FINISH", style: TextStyle(color: Colors.red))),
         ],
       ),
     );
@@ -133,36 +136,32 @@ class _ChallanSignatureViewState extends State<ChallanSignatureView> {
     int itemsPerPage = 12;
     int totalPages = (widget.challan.items.length / itemsPerPage).ceil();
     if (totalPages == 0) totalPages = 1;
-
-    bool isOnLastPage = (currentPage == totalPages - 1);
+    bool isAtLastPage = (currentPage == totalPages - 1);
 
     return Scaffold(
-      backgroundColor: const Color(0xFF1E1E1E),
+      backgroundColor: const Color(0xFF121212),
       appBar: AppBar(
-        title: Text("Receiver Review: Page ${currentPage + 1} of $totalPages"),
         backgroundColor: Colors.black,
+        title: Text("Receiver Review: Page ${currentPage + 1} / $totalPages", style: const TextStyle(fontSize: 14)),
         actions: [
-          // NAYA: Sign button logic - Sirf last page par dikhega ya prompt karega
+          // SIGN BUTTON: Sirf last page par hi active hoga
           Padding(
-            padding: const EdgeInsets.all(8.0), 
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
             child: ElevatedButton.icon(
               style: ElevatedButton.styleFrom(
-                backgroundColor: !isOnLastPage 
-                    ? Colors.grey // Disabled look if not on last page
-                    : (isSignMode ? Colors.red : Colors.blueAccent)
+                backgroundColor: !isAtLastPage ? Colors.grey.shade800 : (isSignMode ? Colors.red : Colors.blueAccent),
               ),
               onPressed: () {
-                if (!isOnLastPage) {
-                  // User ko last page par bhejo agar wo sign dabaye
-                  _pageController.animateToPage(totalPages - 1, duration: const Duration(milliseconds: 500), curve: Curves.easeIn);
-                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Moving to Last Page for Signature..."), duration: Duration(seconds: 1)));
+                if (!isAtLastPage) {
+                  _pageController.animateToPage(totalPages - 1, duration: const Duration(milliseconds: 600), curve: Curves.easeInOut);
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Please go to the Last Page to Sign"), duration: Duration(seconds: 1)));
                 } else {
                   setState(() => isSignMode = !isSignMode);
                 }
               },
-              icon: Icon(isSignMode ? Icons.done : Icons.draw),
-              label: Text(isSignMode ? "DONE" : "SIGN HERE"),
-            )
+              icon: Icon(isSignMode ? Icons.close : Icons.edit_note, size: 18),
+              label: Text(isSignMode ? "CANCEL" : "SIGN HERE"),
+            ),
           )
         ],
       ),
@@ -171,18 +170,17 @@ class _ChallanSignatureViewState extends State<ChallanSignatureView> {
           Expanded(
             child: PageView.builder(
               controller: _pageController,
-              physics: isSignMode ? const NeverScrollableScrollPhysics() : const BouncingScrollPhysics(),
+              // NAYA: Agar zoomed hai ya Sign Mode on hai, toh swipe disable kar do
+              physics: (_isZoomed || isSignMode) ? const NeverScrollableScrollPhysics() : const BouncingScrollPhysics(),
               itemCount: totalPages,
               onPageChanged: (i) => setState(() => currentPage = i),
               itemBuilder: (context, index) {
-                bool isLastPage = (index == totalPages - 1);
+                bool isActualLastPage = (index == totalPages - 1);
                 
                 return InteractiveViewer(
-                  // NAYA: Hamesha zoom in/out allow karne ke liye
                   minScale: 1.0, 
-                  maxScale: 5.0,
-                  panEnabled: !isSignMode, // Sign mode mein zoom pan band taaki drawing sahi ho
-                  scaleEnabled: true,
+                  maxScale: 4.0,
+                  onInteractionUpdate: (details) => _handleTransformation(details.localTransform),
                   child: Center(
                     child: FittedBox(
                       fit: BoxFit.contain,
@@ -192,14 +190,11 @@ class _ChallanSignatureViewState extends State<ChallanSignatureView> {
                         color: Colors.white,
                         child: Stack(
                           children: [
-                            // 1. Bill Layout
-                            _buildBillLayout(index, totalPages, isLastPage, ph),
-                            
-                            // 2. Digital Seal Watermark (If signed)
+                            _buildBillLayout(index, totalPages, isActualLastPage, ph),
                             if (uniqueCode.isNotEmpty) _buildWatermarkSeal(),
                             
-                            // 3. Signature Layer (ONLY ON LAST PAGE)
-                            if (isLastPage && isSignMode)
+                            // SIGNATURE PAD: Sirf last page aur sign mode mein active
+                            if (isActualLastPage && isSignMode)
                               RepaintBoundary(
                                 key: _signBoundaryKey,
                                 child: GestureDetector(
@@ -207,7 +202,7 @@ class _ChallanSignatureViewState extends State<ChallanSignatureView> {
                                   onPanUpdate: (d) => setState(() => points.add(d.localPosition)),
                                   onPanEnd: (d) => setState(() => points.add(null)),
                                   child: Container(
-                                    color: Colors.transparent, // Capture area
+                                    color: Colors.transparent,
                                     child: CustomPaint(painter: SignaturePainter(points: points), size: Size.infinite),
                                   ),
                                 ),
@@ -221,15 +216,8 @@ class _ChallanSignatureViewState extends State<ChallanSignatureView> {
               },
             ),
           ),
-          // Bottom instruction for user
-          if (!isOnLastPage)
-            Container(
-              width: double.infinity,
-              color: Colors.blueGrey.shade900,
-              padding: const EdgeInsets.all(8),
-              child: const Text("Swipe left to reach the final page for signing →", textAlign: TextAlign.center, style: TextStyle(color: Colors.white70, fontSize: 10)),
-            ),
-          _buildBottomActionPanel(ph, isOnLastPage),
+          _buildBottomInfoBar(isAtLastPage),
+          _buildBottomActionPanel(ph, isAtLastPage),
         ],
       ),
     );
@@ -254,10 +242,10 @@ class _ChallanSignatureViewState extends State<ChallanSignatureView> {
             Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
               _buildSecurityDisclaimer(), 
               Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-                const Text("AUTHORIZED RECEIVER SIGN", style: TextStyle(fontSize: 8, fontWeight: FontWeight.bold, color: Colors.grey)),
-                const SizedBox(height: 5),
-                Text("GRAND TOTAL: ₹${widget.challan.totalAmount.toStringAsFixed(2)}", style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900)),
-              ])
+                const Text("RECEIVER SIGNATURE", style: TextStyle(fontSize: 8, fontWeight: FontWeight.bold, color: Colors.grey)),
+                const SizedBox(height: 10),
+                Text("TOTAL: ₹${widget.challan.totalAmount.toStringAsFixed(2)}", style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900))
+              ]),
             ]),
           ] else
              Row(mainAxisAlignment: MainAxisAlignment.end, children: [Text("Continued to Page ${pageIdx + 2}...", style: const TextStyle(fontSize: 11, fontStyle: FontStyle.italic))]),
@@ -271,7 +259,7 @@ class _ChallanSignatureViewState extends State<ChallanSignatureView> {
     int end = (start + 12 < widget.challan.items.length) ? start + 12 : widget.challan.items.length;
     var pageItems = widget.challan.items.sublist(start, end);
     return Column(children: [
-      Container(color: Colors.grey[100], child: Row(children: [_cell("S.N", 25, true), _cell("Qty+Free", 55, true), _cell("Pack", 45, true), _cell("Product Description", 210, true, true), _cell("Batch", 75, true), _cell("Exp", 45, true), _cell("HSN", 50, true), _cell("MRP", 55, true), _cell("Rate", 55, true), _cell("GST%", 30, true), _cell("Net Total", 155, true)])),
+      Container(color: Colors.grey[100], child: Row(children: [_cell("S.N", 25, true), _cell("Qty", 55, true), _cell("Pack", 45, true), _cell("Product Description", 210, true, true), _cell("Batch", 75, true), _cell("Exp", 45, true), _cell("HSN", 50, true), _cell("MRP", 55, true), _cell("Rate", 55, true), _cell("GST%", 30, true), _cell("Net Total", 155, true)])),
       ...pageItems.map((it) => Row(children: [_cell(it.srNo.toString(), 25, false), _cell("${it.qty.toInt()} + ${it.freeQty.toInt()}", 55, false), _cell(it.packing, 45, false), _cell(it.name, 210, false, true), _cell(it.batch, 75, false), _cell(it.exp, 45, false), _cell(it.hsn, 50, false), _cell(it.mrp.toStringAsFixed(2), 55, false), _cell(it.rate.toStringAsFixed(2), 55, false), _cell("${it.gstRate.toInt()}%", 30, false), _cell(it.total.toStringAsFixed(2), 155, false)])).toList(),
     ]);
   }
@@ -280,12 +268,23 @@ class _ChallanSignatureViewState extends State<ChallanSignatureView> {
   Widget _headerBox(double w, List<Widget> ch) => Container(width: w, padding: const EdgeInsets.all(8), decoration: BoxDecoration(border: Border.all(width: 0.5, color: Colors.black38)), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: ch));
   
   Widget _buildSecurityDisclaimer() => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-    if (uniqueCode.isNotEmpty) Text("DIGITAL SEAL: $uniqueCode", style: const TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.red)), 
-    const SizedBox(width: 320, child: Text("SECURITY NOTICE: This document is digitally locked. Signature and Seal are cryptographically linked to the total amount and items.", style: TextStyle(fontSize: 7, color: Colors.blueGrey, fontWeight: FontWeight.bold)))
+    if (uniqueCode.isNotEmpty) Text("SEAL: $uniqueCode", style: const TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.red)), 
+    const SizedBox(width: 320, child: Text("SECURE DOCUMENT: This challan is digitally verified. Any change in items or amount will invalidate the digital seal.", style: TextStyle(fontSize: 7, color: Colors.blueGrey, fontWeight: FontWeight.bold)))
   ]);
   
   Widget _buildWatermarkSeal() => Positioned.fill(child: Center(child: IgnorePointer(child: Transform.rotate(angle: -0.4, child: Opacity(opacity: 0.1, child: Container(padding: const EdgeInsets.all(20), decoration: BoxDecoration(border: Border.all(color: Colors.red, width: 5)), child: Text(uniqueCode, style: const TextStyle(fontSize: 60, fontWeight: FontWeight.bold, color: Colors.red))))))));
   
+  Widget _buildBottomInfoBar(bool isLastPage) => Container(
+    width: double.infinity,
+    color: isLastPage ? Colors.green.withOpacity(0.1) : Colors.white10,
+    padding: const EdgeInsets.all(8),
+    child: Text(
+      isLastPage ? "READY TO SIGN" : "SWIPE LEFT TO REACH THE END OF DOCUMENT",
+      textAlign: TextAlign.center,
+      style: TextStyle(color: isLastPage ? Colors.greenAccent : Colors.white60, fontSize: 10, fontWeight: FontWeight.bold),
+    ),
+  );
+
   Widget _buildBottomActionPanel(PharoahManager ph, bool isLastPage) => Container(
     padding: const EdgeInsets.all(15), 
     color: Colors.black, 
@@ -293,10 +292,13 @@ class _ChallanSignatureViewState extends State<ChallanSignatureView> {
       if (uniqueCode.isNotEmpty) Text("CODE: $uniqueCode", style: const TextStyle(color: Colors.orange, fontWeight: FontWeight.bold, fontSize: 18)), 
       const Spacer(), 
       ElevatedButton.icon(
-        style: ElevatedButton.styleFrom(backgroundColor: isLastPage ? Colors.green : Colors.grey, padding: const EdgeInsets.symmetric(horizontal: 25, vertical: 15)), 
+        style: ElevatedButton.styleFrom(
+          backgroundColor: isLastPage ? Colors.green : Colors.grey.shade900, 
+          padding: const EdgeInsets.symmetric(horizontal: 25, vertical: 15)
+        ), 
         onPressed: (!isLastPage || points.isEmpty || isProcessing) ? null : () => _handleFinalize(ph), 
-        icon: isProcessing ? const SizedBox(width: 15, height: 15, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)) : const Icon(Icons.lock), 
-        label: const Text("LOCK & FINISH")
+        icon: isProcessing ? const SizedBox(width: 15, height: 15, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)) : const Icon(Icons.lock_outline), 
+        label: const Text("FINALIZE & LOCK")
       )
     ])
   );
