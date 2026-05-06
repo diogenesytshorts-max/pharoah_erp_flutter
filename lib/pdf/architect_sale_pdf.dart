@@ -23,11 +23,9 @@ class ArchitectSalePdf {
 
   static Future<Uint8List> generateBytes(Sale sale, Party party, CompanyProfile shop, AppConfig config) async {
     final pdf = pw.Document();
-    const double masterWidth = 800; // 100% Precision Width
+    const double masterWidth = 800; 
     const int itemsPerPage = 18; 
     int totalPages = (sale.items.length / itemsPerPage).ceil();
-
-    // LOGIC: State Match (Rajasthan vs Other)
     bool isLocal = shop.state.trim().toLowerCase() == sale.partyState.trim().toLowerCase();
 
     for (int pageNum = 0; pageNum < totalPages; pageNum++) {
@@ -43,7 +41,6 @@ class ArchitectSalePdf {
           width: masterWidth,
           decoration: pw.BoxDecoration(border: pw.Border.all(width: 1)),
           child: pw.Column(children: [
-            // --- HEADER: 3 Premium Boxes ---
             pw.Row(children: [
               _hBox(290, true, pw.Row(children: [
                 if (config.showLogo && config.logoPath != null && File(config.logoPath!).existsSync())
@@ -64,70 +61,40 @@ class ArchitectSalePdf {
               _hBox(340, false, pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
                 pw.Text("CONSIGNEE DETAILS:", style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold, color: PdfColors.grey700)),
                 pw.Text(party.name, style: pw.TextStyle(fontSize: 11, fontWeight: pw.FontWeight.bold, color: PdfColors.blue900)),
-                pw.Text("Supply State: ${sale.partyState} | GST: ${party.gst}", style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold)),
+                pw.Text("State: ${sale.partyState} | GST: ${party.gst}", style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold)),
                 pw.Text("Address: ${party.address}", style: const pw.TextStyle(fontSize: 7.5), maxLines: 1),
               ])),
             ]),
 
-            // --- TABLE HEADER (11 COLUMNS WITH DYNAMIC GST) ---
+            // --- TABLE MATH ADJUSTED TO EXACT 800 ---
             pw.Container(color: PdfColors.grey200, child: pw.Row(children: [
-              _tCol("S.N", 25), 
-              _tCol("Qty+Free", 50), 
-              _tCol("Pack", 40), 
-              _tCol("Product Description", 215, isLeft: true), 
-              _tCol("Batch", 75), 
-              _tCol("Exp", 45), 
-              _tCol("HSN", 45),
-              _tCol("MRP", 55), 
-              _tCol("Rate", 55), 
-              
-              // Dynamic Tax Header
-              if (isLocal) ...[
-                _tCol("CGST", 40),
-                _tCol("SGST", 40),
-              ] else ...[
-                _tCol("IGST", 80), 
-              ],
-              
+              _tCol("S.N", 25), _tCol("Qty+Free", 50), _tCol("Pack", 40), 
+              _tCol("Product Description", 230, isLeft: true), 
+              _tCol("Batch", 75), _tCol("Exp", 45), _tCol("HSN", 45),
+              _tCol("MRP", 55), _tCol("Rate", 55), 
+              _tCol("CGST", 40), _tCol("SGST", 40),
               _tCol("Net Total", 120, isLast: true), 
             ])),
 
-            // --- ITEM ROWS ---
             pw.Expanded(child: pw.Column(children: pageItems.asMap().entries.map((entry) {
               int idx = entry.key; var i = entry.value;
-              int sn = start + idx + 1;
               bool isShaded = config.useZebraShading && (idx % 2 != 0);
-
               return pw.Container(
                 color: isShaded ? PdfColors.grey50 : PdfColors.white,
                 decoration: const pw.BoxDecoration(border: pw.Border(bottom: pw.BorderSide(width: 0.1, color: PdfColors.grey400))),
                 child: pw.Row(children: [
-                  _cell("$sn", 25), 
-                  _cell("${i.qty.toInt()}+${i.freeQty.toInt()}", 50), 
-                  _cell(i.packing, 40),
-                  pw.Container(width: 215, padding: const pw.EdgeInsets.only(left: 8), alignment: pw.Alignment.centerLeft, child: pw.Text(i.name, style: const pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold))),
-                  _cell(i.batch, 75), 
-                  _cell(i.exp, 45), 
-                  _cell(i.hsn, 45),
-                  _cell(i.mrp.toStringAsFixed(2), 55), 
-                  _cell(i.rate.toStringAsFixed(2), 55),
-
-                  // Dynamic Row Data (Local vs Inter-state)
-                  if (isLocal) ...[
-                    _cell("${(i.gstRate / 2).toStringAsFixed(1)}%", 40),
-                    _cell("${(i.gstRate / 2).toStringAsFixed(1)}%", 40),
-                  ] else ...[
-                    _cell("${i.gstRate.toStringAsFixed(1)}%", 80), 
-                  ],
-
+                  _cell("${start + idx + 1}", 25), _cell("${i.qty.toInt()}+${i.freeQty.toInt()}", 50), _cell(i.packing, 40),
+                  pw.Container(width: 230, padding: const pw.EdgeInsets.only(left: 8), alignment: pw.Alignment.centerLeft, child: pw.Text(i.name, style: const pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold))),
+                  _cell(i.batch, 75), _cell(i.exp, 45), _cell(i.hsn, 45),
+                  _cell(i.mrp.toStringAsFixed(2), 55), _cell(i.rate.toStringAsFixed(2), 55),
+                  _cell("${(i.gstRate / 2).toStringAsFixed(1)}%", 40), _cell("${(i.gstRate / 2).toStringAsFixed(1)}%", 40),
                   _cell(i.total.toStringAsFixed(2), 120),
                 ]),
               );
             }).toList())),
 
-            // --- FOOTER SECTION ---
             if (isLastPage) _buildArchitectFooter(shop.name, sale, config, shop, isLocal)
-            else pw.Container(height: 30, alignment: pw.Alignment.centerRight, padding: const pw.EdgeInsets.only(right: 20), child: pw.Text("Continued on next page...", style: pw.TextStyle(fontStyle: pw.FontStyle.italic, fontSize: 8))),
+            else pw.Container(height: 30, alignment: pw.Alignment.centerRight, padding: const pw.EdgeInsets.only(right: 20), child: pw.Text("Next Page...", style: pw.TextStyle(fontStyle: pw.FontStyle.italic, fontSize: 8))),
           ]),
         )
       ));
@@ -135,9 +102,8 @@ class ArchitectSalePdf {
     return pdf.save();
   }
 
-  // --- UI ATOMS ---
-  static pw.Widget _hBox(double w, bool rBorder, pw.Widget child) => pw.Container(width: w, height: 85, padding: const pw.EdgeInsets.all(6), decoration: pw.BoxDecoration(border: pw.Border(right: pw.BorderSide(width: rBorder ? 0.5 : 0), bottom: const pw.BorderSide(width: 0.5))), child: child);
-  static pw.Widget _tCol(String t, double w, {bool isLast = false, bool isLeft = false}) => pw.Container(width: w, height: 20, alignment: isLeft ? pw.Alignment.centerLeft : pw.Alignment.center, padding: pw.EdgeInsets.only(left: isLeft ? 5 : 0), decoration: pw.BoxDecoration(border: pw.Border(right: pw.BorderSide(width: isLast ? 0 : 0.5), bottom: const pw.BorderSide(width: 0.5))), child: pw.Text(t, style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold)));
+  static pw.Widget _hBox(double w, bool b, pw.Widget child) => pw.Container(width: w, height: 85, padding: const pw.EdgeInsets.all(6), decoration: pw.BoxDecoration(border: pw.Border(right: pw.BorderSide(width: b ? 0.5 : 0), bottom: const pw.BorderSide(width: 0.5))), child: child);
+  static pw.Widget _tCol(String t, double w, {bool isLast = false, bool isLeft = false}) => pw.Container(width: w, height: 20, alignment: isLeft ? pw.Alignment.centerLeft : pw.Alignment.center, padding: pw.EdgeInsets.only(left: 5), decoration: pw.BoxDecoration(border: pw.Border(right: pw.BorderSide(width: isLast ? 0 : 0.5), bottom: const pw.BorderSide(width: 0.5))), child: pw.Text(t, style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold)));
   static pw.Widget _cell(String t, double w) => pw.Container(width: w, height: 18, alignment: pw.Alignment.center, decoration: const pw.BoxDecoration(border: pw.Border(right: pw.BorderSide(width: 0.2, color: PdfColors.grey))), child: pw.Text(t, style: const pw.TextStyle(fontSize: 7.5)));
 
   static pw.Widget _buildArchitectFooter(String shopName, Sale sale, AppConfig config, CompanyProfile shop, bool isLocal) {
@@ -145,24 +111,16 @@ class ArchitectSalePdf {
     double totalTax = sale.items.fold(0.0, (sum, i) => sum + (i.cgst + i.sgst + i.igst));
 
     return pw.Container(height: 115, decoration: const pw.BoxDecoration(border: pw.Border(top: pw.BorderSide(width: 0.5))), child: pw.Row(children: [
-      // BOX 1: Security Notice & Words
       pw.Container(width: 320, padding: const pw.EdgeInsets.all(5), decoration: const pw.BoxDecoration(border: pw.Border(right: pw.BorderSide(width: 0.5))), child: pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
         pw.Text("Amt In Words: RUPEES ${PdfMasterService.numberToWords(sale.totalAmount.round())} ONLY", style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold, color: PdfColors.blue800)),
         pw.Spacer(),
-        pw.Text("SECURE DOCUMENT NOTICE:", style: pw.TextStyle(fontSize: 6.5, fontWeight: pw.FontWeight.bold, color: PdfColors.red900)),
-        pw.Text("This is a digitally verified invoice. Any manual modification in items or total will invalidate the audit trail. Please check supply state for GST accuracy.", style: const pw.TextStyle(fontSize: 5.5, color: PdfColors.grey700), maxLines: 2),
-        pw.SizedBox(height: 5),
         if (config.showQrCode && config.qrCodePath != null && File(config.qrCodePath!).existsSync())
           pw.Container(width: 40, height: 40, child: pw.Image(pw.MemoryImage(File(config.qrCodePath!).readAsBytesSync()))),
       ])),
-      // BOX 2: TOTALS
       pw.Container(width: 250, padding: const pw.EdgeInsets.all(5), decoration: const pw.BoxDecoration(border: pw.Border(right: pw.BorderSide(width: 0.5))), child: pw.Column(children: [
         _fRow("TAXABLE TOTAL", taxableTotal),
-        if (isLocal) ...[
-          _fRow("CGST TOTAL", totalTax / 2),
-          _fRow("SGST TOTAL", totalTax / 2),
-        ] else
-          _fRow("IGST TOTAL", totalTax),
+        if (isLocal) ...[ _fRow("CGST TOTAL", totalTax / 2), _fRow("SGST TOTAL", totalTax / 2), ] else _fRow("IGST TOTAL", totalTax),
+        if (sale.extraDiscount > 0) _fRow("EXTRA DISCOUNT (-)", sale.extraDiscount), // FIXED
         _fRow("ROUND OFF", sale.roundOff),
         pw.Divider(thickness: 0.5),
         pw.Row(mainAxisAlignment: pw.MainAxisAlignment.spaceBetween, children: [
@@ -170,7 +128,6 @@ class ArchitectSalePdf {
           pw.Text("Rs. ${sale.totalAmount.toStringAsFixed(2)}", style: pw.TextStyle(fontSize: 13, fontWeight: pw.FontWeight.bold)),
         ]),
       ])),
-      // BOX 3: AUTHORISATION
       pw.Container(width: 230, padding: const pw.EdgeInsets.all(5), child: pw.Column(mainAxisAlignment: pw.MainAxisAlignment.spaceBetween, children: [
         pw.Text("For $shopName", style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold)),
         pw.SizedBox(height: 30),
