@@ -300,6 +300,7 @@ class PharoahManager with ChangeNotifier {
     notifyListeners();
   }
 
+  // --- UPDATES ---
   void updatePurchase({required String id, required String internalNo, required String billNo, required DateTime date, DateTime? entryDate, required Party party, required List<PurchaseItem> items, required double total, required String mode, required List<String> linkedChallanIds}) {
     int idx = purchases.indexWhere((p) => p.id == id); if (idx == -1) return;
     purchases[idx] = Purchase(id: id, internalNo: internalNo, billNo: billNo, date: date, entryDate: entryDate ?? DateTime.now(), distributorName: party.name, items: items, totalAmount: total, paymentMode: mode, linkedChallanIds: linkedChallanIds);
@@ -378,7 +379,7 @@ class PharoahManager with ChangeNotifier {
   void deleteShortage(String id) { shortages.removeWhere((s) => s.id == id); save(); }
 
   // ===========================================================================
-  // HELPERS
+  // HELPERS & CONFIG
   // ===========================================================================
   void updateAppConfig(AppConfig c) { config = c; save(); notifyListeners(); }
   void resetCounter(String t) { addLog("SYSTEM", "Reset for $t"); notifyListeners(); }
@@ -396,7 +397,6 @@ class PharoahManager with ChangeNotifier {
   void addDrugType(DrugType d) { drugTypes.add(d); save(); }
   void addSystemUser(SystemUser u) { systemUsers.add(u); save(); }
   void addNumberingSeries(NumberingSeries ns) { numberingSeries.add(ns); save(); }
-  void updateNumberingSeries(NumberingSeries ns) { int i = numberingSeries.indexWhere((x) => x.id == ns.id); if(i != -1) { numberingSeries[i] = ns; save(); } }
   void addVoucher(Voucher v) { vouchers.add(v); save(); }
   void addBank(Bank b) { banks.add(b); save(); }
   void addCheque(ChequeEntry c) { cheques.add(c); save(); }
@@ -408,13 +408,13 @@ class PharoahManager with ChangeNotifier {
     numberingSeries = [NumberingSeries(id: 's1', name: "Standard Retail", type: "SALE", prefix: "INV-", isDefault: true)];
     medicines = DemoData.getMedicines(); companies = MasterDataLibrary.getTopCompanies(); salts = MasterDataLibrary.getTopSalts(); drugTypes = MasterDataLibrary.getDrugTypes();
     parties = [DemoData.getDemoParty(), Party(id: 'cash', name: "CASH", group: "Cash in Hand")];
-    await save(); if (!companiesRegistry.any((c) => c.id : p.id)) { companiesRegistry.add(p); await saveRegistry(); }
+    await save(); if (!companiesRegistry.any((c) => c.id == p.id)) { companiesRegistry.add(p); await saveRegistry(); }
     notifyListeners();
   }
 
-  Future<void> startNewFinancialYear(String n) async {
+  Future<bool> startNewFinancialYear(String n) async {
     await save(); bool ok = await FYTransferEngine.transferData(companyID: activeCompany!.id, businessType: activeCompany!.businessType, sourceFY: currentFY, targetFY: n);
-    if(ok) { currentFY = n; await loadAllData(); } 
+    if(ok) { currentFY = n; await loadAllData(); } return ok;
   }
 
   Future<void> masterReset() async { 
@@ -435,3 +435,4 @@ class PharoahManager with ChangeNotifier {
   List<NumberingSeries> getSeriesByType(String t) => numberingSeries.where((s) => s.type == t).toList();
   NumberingSeries getDefaultSeries(String t) => numberingSeries.firstWhere((s) => s.type == t && s.isDefault, orElse: () => numberingSeries.firstWhere((s) => s.type == t, orElse: () => NumberingSeries(id: 'tmp', name: 'Default', type: t, prefix: 'TXN-', isDefault: true)));
 }
+
