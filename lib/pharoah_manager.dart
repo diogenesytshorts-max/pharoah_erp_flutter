@@ -405,7 +405,3 @@ class PharoahManager with ChangeNotifier {
   NumberingSeries getDefaultSeries(String t) => numberingSeries.firstWhere((s) => s.type == t && s.isDefault, orElse: () => numberingSeries.firstWhere((s) => s.type == t, orElse: () => NumberingSeries(id: 'tmp', name: 'Default', type: t, prefix: 'TXN-', isDefault: true)));
 }
 
-Ab check karo kuch chuta to nahi 
-Or build run krna pdega ya direct ho jayega kam 
-Uper 3 require mang raha add signature vale function me use bhi check kar lena 
-Me wapas build run krke check krta hu rukoo
