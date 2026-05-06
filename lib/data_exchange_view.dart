@@ -104,11 +104,11 @@ class _DataExchangeViewState extends State<DataExchangeView> {
         }
 
         // --- NAVIGATION TO WIZARD ---
+        // --- NAVIGATION TO ADVANCED REVIEWER ---
         Navigator.push(context, MaterialPageRoute(
-          builder: (c) => ImportVerificationView(
+          builder: (c) => ImportReviewScreen(
             csvData: rows, 
-            importType: type, // "SALE" or "PURCHASE"
-            isOtherFormat: mode == "OTHER" // Detects if it's distributor file
+            importType: type,
           )
         ));
       }
