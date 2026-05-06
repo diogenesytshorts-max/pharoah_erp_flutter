@@ -22,14 +22,19 @@ class SaleInvoicePdf {
 
   static Future<Uint8List> generateBytes(Sale sale, Party party, CompanyProfile shop) async {
     final pdf = pw.Document();
-    const double masterWidth = 800; // Fixed width for landscape consistency
-    const int itemsPerPage = 22; 
+    const double masterWidth = 800; 
+    const int itemsPerPage = 20; 
     int totalPages = (sale.items.length / itemsPerPage).ceil();
 
-    // ===========================================================================
-    // SMART RECOGNITION: Rajasthan (Local) vs Haryana/Others (IGST)
-    // ===========================================================================
     bool isLocal = shop.state.trim().toLowerCase() == sale.partyState.trim().toLowerCase();
+
+    // ===========================================================================
+    // NAYA: SMART FORMATTER (5.05 ko 5.05 dikhayega, 5.00 ko 5 dikhayega)
+    // ===========================================================================
+    String fmt(double val) {
+      if (val == val.toInt()) return val.toInt().toString();
+      return val.toStringAsFixed(2);
+    }
 
     for (int pageNum = 0; pageNum < totalPages; pageNum++) {
       int start = pageNum * itemsPerPage;
@@ -44,7 +49,7 @@ class SaleInvoicePdf {
           width: masterWidth,
           decoration: pw.BoxDecoration(border: pw.Border.all(width: 1)),
           child: pw.Column(children: [
-            // --- 1. HEADER (3 BOXES) ---
+            // --- HEADER ---
             pw.Row(children: [
               _hBox(280, true, pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
                 pw.Text(shop.name.toUpperCase(), style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold, color: PdfColors.blue900)),
@@ -66,30 +71,27 @@ class SaleInvoicePdf {
               ])),
             ]),
 
-            // --- 2. TABLE HEADER (DYNAMIC GST COLUMNS) ---
+            // --- TABLE HEADER ---
             pw.Container(color: PdfColors.grey200, child: pw.Row(children: [
               _tCol("S.N", 25), 
-              _tCol("Qty+Free", 50), 
+              _tCol("Qty+Free", 60), 
               _tCol("Pack", 40), 
-              _tCol("Product Description", 215, isLeft: true), 
+              _tCol("Product Description", 205, isLeft: true), 
               _tCol("Batch", 75), 
               _tCol("Exp", 45), 
               _tCol("HSN", 45),
               _tCol("MRP", 55), 
               _tCol("Rate", 55), 
-              
-              // GST Column Logic
               if (isLocal) ...[
                 _tCol("CGST%", 40),
                 _tCol("SGST%", 40),
               ] else ...[
-                _tCol("IGST%", 80), // Haryana or other states
+                _tCol("IGST%", 80), 
               ],
-              
-              _tCol("Net Amt", 115, isLast: true), 
+              _tCol("Net Amt", 100, isLast: true), 
             ])),
 
-            // --- 3. DYNAMIC ITEM ROWS ---
+            // --- ITEM ROWS ---
             pw.Expanded(child: pw.Column(children: pageItems.asMap().entries.map((entry) {
               int idx = entry.key; var i = entry.value;
               int sn = start + idx + 1;
@@ -97,29 +99,26 @@ class SaleInvoicePdf {
                 decoration: const pw.BoxDecoration(border: pw.Border(bottom: pw.BorderSide(width: 0.1, color: PdfColors.grey400))),
                 child: pw.Row(children: [
                   _cell("$sn", 25), 
-                  _cell("${i.qty.toInt()}+${i.freeQty.toInt()}", 50), 
+                  _cell("${fmt(i.qty)} + ${fmt(i.freeQty)}", 60), // FIXED: Decimal Support
                   _cell(i.packing, 40),
-                  pw.Container(width: 215, padding: const pw.EdgeInsets.only(left: 8), alignment: pw.Alignment.centerLeft, child: pw.Text(i.name, style: const pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold))),
-                  _cell(i.batch, 75), 
+                  pw.Container(width: 205, padding: const pw.EdgeInsets.only(left: 8), alignment: pw.Alignment.centerLeft, child: pw.Text(i.name, style: const pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold))),
+                  _cell(i.batch, 75), // FIXED: No UpperCase here
                   _cell(i.exp, 45), 
                   _cell(i.hsn, 45),
                   _cell(i.mrp.toStringAsFixed(2), 55), 
                   _cell(i.rate.toStringAsFixed(2), 55),
-
-                  // Row Data Split Logic
                   if (isLocal) ...[
                     _cell("${(i.gstRate / 2).toStringAsFixed(1)}%", 40),
                     _cell("${(i.gstRate / 2).toStringAsFixed(1)}%", 40),
                   ] else ...[
-                    _cell("${i.gstRate.toStringAsFixed(1)}%", 80), // Haryana case
+                    _cell("${i.gstRate.toStringAsFixed(1)}%", 80),
                   ],
-
-                  _cell(i.total.toStringAsFixed(2), 115),
+                  _cell(i.total.toStringAsFixed(2), 100),
                 ]),
               );
             }).toList())),
 
-            // --- 4. FOOTER ---
+            // --- FOOTER ---
             if (isLastPage) _buildFooter(shop.name, sale, shop, isLocal)
             else pw.Container(height: 30, alignment: pw.Alignment.centerRight, padding: const pw.EdgeInsets.only(right: 20), child: pw.Text("Continued...", style: pw.TextStyle(fontStyle: pw.FontStyle.italic, fontSize: 8))),
           ]),
@@ -129,7 +128,6 @@ class SaleInvoicePdf {
     return pdf.save();
   }
 
-  // --- UI ATOMS ---
   static pw.Widget _hBox(double w, bool b, pw.Widget child) => pw.Container(width: w, height: 85, padding: const pw.EdgeInsets.all(5), decoration: pw.BoxDecoration(border: pw.Border(right: pw.BorderSide(width: b ? 0.5 : 0), bottom: const pw.BorderSide(width: 0.5))), child: child);
   static pw.Widget _tCol(String t, double w, {bool isLast = false, bool isLeft = false}) => pw.Container(width: w, height: 20, alignment: isLeft ? pw.Alignment.centerLeft : pw.Alignment.center, padding: pw.EdgeInsets.only(left: isLeft ? 5 : 0), decoration: pw.BoxDecoration(border: pw.Border(right: pw.BorderSide(width: isLast ? 0 : 0.5), bottom: const pw.BorderSide(width: 0.5))), child: pw.Text(t, style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold)));
   static pw.Widget _cell(String t, double w) => pw.Container(width: w, height: 18, alignment: pw.Alignment.center, decoration: const pw.BoxDecoration(border: pw.Border(right: pw.BorderSide(width: 0.2, color: PdfColors.grey))), child: pw.Text(t, style: const pw.TextStyle(fontSize: 7.5)));
