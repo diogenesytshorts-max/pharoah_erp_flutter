@@ -60,7 +60,7 @@ class _ImportReviewScreenState extends State<ImportReviewScreen> {
       'sender_state': row1.length > 26 ? row1[26].toString() : "Rajasthan",
     };
 
-    // Tax Recognition: Interstate (Haryana) vs Local (Rajasthan)
+    // Tax Recognition Logic
     String myState = ph.activeCompany?.state.trim().toLowerCase() ?? "rajasthan";
     isLocalSale = myState == senderInfo['sender_state'].toString().trim().toLowerCase();
 
@@ -86,7 +86,7 @@ class _ImportReviewScreenState extends State<ImportReviewScreen> {
       reviewedItems.add({
         'csvName': csvItemName,
         'csvPack': csvPack,
-        'batch': row[8].toString().toUpperCase(),
+        'batch': row[8].toString().trim(), // FIXED: CASE PRESERVED
         'exp': row[9].toString(),
         'hsn': row[10].toString(),
         'qty': double.tryParse(row[11].toString()) ?? 0,
@@ -107,7 +107,7 @@ class _ImportReviewScreenState extends State<ImportReviewScreen> {
   }
 
   // ===========================================================================
-  // MASTER SYNC BRIDGE: Passing Pre-fill Data
+  // MASTER SYNC BRIDGE: PRE-FILLED MASTER SCREENS
   // ===========================================================================
   void _editPartyDetail() async {
     await Navigator.push(context, MaterialPageRoute(
@@ -266,11 +266,12 @@ class _ImportReviewScreenState extends State<ImportReviewScreen> {
         leading: Checkbox(value: it['isSelected'], activeColor: statusColor, onChanged: (v) => setState(() => it['isSelected'] = v!)),
         title: Text(it['csvName'], style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
         subtitle: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          // SUB-ROW METADATA (FIXED: BATCH CASE PRESERVED)
           Container(
             padding: const EdgeInsets.all(5), margin: const EdgeInsets.only(top: 5),
             decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(5)),
             child: Text(
-              "B: ${it['batch']} | Exp: ${it['exp']} | MRP: ${it['mrp']} | Rate: ${it['rate']} | GST: ${it['gst']}% | HSN: ${it['hsn']}",
+              "Batch: ${it['batch']} | Exp: ${it['exp']} | MRP: ₹${it['mrp']} | Rate: ₹${it['rate']} | GST: ${it['gst']}% | HSN: ${it['hsn']}",
               style: const TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.blueGrey),
             ),
           ),
@@ -282,7 +283,6 @@ class _ImportReviewScreenState extends State<ImportReviewScreen> {
           Padding(
             padding: const EdgeInsets.all(12),
             child: TextField(
-              onChanged: (v) {},
               decoration: InputDecoration(hintText: "Search your master to link...", prefixIcon: const Icon(Icons.search, size: 18), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)), filled: true, fillColor: Colors.white),
             ),
           )
@@ -339,7 +339,7 @@ class _ImportReviewScreenState extends State<ImportReviewScreen> {
   Widget _row(String l, double v) => Padding(padding: const EdgeInsets.only(bottom: 4), child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [Text(l, style: const TextStyle(fontSize: 11, color: Colors.grey, fontWeight: FontWeight.bold)), Text("₹${v.toStringAsFixed(2)}", style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold))]));
 
   // ===========================================================================
-  // DYNAMIC ROUTING: SALE VS PURCHASE
+  // FINAL SAVE LOGIC: AUTO-MASTER CREATION & DYNAMIC ROUTING
   // ===========================================================================
   void _finalizeAndSave(PharoahManager ph) async {
     bool hasUnresolved = reviewedItems.any((it) => it['isSelected'] && it['status'] == 'new');
@@ -356,7 +356,6 @@ class _ImportReviewScreenState extends State<ImportReviewScreen> {
     }
 
     if (widget.importType == "SALE") {
-      // 1. Process as Sale Bill
       List<BillItem> finalSaleItems = [];
       for (var it in reviewedItems.where((e) => e['isSelected'])) {
         Medicine m = it['match'];
@@ -372,10 +371,22 @@ class _ImportReviewScreenState extends State<ImportReviewScreen> {
         party: targetParty, items: finalSaleItems, total: finalSaleItems.fold(0.0, (s, i) => s + i.total), mode: "CREDIT"
       );
     } else {
-      // 2. Process as Purchase Inward
       List<PurchaseItem> finalPurchaseItems = [];
       for (var it in reviewedItems.where((e) => e['isSelected'])) {
         Medicine m = it['match'];
+        
+        // --- NAYA: AUTO-MASTER UPDATE FOR P2P ---
+        String mfgId = ph.getOrCreateCompany(it['manufacturer']);
+        String saltId = ph.getOrCreateSalt(it['salt']);
+        
+        // Update local medicine record if missing company or salt
+        int mIdx = ph.medicines.indexWhere((med) => med.id == m.id);
+        if(mIdx != -1) {
+          ph.medicines[mIdx].companyId = mfgId;
+          ph.medicines[mIdx].saltId = saltId;
+          ph.save();
+        }
+
         finalPurchaseItems.add(PurchaseItem(
           id: DateTime.now().toString() + m.id, srNo: finalPurchaseItems.length + 1,
           medicineID: m.id, name: m.name, packing: m.packing, batch: it['batch'], exp: it['exp'],
@@ -392,6 +403,6 @@ class _ImportReviewScreenState extends State<ImportReviewScreen> {
     }
 
     Navigator.pop(context);
-    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("✅ Bill Posted Successfully!"), backgroundColor: Colors.green));
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("✅ Pharoah Data Exchange Successful!"), backgroundColor: Colors.green));
   }
 }
