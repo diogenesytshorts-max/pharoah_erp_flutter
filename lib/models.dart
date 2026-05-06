@@ -31,25 +31,22 @@ class NumberingSeries {
 }
 // --- NEW CLASS FOR SIGNATURE HISTORY ---
 // --- FINAL UPDATED CLASS FOR SIGNATURE ---
+// lib/models.dart mein ChallanSignature class ko isse replace karein:
 class ChallanSignature {
   String id;
   String imagePath;
   String verificationCode;
-  double signedAmount;
+  double signedAmount; // Jis amount par seal lagi thi
+  double signedQty;    // Jitni items total quantity par seal lagi thi
   DateTime signDate;
-  
-  // NAYA: Coordinates (Percentage based mapping)
-  double signX; // Left se kitni door (0.0 to 1.0)
-  double signY; // Top se kitna niche (0.0 to 1.0)
 
   ChallanSignature({
     required this.id,
     required this.imagePath,
     required this.verificationCode,
     required this.signedAmount,
+    required this.signedQty,
     required this.signDate,
-    this.signX = 0.0, // Default position
-    this.signY = 0.0,
   });
 
   Map<String, dynamic> toMap() => {
@@ -57,9 +54,8 @@ class ChallanSignature {
     'imagePath': imagePath,
     'verificationCode': verificationCode,
     'signedAmount': signedAmount,
+    'signedQty': signedQty,
     'signDate': signDate.toIso8601String(),
-    'signX': signX,
-    'signY': signY,
   };
 
   factory ChallanSignature.fromMap(Map<String, dynamic> map) => ChallanSignature(
@@ -67,9 +63,8 @@ class ChallanSignature {
     imagePath: map['imagePath'] ?? '',
     verificationCode: map['verificationCode'] ?? '',
     signedAmount: (map['signedAmount'] ?? 0.0).toDouble(),
+    signedQty: (map['signedQty'] ?? 0.0).toDouble(),
     signDate: DateTime.parse(map['signDate'] ?? DateTime.now().toIso8601String()),
-    signX: (map['signX'] ?? 0.0).toDouble(),
-    signY: (map['signY'] ?? 0.0).toDouble(),
   );
 }
 // ===========================================================================
