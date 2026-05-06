@@ -1,4 +1,4 @@
-// FILE: lib/returns/sale_return_view.dart (Replacement Code - FIXED)
+// FILE: lib/returns/sale_return_view.dart
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -148,6 +148,7 @@ class _SaleReturnViewState extends State<SaleReturnView> {
                       child: ItemEntryCard(
                         med: selectedMed!,
                         srNo: itemToEdit != null ? itemToEdit.srNo : items.length + 1,
+                        partyState: selectedParty?.state ?? "Rajasthan", // NAYA: partyState added
                         existingItem: itemToEdit,
                         onAdd: (newItem) {
                           setState(() {
