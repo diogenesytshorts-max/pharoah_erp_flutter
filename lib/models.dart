@@ -32,13 +32,16 @@ class NumberingSeries {
 // --- NEW CLASS FOR SIGNATURE HISTORY ---
 // --- FINAL UPDATED CLASS FOR SIGNATURE ---
 // lib/models.dart mein ChallanSignature class ko isse replace karein:
+// lib/models.dart mein is class ko poora replace karein
 class ChallanSignature {
   String id;
   String imagePath;
   String verificationCode;
-  double signedAmount; // Jis amount par seal lagi thi
-  double signedQty;    // Jitni items total quantity par seal lagi thi
+  double signedAmount; 
+  double signedQty;    
   DateTime signDate;
+  double signX; 
+  double signY; 
 
   ChallanSignature({
     required this.id,
@@ -47,6 +50,8 @@ class ChallanSignature {
     required this.signedAmount,
     required this.signedQty,
     required this.signDate,
+    this.signX = 0.0,
+    this.signY = 0.0,
   });
 
   Map<String, dynamic> toMap() => {
@@ -56,6 +61,8 @@ class ChallanSignature {
     'signedAmount': signedAmount,
     'signedQty': signedQty,
     'signDate': signDate.toIso8601String(),
+    'signX': signX,
+    'signY': signY,
   };
 
   factory ChallanSignature.fromMap(Map<String, dynamic> map) => ChallanSignature(
@@ -65,6 +72,8 @@ class ChallanSignature {
     signedAmount: (map['signedAmount'] ?? 0.0).toDouble(),
     signedQty: (map['signedQty'] ?? 0.0).toDouble(),
     signDate: DateTime.parse(map['signDate'] ?? DateTime.now().toIso8601String()),
+    signX: (map['signX'] ?? 0.0).toDouble(),
+    signY: (map['signY'] ?? 0.0).toDouble(),
   );
 }
 // ===========================================================================
