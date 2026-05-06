@@ -22,19 +22,12 @@ class SaleInvoicePdf {
 
   static Future<Uint8List> generateBytes(Sale sale, Party party, CompanyProfile shop) async {
     final pdf = pw.Document();
-    const double masterWidth = 800; 
+    const double masterWidth = 800; // Perfect 800pt width
     const int itemsPerPage = 20; 
     int totalPages = (sale.items.length / itemsPerPage).ceil();
-
     bool isLocal = shop.state.trim().toLowerCase() == sale.partyState.trim().toLowerCase();
 
-    // ===========================================================================
-    // NAYA: SMART FORMATTER (5.05 ko 5.05 dikhayega, 5.00 ko 5 dikhayega)
-    // ===========================================================================
-    String fmt(double val) {
-      if (val == val.toInt()) return val.toInt().toString();
-      return val.toStringAsFixed(2);
-    }
+    String fmt(double val) => val == val.toInt() ? val.toInt().toString() : val.toStringAsFixed(2);
 
     for (int pageNum = 0; pageNum < totalPages; pageNum++) {
       int start = pageNum * itemsPerPage;
@@ -49,7 +42,7 @@ class SaleInvoicePdf {
           width: masterWidth,
           decoration: pw.BoxDecoration(border: pw.Border.all(width: 1)),
           child: pw.Column(children: [
-            // --- HEADER ---
+            // --- HEADER (280+170+350 = 800) ---
             pw.Row(children: [
               _hBox(280, true, pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
                 pw.Text(shop.name.toUpperCase(), style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold, color: PdfColors.blue900)),
@@ -66,59 +59,37 @@ class SaleInvoicePdf {
               _hBox(350, false, pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
                 pw.Text("CONSIGNEE:", style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold, color: PdfColors.grey700)),
                 pw.Text(party.name, style: pw.TextStyle(fontSize: 11, fontWeight: pw.FontWeight.bold, color: PdfColors.blue900)),
-                pw.Text("Supply State: ${sale.partyState} | GST: ${party.gst}", style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold)),
+                pw.Text("State: ${sale.partyState} | GST: ${party.gst}", style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold)),
                 pw.Text("DL No: ${party.dl}", style: const pw.TextStyle(fontSize: 8)),
               ])),
             ]),
 
-            // --- TABLE HEADER ---
+            // --- TABLE HEADER (25+60+40+220+75+45+45+55+55+40+40+100 = 800) ---
             pw.Container(color: PdfColors.grey200, child: pw.Row(children: [
-              _tCol("S.N", 25), 
-              _tCol("Qty+Free", 60), 
-              _tCol("Pack", 40), 
-              _tCol("Product Description", 205, isLeft: true), 
-              _tCol("Batch", 75), 
-              _tCol("Exp", 45), 
-              _tCol("HSN", 45),
-              _tCol("MRP", 55), 
-              _tCol("Rate", 55), 
-              if (isLocal) ...[
-                _tCol("CGST%", 40),
-                _tCol("SGST%", 40),
-              ] else ...[
-                _tCol("IGST%", 80), 
-              ],
+              _tCol("S.N", 25), _tCol("Qty+Free", 60), _tCol("Pack", 40), 
+              _tCol("Product Description", 220, isLeft: true), 
+              _tCol("Batch", 75), _tCol("Exp", 45), _tCol("HSN", 45),
+              _tCol("MRP", 55), _tCol("Rate", 55), 
+              _tCol("CGST", 40), _tCol("SGST", 40),
               _tCol("Net Amt", 100, isLast: true), 
             ])),
 
             // --- ITEM ROWS ---
             pw.Expanded(child: pw.Column(children: pageItems.asMap().entries.map((entry) {
               int idx = entry.key; var i = entry.value;
-              int sn = start + idx + 1;
               return pw.Container(
                 decoration: const pw.BoxDecoration(border: pw.Border(bottom: pw.BorderSide(width: 0.1, color: PdfColors.grey400))),
                 child: pw.Row(children: [
-                  _cell("$sn", 25), 
-                  _cell("${fmt(i.qty)} + ${fmt(i.freeQty)}", 60), // FIXED: Decimal Support
-                  _cell(i.packing, 40),
-                  pw.Container(width: 205, padding: const pw.EdgeInsets.only(left: 8), alignment: pw.Alignment.centerLeft, child: pw.Text(i.name, style: const pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold))),
-                  _cell(i.batch, 75), // FIXED: No UpperCase here
-                  _cell(i.exp, 45), 
-                  _cell(i.hsn, 45),
-                  _cell(i.mrp.toStringAsFixed(2), 55), 
-                  _cell(i.rate.toStringAsFixed(2), 55),
-                  if (isLocal) ...[
-                    _cell("${(i.gstRate / 2).toStringAsFixed(1)}%", 40),
-                    _cell("${(i.gstRate / 2).toStringAsFixed(1)}%", 40),
-                  ] else ...[
-                    _cell("${i.gstRate.toStringAsFixed(1)}%", 80),
-                  ],
+                  _cell("${start + idx + 1}", 25), _cell("${fmt(i.qty)} + ${fmt(i.freeQty)}", 60), 
+                  _cell(i.packing, 40), pw.Container(width: 220, padding: const pw.EdgeInsets.only(left: 8), alignment: pw.Alignment.centerLeft, child: pw.Text(i.name, style: pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold))),
+                  _cell(i.batch, 75), _cell(i.exp, 45), _cell(i.hsn, 45),
+                  _cell(i.mrp.toStringAsFixed(2), 55), _cell(i.rate.toStringAsFixed(2), 55),
+                  _cell("${(i.gstRate / 2).toStringAsFixed(1)}%", 40), _cell("${(i.gstRate / 2).toStringAsFixed(1)}%", 40),
                   _cell(i.total.toStringAsFixed(2), 100),
                 ]),
               );
             }).toList())),
 
-            // --- FOOTER ---
             if (isLastPage) _buildFooter(shop.name, sale, shop, isLocal)
             else pw.Container(height: 30, alignment: pw.Alignment.centerRight, padding: const pw.EdgeInsets.only(right: 20), child: pw.Text("Continued...", style: pw.TextStyle(fontStyle: pw.FontStyle.italic, fontSize: 8))),
           ]),
@@ -148,8 +119,9 @@ class SaleInvoicePdf {
         if (isLocal) ...[
           _fRow("CGST TOTAL", totalTax / 2),
           _fRow("SGST TOTAL", totalTax / 2),
-        ] else
-          _fRow("IGST TOTAL", totalTax),
+        ] else _fRow("IGST TOTAL", totalTax),
+        // NAYA: DISCOUNT LOGIC ADDED HERE
+        if (sale.extraDiscount > 0) _fRow("EXTRA DISCOUNT (-)", sale.extraDiscount),
         _fRow("ROUND OFF", sale.roundOff),
         pw.Divider(thickness: 0.5),
         pw.Row(mainAxisAlignment: pw.MainAxisAlignment.spaceBetween, children: [
