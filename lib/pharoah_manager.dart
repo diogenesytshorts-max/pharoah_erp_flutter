@@ -88,7 +88,7 @@ class PharoahManager with ChangeNotifier {
   List<ModuleAction> get gstActions => [
     ModuleAction(title: "GSTR-1", icon: Icons.assignment, color: Colors.green, navModule: "GO_GST_1"),
     ModuleAction(title: "GSTR-3B", icon: Icons.summarize, color: Colors.blue, navModule: "GO_GST_3B"),
-    ModuleAction(title: "Portal Match", icon: Icons.fact_check, color: Colors.teal, navModule: "GO_GST_RECON"),
+    ModuleAction(title: "Portal", icon: Icons.fact_check, color: Colors.teal, navModule: "GO_GST_RECON"),
   ];
 
   // --- DATA LISTS ---
@@ -171,9 +171,7 @@ class PharoahManager with ChangeNotifier {
   Future<void> save() async {
     final dir = await getWorkingPath(); 
     if (dir.isEmpty) return;
-
     Future _w(String n, List data) async => await File('$dir/$n').writeAsString(jsonEncode(data.map((e) => e.toMap()).toList()));
-
     await _w('meds.json', medicines); 
     await _w('parts.json', parties); 
     await _w('sales.json', sales);
@@ -193,10 +191,8 @@ class PharoahManager with ChangeNotifier {
     await _w('salts.json', salts); 
     await _w('dtypes.json', drugTypes); 
     await _w('banks.json', banks);
-
     await File('$dir/bats.json').writeAsString(jsonEncode(batchHistory.map((k, v) => MapEntry(k, v.map((b) => b.toMap()).toList()))));
     await File('$dir/config.json').writeAsString(jsonEncode(config.toMap()));
-    
     notifyListeners();
   }
 
@@ -204,11 +200,9 @@ class PharoahManager with ChangeNotifier {
     final dir = await getWorkingPath(); 
     if (dir.isEmpty) return;
     dynamic load(String n) { final f = File('$dir/$n'); return f.existsSync() ? jsonDecode(f.readAsStringSync()) : null; }
-
     var cData = load('config.json');
     if (cData != null) config = AppConfig.fromMap(cData);
     else config = AppConfig();
-
     medicines = (load('meds.json') as List?)?.map((e) => Medicine.fromMap(e)).toList() ?? DemoData.getMedicines();
     parties = (load('parts.json') as List?)?.map((e) => Party.fromMap(e)).toList() ?? [Party(id:'cash',name:"CASH",group:"Cash in Hand")];
     companies = (load('comps.json') as List?)?.map((e) => Company.fromMap(e)).toList() ?? MasterDataLibrary.getTopCompanies();
@@ -234,51 +228,53 @@ class PharoahManager with ChangeNotifier {
   }
 
   // ===========================================================================
-  // TRANSACTIONS & FINALIZATION
+  // MASTER AUTO-GENERATION HELPERS (FOR P2P SYNC)
+  // ===========================================================================
+  
+  String getOrCreateCompany(String name) {
+    if (name == "N/A" || name.isEmpty) return "";
+    try {
+      return companies.firstWhere((c) => c.name.toUpperCase() == name.trim().toUpperCase()).id;
+    } catch (e) {
+      String newId = "CP-${1000 + companies.length + 1}";
+      companies.add(Company(id: newId, name: name.trim().toUpperCase()));
+      save();
+      return newId;
+    }
+  }
+
+  String getOrCreateSalt(String name) {
+    if (name == "N/A" || name.isEmpty) return "";
+    try {
+      return salts.firstWhere((s) => s.name.toUpperCase() == name.trim().toUpperCase()).id;
+    } catch (e) {
+      String newId = "SL-${1000 + salts.length + 1}";
+      salts.add(Salt(id: newId, name: name.trim().toUpperCase(), type: "Mono"));
+      save();
+      return newId;
+    }
+  }
+
+  // ===========================================================================
+  // TRANSACTIONS
   // ===========================================================================
 
   Future<void> finalizeSale({
-    required String billNo, 
-    required DateTime date, 
-    required Party party, 
-    required List<BillItem> items, 
-    required double total, 
-    required String mode, 
-    List<String>? linkedIds,
-    double extraDiscount = 0.0,
-    double roundOff = 0.0
+    required String billNo, required DateTime date, required Party party, 
+    required List<BillItem> items, required double total, required String mode, 
+    List<String>? linkedIds, double extraDiscount = 0.0, double roundOff = 0.0
   }) async { 
-    // --- NAYA: P2P SNAPSHOT LOGIC ---
-    // Bill save karte waqt party ki poori detail master se uthana taaki export mein "N/A" na jaye
     Party masterParty = parties.firstWhere((p) => p.name == party.name, orElse: () => party);
-
     sales.add(Sale(
-      id: DateTime.now().toString(), 
-      billNo: billNo, 
-      date: date, 
-      partyName: masterParty.name, 
-      partyGstin: masterParty.gst, 
-      partyState: masterParty.state, 
-      items: items, 
-      totalAmount: total, 
-      paymentMode: mode, 
-      linkedChallanIds: linkedIds ?? [], 
-      extraDiscount: extraDiscount, 
-      roundOff: roundOff,
-      // Naye P2P Snapshot Fields fill karna
-      partyAddress: masterParty.address,
-      partyPhone: masterParty.phone,
-      partyEmail: masterParty.email,
-      partyDl: masterParty.dl,
-      partyPan: masterParty.pan,
-      partyCity: masterParty.city,
+      id: DateTime.now().toString(), billNo: billNo, date: date, partyName: masterParty.name, 
+      partyGstin: masterParty.gst, partyState: masterParty.state, items: items, totalAmount: total, 
+      paymentMode: mode, linkedChallanIds: linkedIds ?? [], extraDiscount: extraDiscount, roundOff: roundOff,
+      partyAddress: masterParty.address, partyPhone: masterParty.phone, partyEmail: masterParty.email,
+      partyDl: masterParty.dl, partyPan: masterParty.pan, partyCity: masterParty.city,
     )); 
-
     if (linkedIds != null) { for (var id in linkedIds) { int idx = saleChallans.indexWhere((c) => c.id == id); if (idx != -1) saleChallans[idx].status = "Billed"; } }
     if (activeCompany != null) { String p = billNo.split(RegExp(r'\d')).first; await PharoahNumberingEngine.updateSeriesCounter(type: "SALE", companyID: activeCompany!.id, usedNumber: billNo, prefix: p); }
-    
-    await save(); 
-    InventoryLogicCenter.rebuildAllInventory(medicines: medicines, batchHistory: batchHistory, purchases: purchases, sales: sales);
+    await save(); InventoryLogicCenter.rebuildAllInventory(medicines: medicines, batchHistory: batchHistory, purchases: purchases, sales: sales);
     notifyListeners(); 
   }
 
@@ -304,7 +300,6 @@ class PharoahManager with ChangeNotifier {
     notifyListeners();
   }
 
-  // --- UPDATES ---
   void updatePurchase({required String id, required String internalNo, required String billNo, required DateTime date, DateTime? entryDate, required Party party, required List<PurchaseItem> items, required double total, required String mode, required List<String> linkedChallanIds}) {
     int idx = purchases.indexWhere((p) => p.id == id); if (idx == -1) return;
     purchases[idx] = Purchase(id: id, internalNo: internalNo, billNo: billNo, date: date, entryDate: entryDate ?? DateTime.now(), distributorName: party.name, items: items, totalAmount: total, paymentMode: mode, linkedChallanIds: linkedChallanIds);
@@ -349,10 +344,7 @@ class PharoahManager with ChangeNotifier {
   // SECURE-SIGN & DELETES
   // ===========================================================================
 
-  Future<void> addSignatureToChallan({
-    required String challanId, required String imagePath, required String code,
-    required double amount, required double qty, required double x, required double y
-  }) async {
+  Future<void> addSignatureToChallan({required String challanId, required String imagePath, required String code, required double amount, required double qty, required double x, required double y}) async {
     int idx = saleChallans.indexWhere((c) => c.id == challanId);
     if (idx != -1) {
       final newSig = ChallanSignature(id: DateTime.now().toString(), imagePath: imagePath, verificationCode: code, signedAmount: amount, signedQty: qty, signDate: DateTime.now(), signX: x, signY: y);
@@ -360,7 +352,7 @@ class PharoahManager with ChangeNotifier {
       currentHistory.add(newSig);
       saleChallans[idx].sigHistory = currentHistory;
       saleChallans[idx].isSigned = true;
-      addLog("SECURITY", "Challan #${saleChallans[idx].billNo} SEALED with code: $code");
+      addLog("SECURITY", "Challan #${saleChallans[idx].billNo} SEALED. Code: $code");
       await save();
     }
   }
@@ -386,7 +378,7 @@ class PharoahManager with ChangeNotifier {
   void deleteShortage(String id) { shortages.removeWhere((s) => s.id == id); save(); }
 
   // ===========================================================================
-  // HELPERS & CONFIG
+  // HELPERS
   // ===========================================================================
   void updateAppConfig(AppConfig c) { config = c; save(); notifyListeners(); }
   void resetCounter(String t) { addLog("SYSTEM", "Reset for $t"); notifyListeners(); }
@@ -404,24 +396,25 @@ class PharoahManager with ChangeNotifier {
   void addDrugType(DrugType d) { drugTypes.add(d); save(); }
   void addSystemUser(SystemUser u) { systemUsers.add(u); save(); }
   void addNumberingSeries(NumberingSeries ns) { numberingSeries.add(ns); save(); }
+  void updateNumberingSeries(NumberingSeries ns) { int i = numberingSeries.indexWhere((x) => x.id == ns.id); if(i != -1) { numberingSeries[i] = ns; save(); } }
   void addVoucher(Voucher v) { vouchers.add(v); save(); }
   void addBank(Bank b) { banks.add(b); save(); }
   void addCheque(ChequeEntry c) { cheques.add(c); save(); }
   void updateChequeStatus(String id, String s, String r) { int i = cheques.indexWhere((c) => c.id == id); if(i != -1) { cheques[i].status = s; cheques[i].remark = r; save(); } }
 
-  // --- SYSTEM ADMIN ---
+  // --- SYSTEM ---
   Future<void> setupNewCompanyEnvironment(CompanyProfile p, String f) async {
     activeCompany = p; currentFY = f;
     numberingSeries = [NumberingSeries(id: 's1', name: "Standard Retail", type: "SALE", prefix: "INV-", isDefault: true)];
     medicines = DemoData.getMedicines(); companies = MasterDataLibrary.getTopCompanies(); salts = MasterDataLibrary.getTopSalts(); drugTypes = MasterDataLibrary.getDrugTypes();
     parties = [DemoData.getDemoParty(), Party(id: 'cash', name: "CASH", group: "Cash in Hand")];
-    await save(); if (!companiesRegistry.any((c) => c.id == p.id)) { companiesRegistry.add(p); await saveRegistry(); }
+    await save(); if (!companiesRegistry.any((c) => c.id : p.id)) { companiesRegistry.add(p); await saveRegistry(); }
     notifyListeners();
   }
 
-  Future<bool> startNewFinancialYear(String n) async {
+  Future<void> startNewFinancialYear(String n) async {
     await save(); bool ok = await FYTransferEngine.transferData(companyID: activeCompany!.id, businessType: activeCompany!.businessType, sourceFY: currentFY, targetFY: n);
-    if(ok) { currentFY = n; await loadAllData(); } return ok;
+    if(ok) { currentFY = n; await loadAllData(); } 
   }
 
   Future<void> masterReset() async { 
