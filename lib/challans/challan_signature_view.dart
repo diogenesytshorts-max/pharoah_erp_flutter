@@ -40,66 +40,53 @@ class _ChallanSignatureViewState extends State<ChallanSignatureView> {
   @override
   void initState() {
     super.initState();
-    // Landscape mode for better document review
-    SystemChrome.setPreferredOrientations([
-      DeviceOrientation.landscapeRight, 
-      DeviceOrientation.landscapeLeft
-    ]);
+    SystemChrome.setPreferredOrientations([DeviceOrientation.landscapeRight, DeviceOrientation.landscapeLeft]);
   }
 
   @override
   void dispose() {
-    // Back to portrait on exit
     SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
     _pageController.dispose();
     _transformationController.dispose();
     super.dispose();
   }
 
-  // --- SECURITY LOGIC: UNIQUE SEAL GENERATION ---
   void _generateSecureCode() {
     if (uniqueCode.isEmpty) {
       const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-      Random r = Random();
-      // Code format: VR-XXXXX
-      uniqueCode = "VR-${List.generate(5, (i) => chars[r.nextInt(chars.length)]).join()}";
+      uniqueCode = "VR-${List.generate(5, (i) => chars[Random().nextInt(chars.length)]).join()}";
       setState(() {});
     }
   }
 
-  // --- FINALIZATION & LOCKING ---
   Future<void> _handleFinalize(PharoahManager ph) async {
     if (points.isEmpty) return;
     setState(() => isProcessing = true);
-    
     try {
-      // Capture drawing from the full screen canvas
       RenderRepaintBoundary boundary = _signBoundaryKey.currentContext!.findRenderObject() as RenderRepaintBoundary;
       ui.Image image = await boundary.toImage(pixelRatio: 3.0);
       ByteData? byteData = await image.toByteData(format: ui.ImageByteFormat.png);
       Uint8List sigBytes = byteData!.buffer.asUint8List();
 
-      // Save file and link to database
       String savedImgPath = await ph.saveSignatureFile(widget.challan.billNo, sigBytes);
-      
-      // Calculate snapshot for security check
-      double totalQty = widget.challan.items.fold(0, (sum, item) => sum + item.qty + item.freeQty);
+      double totalQty = widget.challan.items.fold(0.0, (sum, item) => sum + item.qty + item.freeQty);
 
+      // CALLING WITH ALL FIXED PARAMETERS
       await ph.addSignatureToChallan(
         challanId: widget.challan.id, 
         imagePath: savedImgPath, 
         code: uniqueCode,
         amount: widget.challan.totalAmount, 
-        qty: totalQty, // FIXED: Named parameter qty added
+        qty: totalQty, 
+        x: 0.1, 
+        y: 0.82
       );
 
       if (mounted) {
         final updatedChallan = ph.saleChallans.firstWhere((c) => c.id == widget.challan.id);
         _showActionHub(ph, updatedChallan);
       }
-    } catch (e) { 
-      debugPrint("Finalization Error: $e"); 
-    }
+    } catch (e) { debugPrint("Error: $e"); }
     setState(() => isProcessing = false);
   }
 
@@ -109,8 +96,7 @@ class _ChallanSignatureViewState extends State<ChallanSignatureView> {
       barrierDismissible: false,
       builder: (c) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Row(children: [Icon(Icons.lock, color: Colors.green), SizedBox(width: 10), Text("Verification Locked")]),
-        content: Text("Seal $uniqueCode is now active. Any modification to items or total will invalidate this signature."),
+        title: const Text("Document Sealed"),
         actions: [
           ElevatedButton.icon(
             style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
@@ -119,9 +105,9 @@ class _ChallanSignatureViewState extends State<ChallanSignatureView> {
               final dir = await getTemporaryDirectory();
               final file = File('${dir.path}/Challan_${latest.billNo}.pdf');
               await file.writeAsBytes(bytes);
-              await Share.shareXFiles([XFile(file.path)], text: "Secure Digital Challan. Seal: $uniqueCode");
+              await Share.shareXFiles([XFile(file.path)], text: "Seal Code: ${latest.sigHistory.last.verificationCode}");
             },
-            icon: const Icon(Icons.share), label: const Text("SHARE SECURE PDF"),
+            icon: const Icon(Icons.share), label: const Text("SHARE PDF"),
           ),
           TextButton(onPressed: () => Navigator.of(context).popUntil((route) => route.isFirst), child: const Text("FINISH")),
         ],
@@ -131,9 +117,7 @@ class _ChallanSignatureViewState extends State<ChallanSignatureView> {
 
   @override
   Widget build(BuildContext context) {
-    final ph = Provider.of<PharoahManager>(context);
-    int itemsPerPage = 12;
-    int totalPages = (widget.challan.items.length / itemsPerPage).ceil();
+    int totalPages = (widget.challan.items.length / 12).ceil();
     if (totalPages == 0) totalPages = 1;
     bool isAtLastPage = (currentPage == totalPages - 1);
 
@@ -141,25 +125,19 @@ class _ChallanSignatureViewState extends State<ChallanSignatureView> {
       backgroundColor: const Color(0xFF0F1218),
       appBar: AppBar(
         backgroundColor: Colors.black,
-        title: Text("Receiver Verification: Page ${currentPage + 1} / $totalPages", style: const TextStyle(fontSize: 14)),
+        title: Text("Receiver Review: Page ${currentPage + 1} / $totalPages", style: const TextStyle(fontSize: 14)),
         actions: [
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
             child: ElevatedButton.icon(
               style: ElevatedButton.styleFrom(backgroundColor: isSignMode ? Colors.red : Colors.blueAccent),
               onPressed: () {
-                // Auto-jump to last page if user is on page 1
-                if (!isAtLastPage) {
-                  _pageController.animateToPage(totalPages - 1, duration: const Duration(milliseconds: 500), curve: Curves.ease);
-                }
-                _transformationController.value = Matrix4.identity(); // Reset zoom
-                setState(() {
-                  isSignMode = !isSignMode;
-                  _isZooming = false;
-                });
+                if (!isAtLastPage) _pageController.animateToPage(totalPages - 1, duration: const Duration(milliseconds: 400), curve: Curves.ease);
+                _transformationController.value = Matrix4.identity();
+                setState(() { isSignMode = !isSignMode; _isZooming = false; });
               },
               icon: Icon(isSignMode ? Icons.close : Icons.draw, size: 18),
-              label: Text(isSignMode ? "CANCEL" : "SIGN ON LAST PAGE"),
+              label: Text(isSignMode ? "CANCEL" : "SIGN HERE"),
             ),
           )
         ],
@@ -169,22 +147,16 @@ class _ChallanSignatureViewState extends State<ChallanSignatureView> {
           Expanded(
             child: PageView.builder(
               controller: _pageController,
-              // Disable swipe if user is drawing or zoomed in
               physics: (isSignMode || _isZooming) ? const NeverScrollableScrollPhysics() : const BouncingScrollPhysics(),
               itemCount: totalPages,
               onPageChanged: (i) => setState(() => currentPage = i),
               itemBuilder: (context, index) {
                 bool isActualLastPage = (index == totalPages - 1);
-                
                 return InteractiveViewer(
                   transformationController: _transformationController,
                   minScale: 1.0, maxScale: 4.0,
                   onInteractionStart: (_) => setState(() => _isZooming = true),
-                  onInteractionEnd: (_) {
-                    if (_transformationController.value.getMaxScaleOnAxis() <= 1.0) {
-                      setState(() => _isZooming = false);
-                    }
-                  },
+                  onInteractionEnd: (_) { if (_transformationController.value.getMaxScaleOnAxis() <= 1.0) setState(() => _isZooming = false); },
                   child: Center(
                     child: FittedBox(
                       fit: BoxFit.contain,
@@ -194,9 +166,7 @@ class _ChallanSignatureViewState extends State<ChallanSignatureView> {
                         color: Colors.white,
                         child: Stack(
                           children: [
-                            _buildBillLayout(index, totalPages, isActualLastPage, ph),
-                            
-                            // DRAWING CANVAS (Active only on last page when button is pressed)
+                            _buildBillLayout(index, totalPages, isActualLastPage, Provider.of<PharoahManager>(context)),
                             if (isActualLastPage && isSignMode)
                               RepaintBoundary(
                                 key: _signBoundaryKey,
@@ -205,11 +175,8 @@ class _ChallanSignatureViewState extends State<ChallanSignatureView> {
                                   onPanUpdate: (d) => setState(() => points.add(d.localPosition)),
                                   onPanEnd: (d) => setState(() => points.add(null)),
                                   child: Container(
-                                    color: Colors.blue.withOpacity(0.03), // Subtle blue overlay to show it's interactive
-                                    child: CustomPaint(
-                                      painter: SignaturePainter(points: points),
-                                      size: const Size(800, 550),
-                                    ),
+                                    color: Colors.blue.withOpacity(0.05),
+                                    child: CustomPaint(painter: SignaturePainter(points: points), size: const Size(800, 550)),
                                   ),
                                 ),
                               ),
@@ -222,7 +189,7 @@ class _ChallanSignatureViewState extends State<ChallanSignatureView> {
               },
             ),
           ),
-          _buildBottomActionPanel(ph, isAtLastPage),
+          _buildBottomActionPanel(Provider.of<PharoahManager>(context), isAtLastPage),
         ],
       ),
     );
@@ -247,8 +214,8 @@ class _ChallanSignatureViewState extends State<ChallanSignatureView> {
             Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
               Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 const SizedBox(height: 50),
-                const Text("RECEIVER SIGNATURE & STAMP", style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.black54)),
-                if (uniqueCode.isNotEmpty) Text("SEAL CODE: $uniqueCode", style: const TextStyle(fontSize: 8, color: Colors.red, fontWeight: FontWeight.bold)),
+                const Text("RECEIVER SIGNATURE", style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.black54)),
+                if (uniqueCode.isNotEmpty) Text("SEAL: $uniqueCode", style: const TextStyle(fontSize: 8, color: Colors.red, fontWeight: FontWeight.bold)),
               ]), 
               Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
                 Text("For ${shop.name}", style: const TextStyle(fontSize: 8, fontWeight: FontWeight.bold)),
@@ -269,16 +236,8 @@ class _ChallanSignatureViewState extends State<ChallanSignatureView> {
     int end = (start + 12 < widget.challan.items.length) ? start + 12 : widget.challan.items.length;
     var pageItems = widget.challan.items.sublist(start, end);
     return Column(children: [
-      Container(color: Colors.grey[100], child: Row(children: [
-        _cell("S.N", 25, true), _cell("Qty", 55, true), _cell("Pack", 45, true), _cell("Product Description", 210, true, true), 
-        _cell("Batch", 75, true), _cell("Exp", 45, true), _cell("HSN", 50, true), _cell("MRP", 55, true), 
-        _cell("Rate", 55, true), _cell("GST%", 30, true), _cell("Net Total", 155, true)
-      ])),
-      ...pageItems.map((it) => Row(children: [
-        _cell(it.srNo.toString(), 25, false), _cell("${it.qty.toInt()} + ${it.freeQty.toInt()}", 55, false), _cell(it.packing, 45, false), _cell(it.name, 210, false, true), 
-        _cell(it.batch, 75, false), _cell(it.exp, 45, false), _cell(it.hsn, 50, false), _cell(it.mrp.toStringAsFixed(2), 55, false), 
-        _cell(it.rate.toStringAsFixed(2), 55, false), _cell("${it.gstRate.toInt()}%", 30, false), _cell(it.total.toStringAsFixed(2), 155, false)
-      ])).toList(),
+      Container(color: Colors.grey[100], child: Row(children: [_cell("S.N", 25, true), _cell("Qty", 55, true), _cell("Pack", 45, true), _cell("Product Description", 210, true, true), _cell("Batch", 75, true), _cell("Exp", 45, true), _cell("HSN", 50, true), _cell("MRP", 55, true), _cell("Rate", 55, true), _cell("GST%", 30, true), _cell("Net Total", 155, true)])),
+      ...pageItems.map((it) => Row(children: [_cell(it.srNo.toString(), 25, false), _cell("${it.qty.toInt()} + ${it.freeQty.toInt()}", 55, false), _cell(it.packing, 45, false), _cell(it.name, 210, false, true), _cell(it.batch, 75, false), _cell(it.exp, 45, false), _cell(it.hsn, 50, false), _cell(it.mrp.toStringAsFixed(2), 55, false), _cell(it.rate.toStringAsFixed(2), 55, false), _cell("${it.gstRate.toInt()}%", 30, false), _cell(it.total.toStringAsFixed(2), 155, false)])).toList(),
     ]);
   }
 
@@ -286,21 +245,14 @@ class _ChallanSignatureViewState extends State<ChallanSignatureView> {
   Widget _headerBox(double w, List<Widget> ch) => Container(width: w, padding: const EdgeInsets.all(8), decoration: BoxDecoration(border: Border.all(width: 0.5, color: Colors.black38)), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: ch));
   
   Widget _buildBottomActionPanel(PharoahManager ph, bool isLastPage) => Container(
-    padding: const EdgeInsets.all(15), 
-    color: Colors.black, 
+    padding: const EdgeInsets.all(15), color: Colors.black, 
     child: Row(children: [
-      if (uniqueCode.isNotEmpty) Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        const Text("SECURITY LOCK GENERATED", style: TextStyle(color: Colors.white, fontSize: 8)),
-        Text(uniqueCode, style: const TextStyle(color: Colors.orange, fontWeight: FontWeight.bold, fontSize: 18)),
-      ]),
+      if (uniqueCode.isNotEmpty) Text("SEAL: $uniqueCode", style: const TextStyle(color: Colors.orange, fontWeight: FontWeight.bold, fontSize: 16)), 
       const Spacer(), 
       ElevatedButton.icon(
-        style: ElevatedButton.styleFrom(
-          backgroundColor: (isLastPage && points.isNotEmpty) ? Colors.green : Colors.grey.shade900, 
-          padding: const EdgeInsets.symmetric(horizontal: 25, vertical: 15)
-        ), 
+        style: ElevatedButton.styleFrom(backgroundColor: (isLastPage && points.isNotEmpty) ? Colors.green : Colors.grey.shade900, padding: const EdgeInsets.symmetric(horizontal: 25, vertical: 15)), 
         onPressed: (!isLastPage || points.isEmpty || isProcessing) ? null : () => _handleFinalize(ph), 
-        icon: isProcessing ? const SizedBox(width: 15, height: 15, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)) : const Icon(Icons.lock_outline), 
+        icon: isProcessing ? const SizedBox(width: 15, height: 15, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)) : const Icon(Icons.lock_person), 
         label: const Text("SEAL & FINALIZE")
       )
     ])
@@ -313,9 +265,7 @@ class SignaturePainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     Paint paint = Paint()..color = Colors.blue[900]!..strokeCap = StrokeCap.round..strokeWidth = 4.0;
-    for (int i = 0; i < points.length - 1; i++) {
-      if (points[i] != null && points[i + 1] != null) canvas.drawLine(points[i]!, points[i + 1]!, paint);
-    }
+    for (int i = 0; i < points.length - 1; i++) { if (points[i] != null && points[i + 1] != null) canvas.drawLine(points[i]!, points[i + 1]!, paint); }
   }
   @override bool shouldRepaint(SignaturePainter oldDelegate) => true;
 }
