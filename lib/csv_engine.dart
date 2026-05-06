@@ -5,12 +5,6 @@ import 'package:intl/intl.dart';
 import 'models.dart';
 
 class CsvEngine {
-  /* 
-     ===========================================================================
-     PHAROAH P2P ENGINE V3 - 29 COLUMNS SMART STRUCTURE
-     ===========================================================================
-  */
-
   static List<String> get _universalHeader => [
     "DATE", "BILL_NO", "PARTY_NAME", "PARTY_GSTIN", "PARTY_STATE",
     "ITEM_NAME", "MANUFACTURER", "PACKING", "BATCH", "EXPIRY",
@@ -37,10 +31,21 @@ class CsvEngine {
         String flags = "NORMAL";
 
         try {
-          Medicine med = allMeds.firstWhere((m) => m.id == i.medicineID || m.name == i.name);
-          if (med.companyId.isNotEmpty) mfgName = allComps.firstWhere((c) => c.id == med.companyId).name;
-          if (med.saltId.isNotEmpty) saltName = allSalts.firstWhere((sl) => sl.id == med.saltId).name;
-          flags = "${med.isNarcotic ? 'NRX' : ''}|${med.isScheduleH1 ? 'H1' : ''}";
+          // Robust Matching Logic
+          Medicine med = allMeds.firstWhere(
+            (m) => m.id == i.medicineID || m.name.trim().toUpperCase() == i.name.trim().toUpperCase(),
+            orElse: () => Medicine(id: '', name: '', packing: '')
+          );
+
+          if (med.id.isNotEmpty) {
+            if (med.companyId.isNotEmpty) {
+              mfgName = allComps.firstWhere((c) => c.id == med.companyId, orElse: () => Company(id: '', name: 'N/A')).name;
+            }
+            if (med.saltId.isNotEmpty) {
+              saltName = allSalts.firstWhere((sl) => sl.id == med.saltId, orElse: () => Salt(id: '', name: 'N/A')).name;
+            }
+            flags = "${med.isNarcotic ? 'NRX' : ''}|${med.isScheduleH1 ? 'H1' : ''}";
+          }
         } catch (e) {}
 
         rows.add([
@@ -52,7 +57,7 @@ class CsvEngine {
           i.name.trim().toUpperCase(), 
           mfgName.trim().toUpperCase(), 
           i.packing.trim().toUpperCase(), 
-          i.batch.trim(), // FIXED: removed .toUpperCase()
+          i.batch.trim(), // Case Preserved
           i.exp.trim(), 
           i.hsn.trim(),
           i.qty, 
@@ -104,7 +109,7 @@ class CsvEngine {
           i.name.trim().toUpperCase(), 
           mfgName.trim().toUpperCase(), 
           i.packing.trim().toUpperCase(), 
-          i.batch.trim(), // FIXED: Case preserved
+          i.batch.trim(), 
           i.exp.trim(), 
           i.hsn.trim(),
           i.qty, 
