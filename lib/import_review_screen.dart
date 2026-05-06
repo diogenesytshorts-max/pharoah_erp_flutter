@@ -7,6 +7,7 @@ import 'pharoah_manager.dart';
 import 'models.dart';
 import 'party_master.dart';
 import 'product_master.dart';
+import 'batch_sync_engine.dart'; // NAYA: Batch yaad rakhne ke liye
 
 class ImportReviewScreen extends StatefulWidget {
   final List<List<dynamic>> csvData; 
@@ -36,7 +37,7 @@ class _ImportReviewScreenState extends State<ImportReviewScreen> {
   }
 
   // ===========================================================================
-  // CORE ENGINE: 29-COLUMN EXTRACTION & MATCHING (V3)
+  // CORE ENGINE: 29-COLUMN EXTRACTION (BATCH CASE PRESERVED)
   // ===========================================================================
   void _processCsvLogic() {
     final ph = Provider.of<PharoahManager>(context, listen: false);
@@ -57,7 +58,6 @@ class _ImportReviewScreenState extends State<ImportReviewScreen> {
       'email': row1.length > 22 ? row1[22].toString() : "N/A",
       'address': row1.length > 23 ? row1[23].toString() : "N/A",
       'sender_state': row1.length > 26 ? row1[26].toString() : "Rajasthan",
-      // NAYA: Extra Discount aur Roundoff uthana (Index 27 & 28)
       'extraDiscount': row1.length > 27 ? double.tryParse(row1[27].toString()) ?? 0.0 : 0.0,
       'roundOff': row1.length > 28 ? double.tryParse(row1[28].toString()) ?? 0.0 : 0.0,
     };
@@ -87,7 +87,7 @@ class _ImportReviewScreenState extends State<ImportReviewScreen> {
       reviewedItems.add({
         'csvName': csvItemName,
         'csvPack': csvPack,
-        'batch': row[8].toString().trim(), 
+        'batch': row[8].toString().trim(), // FIXED: No toUpperCase here
         'exp': row[9].toString(),
         'hsn': row[10].toString(),
         'qty': double.tryParse(row[11].toString()) ?? 0,
@@ -107,230 +107,13 @@ class _ImportReviewScreenState extends State<ImportReviewScreen> {
     setState(() => isLoading = false);
   }
 
-  void _editPartyDetail() async {
-    await Navigator.push(context, MaterialPageRoute(
-      builder: (c) => PartyMasterView(
-        isSelectionMode: true,
-        preFillData: {
-          'name': senderInfo['name'], 'gst': senderInfo['gst'], 'state': senderInfo['sender_state'],
-          'city': senderInfo['city'], 'dl': senderInfo['dl'], 'pan': senderInfo['pan'],
-          'phone': senderInfo['phone'], 'email': senderInfo['email'], 'address': senderInfo['address'],
-        },
-      )
-    ));
-    _processCsvLogic(); 
-  }
-
-  void _createProduct(Map<String, dynamic> item) async {
-    await Navigator.push(context, MaterialPageRoute(
-      builder: (c) => ProductMasterView(
-        isSelectionMode: true,
-        preFillData: {
-          'name': item['csvName'], 'packing': item['csvPack'], 'hsn': item['hsn'],
-          'gst': item['gst'], 'company': item['manufacturer'], 'salt': item['salt'],
-          'flags': item['flags'],
-        },
-      )
-    ));
-    _processCsvLogic(); 
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final ph = Provider.of<PharoahManager>(context);
-    if (isLoading) return const Scaffold(body: Center(child: CircularProgressIndicator()));
-
-    return Scaffold(
-      backgroundColor: const Color(0xFFF1F3F6),
-      appBar: AppBar(
-        title: Text("P2P Review (${widget.importType})", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-        backgroundColor: const Color(0xFF0D47A1),
-        foregroundColor: Colors.white,
-      ),
-      body: SingleChildScrollView(
-        child: Column(
-          children: [
-            _buildTopHeader(),
-            _buildPartyCard(),
-            _buildActionStrip(),
-            ListView.builder(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              itemCount: reviewedItems.length,
-              itemBuilder: (c, i) => _buildItemRow(reviewedItems[i]),
-            ),
-            const SizedBox(height: 20),
-            _buildBottomSummary(ph),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildTopHeader() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-      color: Colors.blue.shade900,
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          _tag("BILL DATE:", senderInfo['date'], Icons.receipt_long),
-          _tag("IMPORT DATE:", DateFormat('dd/MM/yyyy').format(DateTime.now()), Icons.computer),
-        ],
-      ),
-    );
-  }
-
-  Widget _tag(String l, String d, IconData i) => Row(children: [
-    Icon(i, size: 12, color: Colors.white70),
-    const SizedBox(width: 5),
-    Text("$l $d", style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold)),
-  ]);
-
-  Widget _buildPartyCard() {
-    return Container(
-      margin: const EdgeInsets.all(12),
-      padding: const EdgeInsets.all(15),
-      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(15), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10)]),
-      child: Row(
-        children: [
-          const CircleAvatar(radius: 25, backgroundColor: Color(0xFFE3F2FD), child: Icon(Icons.business, color: Color(0xFF0D47A1))),
-          const SizedBox(width: 15),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(children: [
-                  Flexible(child: Text(senderInfo['name'], style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 15), overflow: TextOverflow.ellipsis)),
-                  const SizedBox(width: 5),
-                  IconButton(onPressed: _editPartyDetail, icon: const Icon(Icons.edit_note, color: Colors.blue, size: 22)),
-                ]),
-                Text("GST: ${senderInfo['gst']} | DL: ${senderInfo['dl']}", style: const TextStyle(fontSize: 10, color: Colors.grey, fontWeight: FontWeight.bold)),
-                Text(isLocalSale ? "MODE: LOCAL (CGST+SGST)" : "MODE: INTERSTATE (IGST)", style: TextStyle(fontSize: 10, color: isLocalSale ? Colors.green : Colors.indigo, fontWeight: FontWeight.bold)),
-              ],
-            ),
-          ),
-          Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-            Text(senderInfo['billNo'], style: const TextStyle(fontWeight: FontWeight.w900, color: Colors.blueGrey)),
-            const Text("P2P SYNC", style: TextStyle(fontSize: 8, color: Colors.grey, fontWeight: FontWeight.bold)),
-          ])
-        ],
-      ),
-    );
-  }
-
-  Widget _buildActionStrip() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 5),
-      child: Row(
-        children: [
-          Checkbox(
-            value: selectAll, activeColor: const Color(0xFF0D47A1),
-            onChanged: (v) {
-              setState(() {
-                selectAll = v!;
-                for (var it in reviewedItems) if(it['status'] != 'new') it['isSelected'] = v;
-              });
-            }
-          ),
-          const Text("SELECT ALL MATCHED", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11, color: Colors.blueGrey)),
-          const Spacer(),
-          _dot(Colors.green, "OK"), _dot(Colors.orange, "MAP"), _dot(Colors.red, "NEW"),
-        ],
-      ),
-    );
-  }
-
-  Widget _dot(Color c, String l) => Row(children: [
-    Container(margin: const EdgeInsets.only(left: 8), width: 8, height: 8, decoration: BoxDecoration(color: c, shape: BoxShape.circle)),
-    const SizedBox(width: 3),
-    Text(l, style: const TextStyle(fontSize: 8, fontWeight: FontWeight.bold)),
-  ]);
-
-  Widget _buildItemRow(Map<String, dynamic> it) {
-    Color statusColor = it['status'] == 'matched' ? Colors.green : (it['status'] == 'suggested' ? Colors.orange : Colors.red);
-    Medicine? m = it['match'];
-
-    return Card(
-      elevation: 0, margin: const EdgeInsets.only(bottom: 8),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: BorderSide(color: it['isSelected'] ? statusColor : Colors.grey.shade200, width: it['isSelected'] ? 2 : 1)),
-      child: ExpansionTile(
-        leading: Checkbox(value: it['isSelected'], activeColor: statusColor, onChanged: (v) => setState(() => it['isSelected'] = v!)),
-        title: Text(it['csvName'], style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-        subtitle: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Container(
-            padding: const EdgeInsets.all(5), margin: const EdgeInsets.only(top: 5),
-            decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(5)),
-            child: Text(
-              "Batch: ${it['batch']} | Exp: ${it['exp']} | MRP: ₹${it['mrp']} | Rate: ₹${it['rate']} | GST: ${it['gst']}% | HSN: ${it['hsn']}",
-              style: const TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.blueGrey),
-            ),
-          ),
-          const SizedBox(height: 5),
-          Text(it['status'] == 'new' ? "New Product: Action Required" : "System Match: ${m?.name} (${m?.packing})", style: TextStyle(fontSize: 10, color: statusColor, fontWeight: FontWeight.bold)),
-        ]),
-        trailing: _buildRowAction(it, statusColor),
-      ),
-    );
-  }
-
-  Widget _buildRowAction(Map<String, dynamic> it, Color c) {
-    if (it['status'] == 'matched' && it['isSelected']) return const Icon(Icons.check_circle, color: Colors.green);
-    return Row(mainAxisSize: MainAxisSize.min, children: [
-      if(it['status'] != 'matched') IconButton(icon: const Icon(Icons.link_rounded, color: Colors.blue, size: 22), onPressed: () async {
-          final Medicine? linkedMed = await Navigator.push(context, MaterialPageRoute(builder: (c) => ProductMasterView(isSelectionMode: true)));
-          if (linkedMed != null) {
-            setState(() { it['match'] = linkedMed; it['status'] = 'matched'; it['isSelected'] = true; });
-          }
-      }),
-      ElevatedButton(
-        style: ElevatedButton.styleFrom(backgroundColor: c, padding: const EdgeInsets.symmetric(horizontal: 10), minimumSize: const Size(50, 30)),
-        onPressed: it['status'] == 'new' ? () => _createProduct(it) : () => setState(() => it['isSelected'] = true),
-        child: Text(it['status'] == 'new' ? "CREATE" : "OK", style: const TextStyle(fontSize: 9, color: Colors.white, fontWeight: FontWeight.bold)),
-      )
-    ]);
-  }
-
-  Widget _buildBottomSummary(PharoahManager ph) {
-    double itemTotal = reviewedItems.where((it) => it['isSelected']).fold(0.0, (sum, it) => sum + it['total']);
-    double extraDisc = senderInfo['extraDiscount'] ?? 0.0;
-    double netPayable = itemTotal - extraDisc + (senderInfo['roundOff'] ?? 0.0);
-
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: const BoxDecoration(color: Colors.white, borderRadius: BorderRadius.vertical(top: Radius.circular(25)), boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 15, offset: Offset(0, -5))]),
-      child: Column(
-        children: [
-          _row("Items Gross Total", itemTotal),
-          if (extraDisc > 0) _row("Extra Discount (-)", extraDisc),
-          _row("Round Off", senderInfo['roundOff'] ?? 0.0),
-          const Divider(height: 25),
-          Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-            const Text("NET PAYABLE", style: TextStyle(fontWeight: FontWeight.w900, fontSize: 13)),
-            Text("₹${netPayable.toStringAsFixed(2)}", style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w900, color: Color(0xFF0D47A1))),
-          ]),
-          const SizedBox(height: 15),
-          ElevatedButton.icon(
-            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF0D47A1), foregroundColor: Colors.white, minimumSize: const Size(double.infinity, 55), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
-            onPressed: () => _finalizeAndSave(ph),
-            icon: const Icon(Icons.cloud_upload_rounded),
-            label: Text("POST TO ${widget.importType}", style: const TextStyle(fontWeight: FontWeight.bold, letterSpacing: 1)),
-          )
-        ],
-      ),
-    );
-  }
-
-  Widget _row(String l, double v) => Padding(padding: const EdgeInsets.only(bottom: 4), child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [Text(l, style: const TextStyle(fontSize: 11, color: Colors.grey, fontWeight: FontWeight.bold)), Text("₹${v.toStringAsFixed(2)}", style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold))]));
-
   // ===========================================================================
-  // FINAL SAVE LOGIC: TAX SPLIT & HEADER SYNC
+  // FINAL SAVE: BATCH MEMORY + DASHBOARD SYNC + MASTER MAPPING
   // ===========================================================================
   void _finalizeAndSave(PharoahManager ph) async {
     bool hasUnresolved = reviewedItems.any((it) => it['isSelected'] && it['status'] == 'new');
     if (hasUnresolved) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Please Create or Link all Red items first!"), backgroundColor: Colors.red));
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Link or create all red items first!"), backgroundColor: Colors.red));
       return;
     }
 
@@ -346,17 +129,34 @@ class _ImportReviewScreenState extends State<ImportReviewScreen> {
       for (var it in reviewedItems.where((e) => e['isSelected'])) {
         Medicine m = it['match'];
         
-        // --- NAYA: TAX SPLIT CALCULATION ---
+        // --- 1. NAYA: AUTO-LINK COMPANY & SALT FOR SALE IMPORT ---
+        String mfgId = ph.getOrCreateCompany(it['manufacturer']);
+        String saltId = ph.getOrCreateSalt(it['salt']);
+        
+        // Medicine Master ko update karna taaki Company/Salt save ho jaye
+        int mIdx = ph.medicines.indexWhere((med) => med.id == m.id);
+        if(mIdx != -1) {
+          ph.medicines[mIdx].companyId = mfgId;
+          ph.medicines[mIdx].saltId = saltId;
+        }
+
+        // --- 2. NAYA: BATCH REGISTRATION (TAAKI SYSTEM BATCH YAAD RAKHE) ---
+        BatchSyncEngine.registerBatchActivity(
+          ph: ph, 
+          productKey: m.identityKey, 
+          batchNo: it['batch'], 
+          exp: it['exp'], 
+          packing: m.packing, 
+          mrp: it['mrp'], 
+          rate: it['rate']
+        );
+
+        // Tax Calculation
         double taxableVal = it['rate'] * it['qty'];
         double totalLineTax = it['total'] - taxableVal;
-        double cgst = 0, sgst = 0, igst = 0;
-
-        if (isLocalSale) {
-          cgst = totalLineTax / 2;
-          sgst = totalLineTax / 2;
-        } else {
-          igst = totalLineTax;
-        }
+        double cgst = isLocalSale ? totalLineTax / 2 : 0;
+        double sgst = isLocalSale ? totalLineTax / 2 : 0;
+        double igst = isLocalSale ? 0 : totalLineTax;
 
         finalSaleItems.add(BillItem(
           id: DateTime.now().millisecondsSinceEpoch.toString() + m.id, 
@@ -364,27 +164,30 @@ class _ImportReviewScreenState extends State<ImportReviewScreen> {
           medicineID: m.id, name: m.name, packing: m.packing, batch: it['batch'], exp: it['exp'],
           hsn: it['hsn'], mrp: it['mrp'], qty: it['qty'], freeQty: it['free'], rate: it['rate'],
           gstRate: it['gst'], total: it['total'],
-          cgst: cgst, sgst: sgst, igst: igst, // FIXED: Values initialized
+          cgst: cgst, sgst: sgst, igst: igst,
         ));
       }
 
-      ph.finalizeSale(
+      // --- 3. NAYA: AWAIT FINALIZE & FORCE SAVE ---
+      await ph.finalizeSale(
         billNo: senderInfo['billNo'], 
         date: DateFormat('dd/MM/yyyy').parse(senderInfo['date']),
         party: targetParty, items: finalSaleItems, 
         total: (finalSaleItems.fold(0.0, (s, i) => s + i.total) - senderInfo['extraDiscount'] + senderInfo['roundOff']), 
         mode: "CREDIT",
-        extraDiscount: senderInfo['extraDiscount'], // FIXED: Discount Sync
-        roundOff: senderInfo['roundOff'],           // FIXED: Roundoff Sync
+        extraDiscount: senderInfo['extraDiscount'], 
+        roundOff: senderInfo['roundOff'],
       );
     } 
     else {
-      // PURCHASE IMPORT LOGIC (Similar to Sale but for Purchases)
+      // PURCHASE IMPORT LOGIC
       List<PurchaseItem> finalPurchaseItems = [];
       for (var it in reviewedItems.where((e) => e['isSelected'])) {
         Medicine m = it['match'];
-        ph.getOrCreateCompany(it['manufacturer']);
-        ph.getOrCreateSalt(it['salt']);
+        ph.getOrCreateCompany(it['manufacturer']); ph.getOrCreateSalt(it['salt']);
+
+        // Register Batch Memory for Purchase
+        BatchSyncEngine.registerBatchActivity(ph: ph, productKey: m.identityKey, batchNo: it['batch'], exp: it['exp'], packing: m.packing, mrp: it['mrp'], rate: it['rate']);
 
         finalPurchaseItems.add(PurchaseItem(
           id: DateTime.now().millisecondsSinceEpoch.toString() + m.id, 
@@ -402,7 +205,41 @@ class _ImportReviewScreenState extends State<ImportReviewScreen> {
       );
     }
 
+    // Aakhri step: Poora master data save karna Dashboard sync ke liye
+    await ph.save(); 
+
     Navigator.pop(context);
-    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("✅ Data Imported with Tax Splits & Discount!"), backgroundColor: Colors.green));
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("✅ Import Sync Complete: Batch & Dashboard Updated!"), backgroundColor: Colors.green));
   }
+
+  // --- OTHERS (UI & HELPERS) ---
+  void _editPartyDetail() async {
+    await Navigator.push(context, MaterialPageRoute(builder: (c) => PartyMasterView(isSelectionMode: true, preFillData: {'name': senderInfo['name'], 'gst': senderInfo['gst'], 'state': senderInfo['sender_state'], 'city': senderInfo['city'], 'dl': senderInfo['dl'], 'pan': senderInfo['pan'], 'phone': senderInfo['phone'], 'email': senderInfo['email'], 'address': senderInfo['address']})));
+    _processCsvLogic(); 
+  }
+
+  void _createProduct(Map<String, dynamic> item) async {
+    await Navigator.push(context, MaterialPageRoute(builder: (c) => ProductMasterView(isSelectionMode: true, preFillData: {'name': item['csvName'], 'packing': item['csvPack'], 'hsn': item['hsn'], 'gst': item['gst'], 'company': item['manufacturer'], 'salt': item['salt'], 'flags': item['flags']})));
+    _processCsvLogic(); 
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final ph = Provider.of<PharoahManager>(context);
+    if (isLoading) return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    return Scaffold(
+      backgroundColor: const Color(0xFFF1F3F6),
+      appBar: AppBar(title: Text("P2P Review (${widget.importType})", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)), backgroundColor: const Color(0xFF0D47A1), foregroundColor: Colors.white),
+      body: SingleChildScrollView(child: Column(children: [_buildTopHeader(), _buildPartyCard(), _buildActionStrip(), ListView.builder(shrinkWrap: true, physics: const NeverScrollableScrollPhysics(), padding: const EdgeInsets.symmetric(horizontal: 12), itemCount: reviewedItems.length, itemBuilder: (c, i) => _buildItemRow(reviewedItems[i])), const SizedBox(height: 20), _buildBottomSummary(ph)])));
+  }
+
+  Widget _buildTopHeader() => Container(padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8), color: Colors.blue.shade900, child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [_tag("BILL DATE:", senderInfo['date'], Icons.receipt_long), _tag("IMPORT DATE:", DateFormat('dd/MM/yyyy').format(DateTime.now()), Icons.computer)]));
+  Widget _tag(String l, String d, IconData i) => Row(children: [Icon(i, size: 12, color: Colors.white70), const SizedBox(width: 5), Text("$l $d", style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold))]);
+  Widget _buildPartyCard() => Container(margin: const EdgeInsets.all(12), padding: const EdgeInsets.all(15), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(15), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10)]), child: Row(children: [const CircleAvatar(radius: 25, backgroundColor: Color(0xFFE3F2FD), child: Icon(Icons.business, color: Color(0xFF0D47A1))), const SizedBox(width: 15), Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Row(children: [Flexible(child: Text(senderInfo['name'], style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 15), overflow: TextOverflow.ellipsis)), const SizedBox(width: 5), IconButton(onPressed: _editPartyDetail, icon: const Icon(Icons.edit_note, color: Colors.blue, size: 22))]), Text("GST: ${senderInfo['gst']} | DL: ${senderInfo['dl']}", style: const TextStyle(fontSize: 10, color: Colors.grey, fontWeight: FontWeight.bold)), Text(isLocalSale ? "MODE: LOCAL (CGST+SGST)" : "MODE: INTERSTATE (IGST)", style: TextStyle(fontSize: 10, color: isLocalSale ? Colors.green : Colors.indigo, fontWeight: FontWeight.bold))])), Column(crossAxisAlignment: CrossAxisAlignment.end, children: [Text(senderInfo['billNo'], style: const TextStyle(fontWeight: FontWeight.w900, color: Colors.blueGrey)), const Text("P2P SYNC", style: TextStyle(fontSize: 8, color: Colors.grey, fontWeight: FontWeight.bold))])]));
+  Widget _buildActionStrip() => Padding(padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 5), child: Row(children: [Checkbox(value: selectAll, activeColor: const Color(0xFF0D47A1), onChanged: (v) { setState(() { selectAll = v!; for (var it in reviewedItems) if(it['status'] != 'new') it['isSelected'] = v; }); }), const Text("SELECT ALL MATCHED", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11, color: Colors.blueGrey)), const Spacer(), _dot(Colors.green, "OK"), _dot(Colors.orange, "MAP"), _dot(Colors.red, "NEW")]));
+  Widget _dot(Color c, String l) => Row(children: [Container(margin: const EdgeInsets.only(left: 8), width: 8, height: 8, decoration: BoxDecoration(color: c, shape: BoxShape.circle)), const SizedBox(width: 3), Text(l, style: const TextStyle(fontSize: 8, fontWeight: FontWeight.bold))]);
+  Widget _buildItemRow(Map<String, dynamic> it) { Color statusColor = it['status'] == 'matched' ? Colors.green : (it['status'] == 'suggested' ? Colors.orange : Colors.red); Medicine? m = it['match']; return Card(elevation: 0, margin: const EdgeInsets.only(bottom: 8), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: BorderSide(color: it['isSelected'] ? statusColor : Colors.grey.shade200, width: it['isSelected'] ? 2 : 1)), child: ExpansionTile(leading: Checkbox(value: it['isSelected'], activeColor: statusColor, onChanged: (v) => setState(() => it['isSelected'] = v!)), title: Text(it['csvName'], style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)), subtitle: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Container(padding: const EdgeInsets.all(5), margin: const EdgeInsets.only(top: 5), decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(5)), child: Text("Batch: ${it['batch']} | Exp: ${it['exp']} | MRP: ₹${it['mrp']} | Rate: ₹${it['rate']} | GST: ${it['gst']}%", style: const TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.blueGrey))), const SizedBox(height: 5), Text(it['status'] == 'new' ? "New Product: Action Required" : "System Match: ${m?.name} (${m?.packing})", style: TextStyle(fontSize: 10, color: statusColor, fontWeight: FontWeight.bold))]), trailing: _buildRowAction(it, statusColor))); }
+  Widget _buildRowAction(Map<String, dynamic> it, Color c) { if (it['status'] == 'matched' && it['isSelected']) return const Icon(Icons.check_circle, color: Colors.green); return Row(mainAxisSize: MainAxisSize.min, children: [if(it['status'] != 'matched') IconButton(icon: const Icon(Icons.link_rounded, color: Colors.blue, size: 22), onPressed: () async { final Medicine? linkedMed = await Navigator.push(context, MaterialPageRoute(builder: (c) => ProductMasterView(isSelectionMode: true))); if (linkedMed != null) setState(() { it['match'] = linkedMed; it['status'] = 'matched'; it['isSelected'] = true; }); }), ElevatedButton(style: ElevatedButton.styleFrom(backgroundColor: c, padding: const EdgeInsets.symmetric(horizontal: 10), minimumSize: const Size(50, 30)), onPressed: it['status'] == 'new' ? () => _createProduct(it) : () => setState(() => it['isSelected'] = true), child: Text(it['status'] == 'new' ? "CREATE" : "OK", style: const TextStyle(fontSize: 9, color: Colors.white, fontWeight: FontWeight.bold)))]); }
+  Widget _buildBottomSummary(PharoahManager ph) { double itemTotal = reviewedItems.where((it) => it['isSelected']).fold(0.0, (sum, it) => sum + it['total']); double extraDisc = senderInfo['extraDiscount'] ?? 0.0; double netPayable = itemTotal - extraDisc + (senderInfo['roundOff'] ?? 0.0); return Container(padding: const EdgeInsets.all(20), decoration: const BoxDecoration(color: Colors.white, borderRadius: BorderRadius.vertical(top: Radius.circular(25)), boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 15, offset: Offset(0, -5))]), child: Column(children: [_row("Items Gross Total", itemTotal), if (extraDisc > 0) _row("Extra Discount (-)", extraDisc), _row("Round Off", senderInfo['roundOff'] ?? 0.0), const Divider(height: 25), Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [const Text("NET PAYABLE", style: TextStyle(fontWeight: FontWeight.w900, fontSize: 13)), Text("₹${netPayable.toStringAsFixed(2)}", style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w900, color: Color(0xFF0D47A1)))]), const SizedBox(height: 15), ElevatedButton.icon(style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF0D47A1), foregroundColor: Colors.white, minimumSize: const Size(double.infinity, 55), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))), onPressed: () => _finalizeAndSave(ph), icon: const Icon(Icons.cloud_upload_rounded), label: Text("FINALIZE IMPORT", style: const TextStyle(fontWeight: FontWeight.bold, letterSpacing: 1)))])); }
+  Widget _row(String l, double v) => Padding(padding: const EdgeInsets.only(bottom: 4), child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [Text(l, style: const TextStyle(fontSize: 11, color: Colors.grey, fontWeight: FontWeight.bold)), Text("₹${v.toStringAsFixed(2)}", style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold))]));
 }
