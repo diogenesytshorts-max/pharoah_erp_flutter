@@ -113,10 +113,21 @@ class _BillingViewState extends State<BillingView> {
                     ),
                     Expanded(child: ListView.builder(itemCount: filteredMeds.length, itemBuilder: (c, i) => ListTile(leading: const Icon(Icons.medication, color: Colors.teal), title: Text(filteredMeds[i].name, style: const TextStyle(fontWeight: FontWeight.bold)), subtitle: Text("Stock: ${filteredMeds[i].stock}"), onTap: () => setSheetState(() => selectedMed = filteredMeds[i]))))
                   ] else ...[
-                    Expanded(child: SingleChildScrollView(child: ItemEntryCard(med: selectedMed!, srNo: itemToEdit != null ? itemToEdit.srNo : items.length + 1, existingItem: itemToEdit, onAdd: (newItem) {
+                    Expanded(
+                      child: SingleChildScrollView(
+                        child: ItemEntryCard(
+                          med: selectedMed!, 
+                          srNo: itemToEdit != null ? itemToEdit.srNo : items.length + 1, 
+                          partyState: widget.party.state, // FIXED: partyState parameter added
+                          existingItem: itemToEdit, 
+                          onAdd: (newItem) {
                             setState(() { if (itemToEdit != null) { int idx = items.indexWhere((it) => it.id == itemToEdit.id); items[idx] = newItem; } else { items.add(newItem); } });
                             Navigator.pop(context);
-                          }, onCancel: () => itemToEdit != null ? Navigator.pop(context) : setSheetState(() => selectedMed = null))))
+                          }, 
+                          onCancel: () => itemToEdit != null ? Navigator.pop(context) : setSheetState(() => selectedMed = null)
+                        )
+                      )
+                    )
                   ]
                 ],
               ),
