@@ -69,15 +69,16 @@ class _ChallanSignatureViewState extends State<ChallanSignatureView> {
       Uint8List sigBytes = byteData!.buffer.asUint8List();
 
       String savedImgPath = await ph.saveSignatureFile(widget.challan.billNo, sigBytes);
+      
+      // Calculate snapshot for security
       double totalQty = widget.challan.items.fold(0.0, (sum, item) => sum + item.qty + item.freeQty);
 
-      // CALLING WITH ALL FIXED PARAMETERS
       await ph.addSignatureToChallan(
         challanId: widget.challan.id, 
         imagePath: savedImgPath, 
         code: uniqueCode,
         amount: widget.challan.totalAmount, 
-        qty: totalQty, 
+        qty: totalQty, // FIXED: Named parameter qty provided
         x: 0.1, 
         y: 0.82
       );
@@ -96,7 +97,8 @@ class _ChallanSignatureViewState extends State<ChallanSignatureView> {
       barrierDismissible: false,
       builder: (c) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Text("Document Sealed"),
+        title: const Text("Challan Sealed Successfully"),
+        content: Text("The Digital Code is: $uniqueCode\nNote: Seal will break if bill data is modified."),
         actions: [
           ElevatedButton.icon(
             style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
@@ -105,7 +107,7 @@ class _ChallanSignatureViewState extends State<ChallanSignatureView> {
               final dir = await getTemporaryDirectory();
               final file = File('${dir.path}/Challan_${latest.billNo}.pdf');
               await file.writeAsBytes(bytes);
-              await Share.shareXFiles([XFile(file.path)], text: "Seal Code: ${latest.sigHistory.last.verificationCode}");
+              await Share.shareXFiles([XFile(file.path)], text: "Digital Verified Challan. Seal: $uniqueCode");
             },
             icon: const Icon(Icons.share), label: const Text("SHARE PDF"),
           ),
