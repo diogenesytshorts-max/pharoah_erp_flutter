@@ -343,41 +343,42 @@ class PharoahManager with ChangeNotifier {
   }
 
  /// Signature ko Challan ke record mein jorna (With Coordinates Mapping)
-  Future<void> addSignatureToChallan({
-    required String challanId,
-    required String imagePath,
-    required String code,
-    required double amount,
-    required double x, // NAYA: Left position
-    required double y, // NAYA: Top position
-  }) async {
-    int idx = saleChallans.indexWhere((c) => c.id == challanId);
-    if (idx != -1) {
-      // 1. Naya signature object banana (Including Coordinates)
-      final newSig = ChallanSignature(
-        id: DateTime.now().millisecondsSinceEpoch.toString(),
-        imagePath: imagePath,
-        verificationCode: code,
-        signedAmount: amount,
-        signDate: DateTime.now(),
-        signX: x, // Mapping location
-        signY: y,
-      );
+  // lib/pharoah_manager.dart mein addSignatureToChallan method ko isse replace karein:
+Future<void> addSignatureToChallan({
+  required String challanId,
+  required String imagePath,
+  required String code,
+  required double amount,
+  required double qty, // <--- UI se aane wala parameter
+  required double x,
+  required double y,
+}) async {
+  int idx = saleChallans.indexWhere((c) => c.id == challanId);
+  if (idx != -1) {
+    // Security Snapshot: Creation ke waqt amount aur qty ko lock kar rahe hain
+    final newSig = ChallanSignature(
+      id: DateTime.now().millisecondsSinceEpoch.toString(),
+      imagePath: imagePath,
+      verificationCode: code,
+      signedAmount: amount,
+      signedQty: qty, // <--- Pass the value here
+      signDate: DateTime.now(),
+      signX: x,
+      signY: y,
+    );
 
-      // 2. History update karna
-      List<ChallanSignature> currentHistory = List.from(saleChallans[idx].sigHistory);
-      currentHistory.add(newSig);
+    List<ChallanSignature> currentHistory = List.from(saleChallans[idx].sigHistory);
+    currentHistory.add(newSig);
+    
+    saleChallans[idx].sigHistory = currentHistory;
+    saleChallans[idx].isSigned = true;
 
-      saleChallans[idx].sigHistory = currentHistory;
-      saleChallans[idx].isSigned = true;
+    // Log for Audit
+    addLog("SECURITY", "Challan #${saleChallans[idx].billNo} SEALED. Any modification will invalidate Code: $code");
 
-      // 3. Log enter karna
-      addLog("SECURITY", "Challan #${saleChallans[idx].billNo} SEALED. Code: $code");
-
-      // 4. Final Save to JSON file
-      await save();
-    }
+    await save();
   }
+}
 
   // --- BATCH & STOCK TOOLS ---
   void adjustBatchStock({required String medId, required String batchNo, required double adjQty, required String reason}) { if (batchHistory.containsKey(medId)) { try { var b = batchHistory[medId]!.firstWhere((x) => x.batch == batchNo); b.adjustmentQty += adjQty; b.adjReason = reason; save().then((_) => loadAllData()); } catch (e) {} } }
