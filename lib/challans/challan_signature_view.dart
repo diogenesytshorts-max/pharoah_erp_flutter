@@ -32,7 +32,8 @@ class _ChallanSignatureViewState extends State<ChallanSignatureView> {
   String uniqueCode = "";
   List<Offset?> points = [];
   int currentPage = 0;
-
+  
+  final int itemsPerPage = 12; // Ek page par 12 items
   final PageController _pageController = PageController();
   final GlobalKey _signBoundaryKey = GlobalKey(); 
   final TransformationController _transformationController = TransformationController();
@@ -77,8 +78,7 @@ class _ChallanSignatureViewState extends State<ChallanSignatureView> {
         code: uniqueCode,
         amount: widget.challan.totalAmount, 
         qty: totalQty, 
-        x: 0.1, 
-        y: 0.82
+        x: 0.1, y: 0.8 // Left Receiver Box Position
       );
 
       if (mounted) {
@@ -89,58 +89,34 @@ class _ChallanSignatureViewState extends State<ChallanSignatureView> {
     setState(() => isProcessing = false);
   }
 
-  // ===========================================================================
-  // FIXED ACTION HUB: Added both SAVE TO PHONE and SHARE buttons
-  // ===========================================================================
   void _showActionHub(PharoahManager ph, SaleChallan latest) {
     showDialog(
       context: context,
       barrierDismissible: false,
       builder: (c) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Row(children: [
-          Icon(Icons.gavel_rounded, color: Colors.indigo),
-          SizedBox(width: 10),
-          Text("Challan Sealed & Locked")
-        ]),
-        content: Text("The Unique Digital Seal Code is: $uniqueCode\n\nNote: Any modification to the bill data will automatically invalidate this secure seal."),
+        title: const Text("Document Sealed"),
+        content: Text("Digital Seal Code: $uniqueCode\nNote: If company modifies items, this seal will expire."),
         actions: [
-          // 1. SAVE TO DEVICE BUTTON
           ElevatedButton.icon(
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.blue.shade900, foregroundColor: Colors.white),
             onPressed: () async {
               final bytes = await SaleChallanPdf.generateBytes(latest, widget.party, ph.activeCompany!);
-              await FileSaver.instance.saveAs(
-                name: "Challan_${latest.billNo}", 
-                bytes: bytes, 
-                ext: "pdf", 
-                mimeType: MimeType.pdf
-              );
-              if (mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text("✅ PDF Saved to Device Downloads!"), backgroundColor: Colors.green)
-                );
-              }
+              await FileSaver.instance.saveAs(name: "Challan_${latest.billNo}", bytes: bytes, ext: "pdf", mimeType: MimeType.pdf);
             },
-            icon: const Icon(Icons.download_rounded), label: const Text("SAVE TO PHONE"),
+            icon: const Icon(Icons.download), label: const Text("SAVE TO PHONE"),
           ),
-          // 2. SHARE BUTTON
           ElevatedButton.icon(
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.green, foregroundColor: Colors.white),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
             onPressed: () async {
               final bytes = await SaleChallanPdf.generateBytes(latest, widget.party, ph.activeCompany!);
               final dir = await getTemporaryDirectory();
               final file = File('${dir.path}/Challan_${latest.billNo}.pdf');
               await file.writeAsBytes(bytes);
-              await Share.shareXFiles([XFile(file.path)], text: "Digital Verified Challan. Seal Code: $uniqueCode");
+              await Share.shareXFiles([XFile(file.path)], text: "Seal Code: $uniqueCode");
             },
-            icon: const Icon(Icons.share), label: const Text("SHARE PDF"),
+            icon: const Icon(Icons.share), label: const Text("SHARE"),
           ),
-          // 3. FINISH BUTTON
-          TextButton(
-            onPressed: () => Navigator.of(context).popUntil((route) => route.isFirst), 
-            child: const Text("FINISH", style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold))
-          ),
+          TextButton(onPressed: () => Navigator.of(context).popUntil((route) => route.isFirst), child: const Text("FINISH")),
         ],
       ),
     );
@@ -148,7 +124,7 @@ class _ChallanSignatureViewState extends State<ChallanSignatureView> {
 
   @override
   Widget build(BuildContext context) {
-    int totalPages = (widget.challan.items.length / 12).ceil();
+    int totalPages = (widget.challan.items.length / itemsPerPage).ceil();
     if (totalPages == 0) totalPages = 1;
     bool isAtLastPage = (currentPage == totalPages - 1);
 
@@ -163,12 +139,15 @@ class _ChallanSignatureViewState extends State<ChallanSignatureView> {
             child: ElevatedButton.icon(
               style: ElevatedButton.styleFrom(backgroundColor: isSignMode ? Colors.red : Colors.blueAccent),
               onPressed: () {
-                if (!isAtLastPage) _pageController.animateToPage(totalPages - 1, duration: const Duration(milliseconds: 400), curve: Curves.ease);
+                // Auto jump to last page for signature
+                if (!isAtLastPage) {
+                  _pageController.animateToPage(totalPages - 1, duration: const Duration(milliseconds: 400), curve: Curves.ease);
+                }
                 _transformationController.value = Matrix4.identity();
                 setState(() { isSignMode = !isSignMode; _isZooming = false; });
               },
               icon: Icon(isSignMode ? Icons.close : Icons.draw, size: 18),
-              label: Text(isSignMode ? "CANCEL" : "SIGN HERE"),
+              label: Text(isSignMode ? "CANCEL" : "SIGN ON LAST PAGE"),
             ),
           )
         ],
@@ -263,12 +242,20 @@ class _ChallanSignatureViewState extends State<ChallanSignatureView> {
   }
 
   Widget _buildTable(int pageIdx) {
-    int start = pageIdx * 12;
-    int end = (start + 12 < widget.challan.items.length) ? start + 12 : widget.challan.items.length;
+    int start = pageIdx * itemsPerPage;
+    int end = (start + itemsPerPage < widget.challan.items.length) ? start + itemsPerPage : widget.challan.items.length;
     var pageItems = widget.challan.items.sublist(start, end);
     return Column(children: [
-      Container(color: Colors.grey[100], child: Row(children: [_cell("S.N", 25, true), _cell("Qty", 55, true), _cell("Pack", 45, true), _cell("Product Description", 210, true, true), _cell("Batch", 75, true), _cell("Exp", 45, true), _cell("HSN", 50, true), _cell("MRP", 55, true), _cell("Rate", 55, true), _cell("GST%", 30, true), _cell("Net Total", 155, true)])),
-      ...pageItems.map((it) => Row(children: [_cell(it.srNo.toString(), 25, false), _cell("${it.qty.toInt()} + ${it.freeQty.toInt()}", 55, false), _cell(it.packing, 45, false), _cell(it.name, 210, false, true), _cell(it.batch, 75, false), _cell(it.exp, 45, false), _cell(it.hsn, 50, false), _cell(it.mrp.toStringAsFixed(2), 55, false), _cell(it.rate.toStringAsFixed(2), 55, false), _cell("${it.gstRate.toInt()}%", 30, false), _cell(it.total.toStringAsFixed(2), 155, false)])).toList(),
+      Container(color: Colors.grey[100], child: Row(children: [
+        _cell("S.N", 25, true), _cell("Qty", 55, true), _cell("Pack", 45, true), _cell("Product Description", 210, true, true), 
+        _cell("Batch", 75, true), _cell("Exp", 45, true), _cell("HSN", 50, true), _cell("MRP", 55, true), 
+        _cell("Rate", 55, true), _cell("GST%", 30, true), _cell("Net Total", 155, true)
+      ])),
+      ...pageItems.map((it) => Row(children: [
+        _cell(it.srNo.toString(), 25, false), _cell("${it.qty.toInt()} + ${it.freeQty.toInt()}", 55, false), _cell(it.packing, 45, false), _cell(it.name, 210, false, true), 
+        _cell(it.batch, 75, false), _cell(it.exp, 45, false), _cell(it.hsn, 50, false), _cell(it.mrp.toStringAsFixed(2), 55, false), 
+        _cell(it.rate.toStringAsFixed(2), 55, false), _cell("${it.gstRate.toInt()}%", 30, false), _cell(it.total.toStringAsFixed(2), 155, false)
+      ])).toList(),
     ]);
   }
 
