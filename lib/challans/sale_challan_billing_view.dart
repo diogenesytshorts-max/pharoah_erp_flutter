@@ -1,5 +1,5 @@
 // FILE: lib/challans/sale_challan_billing_view.dart
-import 'challan_signature_view.dart'; // NAYA IMPORT
+import 'challan_signature_view.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
@@ -7,7 +7,7 @@ import '../pharoah_manager.dart';
 import '../models.dart';
 import '../item_entry_card.dart';
 import '../product_master.dart';
-import '../pdf/pdf_router_service.dart'; // NAYA: Router Service
+import '../pdf/pdf_router_service.dart';
 
 class SaleChallanBillingView extends StatefulWidget {
   final Party party;
@@ -78,7 +78,7 @@ class _SaleChallanBillingViewState extends State<SaleChallanBillingView> {
             child: Container(
               height: MediaQuery.of(context).size.height * 0.85,
               decoration: const BoxDecoration(
-                color: Color(0xFFECEFF1), // BlueGrey light shade
+                color: Color(0xFFECEFF1), 
                 borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
               ),
               child: Column(
@@ -139,6 +139,7 @@ class _SaleChallanBillingViewState extends State<SaleChallanBillingView> {
                         child: ItemEntryCard(
                           med: selectedMed!,
                           srNo: itemToEdit != null ? itemToEdit.srNo : items.length + 1,
+                          partyState: widget.party.state, // NAYA: Added partyState
                           existingItem: itemToEdit,
                           onAdd: (newItem) {
                             setState(() {
@@ -176,7 +177,6 @@ class _SaleChallanBillingViewState extends State<SaleChallanBillingView> {
         backgroundColor: widget.isReadOnly ? Colors.purple.shade700 : Colors.blueGrey.shade800,
         foregroundColor: Colors.white,
         actions: [
-          // PRINT BUTTON INTEGRATED WITH ROUTER
           IconButton(
             icon: const Icon(Icons.print_rounded),
             onPressed: items.isEmpty ? null : () async {
@@ -187,7 +187,6 @@ class _SaleChallanBillingViewState extends State<SaleChallanBillingView> {
                   partyState: widget.party.state, items: items, totalAmount: totalAmt, 
                   remarks: remarksC.text.trim()
                 );
-                // NAYA: Router ko call karna
                 await PdfRouterService.printChallan(
                   challan: tempChallan, 
                   party: widget.party, 
@@ -325,12 +324,10 @@ class _SaleChallanBillingViewState extends State<SaleChallanBillingView> {
       );
 
   void _handleSave(PharoahManager ph) async {
-    // 1. Pehle purana record delete karo agar modify mode hai
     if (widget.existingRecord != null) {
       ph.deleteSaleChallan(widget.existingRecord!.id);
     }
 
-    // 2. Naya Challan Object prepare karo
     final newChallan = SaleChallan(
       id: DateTime.now().toString(),
       billNo: widget.challanNo,
@@ -341,17 +338,14 @@ class _SaleChallanBillingViewState extends State<SaleChallanBillingView> {
       items: items,
       totalAmount: totalAmt,
       remarks: remarksC.text.trim(),
-      sigHistory: [], // Khali shuruat
+      sigHistory: [], 
       isSigned: false,
     );
 
-    // 3. ARCHITECT CHECK: Kya receiver ke sign lene hain?
     if (ph.config.showCustomerSignChallan == true) {
-      // Step A: Pehle data save karo background mein
       ph.saleChallans.add(newChallan);
       await ph.save();
 
-      // Step B: Signature Screen par bhej do
       if (mounted) {
         Navigator.pushReplacement(
           context, 
@@ -362,7 +356,6 @@ class _SaleChallanBillingViewState extends State<SaleChallanBillingView> {
         );
       }
     } else {
-      // AGAR SETTING OFF HAI: Toh normal purane tarike se save karke bahar aa jao
       ph.saleChallans.add(newChallan);
       await ph.save();
       
