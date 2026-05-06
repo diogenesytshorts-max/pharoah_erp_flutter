@@ -4,7 +4,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 
 // ===========================================================================
-// 1. SYSTEM & SIGNATURE MODELS
+// 1. SYSTEM CONFIGURATION & SIGNATURE MODELS
 // ===========================================================================
 
 class NumberingSeries {
@@ -59,7 +59,7 @@ class ChallanSignature {
 }
 
 // ===========================================================================
-// 2. MASTER MODELS (Static Lists)
+// 2. MASTER MODELS (Static & Business Lists)
 // ===========================================================================
 
 class RouteArea { 
@@ -106,7 +106,7 @@ class Salesman {
 }
 
 // ===========================================================================
-// 3. CORE PRODUCT & PARTY MODELS
+// 3. CORE INVENTORY & PARTY MODELS
 // ===========================================================================
 
 class Medicine {
@@ -134,8 +134,7 @@ class Party {
 
 class BillItem {
   String id, medicineID, name, packing, batch, exp, hsn, sourceChallanNo, sourceChallanId; 
-  int srNo; 
-  double mrp, qty, freeQty, rate, gstRate, cgst, sgst, igst, total, discountRupees;
+  int srNo; double mrp, qty, freeQty, rate, gstRate, cgst, sgst, igst, total, discountRupees;
 
   BillItem({required this.id, required this.srNo, required this.medicineID, required this.name, required this.packing, required this.batch, required this.exp, required this.hsn, required this.mrp, required this.qty, this.freeQty = 0, required this.rate, required this.gstRate, this.cgst = 0, this.sgst = 0, this.igst = 0, required this.total, this.discountRupees = 0, this.sourceChallanNo = "", this.sourceChallanId = ""});
 
@@ -148,8 +147,7 @@ class BillItem {
 
 class PurchaseItem {
   String id, medicineID, name, packing, batch, exp, hsn, sourceChallanNo, sourceChallanId; 
-  int srNo; 
-  double mrp, qty, freeQty, purchaseRate, gstRate, total, rateA, rateB, rateC;
+  int srNo; double mrp, qty, freeQty, purchaseRate, gstRate, total, rateA, rateB, rateC;
 
   PurchaseItem({required this.id, required this.srNo, required this.medicineID, required this.name, required this.packing, required this.batch, required this.exp, required this.hsn, required this.mrp, required this.qty, this.freeQty = 0, required this.purchaseRate, required this.gstRate, required this.total, this.rateA = 0, this.rateB = 0, this.rateC = 0, this.sourceChallanNo = "", this.sourceChallanId = ""});
 
@@ -161,85 +159,50 @@ class PurchaseItem {
 }
 
 // ===========================================================================
-// 5. TRANSACTION HEADER: SALE (Advanced P2P Sync Logic)
+// 5. TRANSACTION HEADER: SALE (Full P2P Snapshot)
 // ===========================================================================
 
 class Sale { 
   String id, billNo, partyName, partyGstin, partyState, status, invoiceType, paymentMode, transporterName, transporterId, vehicleNo, salesmanName; 
-  DateTime date; 
-  List<BillItem> items; 
-  double totalAmount, extraDiscount, roundOff;
+  DateTime date; List<BillItem> items; double totalAmount, extraDiscount, roundOff;
   List<String> linkedChallanIds; 
 
-  // --- NAYE P2P LOCK FIELDS: Snapshot of Party at time of sale ---
+  // --- NAYE P2P SNAPSHOT FIELDS ---
   String partyAddress, partyPhone, partyEmail, partyDl, partyPan, partyCity;
 
   Sale({
-    required this.id, 
-    required this.billNo, 
-    required this.date, 
-    required this.partyName, 
-    required this.partyGstin, 
-    required this.partyState, 
-    required this.items, 
-    required this.totalAmount, 
-    required this.paymentMode, 
-    this.status = "Active", 
-    this.invoiceType = "B2C", 
-    this.transporterName = "", 
-    this.transporterId = "", 
-    this.vehicleNo = "", 
-    this.salesmanName = "", 
+    required this.id, required this.billNo, required this.date, 
+    required this.partyName, required this.partyGstin, required this.partyState, 
+    required this.items, required this.totalAmount, required this.paymentMode, 
+    this.status = "Active", this.invoiceType = "B2C", 
+    this.transporterName = "", this.transporterId = "", 
+    this.vehicleNo = "", this.salesmanName = "", 
     this.linkedChallanIds = const [],
-    this.extraDiscount = 0.0,
-    this.roundOff = 0.0,
-    // Initialize new fields
-    this.partyAddress = "",
-    this.partyPhone = "",
-    this.partyEmail = "",
-    this.partyDl = "",
-    this.partyPan = "",
-    this.partyCity = "",
+    this.extraDiscount = 0.0, this.roundOff = 0.0,
+    // Snapshots
+    this.partyAddress = "", this.partyPhone = "", this.partyEmail = "", 
+    this.partyDl = "", this.partyPan = "", this.partyCity = "",
   });
   
   Map<String, dynamic> toMap() => {
-    'id': id, 
-    'billNo': billNo, 
-    'date': date.toIso8601String(), 
-    'partyName': partyName, 
-    'partyGstin': partyGstin, 
-    'partyState': partyState, 
-    'paymentMode': paymentMode, 
-    'totalAmount': totalAmount, 
-    'status': status, 
-    'invoiceType': invoiceType, 
-    'transporterName': transporterName, 
-    'transporterId': transporterId, 
-    'vehicleNo': vehicleNo, 
-    'salesmanName': salesmanName, 
+    'id': id, 'billNo': billNo, 'date': date.toIso8601String(), 'partyName': partyName, 
+    'partyGstin': partyGstin, 'partyState': partyState, 'paymentMode': paymentMode, 
+    'totalAmount': totalAmount, 'status': status, 'invoiceType': invoiceType, 
+    'transporterName': transporterName, 'transporterId': transporterId, 
+    'vehicleNo': vehicleNo, 'salesmanName': salesmanName, 
     'items': items.map((i) => i.toMap()).toList(), 
     'linkedChallanIds': linkedChallanIds,
-    'extraDiscount': extraDiscount,
-    'roundOff': roundOff,
-    // Add to JSON map
-    'partyAddress': partyAddress,
-    'partyPhone': partyPhone,
-    'partyEmail': partyEmail,
-    'partyDl': partyDl,
-    'partyPan': partyPan,
-    'partyCity': partyCity,
+    'extraDiscount': extraDiscount, 'roundOff': roundOff,
+    // Snapshots in JSON
+    'partyAddress': partyAddress, 'partyPhone': partyPhone, 'partyEmail': partyEmail,
+    'partyDl': partyDl, 'partyPan': partyPan, 'partyCity': partyCity,
   };
   
   factory Sale.fromMap(Map<String, dynamic> map) => Sale(
-    id: map['id'], 
-    billNo: map['billNo'], 
-    date: DateTime.parse(map['date']), 
-    partyName: map['partyName'], 
-    partyGstin: map['partyGstin'] ?? "", 
-    partyState: map['partyState'] ?? "Rajasthan", 
-    paymentMode: map['paymentMode'] ?? "CASH", 
-    totalAmount: (map['totalAmount'] ?? 0.0).toDouble(), 
-    status: map['status'] ?? "Active", 
+    id: map['id'], billNo: map['billNo'], date: DateTime.parse(map['date']), 
+    partyName: map['partyName'], partyGstin: map['partyGstin'] ?? "", 
+    partyState: map['partyState'] ?? "Rajasthan", paymentMode: map['paymentMode'] ?? "CASH", 
+    totalAmount: (map['totalAmount'] ?? 0.0).toDouble(), status: map['status'] ?? "Active", 
     invoiceType: map['invoiceType'] ?? "B2C", 
     transporterName: map['transporterName'] ?? "", 
     transporterId: map['transporterId'] ?? "", 
@@ -247,9 +210,9 @@ class Sale {
     salesmanName: map['salesmanName'] ?? "", 
     items: (map['items'] as List).map((i) => BillItem.fromMap(i)).toList(), 
     linkedChallanIds: List<String>.from(map['linkedChallanIds'] ?? []),
-    extraDiscount: (map['extraDiscount'] ?? 0.0).toDouble(),
+    extraDiscount: (map['extraDiscount'] ?? 0.0).toDouble(), 
     roundOff: (map['roundOff'] ?? 0.0).toDouble(),
-    // Load from JSON map
+    // Snapshots from JSON
     partyAddress: map['partyAddress'] ?? "",
     partyPhone: map['partyPhone'] ?? "",
     partyEmail: map['partyEmail'] ?? "",
