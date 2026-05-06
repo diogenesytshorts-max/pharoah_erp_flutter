@@ -29,7 +29,7 @@ class CsvEngine {
   ];
 
   // ===========================================================================
-  // 1. EXPORT SALES (DISTRIBUTOR SIDE) - 100% Data Snapshots
+  // 1. EXPORT SALES (DISTRIBUTOR SIDE) - Case Sensitive Batch Fix
   // ===========================================================================
   static String convertSalesToCsv({
     required List<Sale> sales, 
@@ -42,34 +42,21 @@ class CsvEngine {
 
     for (var s in sales) {
       for (var i in s.items) {
-        // --- MASTER LOOKUP (Safe Reading) ---
         String mfgName = "N/A";
         String saltName = "N/A";
         String flags = "NORMAL";
 
         try {
-          // 1. Find the parent Medicine from Master
           Medicine med = allMeds.firstWhere((m) => m.id == i.medicineID || m.name == i.name);
-          
-          // 2. Resolve Manufacturer Name from ID
           if (med.companyId.isNotEmpty) {
             mfgName = allComps.firstWhere((c) => c.id == med.companyId).name;
           }
-          
-          // 3. Resolve Salt Name from ID
           if (med.saltId.isNotEmpty) {
             saltName = allSalts.firstWhere((sl) => sl.id == med.saltId).name;
           }
-
-          // 4. Resolve Flags
           flags = "${med.isNarcotic ? 'NRX' : ''}|${med.isScheduleH1 ? 'H1' : ''}";
-        } catch (e) {
-          // If master record is deleted, use fallback
-          mfgName = "N/A";
-          saltName = "N/A";
-        }
+        } catch (e) {}
 
-        // --- ROW FORMATION (Normalized) ---
         rows.add([
           DateFormat('dd/MM/yyyy').format(s.date), 
           s.billNo.trim().toUpperCase(), 
@@ -77,27 +64,27 @@ class CsvEngine {
           s.partyGstin.trim().toUpperCase(), 
           s.partyState.trim(),
           i.name.trim().toUpperCase(), 
-          mfgName.trim().toUpperCase(), // Sending Real Name
+          mfgName.trim().toUpperCase(), 
           i.packing.trim().toUpperCase(), 
-          i.batch.trim().toUpperCase(), 
+          i.batch.trim(), // FIXED: Removed .toUpperCase() to preserve "baA" cases
           i.exp.trim(), 
           i.hsn.trim(),
-          i.qty, 
+          i.qty, // Kept as double for 5.05 precision
           i.freeQty, 
           i.mrp.toStringAsFixed(2), 
           i.rate.toStringAsFixed(2),
-          "0.0", // Placeholder for line-item discount
+          "0.0", 
           "${i.gstRate.toInt()}%", 
           i.total.toStringAsFixed(2),
-          // --- P2P PARTY SNAPSHOTS (No more "N/A") ---
+          // --- PARTY SNAPSHOTS ---
           s.partyDl.trim().toUpperCase(),
           s.partyPan.trim().toUpperCase(),
           s.partyCity.trim().toUpperCase(),
           s.partyPhone.trim(),
           s.partyEmail.trim().toLowerCase(),
           s.partyAddress.trim().toUpperCase(),
-          // --- P2P ITEM DATA ---
-          saltName.trim().toUpperCase(), // Sending Real Salt Name
+          // --- MASTER DATA ---
+          saltName.trim().toUpperCase(),
           flags,
           senderState.trim()
         ]);
@@ -107,7 +94,7 @@ class CsvEngine {
   }
 
   // ===========================================================================
-  // 2. EXPORT PURCHASES (RETAILER SIDE) - Keeping consistent structure
+  // 2. EXPORT PURCHASES (RETAILER SIDE) - Case Sensitive Batch Fix
   // ===========================================================================
   static String convertPurchasesToCsv({
     required List<Purchase> purchases, 
@@ -133,11 +120,11 @@ class CsvEngine {
           DateFormat('dd/MM/yyyy').format(p.date), 
           p.billNo.trim().toUpperCase(), 
           p.distributorName.trim().toUpperCase(), 
-          "N/A", "N/A", // Supplier GSTIN/State not yet snapshotted in Purchase
+          "N/A", "N/A", 
           i.name.trim().toUpperCase(), 
           mfgName.trim().toUpperCase(), 
           i.packing.trim().toUpperCase(), 
-          i.batch.trim().toUpperCase(), 
+          i.batch.trim(), // FIXED: Removed .toUpperCase()
           i.exp.trim(), 
           i.hsn.trim(),
           i.qty, 
@@ -147,7 +134,6 @@ class CsvEngine {
           "0.0", 
           "${i.gstRate.toInt()}%", 
           i.total.toStringAsFixed(2),
-          // P2P Placeholders for Purchase Register
           "N/A", "N/A", "N/A", "N/A", "N/A", "N/A",
           saltName.trim().toUpperCase(),
           "NORMAL",
@@ -158,9 +144,6 @@ class CsvEngine {
     return const ListToCsvConverter().convert(rows);
   }
 
-  // ===========================================================================
-  // 3. SMART PARSER (Reads any Pharoah CSV)
-  // ===========================================================================
   static List<List<dynamic>> parseCsv(String content) {
     return const CsvToListConverter(
       shouldParseNumbers: true, 
