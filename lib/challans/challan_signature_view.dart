@@ -40,55 +40,66 @@ class _ChallanSignatureViewState extends State<ChallanSignatureView> {
   @override
   void initState() {
     super.initState();
-    SystemChrome.setPreferredOrientations([DeviceOrientation.landscapeRight, DeviceOrientation.landscapeLeft]);
+    // Landscape mode for better document review
+    SystemChrome.setPreferredOrientations([
+      DeviceOrientation.landscapeRight, 
+      DeviceOrientation.landscapeLeft
+    ]);
   }
 
   @override
   void dispose() {
+    // Back to portrait on exit
     SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
     _pageController.dispose();
     _transformationController.dispose();
     super.dispose();
   }
 
-  // --- SECURITY LOGIC: UNIQUE CODE GENERATION ---
+  // --- SECURITY LOGIC: UNIQUE SEAL GENERATION ---
   void _generateSecureCode() {
     if (uniqueCode.isEmpty) {
       const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
       Random r = Random();
-      // Code format: VR-XXXXX (e.g. VR-A9B2C)
+      // Code format: VR-XXXXX
       uniqueCode = "VR-${List.generate(5, (i) => chars[r.nextInt(chars.length)]).join()}";
       setState(() {});
     }
   }
 
+  // --- FINALIZATION & LOCKING ---
   Future<void> _handleFinalize(PharoahManager ph) async {
     if (points.isEmpty) return;
     setState(() => isProcessing = true);
+    
     try {
+      // Capture drawing from the full screen canvas
       RenderRepaintBoundary boundary = _signBoundaryKey.currentContext!.findRenderObject() as RenderRepaintBoundary;
-      ui.Image image = await boundary.toImage(pixelRatio: 3.0); // High quality
+      ui.Image image = await boundary.toImage(pixelRatio: 3.0);
       ByteData? byteData = await image.toByteData(format: ui.ImageByteFormat.png);
       Uint8List sigBytes = byteData!.buffer.asUint8List();
 
+      // Save file and link to database
       String savedImgPath = await ph.saveSignatureFile(widget.challan.billNo, sigBytes);
       
+      // Calculate snapshot for security check
       double totalQty = widget.challan.items.fold(0, (sum, item) => sum + item.qty + item.freeQty);
 
-      // Save with Integrity Snapshot
       await ph.addSignatureToChallan(
         challanId: widget.challan.id, 
         imagePath: savedImgPath, 
         code: uniqueCode,
         amount: widget.challan.totalAmount, 
-        qty: totalQty
+        qty: totalQty, // FIXED: Named parameter qty added
       );
 
       if (mounted) {
         final updatedChallan = ph.saleChallans.firstWhere((c) => c.id == widget.challan.id);
         _showActionHub(ph, updatedChallan);
       }
-    } catch (e) { debugPrint("Sign Error: $e"); }
+    } catch (e) { 
+      debugPrint("Finalization Error: $e"); 
+    }
     setState(() => isProcessing = false);
   }
 
@@ -98,8 +109,8 @@ class _ChallanSignatureViewState extends State<ChallanSignatureView> {
       barrierDismissible: false,
       builder: (c) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Row(children: [Icon(Icons.verified, color: Colors.green), SizedBox(width: 10), Text("Verification Locked")]),
-        content: const Text("Document has been sealed. The Digital Code is now part of the permanent record."),
+        title: const Row(children: [Icon(Icons.lock, color: Colors.green), SizedBox(width: 10), Text("Verification Locked")]),
+        content: Text("Seal $uniqueCode is now active. Any modification to items or total will invalidate this signature."),
         actions: [
           ElevatedButton.icon(
             style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
@@ -108,9 +119,9 @@ class _ChallanSignatureViewState extends State<ChallanSignatureView> {
               final dir = await getTemporaryDirectory();
               final file = File('${dir.path}/Challan_${latest.billNo}.pdf');
               await file.writeAsBytes(bytes);
-              await Share.shareXFiles([XFile(file.path)], text: "Digital Challan Code: ${latest.sigHistory.last.verificationCode}");
+              await Share.shareXFiles([XFile(file.path)], text: "Secure Digital Challan. Seal: $uniqueCode");
             },
-            icon: const Icon(Icons.share), label: const Text("SHARE PDF"),
+            icon: const Icon(Icons.share), label: const Text("SHARE SECURE PDF"),
           ),
           TextButton(onPressed: () => Navigator.of(context).popUntil((route) => route.isFirst), child: const Text("FINISH")),
         ],
@@ -130,25 +141,25 @@ class _ChallanSignatureViewState extends State<ChallanSignatureView> {
       backgroundColor: const Color(0xFF0F1218),
       appBar: AppBar(
         backgroundColor: Colors.black,
-        title: Text("Review & Seal: Page ${currentPage + 1} / $totalPages", style: const TextStyle(fontSize: 14)),
+        title: Text("Receiver Verification: Page ${currentPage + 1} / $totalPages", style: const TextStyle(fontSize: 14)),
         actions: [
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
             child: ElevatedButton.icon(
               style: ElevatedButton.styleFrom(backgroundColor: isSignMode ? Colors.red : Colors.blueAccent),
               onPressed: () {
-                // Jump to last page for signing
+                // Auto-jump to last page if user is on page 1
                 if (!isAtLastPage) {
                   _pageController.animateToPage(totalPages - 1, duration: const Duration(milliseconds: 500), curve: Curves.ease);
                 }
-                _transformationController.value = Matrix4.identity(); // Reset Zoom
+                _transformationController.value = Matrix4.identity(); // Reset zoom
                 setState(() {
                   isSignMode = !isSignMode;
                   _isZooming = false;
                 });
               },
               icon: Icon(isSignMode ? Icons.close : Icons.draw, size: 18),
-              label: Text(isSignMode ? "CANCEL" : "PROCEED TO SIGN"),
+              label: Text(isSignMode ? "CANCEL" : "SIGN ON LAST PAGE"),
             ),
           )
         ],
@@ -158,6 +169,7 @@ class _ChallanSignatureViewState extends State<ChallanSignatureView> {
           Expanded(
             child: PageView.builder(
               controller: _pageController,
+              // Disable swipe if user is drawing or zoomed in
               physics: (isSignMode || _isZooming) ? const NeverScrollableScrollPhysics() : const BouncingScrollPhysics(),
               itemCount: totalPages,
               onPageChanged: (i) => setState(() => currentPage = i),
@@ -184,7 +196,7 @@ class _ChallanSignatureViewState extends State<ChallanSignatureView> {
                           children: [
                             _buildBillLayout(index, totalPages, isActualLastPage, ph),
                             
-                            // FULL SCREEN SIGNING AREA (Only on last page in Sign Mode)
+                            // DRAWING CANVAS (Active only on last page when button is pressed)
                             if (isActualLastPage && isSignMode)
                               RepaintBoundary(
                                 key: _signBoundaryKey,
@@ -193,7 +205,7 @@ class _ChallanSignatureViewState extends State<ChallanSignatureView> {
                                   onPanUpdate: (d) => setState(() => points.add(d.localPosition)),
                                   onPanEnd: (d) => setState(() => points.add(null)),
                                   child: Container(
-                                    color: Colors.blue.withOpacity(0.05), // Visual cue for signing
+                                    color: Colors.blue.withOpacity(0.03), // Subtle blue overlay to show it's interactive
                                     child: CustomPaint(
                                       painter: SignaturePainter(points: points),
                                       size: const Size(800, 550),
@@ -235,8 +247,8 @@ class _ChallanSignatureViewState extends State<ChallanSignatureView> {
             Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
               Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 const SizedBox(height: 50),
-                const Text("RECEIVER SIGNATURE", style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.black54)),
-                if (uniqueCode.isNotEmpty) Text("SEAL: $uniqueCode", style: const TextStyle(fontSize: 8, color: Colors.red, fontWeight: FontWeight.bold)),
+                const Text("RECEIVER SIGNATURE & STAMP", style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.black54)),
+                if (uniqueCode.isNotEmpty) Text("SEAL CODE: $uniqueCode", style: const TextStyle(fontSize: 8, color: Colors.red, fontWeight: FontWeight.bold)),
               ]), 
               Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
                 Text("For ${shop.name}", style: const TextStyle(fontSize: 8, fontWeight: FontWeight.bold)),
@@ -278,7 +290,7 @@ class _ChallanSignatureViewState extends State<ChallanSignatureView> {
     color: Colors.black, 
     child: Row(children: [
       if (uniqueCode.isNotEmpty) Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        const Text("DIGITAL SEAL GENERATED", style: TextStyle(color: Colors.white, fontSize: 8)),
+        const Text("SECURITY LOCK GENERATED", style: TextStyle(color: Colors.white, fontSize: 8)),
         Text(uniqueCode, style: const TextStyle(color: Colors.orange, fontWeight: FontWeight.bold, fontSize: 18)),
       ]),
       const Spacer(), 
@@ -288,7 +300,7 @@ class _ChallanSignatureViewState extends State<ChallanSignatureView> {
           padding: const EdgeInsets.symmetric(horizontal: 25, vertical: 15)
         ), 
         onPressed: (!isLastPage || points.isEmpty || isProcessing) ? null : () => _handleFinalize(ph), 
-        icon: isProcessing ? const SizedBox(width: 15, height: 15, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)) : const Icon(Icons.lock_person), 
+        icon: isProcessing ? const SizedBox(width: 15, height: 15, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)) : const Icon(Icons.lock_outline), 
         label: const Text("SEAL & FINALIZE")
       )
     ])
