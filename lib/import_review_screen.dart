@@ -128,14 +128,21 @@ class _ImportReviewScreenState extends State<ImportReviewScreen> {
   }
 
   void _createProduct(Map<String, dynamic> item) async {
+    // Distributor ka data Product Master ko bhejna
     await Navigator.push(context, MaterialPageRoute(
       builder: (c) => ProductMasterView(
         isSelectionMode: true,
-        // Yahan hum aage chalkar ProductMasterView mein preFillData add karenge
-        // preFillData: { ... } 
+        preFillData: {
+          'name': item['csvName'],
+          'packing': item['csvPack'],
+          'hsn': item['hsn'],
+          'gst': item['gst'],
+          'company': item['manufacturer'], // Enriched field from CSV
+          'salt': item['salt'],           // Enriched field from CSV
+        },
       )
     ));
-    _processCsvLogic(); // Wapas aane par re-scan
+    _processCsvLogic(); // Wapas aane par status "Green" ho jayega
   }
 
   @override
