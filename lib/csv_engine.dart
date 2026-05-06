@@ -7,15 +7,14 @@ import 'models.dart';
 class CsvEngine {
   /* 
      ===========================================================================
-     PHAROAH P2P ENGINE V2 - 27 COLUMNS SMART STRUCTURE
+     PHAROAH P2P ENGINE V3 - 29 COLUMNS SMART STRUCTURE
      ===========================================================================
-     0: DATE          | 1: BILL_NO        | 2: PARTY_NAME     | 3: PARTY_GSTIN
-     4: PARTY_STATE   | 5: ITEM_NAME      | 6: MANUFACTURER   | 7: PACKING
-     8: BATCH         | 9: EXPIRY         | 10: HSN           | 11: QTY
-     12: FREE_QTY     | 13: MRP           | 14: UNIT_RATE     | 15: DISCOUNT_PER
-     16: GST_PERCENT  | 17: NET_TOTAL     | 18: PARTY_DL      | 19: PARTY_PAN
-     20: PARTY_CITY   | 21: PARTY_MOBILE  | 22: PARTY_EMAIL   | 23: PARTY_ADDRESS
-     24: ITEM_SALT    | 25: ITEM_FLAGS    | 26: SENDER_STATE
+     Index 0-17: Item Details (Standard)
+     Index 18-23: Party Snapshots
+     Index 24-25: Master Data (Salt/Flags)
+     Index 26: Sender State (For Tax Recognition)
+     Index 27: BILL_DISC (Extra Discount on Bill) -> NAYA
+     Index 28: BILL_ROUNDOFF (Round Off Value)    -> NAYA
   */
 
   static List<String> get _universalHeader => [
@@ -23,13 +22,13 @@ class CsvEngine {
     "ITEM_NAME", "MANUFACTURER", "PACKING", "BATCH", "EXPIRY",
     "HSN", "QTY", "FREE_QTY", "MRP", "UNIT_RATE",
     "DISCOUNT_PER", "GST_PERCENT", "NET_TOTAL",
-    // --- P2P SMART DATA COLUMNS ---
     "PARTY_DL", "PARTY_PAN", "PARTY_CITY", "PARTY_MOBILE", "PARTY_EMAIL", "PARTY_ADDRESS",
-    "ITEM_SALT", "ITEM_FLAGS", "SENDER_STATE"
+    "ITEM_SALT", "ITEM_FLAGS", "SENDER_STATE",
+    "BILL_DISC", "BILL_ROUNDOFF" // Index 27 aur 28 par naya data
   ];
 
   // ===========================================================================
-  // 1. EXPORT SALES (DISTRIBUTOR SIDE) - Case Sensitive Batch Fix
+  // 1. EXPORT SALES (Distributor bhej raha hai)
   // ===========================================================================
   static String convertSalesToCsv({
     required List<Sale> sales, 
@@ -66,27 +65,30 @@ class CsvEngine {
           i.name.trim().toUpperCase(), 
           mfgName.trim().toUpperCase(), 
           i.packing.trim().toUpperCase(), 
-          i.batch.trim(), // FIXED: Removed .toUpperCase() to preserve "baA" cases
+          i.batch.trim(), 
           i.exp.trim(), 
           i.hsn.trim(),
-          i.qty, // Kept as double for 5.05 precision
+          i.qty, 
           i.freeQty, 
           i.mrp.toStringAsFixed(2), 
           i.rate.toStringAsFixed(2),
           "0.0", 
           "${i.gstRate.toInt()}%", 
           i.total.toStringAsFixed(2),
-          // --- PARTY SNAPSHOTS ---
+          // SNAPSHOTS
           s.partyDl.trim().toUpperCase(),
           s.partyPan.trim().toUpperCase(),
           s.partyCity.trim().toUpperCase(),
           s.partyPhone.trim(),
           s.partyEmail.trim().toLowerCase(),
           s.partyAddress.trim().toUpperCase(),
-          // --- MASTER DATA ---
+          // MASTER DATA
           saltName.trim().toUpperCase(),
           flags,
-          senderState.trim()
+          senderState.trim(),
+          // NAYA: Header level calculation data
+          s.extraDiscount.toStringAsFixed(2), 
+          s.roundOff.toStringAsFixed(2)
         ]);
       }
     }
@@ -94,7 +96,7 @@ class CsvEngine {
   }
 
   // ===========================================================================
-  // 2. EXPORT PURCHASES (RETAILER SIDE) - Case Sensitive Batch Fix
+  // 2. EXPORT PURCHASES (Internal Backup ke liye)
   // ===========================================================================
   static String convertPurchasesToCsv({
     required List<Purchase> purchases, 
@@ -124,7 +126,7 @@ class CsvEngine {
           i.name.trim().toUpperCase(), 
           mfgName.trim().toUpperCase(), 
           i.packing.trim().toUpperCase(), 
-          i.batch.trim(), // FIXED: Removed .toUpperCase()
+          i.batch.trim(), 
           i.exp.trim(), 
           i.hsn.trim(),
           i.qty, 
@@ -137,7 +139,9 @@ class CsvEngine {
           "N/A", "N/A", "N/A", "N/A", "N/A", "N/A",
           saltName.trim().toUpperCase(),
           "NORMAL",
-          senderState.trim()
+          senderState.trim(),
+          "0.00", // Discount (Purchase model mein abhi nahi hai)
+          "0.00"  // Roundoff
         ]);
       }
     }
