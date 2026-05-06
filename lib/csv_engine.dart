@@ -20,15 +20,21 @@ class CsvEngine {
     "DATE", "BILL_NO", "PARTY_NAME", "PARTY_GSTIN", "PARTY_STATE",
     "ITEM_NAME", "MANUFACTURER", "PACKING", "BATCH", "EXPIRY",
     "HSN", "QTY", "FREE_QTY", "MRP", "UNIT_RATE",
-    "DISCOUNT_PER", "GST_PERCENT", "NET_TOTAL"
+    "DISCOUNT_PER", "GST_PERCENT", "NET_TOTAL",
+    // --- NAYE P2P COLUMNS ---
+    "PARTY_DL", "PARTY_PAN", "PARTY_CITY", "ITEM_SALT", "ITEM_FLAGS", "SENDER_STATE"
   ];
 
   /// User A jab SALE export karega
-  static String convertSalesToCsv(List<Sale> sales) {
+  static String convertSalesToCsv(List<Sale> sales, List<Medicine> allMeds, String senderState) {
     List<List<dynamic>> rows = [_universalHeader];
 
     for (var s in sales) {
       for (var i in s.items) {
+        // Master se extra detail nikalna
+        Medicine? med;
+        try { med = allMeds.firstWhere((m) => m.id == i.medicineID); } catch(e) { med = null; }
+
         rows.add([
           DateFormat('dd/MM/yyyy').format(s.date), 
           s.billNo, 
@@ -36,7 +42,7 @@ class CsvEngine {
           s.partyGstin, 
           s.partyState,
           i.name, 
-          "N/A", // Manufacturer (Not in Sale model yet, so N/A)
+          med?.companyId ?? "N/A", // Real Manufacturer
           i.packing, 
           i.batch, 
           i.exp, 
@@ -45,9 +51,16 @@ class CsvEngine {
           i.freeQty, 
           i.mrp.toStringAsFixed(2), 
           i.rate.toStringAsFixed(2),
-          "0.0", // Discount % (Placeholder)
+          "0.0", 
           "${i.gstRate}%", 
-          i.total.toStringAsFixed(2)
+          i.total.toStringAsFixed(2),
+          // --- P2P MASTER DATA ---
+          "N/A", // Party DL (Sale bill mein client ka DL hum store nahi kar rahe yahan)
+          "N/A", // Party PAN
+          "N/A", // Party City
+          med?.saltId ?? "N/A", // Real Salt
+          "${med?.isNarcotic == true ? 'NRX' : ''}|${med?.isScheduleH1 == true ? 'H1' : ''}", // Flags
+          senderState // Distributor kahan ka hai
         ]);
       }
     }
