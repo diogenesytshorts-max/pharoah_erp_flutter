@@ -9,8 +9,8 @@ import 'party_master.dart';
 import 'product_master.dart';
 
 class ImportReviewScreen extends StatefulWidget {
-  final List<List<dynamic>> csvData; // Raw rows from CSV
-  final String importType; // SALE or PURCHASE
+  final List<List<dynamic>> csvData; 
+  final String importType; 
 
   const ImportReviewScreen({
     super.key, 
@@ -23,7 +23,6 @@ class ImportReviewScreen extends StatefulWidget {
 }
 
 class _ImportReviewScreenState extends State<ImportReviewScreen> {
-  // Mapping logic ke liye temporary items list
   List<Map<String, dynamic>> reviewedItems = [];
   Map<String, dynamic> senderInfo = {};
   bool isLocalSale = true;
@@ -36,15 +35,11 @@ class _ImportReviewScreenState extends State<ImportReviewScreen> {
     _processCsvLogic();
   }
 
-  // ===========================================================================
-  // CORE LOGIC: CSV DATA KO SYSTEM SE MATCH KARNA
-  // ===========================================================================
   void _processCsvLogic() {
     final ph = Provider.of<PharoahManager>(context, listen: false);
     final data = widget.csvData;
     if (data.length < 2) return;
 
-    // Header se Sender Info nikalna (Row 1)
     var firstRow = data[1];
     senderInfo = {
       'name': firstRow[2].toString().toUpperCase(),
@@ -57,11 +52,9 @@ class _ImportReviewScreenState extends State<ImportReviewScreen> {
       'city': firstRow.length > 20 ? firstRow[20].toString() : "N/A",
     };
 
-    // Tax Recognition: Shop State vs Sender State
     String shopState = ph.activeCompany?.state.trim().toLowerCase() ?? "rajasthan";
     isLocalSale = shopState == senderInfo['state'].toString().trim().toLowerCase();
 
-    // Items Processing
     reviewedItems.clear();
     for (int i = 1; i < data.length; i++) {
       var row = data[i];
@@ -70,14 +63,12 @@ class _ImportReviewScreenState extends State<ImportReviewScreen> {
       String csvItemName = row[5].toString().toUpperCase().trim();
       String csvPack = row[7].toString().toUpperCase().trim();
 
-      // Smart Matching Pass 1: Name + Packing
       Medicine? match;
       try {
         match = ph.medicines.firstWhere((m) => 
           m.name.toUpperCase() == csvItemName && m.packing.toUpperCase() == csvPack
         );
       } catch (e) {
-        // Pass 2: Only Name
         try {
           match = ph.medicines.firstWhere((m) => m.name.toUpperCase() == csvItemName);
         } catch (e) { match = null; }
@@ -95,40 +86,32 @@ class _ImportReviewScreenState extends State<ImportReviewScreen> {
         'rate': double.tryParse(row[14].toString()) ?? 0,
         'gst': double.tryParse(row[16].toString().replaceAll('%', '')) ?? 12,
         'total': double.tryParse(row[17].toString()) ?? 0,
-        'match': match, // Local Database Object
+        'manufacturer': row.length > 6 ? row[6].toString() : "N/A",
+        'match': match, 
         'status': match != null ? (match.packing == csvPack ? 'matched' : 'suggested') : 'new',
         'isSelected': match != null ? true : false,
         'salt': row.length > 21 ? row[21].toString() : "N/A",
         'flags': row.length > 22 ? row[22].toString() : "N/A",
       });
     }
-
     setState(() => isLoading = false);
   }
 
-  // ===========================================================================
-  // NAVIGATION: MASTER SCREENS KO PRE-FILL KE SAATH KHOLNA
-  // ===========================================================================
   void _editPartyDetail() async {
-    // Reviewer se Party Master par bhej rahe hain details ke saath
     await Navigator.push(context, MaterialPageRoute(
       builder: (c) => PartyMasterView(
         isSelectionMode: true,
         preFillData: {
-          'name': senderInfo['name'],
-          'gst': senderInfo['gst'],
-          'state': senderInfo['state'],
-          'city': senderInfo['city'],
-          'dl': senderInfo['dl'],
-          'pan': senderInfo['pan'],
+          'name': senderInfo['name'], 'gst': senderInfo['gst'], 'state': senderInfo['state'],
+          'city': senderInfo['city'], 'dl': senderInfo['dl'], 'pan': senderInfo['pan'],
         },
       )
     ));
-    _processCsvLogic(); // Wapas aane par re-scan
+    _processCsvLogic();
   }
 
   void _createProduct(Map<String, dynamic> item) async {
-    // Distributor ka data Product Master ko bhejna
+    // FIXED: Passing preFillData to updated ProductMasterView constructor
     await Navigator.push(context, MaterialPageRoute(
       builder: (c) => ProductMasterView(
         isSelectionMode: true,
@@ -137,12 +120,13 @@ class _ImportReviewScreenState extends State<ImportReviewScreen> {
           'packing': item['csvPack'],
           'hsn': item['hsn'],
           'gst': item['gst'],
-          'company': item['manufacturer'], // Enriched field from CSV
-          'salt': item['salt'],           // Enriched field from CSV
+          'company': item['manufacturer'],
+          'salt': item['salt'],
+          'flags': item['flags'],
         },
       )
     ));
-    _processCsvLogic(); // Wapas aane par status "Green" ho jayega
+    _processCsvLogic(); 
   }
 
   @override
@@ -173,8 +157,6 @@ class _ImportReviewScreenState extends State<ImportReviewScreen> {
       ),
     );
   }
-
-  // --- UI COMPONENTS ---
 
   Widget _buildDateHeader() {
     return Container(
@@ -265,7 +247,6 @@ class _ImportReviewScreenState extends State<ImportReviewScreen> {
         leading: Checkbox(value: it['isSelected'], activeColor: statusColor, onChanged: (v) => setState(() => it['isSelected'] = v!)),
         title: Text(it['csvName'], style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
         subtitle: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          // SUB-ROW METADATA
           Container(
             padding: const EdgeInsets.all(5), margin: const EdgeInsets.only(top: 5),
             decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(5)),
@@ -293,16 +274,22 @@ class _ImportReviewScreenState extends State<ImportReviewScreen> {
   Widget _buildRowAction(Map<String, dynamic> it, Color c) {
     if (it['status'] == 'matched' && it['isSelected']) return const Icon(Icons.check_circle, color: Colors.green);
     return Row(mainAxisSize: MainAxisSize.min, children: [
-      if(it['status'] != 'matched') IconButton(icon: const Icon(Icons.link_rounded, color: Colors.blue, size: 22), onPressed: () {}),
+      if(it['status'] != 'matched') IconButton(icon: const Icon(Icons.link_rounded, color: Colors.blue, size: 22), onPressed: () async {
+          final Medicine? linkedMed = await Navigator.push(context, MaterialPageRoute(builder: (c) => ProductMasterView(isSelectionMode: true)));
+          if (linkedMed != null) {
+            setState(() { it['match'] = linkedMed; it['status'] = 'matched'; it['isSelected'] = true; });
+          }
+      }),
       ElevatedButton(
         style: ElevatedButton.styleFrom(backgroundColor: c, padding: const EdgeInsets.symmetric(horizontal: 10), minimumSize: const Size(50, 30)),
-        onPressed: () => setState(() => it['isSelected'] = true),
+        onPressed: it['status'] == 'new' ? () => _createProduct(it) : () => setState(() => it['isSelected'] = true),
         child: Text(it['status'] == 'new' ? "CREATE" : "OK", style: const TextStyle(fontSize: 9, color: Colors.white, fontWeight: FontWeight.bold)),
       )
     ]);
   }
 
   Widget _buildBottomSummary() {
+    final ph = Provider.of<PharoahManager>(context);
     double taxable = reviewedItems.where((it) => it['isSelected']).fold(0.0, (sum, it) => sum + (it['rate'] * it['qty']));
     double gstTotal = reviewedItems.where((it) => it['isSelected']).fold(0.0, (sum, it) => sum + (it['total'] - (it['rate'] * it['qty'])));
 
@@ -322,9 +309,7 @@ class _ImportReviewScreenState extends State<ImportReviewScreen> {
             const SizedBox(height: 15),
             ElevatedButton.icon(
               style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF0D47A1), foregroundColor: Colors.white, minimumSize: const Size(double.infinity, 55), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
-              onPressed: () {
-                // Final Save Logic will be connected in next step
-              },
+              onPressed: () => _finalizeAndSave(ph),
               icon: const Icon(Icons.cloud_upload_rounded),
               label: const Text("FINALIZE & SAVE PURCHASE", style: TextStyle(fontWeight: FontWeight.bold, letterSpacing: 1)),
             )
@@ -332,6 +317,45 @@ class _ImportReviewScreenState extends State<ImportReviewScreen> {
         ),
       ),
     );
+  }
+
+  void _finalizeAndSave(PharoahManager ph) async {
+    bool hasUnresolved = reviewedItems.any((it) => it['isSelected'] && it['status'] == 'new');
+    if (hasUnresolved) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Please Create or Link all Red items first!"), backgroundColor: Colors.red));
+      return;
+    }
+
+    List<PurchaseItem> finalPurchaseItems = [];
+    for (var it in reviewedItems.where((element) => element['isSelected'])) {
+      Medicine m = it['match'];
+      finalPurchaseItems.add(PurchaseItem(
+        id: DateTime.now().millisecondsSinceEpoch.toString() + m.id,
+        srNo: finalPurchaseItems.length + 1,
+        medicineID: m.id, name: m.name, packing: m.packing, batch: it['batch'], exp: it['exp'], hsn: it['hsn'], mrp: it['mrp'], qty: it['qty'], freeQty: it['free'], purchaseRate: it['rate'], gstRate: it['gst'], total: it['total'],
+      ));
+    }
+
+    Party targetParty;
+    try {
+      targetParty = ph.parties.firstWhere((p) => p.gst == senderInfo['gst']);
+    } catch (e) {
+      targetParty = ph.parties.firstWhere((p) => p.name == senderInfo['name'], orElse: () => ph.parties[0]);
+    }
+
+    ph.finalizePurchase(
+      internalNo: "P2P-${DateTime.now().millisecondsSinceEpoch.toString().substring(7)}",
+      billNo: senderInfo['billNo'],
+      date: DateFormat('dd/MM/yyyy').parse(senderInfo['date']),
+      entryDate: DateTime.now(),
+      party: targetParty,
+      items: finalPurchaseItems,
+      total: finalPurchaseItems.fold(0.0, (sum, it) => sum + it.total),
+      mode: "CREDIT",
+    );
+
+    Navigator.pop(context);
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("✅ Bill Posted Successfully!"), backgroundColor: Colors.green));
   }
 
   Widget _summaryRow(String l, double v) => Padding(
