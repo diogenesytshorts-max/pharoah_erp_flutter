@@ -7,12 +7,12 @@ import 'models.dart';
 
 class PartyMasterView extends StatefulWidget {
   final bool isSelectionMode; 
-  final Map<String, dynamic>? preFillData; // NAYA
+  final Map<String, dynamic>? preFillData; // NAYA: P2P data carrier
 
   const PartyMasterView({
     super.key, 
     this.isSelectionMode = false, 
-    this.preFillData // NAYA
+    this.preFillData 
   });
 
   @override
@@ -32,6 +32,7 @@ class _PartyMasterViewState extends State<PartyMasterView> {
     }
   }
 
+  // --- SEARCHABLE STATE PICKER ---
   void _showStateSearchPicker(BuildContext context, PharoahManager ph, Function(String) onSelect) {
     showDialog(
       context: context,
@@ -40,10 +41,9 @@ class _PartyMasterViewState extends State<PartyMasterView> {
         return StatefulBuilder(builder: (context, setPickerState) {
           final sortedList = ph.getSortedStates();
           final filtered = sortedList.where((s) => s.toLowerCase().contains(localSearch.toLowerCase())).toList();
-
           return AlertDialog(
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-            title: const Text("Select State / Place of Supply", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+            title: const Text("Select State", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
             content: SizedBox(
               width: 400,
               child: Column(
@@ -51,11 +51,7 @@ class _PartyMasterViewState extends State<PartyMasterView> {
                 children: [
                   TextField(
                     autofocus: true,
-                    decoration: const InputDecoration(
-                      hintText: "Search State (e.g. Haryana)",
-                      prefixIcon: Icon(Icons.search),
-                      border: OutlineInputBorder(),
-                    ),
+                    decoration: const InputDecoration(hintText: "Search State...", prefixIcon: Icon(Icons.search), border: OutlineInputBorder()),
                     onChanged: (v) => setPickerState(() => localSearch = v),
                   ),
                   const SizedBox(height: 10),
@@ -64,12 +60,12 @@ class _PartyMasterViewState extends State<PartyMasterView> {
                     child: ListView.builder(
                       itemCount: filtered.length,
                       itemBuilder: (c, i) {
-                        String stateName = filtered[i];
-                        bool isFrequent = (ph.parties.where((p) => p.state == stateName).length) > 0;
+                        String sName = filtered[i];
+                        bool isFrequent = (ph.parties.where((p) => p.state == sName).length) > 0;
                         return ListTile(
-                          title: Text(stateName, style: TextStyle(fontWeight: isFrequent ? FontWeight.bold : FontWeight.normal)),
+                          title: Text(sName, style: TextStyle(fontWeight: isFrequent ? FontWeight.bold : FontWeight.normal)),
                           trailing: isFrequent ? const Icon(Icons.stars_rounded, color: Colors.orange, size: 18) : null,
-                          onTap: () { onSelect(stateName); Navigator.pop(context); },
+                          onTap: () { onSelect(sName); Navigator.pop(context); },
                         );
                       },
                     ),
@@ -88,29 +84,24 @@ class _PartyMasterViewState extends State<PartyMasterView> {
     final pf = widget.preFillData;
 
     final nameC = TextEditingController(text: party?.name ?? pf?['name']);
-    final phoneC = TextEditingController(text: party?.phone);
-    final emailC = TextEditingController(text: party?.email);
+    final phoneC = TextEditingController(text: party?.phone ?? pf?['phone']);
+    final emailC = TextEditingController(text: party?.email ?? pf?['email']); // EMAIL ID WAPAS ADDED
     final addressC = TextEditingController(text: party?.address ?? pf?['address']);
     final cityC = TextEditingController(text: party?.city ?? pf?['city']);
     final gstC = TextEditingController(text: party?.gst ?? pf?['gst']);
     final panC = TextEditingController(text: party?.pan ?? pf?['pan']);
     final dlC = TextEditingController(text: party?.dl ?? pf?['dl']);
     final dlExpC = TextEditingController(text: party?.dlExp);
-    final transportC = TextEditingController(text: party?.transport);
     final opBalC = TextEditingController(text: party?.opBal.toString() ?? "0.0");
-    final creditLimitC = TextEditingController(text: party?.creditLimit.toString() ?? "0.0");
-    final creditDaysC = TextEditingController(text: party?.creditDays.toString() ?? "0");
 
     String selectedGroup = party?.group ?? "Sundry Debtors";
-    String selectedPriceLevel = party?.priceLevel ?? "A";
-    String selectedRoute = (party?.route != null && party!.route.isNotEmpty) ? party.route : "";
-    String selectedSeriesId = party?.defaultSeriesId ?? "";
     String selectedState = party?.state ?? pf?['state'] ?? "Rajasthan";
+    String selectedSeriesId = party?.defaultSeriesId ?? "";
 
     gstC.addListener(() {
       if (gstC.text.length >= 12) {
-        String extractedPan = gstC.text.substring(2, 12).toUpperCase();
-        if (panC.text != extractedPan) { panC.text = extractedPan; }
+        String extPan = gstC.text.substring(2, 12).toUpperCase();
+        if (panC.text != extPan) { panC.text = extPan; }
       }
     });
 
@@ -122,7 +113,7 @@ class _PartyMasterViewState extends State<PartyMasterView> {
 
         return AlertDialog(
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-          title: Text(party == null ? "Register New Party" : "Update Party"),
+          title: Text(party == null ? "Register New Party" : "Update Details"),
           content: SizedBox(
             width: 500,
             child: SingleChildScrollView(
@@ -130,19 +121,18 @@ class _PartyMasterViewState extends State<PartyMasterView> {
                 children: [
                   _sectionTitle("BASIC INFORMATION"),
                   _inputField(nameC, "Party/Firm Name *", Icons.business),
-                  Row(
-                    children: [
-                      Expanded(child: _inputField(cityC, "City", Icons.location_city)),
-                      const SizedBox(width: 10),
-                      Expanded(child: _searchableBox(
-                        label: "State / Supply Place",
-                        value: selectedState,
-                        icon: Icons.map_outlined,
-                        onTap: () => _showStateSearchPicker(context, ph, (val) => setDialogState(() => selectedState = val)),
-                      )),
-                    ],
-                  ),
+                  Row(children: [
+                    Expanded(child: _inputField(cityC, "City", Icons.location_city)),
+                    const SizedBox(width: 10),
+                    Expanded(child: _searchableBox(
+                      label: "State / Supply Place",
+                      value: selectedState,
+                      icon: Icons.map_outlined,
+                      onTap: () => _showStateSearchPicker(context, ph, (val) => setDialogState(() => selectedState = val)),
+                    )),
+                  ]),
                   _inputField(phoneC, "Mobile Number", Icons.phone, isNum: true),
+                  _inputField(emailC, "Email Address", Icons.email), // UI FIELD ADDED BACK
                   _inputField(addressC, "Full Address", Icons.location_on),
                   const SizedBox(height: 10),
                   DropdownButtonFormField<String>(
@@ -155,22 +145,21 @@ class _PartyMasterViewState extends State<PartyMasterView> {
                   _sectionTitle("TAX & LICENSES"),
                   _inputField(gstC, "GSTIN Number", Icons.receipt_long),
                   _inputField(panC, "PAN Card", Icons.badge_outlined),
-                  Row(
-                    children: [
-                      Expanded(child: _inputField(dlC, "Drug License (DL)", Icons.medical_services)),
-                      const SizedBox(width: 10),
-                      Expanded(child: _inputField(dlExpC, "DL Expiry", Icons.event_busy)),
-                    ],
-                  ),
+                  Row(children: [
+                    Expanded(child: _inputField(dlC, "Drug License (DL)", Icons.medical_services)),
+                    const SizedBox(width: 10),
+                    Expanded(child: _inputField(dlExpC, "DL Expiry", Icons.event_busy)),
+                  ]),
                   const SizedBox(height: 20),
                   _sectionTitle("BILLING DEFAULTS"),
                   DropdownButtonFormField<String>(
                     value: selectedSeriesId.isEmpty ? null : selectedSeriesId,
-                    decoration: const InputDecoration(labelText: "Auto-Series", border: OutlineInputBorder(), prefixIcon: Icon(Icons.layers_outlined)),
+                    decoration: const InputDecoration(labelText: "Link Billing Series", border: OutlineInputBorder(), prefixIcon: Icon(Icons.layers_outlined)),
                     items: activeSeries.map((s) => DropdownMenuItem<String>(value: s.id, child: Text("${s.name} (${s.prefix})"))).toList(),
                     onChanged: (v) => selectedSeriesId = v!,
                     hint: const Text("Select Default Series"),
                   ),
+                  _inputField(opBalC, "Opening Balance (₹)", Icons.account_balance_wallet, isNum: true),
                 ],
               ),
             ),
@@ -186,6 +175,7 @@ class _PartyMasterViewState extends State<PartyMasterView> {
                   name: nameC.text.trim().toUpperCase(),
                   group: selectedGroup,
                   phone: phoneC.text.trim(),
+                  email: emailC.text.trim().toLowerCase(), // SAVE EMAIL
                   address: addressC.text.trim(),
                   city: cityC.text.trim().toUpperCase(),
                   state: selectedState,
@@ -193,18 +183,16 @@ class _PartyMasterViewState extends State<PartyMasterView> {
                   pan: panC.text.trim().toUpperCase(),
                   dl: dlC.text.trim().toUpperCase(),
                   dlExp: dlExpC.text.trim(),
-                  priceLevel: selectedPriceLevel,
-                  route: selectedRoute,
                   opBal: double.tryParse(opBalC.text) ?? 0.0,
                   defaultSeriesId: selectedSeriesId, 
                 );
                 if (party == null) ph.parties.add(newParty);
-                else { int idx = ph.parties.indexWhere((p) => p.id == party.id); if (idx != -1) ph.parties[idx] = newParty; }
+                else { int i = ph.parties.indexWhere((p) => p.id == party.id); if (i != -1) ph.parties[i] = newParty; }
                 ph.save();
                 Navigator.pop(c);
                 if (widget.isSelectionMode) Navigator.pop(context, newParty);
               },
-              child: const Text("SAVE LEDGER"),
+              child: const Text("SAVE PARTY"),
             ),
           ],
         );
@@ -215,7 +203,7 @@ class _PartyMasterViewState extends State<PartyMasterView> {
   @override
   Widget build(BuildContext context) {
     final ph = Provider.of<PharoahManager>(context);
-    final filteredList = ph.parties.where((p) => 
+    final list = ph.parties.where((p) => 
       p.name.toLowerCase().contains(searchQuery.toLowerCase()) || p.city.toLowerCase().contains(searchQuery.toLowerCase())
     ).toList();
 
@@ -227,21 +215,21 @@ class _PartyMasterViewState extends State<PartyMasterView> {
           Container(
             padding: const EdgeInsets.all(15), color: Colors.indigo.shade50,
             child: TextField(
-              decoration: InputDecoration(hintText: "Search Name or City...", prefixIcon: const Icon(Icons.search), border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none), filled: true, fillColor: Colors.white),
+              decoration: InputDecoration(hintText: "Search Party Name...", prefixIcon: const Icon(Icons.search), border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none), filled: true, fillColor: Colors.white),
               onChanged: (v) => setState(() => searchQuery = v),
             ),
           ),
           Expanded(
             child: ListView.builder(
-              itemCount: filteredList.length,
+              itemCount: list.length,
               padding: const EdgeInsets.all(10),
               itemBuilder: (context, index) {
-                final p = filteredList[index];
+                final p = list[index];
                 return Card(
                   child: ListTile(
                     leading: CircleAvatar(backgroundColor: p.group.contains("Debtors") ? Colors.green.shade50 : Colors.orange.shade50, child: Icon(Icons.person, color: p.group.contains("Debtors") ? Colors.green : Colors.orange)),
                     title: Text(p.name, style: const TextStyle(fontWeight: FontWeight.bold)),
-                    subtitle: Text("${p.group} | ${p.city}, ${p.state}"),
+                    subtitle: Text("${p.group} | ${p.city}, ${p.state}\n${p.email}"), // EMAIL PREVIEW
                     trailing: Row(mainAxisSize: MainAxisSize.min, children: [
                       IconButton(icon: const Icon(Icons.edit, color: Colors.blue), onPressed: () => _showPartyForm(party: p)),
                       IconButton(icon: const Icon(Icons.delete_outline, color: Colors.red), onPressed: () => _confirmDelete(ph, p)),
@@ -253,7 +241,7 @@ class _PartyMasterViewState extends State<PartyMasterView> {
           ),
         ],
       ),
-      floatingActionButton: FloatingActionButton.extended(onPressed: () => _showPartyForm(), backgroundColor: Colors.indigo, label: const Text("ADD PARTY", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white))),
+      floatingActionButton: FloatingActionButton.extended(onPressed: () => _showPartyForm(), backgroundColor: Colors.indigo, label: const Text("ADD NEW PARTY", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white))),
     );
   }
 
