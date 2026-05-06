@@ -29,9 +29,12 @@ class _ExportSelectorViewState extends State<ExportSelectorView> {
   Widget build(BuildContext context) {
     final ph = Provider.of<PharoahManager>(context);
     List<dynamic> source = widget.exportType == "SALE" ? ph.sales : ph.purchases;
+    
+    // Sirf Active aur non-deleted bills hi dikhayein
     if (widget.exportType == "SALE") {
       source = source.where((s) => s.status == "Active").toList();
     }
+    
     source = source.reversed.toList();
 
     List<dynamic> filtered = source.where((b) {
@@ -51,7 +54,11 @@ class _ExportSelectorViewState extends State<ExportSelectorView> {
           padding: const EdgeInsets.all(15), color: Colors.white,
           child: targetParty == null 
             ? TextField(
-                decoration: const InputDecoration(hintText: "Search Party...", prefixIcon: Icon(Icons.person_search), border: OutlineInputBorder()), 
+                decoration: const InputDecoration(
+                  hintText: "Search Party/Supplier...", 
+                  prefixIcon: Icon(Icons.person_search), 
+                  border: OutlineInputBorder()
+                ), 
                 onChanged: (v) => setState(() => partySearch = v)
               )
             : ListTile(
@@ -59,7 +66,10 @@ class _ExportSelectorViewState extends State<ExportSelectorView> {
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)), 
                 leading: const Icon(Icons.person, color: Colors.indigo), 
                 title: Text(targetParty!.name, style: const TextStyle(fontWeight: FontWeight.bold)), 
-                trailing: IconButton(icon: const Icon(Icons.close, color: Colors.red), onPressed: () => setState(() { targetParty = null; selectedIds.clear(); }))
+                trailing: IconButton(
+                  icon: const Icon(Icons.close, color: Colors.red), 
+                  onPressed: () => setState(() { targetParty = null; selectedIds.clear(); })
+                )
               ),
         ),
         if (targetParty == null && partySearch.isNotEmpty)
@@ -80,7 +90,15 @@ class _ExportSelectorViewState extends State<ExportSelectorView> {
             child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
               Text("${filtered.length} Bills Available", style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.grey)),
               TextButton(
-                onPressed: () => setState(() => selectedIds.length == filtered.length ? selectedIds.clear() : selectedIds = filtered.map((e) => e.id as String).toList()), 
+                onPressed: () {
+                  setState(() {
+                    if (selectedIds.length == filtered.length) {
+                      selectedIds.clear();
+                    } else {
+                      selectedIds = filtered.map((e) => e.id as String).toList();
+                    }
+                  });
+                }, 
                 child: Text(selectedIds.length == filtered.length ? "UNSELECT ALL" : "SELECT ALL")
               ),
             ])
@@ -101,8 +119,11 @@ class _ExportSelectorViewState extends State<ExportSelectorView> {
                   secondary: Text("₹${b.totalAmount.toStringAsFixed(0)}", style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.indigo)), 
                   onChanged: (v) {
                     setState(() {
-                      if (v!) selectedIds.add(b.id);
-                      else selectedIds.remove(b.id);
+                      if (v!) {
+                        selectedIds.add(b.id);
+                      } else {
+                        selectedIds.remove(b.id);
+                      }
                     });
                   },
                 )
@@ -115,21 +136,42 @@ class _ExportSelectorViewState extends State<ExportSelectorView> {
         padding: const EdgeInsets.all(20), 
         decoration: const BoxDecoration(color: Colors.white, boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 10)]),
         child: Row(children: [
-          Expanded(child: ElevatedButton.icon(style: ElevatedButton.styleFrom(backgroundColor: Colors.green, foregroundColor: Colors.white), onPressed: () => _handleExport(filtered, "SHARE"), icon: const Icon(Icons.share), label: const Text("SHARE"))),
+          Expanded(child: ElevatedButton.icon(style: ElevatedButton.styleFrom(backgroundColor: Colors.green, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(vertical: 12)), onPressed: () => _handleExport(filtered, "SHARE"), icon: const Icon(Icons.share), label: const Text("SHARE CSV"))),
           const SizedBox(width: 15),
-          Expanded(child: ElevatedButton.icon(style: ElevatedButton.styleFrom(backgroundColor: Colors.blue.shade900, foregroundColor: Colors.white), onPressed: () => _handleExport(filtered, "SAVE"), icon: const Icon(Icons.download_rounded), label: const Text("DOWNLOAD"))),
+          Expanded(child: ElevatedButton.icon(style: ElevatedButton.styleFrom(backgroundColor: Colors.blue.shade900, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(vertical: 12)), onPressed: () => _handleExport(filtered, "SAVE"), icon: const Icon(Icons.download_rounded), label: const Text("DOWNLOAD"))),
         ]),
       ),
     );
   }
 
+  // ===========================================================================
+  // FIXED EXPORT ENGINE CALL: Updated with Named Parameters and Master Lists
+  // ===========================================================================
   void _handleExport(List<dynamic> allBills, String mode) async {
     final ph = Provider.of<PharoahManager>(context, listen: false);
     List<dynamic> selectedData = allBills.where((b) => selectedIds.contains(b.id)).toList();
+    
     String senderState = ph.activeCompany?.state ?? "Rajasthan";
-    String csv = widget.exportType == "SALE" 
-      ? CsvEngine.convertSalesToCsv(selectedData.cast<Sale>(), ph.medicines, senderState) 
-      : CsvEngine.convertPurchasesToCsv(selectedData.cast<Purchase>(), ph.medicines, senderState);
+    String csv = "";
+
+    // Hum ab NAMED parameters ka use karenge jo CsvEngine expect kar raha hai
+    if (widget.exportType == "SALE") {
+      csv = CsvEngine.convertSalesToCsv(
+        sales: selectedData.cast<Sale>(), 
+        allMeds: ph.medicines, 
+        allComps: ph.companies, 
+        allSalts: ph.salts, 
+        senderState: senderState
+      );
+    } else {
+      csv = CsvEngine.convertPurchasesToCsv(
+        purchases: selectedData.cast<Purchase>(), 
+        allMeds: ph.medicines, 
+        allComps: ph.companies, 
+        allSalts: ph.salts, 
+        senderState: senderState
+      );
+    }
 
     String date = DateFormat('ddMMM_yyyy').format(DateTime.now());
     String pName = targetParty != null ? targetParty!.name.replaceAll(" ", "_") : "BULK";
@@ -139,10 +181,13 @@ class _ExportSelectorViewState extends State<ExportSelectorView> {
       final dir = await getTemporaryDirectory();
       final file = File('${dir.path}/$fileName.csv');
       await file.writeAsString(csv);
-      await Share.shareXFiles([XFile(file.path)]);
+      await Share.shareXFiles([XFile(file.path)], subject: "Pharoah Data: $fileName");
     } else {
       Uint8List bytes = Uint8List.fromList(utf8.encode(csv));
       await FileSaver.instance.saveAs(name: fileName, bytes: bytes, ext: "csv", mimeType: MimeType.csv);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("✅ CSV Exported successfully!"), backgroundColor: Colors.green));
+      }
     }
   }
 }
