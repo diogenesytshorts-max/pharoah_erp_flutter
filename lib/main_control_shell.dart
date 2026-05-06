@@ -212,7 +212,7 @@ class _MainControlShellState extends State<MainControlShell> {
         case "GO_MODIFICATION": target = const ModifyHubView(); break;
         case "GO_COMPLIANCE": target = const ComplianceHub(); break;
         case "GO_M_PARTY": target = const PartyMasterView(); break;
-        case "GO_M_ITEM": target = const ProductMasterView(); break;
+        case "GO_M_ITEM": target = ProductMasterView(); break;
         case "GO_M_SERIES": target = const SeriesMasterView(); break;
         case "GO_M_STAFF": target = const SystemUserMasterView(); break;
         case "GO_M_BATCH": target = const BatchMasterView(); break;
