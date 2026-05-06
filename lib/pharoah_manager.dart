@@ -435,6 +435,33 @@ Future<void> addSignatureToChallan({
     if(p.isNotEmpty) { final dir = Directory(p); if(dir.existsSync()) dir.deleteSync(recursive: true); } 
     await loadAllData(); 
   }
+  // --- NAYA LOGIC: STATES KO FREQUENCY KE HISAB SE SORT KARNA ---
+  List<String> getSortedStates() {
+    final allStates = [
+      "Andhra Pradesh", "Assam", "Bihar", "Chhattisgarh", "Goa", "Gujarat", 
+      "Haryana", "Himachal Pradesh", "Jharkhand", "Karnataka", "Kerala", 
+      "Madhya Pradesh", "Maharashtra", "Manipur", "Meghalaya", "Mizoram", 
+      "Nagaland", "Odisha", "Punjab", "Rajasthan", "Sikkim", "Tamil Nadu", 
+      "Telangana", "Tripura", "Uttar Pradesh", "Uttarakhand", "West Bengal",
+      "Delhi", "Jammu and Kashmir", "Ladakh", "Puducherry", "Chandigarh"
+    ];
+
+    // 1. Har state kitni baar use hua hai uski counting
+    Map<String, int> counts = {};
+    for (var p in parties) {
+      counts[p.state] = (counts[p.state] ?? 0) + 1;
+    }
+
+    // 2. Sorting: Jiska count zyada wo list mein upar
+    List<String> sorted = List.from(allStates);
+    sorted.sort((a, b) {
+      int countA = counts[a] ?? 0;
+      int countB = counts[b] ?? 0;
+      return countB.compareTo(countA); // Descending order
+    });
+
+    return sorted;
+  }
   
   List<NumberingSeries> getSeriesByType(String t) => numberingSeries.where((s) => s.type == t).toList();
   NumberingSeries getDefaultSeries(String t) => numberingSeries.firstWhere((s) => s.type == t && s.isDefault, orElse: () => numberingSeries.firstWhere((s) => s.type == t, orElse: () => NumberingSeries(id: 'tmp', name: 'Default', type: t, prefix: 'TXN-', isDefault: true)));
