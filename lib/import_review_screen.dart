@@ -36,7 +36,7 @@ class _ImportReviewScreenState extends State<ImportReviewScreen> {
   }
 
   // ===========================================================================
-  // CORE ENGINE: 27-COLUMN EXTRACTION & MATCHING
+  // CORE ENGINE: 29-COLUMN EXTRACTION & MATCHING (V3)
   // ===========================================================================
   void _processCsvLogic() {
     final ph = Provider.of<PharoahManager>(context, listen: false);
@@ -50,7 +50,6 @@ class _ImportReviewScreenState extends State<ImportReviewScreen> {
       'state': row1[4].toString(),
       'billNo': row1[1].toString(),
       'date': row1[0].toString(),
-      // SNAPSHOT DATA FROM CSV (Columns 18-23)
       'dl': row1.length > 18 ? row1[18].toString() : "N/A",
       'pan': row1.length > 19 ? row1[19].toString() : "N/A",
       'city': row1.length > 20 ? row1[20].toString() : "N/A",
@@ -58,9 +57,11 @@ class _ImportReviewScreenState extends State<ImportReviewScreen> {
       'email': row1.length > 22 ? row1[22].toString() : "N/A",
       'address': row1.length > 23 ? row1[23].toString() : "N/A",
       'sender_state': row1.length > 26 ? row1[26].toString() : "Rajasthan",
+      // NAYA: Extra Discount aur Roundoff uthana (Index 27 & 28)
+      'extraDiscount': row1.length > 27 ? double.tryParse(row1[27].toString()) ?? 0.0 : 0.0,
+      'roundOff': row1.length > 28 ? double.tryParse(row1[28].toString()) ?? 0.0 : 0.0,
     };
 
-    // Tax Recognition Logic
     String myState = ph.activeCompany?.state.trim().toLowerCase() ?? "rajasthan";
     isLocalSale = myState == senderInfo['sender_state'].toString().trim().toLowerCase();
 
@@ -86,7 +87,7 @@ class _ImportReviewScreenState extends State<ImportReviewScreen> {
       reviewedItems.add({
         'csvName': csvItemName,
         'csvPack': csvPack,
-        'batch': row[8].toString().trim(), // FIXED: CASE PRESERVED
+        'batch': row[8].toString().trim(), 
         'exp': row[9].toString(),
         'hsn': row[10].toString(),
         'qty': double.tryParse(row[11].toString()) ?? 0,
@@ -106,9 +107,6 @@ class _ImportReviewScreenState extends State<ImportReviewScreen> {
     setState(() => isLoading = false);
   }
 
-  // ===========================================================================
-  // MASTER SYNC BRIDGE: PRE-FILLED MASTER SCREENS
-  // ===========================================================================
   void _editPartyDetail() async {
     await Navigator.push(context, MaterialPageRoute(
       builder: (c) => PartyMasterView(
@@ -149,29 +147,24 @@ class _ImportReviewScreenState extends State<ImportReviewScreen> {
         backgroundColor: const Color(0xFF0D47A1),
         foregroundColor: Colors.white,
       ),
-      body: LayoutBuilder(builder: (context, constraints) {
-        return SingleChildScrollView(
-          child: ConstrainedBox(
-            constraints: BoxConstraints(minHeight: constraints.maxHeight),
-            child: Column(
-              children: [
-                _buildTopHeader(),
-                _buildPartyCard(),
-                _buildActionStrip(),
-                ListView.builder(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  padding: const EdgeInsets.symmetric(horizontal: 12),
-                  itemCount: reviewedItems.length,
-                  itemBuilder: (c, i) => _buildItemRow(reviewedItems[i]),
-                ),
-                const SizedBox(height: 20),
-                _buildBottomSummary(ph),
-              ],
+      body: SingleChildScrollView(
+        child: Column(
+          children: [
+            _buildTopHeader(),
+            _buildPartyCard(),
+            _buildActionStrip(),
+            ListView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              itemCount: reviewedItems.length,
+              itemBuilder: (c, i) => _buildItemRow(reviewedItems[i]),
             ),
-          ),
-        );
-      }),
+            const SizedBox(height: 20),
+            _buildBottomSummary(ph),
+          ],
+        ),
+      ),
     );
   }
 
@@ -183,7 +176,7 @@ class _ImportReviewScreenState extends State<ImportReviewScreen> {
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           _tag("BILL DATE:", senderInfo['date'], Icons.receipt_long),
-          _tag("ENTRY DATE:", DateFormat('dd/MM/yyyy').format(DateTime.now()), Icons.computer),
+          _tag("IMPORT DATE:", DateFormat('dd/MM/yyyy').format(DateTime.now()), Icons.computer),
         ],
       ),
     );
@@ -266,7 +259,6 @@ class _ImportReviewScreenState extends State<ImportReviewScreen> {
         leading: Checkbox(value: it['isSelected'], activeColor: statusColor, onChanged: (v) => setState(() => it['isSelected'] = v!)),
         title: Text(it['csvName'], style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
         subtitle: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          // SUB-ROW METADATA (FIXED: BATCH CASE PRESERVED)
           Container(
             padding: const EdgeInsets.all(5), margin: const EdgeInsets.only(top: 5),
             decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(5)),
@@ -279,14 +271,6 @@ class _ImportReviewScreenState extends State<ImportReviewScreen> {
           Text(it['status'] == 'new' ? "New Product: Action Required" : "System Match: ${m?.name} (${m?.packing})", style: TextStyle(fontSize: 10, color: statusColor, fontWeight: FontWeight.bold)),
         ]),
         trailing: _buildRowAction(it, statusColor),
-        children: [
-          Padding(
-            padding: const EdgeInsets.all(12),
-            child: TextField(
-              decoration: InputDecoration(hintText: "Search your master to link...", prefixIcon: const Icon(Icons.search, size: 18), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)), filled: true, fillColor: Colors.white),
-            ),
-          )
-        ],
       ),
     );
   }
@@ -309,20 +293,22 @@ class _ImportReviewScreenState extends State<ImportReviewScreen> {
   }
 
   Widget _buildBottomSummary(PharoahManager ph) {
-    double taxable = reviewedItems.where((it) => it['isSelected']).fold(0.0, (sum, it) => sum + (it['rate'] * it['qty']));
-    double gstTotal = reviewedItems.where((it) => it['isSelected']).fold(0.0, (sum, it) => sum + (it['total'] - (it['rate'] * it['qty'])));
+    double itemTotal = reviewedItems.where((it) => it['isSelected']).fold(0.0, (sum, it) => sum + it['total']);
+    double extraDisc = senderInfo['extraDiscount'] ?? 0.0;
+    double netPayable = itemTotal - extraDisc + (senderInfo['roundOff'] ?? 0.0);
 
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: const BoxDecoration(color: Colors.white, borderRadius: BorderRadius.vertical(top: Radius.circular(25)), boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 15, offset: Offset(0, -5))]),
       child: Column(
         children: [
-          _row("Total Taxable Value", taxable),
-          _row(isLocalSale ? "Local GST (CGST+SGST)" : "Interstate GST (IGST)", gstTotal),
+          _row("Items Gross Total", itemTotal),
+          if (extraDisc > 0) _row("Extra Discount (-)", extraDisc),
+          _row("Round Off", senderInfo['roundOff'] ?? 0.0),
           const Divider(height: 25),
           Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
             const Text("NET PAYABLE", style: TextStyle(fontWeight: FontWeight.w900, fontSize: 13)),
-            Text("₹${(taxable + gstTotal).toStringAsFixed(2)}", style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w900, color: Color(0xFF0D47A1))),
+            Text("₹${netPayable.toStringAsFixed(2)}", style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w900, color: Color(0xFF0D47A1))),
           ]),
           const SizedBox(height: 15),
           ElevatedButton.icon(
@@ -339,7 +325,7 @@ class _ImportReviewScreenState extends State<ImportReviewScreen> {
   Widget _row(String l, double v) => Padding(padding: const EdgeInsets.only(bottom: 4), child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [Text(l, style: const TextStyle(fontSize: 11, color: Colors.grey, fontWeight: FontWeight.bold)), Text("₹${v.toStringAsFixed(2)}", style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold))]));
 
   // ===========================================================================
-  // FINAL SAVE LOGIC: AUTO-MASTER CREATION & DYNAMIC ROUTING
+  // FINAL SAVE LOGIC: TAX SPLIT & HEADER SYNC
   // ===========================================================================
   void _finalizeAndSave(PharoahManager ph) async {
     bool hasUnresolved = reviewedItems.any((it) => it['isSelected'] && it['status'] == 'new');
@@ -359,36 +345,50 @@ class _ImportReviewScreenState extends State<ImportReviewScreen> {
       List<BillItem> finalSaleItems = [];
       for (var it in reviewedItems.where((e) => e['isSelected'])) {
         Medicine m = it['match'];
+        
+        // --- NAYA: TAX SPLIT CALCULATION ---
+        double taxableVal = it['rate'] * it['qty'];
+        double totalLineTax = it['total'] - taxableVal;
+        double cgst = 0, sgst = 0, igst = 0;
+
+        if (isLocalSale) {
+          cgst = totalLineTax / 2;
+          sgst = totalLineTax / 2;
+        } else {
+          igst = totalLineTax;
+        }
+
         finalSaleItems.add(BillItem(
-          id: DateTime.now().toString() + m.id, srNo: finalSaleItems.length + 1,
+          id: DateTime.now().millisecondsSinceEpoch.toString() + m.id, 
+          srNo: finalSaleItems.length + 1,
           medicineID: m.id, name: m.name, packing: m.packing, batch: it['batch'], exp: it['exp'],
           hsn: it['hsn'], mrp: it['mrp'], qty: it['qty'], freeQty: it['free'], rate: it['rate'],
           gstRate: it['gst'], total: it['total'],
+          cgst: cgst, sgst: sgst, igst: igst, // FIXED: Values initialized
         ));
       }
+
       ph.finalizeSale(
-        billNo: senderInfo['billNo'], date: DateFormat('dd/MM/yyyy').parse(senderInfo['date']),
-        party: targetParty, items: finalSaleItems, total: finalSaleItems.fold(0.0, (s, i) => s + i.total), mode: "CREDIT"
+        billNo: senderInfo['billNo'], 
+        date: DateFormat('dd/MM/yyyy').parse(senderInfo['date']),
+        party: targetParty, items: finalSaleItems, 
+        total: (finalSaleItems.fold(0.0, (s, i) => s + i.total) - senderInfo['extraDiscount'] + senderInfo['roundOff']), 
+        mode: "CREDIT",
+        extraDiscount: senderInfo['extraDiscount'], // FIXED: Discount Sync
+        roundOff: senderInfo['roundOff'],           // FIXED: Roundoff Sync
       );
-    } else {
+    } 
+    else {
+      // PURCHASE IMPORT LOGIC (Similar to Sale but for Purchases)
       List<PurchaseItem> finalPurchaseItems = [];
       for (var it in reviewedItems.where((e) => e['isSelected'])) {
         Medicine m = it['match'];
-        
-        // --- NAYA: AUTO-MASTER UPDATE FOR P2P ---
-        String mfgId = ph.getOrCreateCompany(it['manufacturer']);
-        String saltId = ph.getOrCreateSalt(it['salt']);
-        
-        // Update local medicine record if missing company or salt
-        int mIdx = ph.medicines.indexWhere((med) => med.id == m.id);
-        if(mIdx != -1) {
-          ph.medicines[mIdx].companyId = mfgId;
-          ph.medicines[mIdx].saltId = saltId;
-          ph.save();
-        }
+        ph.getOrCreateCompany(it['manufacturer']);
+        ph.getOrCreateSalt(it['salt']);
 
         finalPurchaseItems.add(PurchaseItem(
-          id: DateTime.now().toString() + m.id, srNo: finalPurchaseItems.length + 1,
+          id: DateTime.now().millisecondsSinceEpoch.toString() + m.id, 
+          srNo: finalPurchaseItems.length + 1,
           medicineID: m.id, name: m.name, packing: m.packing, batch: it['batch'], exp: it['exp'],
           hsn: it['hsn'], mrp: it['mrp'], qty: it['qty'], freeQty: it['free'], purchaseRate: it['rate'],
           gstRate: it['gst'], total: it['total'],
@@ -403,6 +403,6 @@ class _ImportReviewScreenState extends State<ImportReviewScreen> {
     }
 
     Navigator.pop(context);
-    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("✅ Pharoah Data Exchange Successful!"), backgroundColor: Colors.green));
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("✅ Data Imported with Tax Splits & Discount!"), backgroundColor: Colors.green));
   }
 }
