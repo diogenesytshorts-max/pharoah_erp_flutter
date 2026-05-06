@@ -9,12 +9,6 @@ class CsvEngine {
      ===========================================================================
      PHAROAH P2P ENGINE V3 - 29 COLUMNS SMART STRUCTURE
      ===========================================================================
-     Index 0-17: Item Details (Standard)
-     Index 18-23: Party Snapshots
-     Index 24-25: Master Data (Salt/Flags)
-     Index 26: Sender State (For Tax Recognition)
-     Index 27: BILL_DISC (Extra Discount on Bill) -> NAYA
-     Index 28: BILL_ROUNDOFF (Round Off Value)    -> NAYA
   */
 
   static List<String> get _universalHeader => [
@@ -24,12 +18,9 @@ class CsvEngine {
     "DISCOUNT_PER", "GST_PERCENT", "NET_TOTAL",
     "PARTY_DL", "PARTY_PAN", "PARTY_CITY", "PARTY_MOBILE", "PARTY_EMAIL", "PARTY_ADDRESS",
     "ITEM_SALT", "ITEM_FLAGS", "SENDER_STATE",
-    "BILL_DISC", "BILL_ROUNDOFF" // Index 27 aur 28 par naya data
+    "BILL_DISC", "BILL_ROUNDOFF"
   ];
 
-  // ===========================================================================
-  // 1. EXPORT SALES (Distributor bhej raha hai)
-  // ===========================================================================
   static String convertSalesToCsv({
     required List<Sale> sales, 
     required List<Medicine> allMeds, 
@@ -47,12 +38,8 @@ class CsvEngine {
 
         try {
           Medicine med = allMeds.firstWhere((m) => m.id == i.medicineID || m.name == i.name);
-          if (med.companyId.isNotEmpty) {
-            mfgName = allComps.firstWhere((c) => c.id == med.companyId).name;
-          }
-          if (med.saltId.isNotEmpty) {
-            saltName = allSalts.firstWhere((sl) => sl.id == med.saltId).name;
-          }
+          if (med.companyId.isNotEmpty) mfgName = allComps.firstWhere((c) => c.id == med.companyId).name;
+          if (med.saltId.isNotEmpty) saltName = allSalts.firstWhere((sl) => sl.id == med.saltId).name;
           flags = "${med.isNarcotic ? 'NRX' : ''}|${med.isScheduleH1 ? 'H1' : ''}";
         } catch (e) {}
 
@@ -65,7 +52,7 @@ class CsvEngine {
           i.name.trim().toUpperCase(), 
           mfgName.trim().toUpperCase(), 
           i.packing.trim().toUpperCase(), 
-          i.batch.trim(), 
+          i.batch.trim(), // FIXED: removed .toUpperCase()
           i.exp.trim(), 
           i.hsn.trim(),
           i.qty, 
@@ -75,18 +62,15 @@ class CsvEngine {
           "0.0", 
           "${i.gstRate.toInt()}%", 
           i.total.toStringAsFixed(2),
-          // SNAPSHOTS
           s.partyDl.trim().toUpperCase(),
           s.partyPan.trim().toUpperCase(),
           s.partyCity.trim().toUpperCase(),
           s.partyPhone.trim(),
           s.partyEmail.trim().toLowerCase(),
           s.partyAddress.trim().toUpperCase(),
-          // MASTER DATA
           saltName.trim().toUpperCase(),
           flags,
           senderState.trim(),
-          // NAYA: Header level calculation data
           s.extraDiscount.toStringAsFixed(2), 
           s.roundOff.toStringAsFixed(2)
         ]);
@@ -95,9 +79,6 @@ class CsvEngine {
     return const ListToCsvConverter().convert(rows);
   }
 
-  // ===========================================================================
-  // 2. EXPORT PURCHASES (Internal Backup ke liye)
-  // ===========================================================================
   static String convertPurchasesToCsv({
     required List<Purchase> purchases, 
     required List<Medicine> allMeds, 
@@ -106,18 +87,15 @@ class CsvEngine {
     required String senderState
   }) {
     List<List<dynamic>> rows = [_universalHeader];
-
     for (var p in purchases) {
       for (var i in p.items) {
         String mfgName = "N/A";
         String saltName = "N/A";
-
         try {
           Medicine med = allMeds.firstWhere((m) => m.id == i.medicineID || m.name == i.name);
           if (med.companyId.isNotEmpty) mfgName = allComps.firstWhere((c) => c.id == med.companyId).name;
           if (med.saltId.isNotEmpty) saltName = allSalts.firstWhere((sl) => sl.id == med.saltId).name;
         } catch (e) {}
-
         rows.add([
           DateFormat('dd/MM/yyyy').format(p.date), 
           p.billNo.trim().toUpperCase(), 
@@ -126,7 +104,7 @@ class CsvEngine {
           i.name.trim().toUpperCase(), 
           mfgName.trim().toUpperCase(), 
           i.packing.trim().toUpperCase(), 
-          i.batch.trim(), 
+          i.batch.trim(), // FIXED: Case preserved
           i.exp.trim(), 
           i.hsn.trim(),
           i.qty, 
@@ -140,8 +118,7 @@ class CsvEngine {
           saltName.trim().toUpperCase(),
           "NORMAL",
           senderState.trim(),
-          "0.00", // Discount (Purchase model mein abhi nahi hai)
-          "0.00"  // Roundoff
+          "0.00", "0.00"
         ]);
       }
     }
@@ -149,9 +126,6 @@ class CsvEngine {
   }
 
   static List<List<dynamic>> parseCsv(String content) {
-    return const CsvToListConverter(
-      shouldParseNumbers: true, 
-      allowInvalid: true
-    ).convert(content);
+    return const CsvToListConverter(shouldParseNumbers: true, allowInvalid: true).convert(content);
   }
 }
