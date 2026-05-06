@@ -69,8 +69,6 @@ class _ChallanSignatureViewState extends State<ChallanSignatureView> {
       Uint8List sigBytes = byteData!.buffer.asUint8List();
 
       String savedImgPath = await ph.saveSignatureFile(widget.challan.billNo, sigBytes);
-      
-      // Calculate snapshot for security
       double totalQty = widget.challan.items.fold(0.0, (sum, item) => sum + item.qty + item.freeQty);
 
       await ph.addSignatureToChallan(
@@ -78,7 +76,7 @@ class _ChallanSignatureViewState extends State<ChallanSignatureView> {
         imagePath: savedImgPath, 
         code: uniqueCode,
         amount: widget.challan.totalAmount, 
-        qty: totalQty, // FIXED: Named parameter qty provided
+        qty: totalQty, 
         x: 0.1, 
         y: 0.82
       );
@@ -91,27 +89,58 @@ class _ChallanSignatureViewState extends State<ChallanSignatureView> {
     setState(() => isProcessing = false);
   }
 
+  // ===========================================================================
+  // FIXED ACTION HUB: Added both SAVE TO PHONE and SHARE buttons
+  // ===========================================================================
   void _showActionHub(PharoahManager ph, SaleChallan latest) {
     showDialog(
       context: context,
       barrierDismissible: false,
       builder: (c) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Text("Challan Sealed Successfully"),
-        content: Text("The Digital Code is: $uniqueCode\nNote: Seal will break if bill data is modified."),
+        title: const Row(children: [
+          Icon(Icons.gavel_rounded, color: Colors.indigo),
+          SizedBox(width: 10),
+          Text("Challan Sealed & Locked")
+        ]),
+        content: Text("The Unique Digital Seal Code is: $uniqueCode\n\nNote: Any modification to the bill data will automatically invalidate this secure seal."),
         actions: [
+          // 1. SAVE TO DEVICE BUTTON
           ElevatedButton.icon(
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.blue.shade900, foregroundColor: Colors.white),
+            onPressed: () async {
+              final bytes = await SaleChallanPdf.generateBytes(latest, widget.party, ph.activeCompany!);
+              await FileSaver.instance.saveAs(
+                name: "Challan_${latest.billNo}", 
+                bytes: bytes, 
+                ext: "pdf", 
+                mimeType: MimeType.pdf
+              );
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text("✅ PDF Saved to Device Downloads!"), backgroundColor: Colors.green)
+                );
+              }
+            },
+            icon: const Icon(Icons.download_rounded), label: const Text("SAVE TO PHONE"),
+          ),
+          // 2. SHARE BUTTON
+          ElevatedButton.icon(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.green, foregroundColor: Colors.white),
             onPressed: () async {
               final bytes = await SaleChallanPdf.generateBytes(latest, widget.party, ph.activeCompany!);
               final dir = await getTemporaryDirectory();
               final file = File('${dir.path}/Challan_${latest.billNo}.pdf');
               await file.writeAsBytes(bytes);
-              await Share.shareXFiles([XFile(file.path)], text: "Digital Verified Challan. Seal: $uniqueCode");
+              await Share.shareXFiles([XFile(file.path)], text: "Digital Verified Challan. Seal Code: $uniqueCode");
             },
             icon: const Icon(Icons.share), label: const Text("SHARE PDF"),
           ),
-          TextButton(onPressed: () => Navigator.of(context).popUntil((route) => route.isFirst), child: const Text("FINISH")),
+          // 3. FINISH BUTTON
+          TextButton(
+            onPressed: () => Navigator.of(context).popUntil((route) => route.isFirst), 
+            child: const Text("FINISH", style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold))
+          ),
         ],
       ),
     );
