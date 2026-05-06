@@ -10,7 +10,7 @@ import 'product_master.dart';
 
 class ImportReviewScreen extends StatefulWidget {
   final List<List<dynamic>> csvData; 
-  final String importType; 
+  final String importType; // "SALE" or "PURCHASE"
 
   const ImportReviewScreen({
     super.key, 
@@ -36,14 +36,13 @@ class _ImportReviewScreenState extends State<ImportReviewScreen> {
   }
 
   // ===========================================================================
-  // CORE ENGINE: DATA EXTRACTION & MATCHING
+  // CORE ENGINE: 27-COLUMN EXTRACTION & MATCHING
   // ===========================================================================
   void _processCsvLogic() {
     final ph = Provider.of<PharoahManager>(context, listen: false);
     final data = widget.csvData;
     if (data.length < 2) return;
 
-    // Header se Sender Info (Distributor ki Kundli) nikalna
     var row1 = data[1];
     senderInfo = {
       'name': row1[2].toString().toUpperCase(),
@@ -51,18 +50,19 @@ class _ImportReviewScreenState extends State<ImportReviewScreen> {
       'state': row1[4].toString(),
       'billNo': row1[1].toString(),
       'date': row1[0].toString(),
-      // NAYE P2P SNAPSHOT COLUMNS (18-23)
+      // SNAPSHOT DATA FROM CSV (Columns 18-23)
       'dl': row1.length > 18 ? row1[18].toString() : "N/A",
       'pan': row1.length > 19 ? row1[19].toString() : "N/A",
       'city': row1.length > 20 ? row1[20].toString() : "N/A",
       'phone': row1.length > 21 ? row1[21].toString() : "N/A",
       'email': row1.length > 22 ? row1[22].toString() : "N/A",
       'address': row1.length > 23 ? row1[23].toString() : "N/A",
+      'sender_state': row1.length > 26 ? row1[26].toString() : "Rajasthan",
     };
 
-    // Tax Recognition: Dukan vs Distributor
-    String shopState = ph.activeCompany?.state.trim().toLowerCase() ?? "rajasthan";
-    isLocalSale = shopState == senderInfo['state'].toString().trim().toLowerCase();
+    // Tax Recognition: Interstate (Haryana) vs Local (Rajasthan)
+    String myState = ph.activeCompany?.state.trim().toLowerCase() ?? "rajasthan";
+    isLocalSale = myState == senderInfo['sender_state'].toString().trim().toLowerCase();
 
     reviewedItems.clear();
     for (int i = 1; i < data.length; i++) {
@@ -72,7 +72,6 @@ class _ImportReviewScreenState extends State<ImportReviewScreen> {
       String csvItemName = row[5].toString().toUpperCase().trim();
       String csvPack = row[7].toString().toUpperCase().trim();
 
-      // Smart Product Matching
       Medicine? match;
       try {
         match = ph.medicines.firstWhere((m) => 
@@ -87,7 +86,7 @@ class _ImportReviewScreenState extends State<ImportReviewScreen> {
       reviewedItems.add({
         'csvName': csvItemName,
         'csvPack': csvPack,
-        'batch': row[8].toString(),
+        'batch': row[8].toString().toUpperCase(),
         'exp': row[9].toString(),
         'hsn': row[10].toString(),
         'qty': double.tryParse(row[11].toString()) ?? 0,
@@ -96,27 +95,26 @@ class _ImportReviewScreenState extends State<ImportReviewScreen> {
         'rate': double.tryParse(row[14].toString()) ?? 0,
         'gst': double.tryParse(row[16].toString().replaceAll('%', '')) ?? 12,
         'total': double.tryParse(row[17].toString()) ?? 0,
-        'manufacturer': row[6].toString(),
+        'manufacturer': row[6].toString().toUpperCase(),
         'match': match, 
         'status': match != null ? (match.packing == csvPack ? 'matched' : 'suggested') : 'new',
         'isSelected': match != null ? true : false,
-        // NAYE ITEM MASTER COLUMNS (24-25)
-        'salt': row.length > 24 ? row[24].toString() : "N/A",
-        'flags': row.length > 25 ? row[25].toString() : "N/A",
+        'salt': row.length > 24 ? row[24].toString().toUpperCase() : "N/A",
+        'flags': row.length > 25 ? row[25].toString().toUpperCase() : "NORMAL",
       });
     }
     setState(() => isLoading = false);
   }
 
   // ===========================================================================
-  // USER ACTIONS: EDIT/CREATE BRIDGE
+  // MASTER SYNC BRIDGE: Passing Pre-fill Data
   // ===========================================================================
   void _editPartyDetail() async {
     await Navigator.push(context, MaterialPageRoute(
       builder: (c) => PartyMasterView(
         isSelectionMode: true,
         preFillData: {
-          'name': senderInfo['name'], 'gst': senderInfo['gst'], 'state': senderInfo['state'],
+          'name': senderInfo['name'], 'gst': senderInfo['gst'], 'state': senderInfo['sender_state'],
           'city': senderInfo['city'], 'dl': senderInfo['dl'], 'pan': senderInfo['pan'],
           'phone': senderInfo['phone'], 'email': senderInfo['email'], 'address': senderInfo['address'],
         },
@@ -141,12 +139,13 @@ class _ImportReviewScreenState extends State<ImportReviewScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final ph = Provider.of<PharoahManager>(context);
     if (isLoading) return const Scaffold(body: Center(child: CircularProgressIndicator()));
 
     return Scaffold(
       backgroundColor: const Color(0xFFF1F3F6),
       appBar: AppBar(
-        title: const Text("P2P Review & Verify", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+        title: Text("P2P Review (${widget.importType})", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
         backgroundColor: const Color(0xFF0D47A1),
         foregroundColor: Colors.white,
       ),
@@ -167,7 +166,7 @@ class _ImportReviewScreenState extends State<ImportReviewScreen> {
                   itemBuilder: (c, i) => _buildItemRow(reviewedItems[i]),
                 ),
                 const SizedBox(height: 20),
-                _buildBottomSummary(),
+                _buildBottomSummary(ph),
               ],
             ),
           ),
@@ -215,7 +214,6 @@ class _ImportReviewScreenState extends State<ImportReviewScreen> {
                   IconButton(onPressed: _editPartyDetail, icon: const Icon(Icons.edit_note, color: Colors.blue, size: 22)),
                 ]),
                 Text("GST: ${senderInfo['gst']} | DL: ${senderInfo['dl']}", style: const TextStyle(fontSize: 10, color: Colors.grey, fontWeight: FontWeight.bold)),
-                Text("Email: ${senderInfo['email']} | Mob: ${senderInfo['phone']}", style: const TextStyle(fontSize: 9, color: Colors.blueGrey)),
                 Text(isLocalSale ? "MODE: LOCAL (CGST+SGST)" : "MODE: INTERSTATE (IGST)", style: TextStyle(fontSize: 10, color: isLocalSale ? Colors.green : Colors.indigo, fontWeight: FontWeight.bold)),
               ],
             ),
@@ -284,6 +282,7 @@ class _ImportReviewScreenState extends State<ImportReviewScreen> {
           Padding(
             padding: const EdgeInsets.all(12),
             child: TextField(
+              onChanged: (v) {},
               decoration: InputDecoration(hintText: "Search your master to link...", prefixIcon: const Icon(Icons.search, size: 18), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)), filled: true, fillColor: Colors.white),
             ),
           )
@@ -309,8 +308,7 @@ class _ImportReviewScreenState extends State<ImportReviewScreen> {
     ]);
   }
 
-  Widget _buildBottomSummary() {
-    final ph = Provider.of<PharoahManager>(context);
+  Widget _buildBottomSummary(PharoahManager ph) {
     double taxable = reviewedItems.where((it) => it['isSelected']).fold(0.0, (sum, it) => sum + (it['rate'] * it['qty']));
     double gstTotal = reviewedItems.where((it) => it['isSelected']).fold(0.0, (sum, it) => sum + (it['total'] - (it['rate'] * it['qty'])));
 
@@ -324,14 +322,14 @@ class _ImportReviewScreenState extends State<ImportReviewScreen> {
           const Divider(height: 25),
           Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
             const Text("NET PAYABLE", style: TextStyle(fontWeight: FontWeight.w900, fontSize: 13)),
-            Text("₹${(taxable + gstTotal).toStringAsFixed(2)}", style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: Color(0xFF0D47A1))),
+            Text("₹${(taxable + gstTotal).toStringAsFixed(2)}", style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w900, color: Color(0xFF0D47A1))),
           ]),
           const SizedBox(height: 15),
           ElevatedButton.icon(
             style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF0D47A1), foregroundColor: Colors.white, minimumSize: const Size(double.infinity, 55), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
             onPressed: () => _finalizeAndSave(ph),
             icon: const Icon(Icons.cloud_upload_rounded),
-            label: const Text("FINALIZE & POST TO PURCHASE", style: TextStyle(fontWeight: FontWeight.bold, letterSpacing: 1)),
+            label: Text("POST TO ${widget.importType}", style: const TextStyle(fontWeight: FontWeight.bold, letterSpacing: 1)),
           )
         ],
       ),
@@ -340,21 +338,14 @@ class _ImportReviewScreenState extends State<ImportReviewScreen> {
 
   Widget _row(String l, double v) => Padding(padding: const EdgeInsets.only(bottom: 4), child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [Text(l, style: const TextStyle(fontSize: 11, color: Colors.grey, fontWeight: FontWeight.bold)), Text("₹${v.toStringAsFixed(2)}", style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold))]));
 
+  // ===========================================================================
+  // DYNAMIC ROUTING: SALE VS PURCHASE
+  // ===========================================================================
   void _finalizeAndSave(PharoahManager ph) async {
     bool hasUnresolved = reviewedItems.any((it) => it['isSelected'] && it['status'] == 'new');
     if (hasUnresolved) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Please Create or Link all Red items first!"), backgroundColor: Colors.red));
       return;
-    }
-
-    List<PurchaseItem> finalPurchaseItems = [];
-    for (var it in reviewedItems.where((element) => element['isSelected'])) {
-      Medicine m = it['match'];
-      finalPurchaseItems.add(PurchaseItem(
-        id: DateTime.now().millisecondsSinceEpoch.toString() + m.id,
-        srNo: finalPurchaseItems.length + 1,
-        medicineID: m.id, name: m.name, packing: m.packing, batch: it['batch'], exp: it['exp'], hsn: it['hsn'], mrp: it['mrp'], qty: it['qty'], freeQty: it['free'], purchaseRate: it['rate'], gstRate: it['gst'], total: it['total'],
-      ));
     }
 
     Party targetParty;
@@ -364,18 +355,43 @@ class _ImportReviewScreenState extends State<ImportReviewScreen> {
       targetParty = ph.parties[0];
     }
 
-    ph.finalizePurchase(
-      internalNo: "P2P-${DateTime.now().millisecondsSinceEpoch.toString().substring(7)}",
-      billNo: senderInfo['billNo'],
-      date: DateFormat('dd/MM/yyyy').parse(senderInfo['date']),
-      entryDate: DateTime.now(),
-      party: targetParty,
-      items: finalPurchaseItems,
-      total: finalPurchaseItems.fold(0.0, (sum, it) => sum + it.total),
-      mode: "CREDIT",
-    );
+    if (widget.importType == "SALE") {
+      // 1. Process as Sale Bill
+      List<BillItem> finalSaleItems = [];
+      for (var it in reviewedItems.where((e) => e['isSelected'])) {
+        Medicine m = it['match'];
+        finalSaleItems.add(BillItem(
+          id: DateTime.now().toString() + m.id, srNo: finalSaleItems.length + 1,
+          medicineID: m.id, name: m.name, packing: m.packing, batch: it['batch'], exp: it['exp'],
+          hsn: it['hsn'], mrp: it['mrp'], qty: it['qty'], freeQty: it['free'], rate: it['rate'],
+          gstRate: it['gst'], total: it['total'],
+        ));
+      }
+      ph.finalizeSale(
+        billNo: senderInfo['billNo'], date: DateFormat('dd/MM/yyyy').parse(senderInfo['date']),
+        party: targetParty, items: finalSaleItems, total: finalSaleItems.fold(0.0, (s, i) => s + i.total), mode: "CREDIT"
+      );
+    } else {
+      // 2. Process as Purchase Inward
+      List<PurchaseItem> finalPurchaseItems = [];
+      for (var it in reviewedItems.where((e) => e['isSelected'])) {
+        Medicine m = it['match'];
+        finalPurchaseItems.add(PurchaseItem(
+          id: DateTime.now().toString() + m.id, srNo: finalPurchaseItems.length + 1,
+          medicineID: m.id, name: m.name, packing: m.packing, batch: it['batch'], exp: it['exp'],
+          hsn: it['hsn'], mrp: it['mrp'], qty: it['qty'], freeQty: it['free'], purchaseRate: it['rate'],
+          gstRate: it['gst'], total: it['total'],
+        ));
+      }
+      ph.finalizePurchase(
+        internalNo: "P2P-${DateTime.now().millisecondsSinceEpoch.toString().substring(7)}",
+        billNo: senderInfo['billNo'], date: DateFormat('dd/MM/yyyy').parse(senderInfo['date']),
+        entryDate: DateTime.now(), party: targetParty, items: finalPurchaseItems,
+        total: finalPurchaseItems.fold(0.0, (s, i) => s + i.total), mode: "CREDIT"
+      );
+    }
 
     Navigator.pop(context);
-    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("✅ Inward Bill Posted & Inventory Updated!"), backgroundColor: Colors.green));
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("✅ Bill Posted Successfully!"), backgroundColor: Colors.green));
   }
 }
