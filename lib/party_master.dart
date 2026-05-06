@@ -7,7 +7,10 @@ import 'models.dart';
 
 class PartyMasterView extends StatefulWidget {
   final bool isSelectionMode; 
-  const PartyMasterView({super.key, this.isSelectionMode = false});
+  final Map<String, dynamic>? preFillData; // NAYA: CSV se aane wala data
+  
+  const PartyMasterView({super.key, this.isSelectionMode = false, this.preFillData});
+  // ...
 
   @override
   State<PartyMasterView> createState() => _PartyMasterViewState();
@@ -109,7 +112,7 @@ class _PartyMasterViewState extends State<PartyMasterView> {
     String selectedPriceLevel = party?.priceLevel ?? "A";
     String selectedRoute = (party?.route != null && party!.route.isNotEmpty) ? party.route : "";
     String selectedSeriesId = party?.defaultSeriesId ?? "";
-    
+    String selectedState = party?.state ?? pf?['state'] ?? "Rajasthan";
     // NAYA: Selected State management
     String selectedState = party?.state ?? "Rajasthan";
 
