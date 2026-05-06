@@ -107,6 +107,7 @@ class _PartyMasterViewState extends State<PartyMasterView> {
     final opBalC = TextEditingController(text: party?.opBal.toString() ?? "0.0");
     final creditLimitC = TextEditingController(text: party?.creditLimit.toString() ?? "0.0");
     final creditDaysC = TextEditingController(text: party?.creditDays.toString() ?? "0");
+    final pf = widget.preFillData;
 
     String selectedGroup = party?.group ?? "Sundry Debtors";
     String selectedPriceLevel = party?.priceLevel ?? "A";
