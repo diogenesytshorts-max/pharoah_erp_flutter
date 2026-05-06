@@ -256,7 +256,7 @@ class PharoahManager with ChangeNotifier {
   }
 
   // ===========================================================================
-  // TRANSACTIONS
+  // TRANSACTIONS (FIXED FOR IMPORT SYNC)
   // ===========================================================================
 
   Future<void> finalizeSale({
@@ -265,16 +265,27 @@ class PharoahManager with ChangeNotifier {
     List<String>? linkedIds, double extraDiscount = 0.0, double roundOff = 0.0
   }) async { 
     Party masterParty = parties.firstWhere((p) => p.name == party.name, orElse: () => party);
+    
+    // NAYA: Sale object mein ab extraDiscount aur roundOff sahi se pass hoga
     sales.add(Sale(
       id: DateTime.now().toString(), billNo: billNo, date: date, partyName: masterParty.name, 
       partyGstin: masterParty.gst, partyState: masterParty.state, items: items, totalAmount: total, 
-      paymentMode: mode, linkedChallanIds: linkedIds ?? [], extraDiscount: extraDiscount, roundOff: roundOff,
+      paymentMode: mode, linkedChallanIds: linkedIds ?? [], 
+      extraDiscount: extraDiscount, roundOff: roundOff, // FIXED
       partyAddress: masterParty.address, partyPhone: masterParty.phone, partyEmail: masterParty.email,
       partyDl: masterParty.dl, partyPan: masterParty.pan, partyCity: masterParty.city,
     )); 
+
     if (linkedIds != null) { for (var id in linkedIds) { int idx = saleChallans.indexWhere((c) => c.id == id); if (idx != -1) saleChallans[idx].status = "Billed"; } }
-    if (activeCompany != null) { String p = billNo.split(RegExp(r'\d')).first; await PharoahNumberingEngine.updateSeriesCounter(type: "SALE", companyID: activeCompany!.id, usedNumber: billNo, prefix: p); }
-    await save(); InventoryLogicCenter.rebuildAllInventory(medicines: medicines, batchHistory: batchHistory, purchases: purchases, sales: sales);
+    
+    if (activeCompany != null) { 
+      String p = billNo.split(RegExp(r'\d')).first; 
+      await PharoahNumberingEngine.updateSeriesCounter(type: "SALE", companyID: activeCompany!.id, usedNumber: billNo, prefix: p); 
+    }
+    
+    await save(); 
+    // Turant inventory sync karo
+    InventoryLogicCenter.rebuildAllInventory(medicines: medicines, batchHistory: batchHistory, purchases: purchases, sales: sales);
     notifyListeners(); 
   }
 
@@ -382,7 +393,7 @@ class PharoahManager with ChangeNotifier {
   // HELPERS & CONFIG
   // ===========================================================================
   void updateAppConfig(AppConfig c) { config = c; save(); notifyListeners(); }
-  void resetCounter(String t) { addLog("SYSTEM", "Reset for $t"); notifyListeners(); }
+  void resetCounter(String t) { if (activeCompany != null) { String p = (t == "SALE_BILL") ? "INV-" : (t == "PUR_BILL" ? "PUR-" : "SCH-"); PharoahNumberingEngine.resetSeries(type: t.contains("SALE") ? "SALE" : "PURCHASE", companyID: activeCompany!.id, prefix: p); } notifyListeners(); }
   void addManualShortage({required Medicine med, required double qty, String cust = ""}) { shortages.add(ShortageItem(id: DateTime.now().toString(), medicineId: med.id, medicineName: med.name, companyName: med.companyId, qtyRequired: qty, currentStock: med.stock, date: DateTime.now(), customerName: cust)); save(); }
   void runAutoShortageScan() { shortages.removeWhere((s) => s.source == "Auto"); for (var m in medicines) { double a = calculateAvgMonthlySale(m.id); double r = a * 1.5; if (m.stock < r && r > 0) { shortages.add(ShortageItem(id: "auto_${m.id}", medicineId: m.id, medicineName: m.name, companyName: m.companyId, qtyRequired: r - m.stock, currentStock: m.stock, date: DateTime.now(), source: "Auto")); } } save(); }
   double calculateAvgMonthlySale(String mId) { DateTime d = DateTime.now().subtract(const Duration(days: 30)); double q = 0; for (var s in sales.where((s) => s.status == "Active" && s.date.isAfter(d))) { for (var it in s.items.where((it) => it.medicineID == mId)) { q += (it.qty + it.freeQty); } } return q; }
@@ -435,4 +446,3 @@ class PharoahManager with ChangeNotifier {
   List<NumberingSeries> getSeriesByType(String t) => numberingSeries.where((s) => s.type == t).toList();
   NumberingSeries getDefaultSeries(String t) => numberingSeries.firstWhere((s) => s.type == t && s.isDefault, orElse: () => numberingSeries.firstWhere((s) => s.type == t, orElse: () => NumberingSeries(id: 'tmp', name: 'Default', type: t, prefix: 'TXN-', isDefault: true)));
 }
-
