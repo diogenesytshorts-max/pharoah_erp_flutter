@@ -372,7 +372,7 @@ class PharoahManager with ChangeNotifier {
       saleChallans[idx].isSigned = true;
 
       // 3. Log enter karna
-      addLog("SECURITY", "Challan #${saleChallans[idx].billNo} signed at location ($x, $y). Code: $code");
+      addLog("SECURITY", "Challan #${saleChallans[idx].billNo} SEALED. Code: $code");
 
       // 4. Final Save to JSON file
       await save();
