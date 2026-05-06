@@ -1,214 +1,168 @@
-// FILE: lib/party_master.dart
+// FILE: lib/product_master.dart
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'pharoah_manager.dart';
 import 'models.dart';
+import 'logic/pharoah_numbering_engine.dart';
 
-class PartyMasterView extends StatefulWidget {
+class ProductMasterView extends StatefulWidget {
   final bool isSelectionMode; 
-  final Map<String, dynamic>? preFillData; // NAYA: CSV se aane wala data
-  
-  const PartyMasterView({super.key, this.isSelectionMode = false, this.preFillData});
-  // ...
+  final Map<String, dynamic>? preFillData; // NAYA: CSV se data lane ke liye
 
-  @override
-  State<PartyMasterView> createState() => _PartyMasterViewState();
+  const ProductMasterView({
+    super.key, 
+    this.isSelectionMode = false, 
+    this.preFillData // NAYA
+  });
+
+  @override State<ProductMasterView> createState() => _ProductMasterViewState();
 }
 
-class _PartyMasterViewState extends State<PartyMasterView> {
+class _ProductMasterViewState extends State<ProductMasterView> {
   String searchQuery = "";
+  final List<String> drugForms = ["TAB", "CAP", "SYP", "INJ", "IV", "PCS", "EXT", "OINT", "DROP"];
+  final List<String> storageOptions = ["Room Temp", "Refrigerated (2-8°C)", "Cool Place"];
 
   @override
   void initState() {
     super.initState();
     if (widget.isSelectionMode) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        _showPartyForm();
+        _showProductForm();
       });
     }
   }
 
   // ===========================================================================
-  // NAYA HELPER: SEARCHABLE STATE PICKER WITH FREQUENCY SORTING
+  // MAIN PRODUCT FORM DIALOG (WITH PRE-FILL LOGIC)
   // ===========================================================================
-  void _showStateSearchPicker(BuildContext context, PharoahManager ph, Function(String) onSelect) {
-    showDialog(
-      context: context,
-      builder: (context) {
-        String localSearch = "";
-        return StatefulBuilder(builder: (context, setPickerState) {
-          // Manager se frequency sorted list mangwana
-          final sortedList = ph.getSortedStates();
-          // Search filter apply karna
-          final filtered = sortedList.where((s) => s.toLowerCase().contains(localSearch.toLowerCase())).toList();
-
-          return AlertDialog(
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-            title: const Text("Select State / Place of Supply", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-            content: SizedBox(
-              width: 400,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  TextField(
-                    autofocus: true,
-                    decoration: const InputDecoration(
-                      hintText: "Search State (e.g. Haryana)",
-                      prefixIcon: Icon(Icons.search),
-                      border: OutlineInputBorder(),
-                    ),
-                    onChanged: (v) => setPickerState(() => localSearch = v),
-                  ),
-                  const SizedBox(height: 10),
-                  SizedBox(
-                    height: 350,
-                    child: ListView.builder(
-                      itemCount: filtered.length,
-                      itemBuilder: (c, i) {
-                        String stateName = filtered[i];
-                        // Check if this is a top-used state (count > 0 in manager)
-                        bool isFrequent = (ph.parties.where((p) => p.state == stateName).length) > 0;
-                        
-                        return ListTile(
-                          title: Text(stateName, style: TextStyle(fontWeight: isFrequent ? FontWeight.bold : FontWeight.normal)),
-                          trailing: isFrequent ? const Icon(Icons.stars_rounded, color: Colors.orange, size: 18) : null,
-                          onTap: () {
-                            onSelect(stateName);
-                            Navigator.pop(context);
-                          },
-                        );
-                      },
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          );
-        });
-      },
-    );
-  }
-
-  // --- ADD / EDIT FORM DIALOG ---
-  void _showPartyForm({Party? party}) {
+  void _showProductForm({Medicine? med}) async {
     final ph = Provider.of<PharoahManager>(context, listen: false);
+    if (ph.activeCompany == null) return;
 
-    final nameC = TextEditingController(text: party?.name);
-    final phoneC = TextEditingController(text: party?.phone);
-    final emailC = TextEditingController(text: party?.email);
-    final addressC = TextEditingController(text: party?.address);
-    final cityC = TextEditingController(text: party?.city);
-    final gstC = TextEditingController(text: party?.gst);
-    final panC = TextEditingController(text: party?.pan);
-    final dlC = TextEditingController(text: party?.dl);
-    final dlExpC = TextEditingController(text: party?.dlExp);
-    final transportC = TextEditingController(text: party?.transport);
-    final opBalC = TextEditingController(text: party?.opBal.toString() ?? "0.0");
-    final creditLimitC = TextEditingController(text: party?.creditLimit.toString() ?? "0.0");
-    final creditDaysC = TextEditingController(text: party?.creditDays.toString() ?? "0");
+    // NAYA: Pre-fill data variable
     final pf = widget.preFillData;
 
-    String selectedGroup = party?.group ?? "Sundry Debtors";
-    String selectedPriceLevel = party?.priceLevel ?? "A";
-    String selectedRoute = (party?.route != null && party!.route.isNotEmpty) ? party.route : "";
-    String selectedSeriesId = party?.defaultSeriesId ?? "";
-    String selectedState = party?.state ?? pf?['state'] ?? "Rajasthan";
-    // NAYA: Selected State management
-    String selectedState = party?.state ?? "Rajasthan";
+    // Controllers initialization with Pre-fill priority
+    final nameC = TextEditingController(text: med?.name ?? pf?['name']);
+    final packC = TextEditingController(text: med?.packing ?? pf?['packing']);
+    final rackC = TextEditingController(text: med?.rackNo);
+    final hsnC = TextEditingController(text: med?.hsnCode ?? pf?['hsn']);
+    final reorderC = TextEditingController(text: med?.reorderLevel.toString() ?? "0");
+    final gstC = TextEditingController(text: med?.gst.toString() ?? pf?['gst']?.toString() ?? "12");
+    
+    // 1. Generate Smart ID for New Product
+    String sysIdDisplay = med?.systemId ?? "Generating...";
+    if (med == null) {
+      sysIdDisplay = await PharoahNumberingEngine.getNextNumber(
+        type: "PRODUCT",
+        companyID: ph.activeCompany!.id,
+        prefix: "PH-",
+        startFrom: 10001,
+        currentList: ph.medicines,
+      );
+    }
 
-    gstC.addListener(() {
-      if (gstC.text.length >= 12) {
-        String extractedPan = gstC.text.substring(2, 12).toUpperCase();
-        if (panC.text != extractedPan) { panC.text = extractedPan; }
-      }
-    });
+    String selForm = med?.drugForm ?? "TAB";
+    bool naco = med?.isNarcotic ?? false;
+    bool schH1 = med?.isScheduleH1 ?? false;
+    String selStore = med?.storageCondition ?? "Room Temp";
+    
+    // --- NAYA: SMART COMPANY & SALT MATCHING LOGIC ---
+    String? companyId = med?.companyId;
+    String? saltId = med?.saltId;
+    String companyName = "Tap to Select Company";
+    String saltName = "Tap to Select Salt";
+
+    // Agar data CSV se aa raha hai toh pehle se match karne ki koshish karein
+    if (pf != null && med == null) {
+       // Search existing company by name sent in CSV
+       try {
+         final foundComp = ph.companies.firstWhere((c) => c.name.toUpperCase() == pf['company'].toString().toUpperCase());
+         companyId = foundComp.id;
+         companyName = foundComp.name;
+       } catch(e) { /* Not found, let user select */ }
+
+       // Search existing salt by name sent in CSV
+       try {
+         final foundSalt = ph.salts.firstWhere((s) => s.name.toUpperCase() == pf['salt'].toString().toUpperCase());
+         saltId = foundSalt.id;
+         saltName = foundSalt.name;
+       } catch(e) { /* Not found */ }
+    } else if (med != null) {
+       // Normal Edit mode logic
+       try {
+         if(companyId != null) companyName = ph.companies.firstWhere((c) => c.id == companyId).name;
+         if(saltId != null) saltName = ph.salts.firstWhere((s) => s.id == saltId).name;
+       } catch(e) {}
+    }
+
+    if (!mounted) return;
 
     showDialog(
       context: context,
       barrierDismissible: false,
       builder: (c) => StatefulBuilder(builder: (context, setDialogState) {
-        final List<NumberingSeries> activeSeries = ph.getSeriesByType("SALE").where((s) => s.isActive).toList();
-
         return AlertDialog(
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-          title: Text(party == null ? "Create New Party" : "Update Party"),
+          title: Text(med == null ? "Add New Product" : "Edit Product"),
           content: SizedBox(
             width: 500,
             child: SingleChildScrollView(
               child: Column(
                 children: [
-                  _sectionTitle("BASIC INFORMATION"),
-                  _inputField(nameC, "Party/Firm Name *", Icons.business),
-                  _inputField(phoneC, "Mobile Number", Icons.phone, isNum: true),
-                  _inputField(emailC, "Email Address", Icons.email),
-                  _inputField(addressC, "Full Address", Icons.location_on),
-                  
-                  Row(
-                    children: [
-                      Expanded(child: _inputField(cityC, "City", Icons.location_city)),
-                      const SizedBox(width: 10),
-                      // NAYA: Searchable State Field
-                      Expanded(child: _searchableBox(
-                        label: "State / Supply Place",
-                        value: selectedState,
-                        icon: Icons.map_outlined,
-                        onTap: () => _showStateSearchPicker(context, ph, (val) => setDialogState(() => selectedState = val)),
-                      )),
-                    ],
-                  ),
-                  
-                  const SizedBox(height: 15),
-                  DropdownButtonFormField<String>(
-                    value: selectedGroup,
-                    decoration: const InputDecoration(labelText: "Account Group", border: OutlineInputBorder()),
-                    items: ["Sundry Debtors", "Sundry Creditors"].map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
-                    onChanged: (v) => selectedGroup = v!,
+                  // ID DISPLAY PANEL
+                  Container(
+                    padding: const EdgeInsets.all(10), margin: const EdgeInsets.only(bottom: 15),
+                    decoration: BoxDecoration(color: Colors.indigo.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.indigo.shade100)),
+                    child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+                        const Text("SYSTEM ID:", style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.blueGrey)),
+                        Text(sysIdDisplay, style: const TextStyle(fontWeight: FontWeight.w900, color: Colors.indigo)),
+                    ]),
                   ),
 
-                  const SizedBox(height: 20),
-                  _sectionTitle("TAX & LICENSES"),
-                  _inputField(gstC, "GSTIN Number", Icons.receipt_long),
-                  _inputField(panC, "PAN Card", Icons.badge_outlined),
-                  Row(
-                    children: [
-                      Expanded(child: _inputField(dlC, "Drug License (DL)", Icons.medical_services)),
-                      const SizedBox(width: 10),
-                      Expanded(child: _inputField(dlExpC, "DL Expiry", Icons.event_busy)),
-                    ],
-                  ),
-                  
-                  const SizedBox(height: 20),
-                  _sectionTitle("BILLING & AUTOMATION"),
-                  
-                  DropdownButtonFormField<String>(
-                    value: selectedSeriesId.isEmpty ? null : selectedSeriesId,
-                    decoration: const InputDecoration(labelText: "Default Billing Series", border: OutlineInputBorder(), prefixIcon: Icon(Icons.layers_outlined)),
-                    items: activeSeries.map((s) => DropdownMenuItem<String>(value: s.id, child: Text("${s.name} (${s.prefix})"))).toList(),
-                    onChanged: (v) => selectedSeriesId = v!,
-                    hint: const Text("Select Series"),
-                  ),
-
+                  _sectionHeader("PRIMARY DETAILS"),
+                  _input(nameC, "Product Name *", Icons.medication),
+                  Row(children: [
+                    Expanded(child: _input(packC, "Packing *", Icons.inventory)),
+                    const SizedBox(width: 10),
+                    Expanded(child: DropdownButtonFormField<String>(
+                      value: selForm,
+                      decoration: const InputDecoration(labelText: "Form", border: OutlineInputBorder()),
+                      items: drugForms.map((f) => DropdownMenuItem(value: f, child: Text(f))).toList(),
+                      onChanged: (v) => setDialogState(() => selForm = v!),
+                    )),
+                  ]),
                   const SizedBox(height: 15),
-                  Row(
-                    children: [
-                      Expanded(child: DropdownButtonFormField<String>(
-                        value: selectedPriceLevel,
-                        decoration: const InputDecoration(labelText: "Pricing Level", border: OutlineInputBorder()),
-                        items: ["A", "B", "C"].map((e) => DropdownMenuItem(value: e, child: Text("Rate $e"))).toList(),
-                        onChanged: (v) => selectedPriceLevel = v!,
-                      )),
-                      const SizedBox(width: 10),
-                      Expanded(child: DropdownButtonFormField<String>(
-                        value: selectedRoute.isEmpty ? null : selectedRoute,
-                        decoration: const InputDecoration(labelText: "Route / Area", border: OutlineInputBorder()),
-                        items: ph.routes.map((r) => DropdownMenuItem(value: r.name, child: Text(r.name))).toList(),
-                        onChanged: (v) => selectedRoute = v!,
-                        hint: const Text("Select Route"),
-                      )),
-                    ],
+                  _searchableField(
+                    label: "Company / Brand", value: companyName, icon: Icons.business,
+                    onTap: () => _showSearchablePicker(
+                      title: "Company", items: ph.companies,
+                      onSelected: (val) => setDialogState(() { companyId = val.id; companyName = val.name; }),
+                      onQuickAdd: () => _quickAddCompany(ph),
+                    ),
                   ),
-                  _inputField(opBalC, "Opening Balance (₹)", Icons.account_balance_wallet, isNum: true),
+                  const SizedBox(height: 15),
+                  _searchableField(
+                    label: "Salt / Composition", value: saltName, icon: Icons.science,
+                    onTap: () => _showSearchablePicker(
+                      title: "Salt", items: ph.salts,
+                      onSelected: (val) => setDialogState(() { saltId = val.id; saltName = val.name; }),
+                      onQuickAdd: () => _quickAddSalt(ph),
+                    ),
+                  ),
+                  
+                  _sectionHeader("LEGAL & TAX"),
+                  Row(children: [
+                    Expanded(child: SwitchListTile(contentPadding: EdgeInsets.zero, title: const Text("Narcotic", style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)), value: naco, onChanged: (v) => setDialogState(() => naco = v))),
+                    Expanded(child: SwitchListTile(contentPadding: EdgeInsets.zero, title: const Text("Sch. H1", style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)), value: schH1, onChanged: (v) => setDialogState(() => schH1 = v))),
+                  ]),
+                  Row(children: [
+                    Expanded(child: _input(hsnC, "HSN Code", Icons.tag)),
+                    const SizedBox(width: 10),
+                    Expanded(child: _input(gstC, "GST %", Icons.percent, isNum: true)),
+                  ]),
                 ],
               ),
             ),
@@ -216,142 +170,117 @@ class _PartyMasterViewState extends State<PartyMasterView> {
           actions: [
             TextButton(onPressed: () => Navigator.pop(c), child: const Text("CANCEL")),
             ElevatedButton(
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.indigo, foregroundColor: Colors.white),
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.purple, foregroundColor: Colors.white),
               onPressed: () {
-                if (nameC.text.trim().isEmpty) return;
+                if(nameC.text.isEmpty || packC.text.isEmpty) return;
 
-                final newParty = Party(
-                  id: party?.id ?? DateTime.now().toString(),
-                  name: nameC.text.trim().toUpperCase(),
-                  group: selectedGroup,
-                  phone: phoneC.text.trim(),
-                  email: emailC.text.trim().toLowerCase(),
-                  address: addressC.text.trim(),
-                  city: cityC.text.trim().toUpperCase(),
-                  state: selectedState, // NAYA: Value mapped from picker
-                  gst: gstC.text.trim().toUpperCase(),
-                  pan: panC.text.trim().toUpperCase(),
-                  dl: dlC.text.trim().toUpperCase(),
-                  dlExp: dlExpC.text.trim(),
-                  creditLimit: double.tryParse(creditLimitC.text) ?? 0.0,
-                  creditDays: int.tryParse(creditDaysC.text) ?? 0,
-                  priceLevel: selectedPriceLevel,
-                  route: selectedRoute,
-                  transport: transportC.text.trim(),
-                  opBal: double.tryParse(opBalC.text) ?? 0.0,
-                  defaultSeriesId: selectedSeriesId, 
+                final newItem = Medicine(
+                  id: med?.id ?? DateTime.now().toString(),
+                  systemId: sysIdDisplay, 
+                  name: nameC.text.toUpperCase(),
+                  packing: packC.text.toUpperCase(),
+                  companyId: companyId ?? "",
+                  saltId: saltId ?? "",
+                  rackNo: rackC.text.toUpperCase(),
+                  hsnCode: hsnC.text.toUpperCase().isEmpty ? "3004" : hsnC.text.toUpperCase(),
+                  reorderLevel: double.tryParse(reorderC.text) ?? 0.0,
+                  gst: double.tryParse(gstC.text) ?? 12.0,
+                  stock: med?.stock ?? 0.0,
+                  drugForm: selForm,
+                  isNarcotic: naco,
+                  isScheduleH1: schH1,
+                  storageCondition: selStore,
+                  mrp: med?.mrp ?? 0, purRate: med?.purRate ?? 0, rateA: med?.rateA ?? 0, rateB: med?.rateB ?? 0, rateC: med?.rateC ?? 0,
                 );
 
-                if (party == null) ph.parties.add(newParty);
-                else { int idx = ph.parties.indexWhere((p) => p.id == party.id); if (idx != -1) ph.parties[idx] = newParty; }
-
-                ph.save();
-                if (widget.isSelectionMode) { Navigator.pop(c); Navigator.pop(context, newParty); } 
+                if(med == null) {
+                  ph.addMedicine(newItem);
+                } else { 
+                  int i = ph.medicines.indexWhere((x)=>x.id==med.id); 
+                  ph.medicines[i] = newItem; 
+                  ph.save();
+                }
+                
+                if (widget.isSelectionMode) { Navigator.pop(c); Navigator.pop(context, newItem); } 
                 else { Navigator.pop(c); }
-              },
-              child: const Text("SAVE PARTY"),
-            ),
+              }, 
+              child: const Text("SAVE PRODUCT")
+            )
           ],
         );
       }),
     );
   }
 
-  @override
-  Widget build(BuildContext context) {
+  @override Widget build(BuildContext context) {
     final ph = Provider.of<PharoahManager>(context);
-    final filteredList = ph.parties.where((p) => 
-      p.name.toLowerCase().contains(searchQuery.toLowerCase()) || 
-      p.city.toLowerCase().contains(searchQuery.toLowerCase())
-    ).toList();
+    final list = ph.medicines.where((m) => m.name.toLowerCase().contains(searchQuery.toLowerCase())).toList();
 
     return Scaffold(
       backgroundColor: const Color(0xFFF5F6F9),
-      appBar: AppBar(title: const Text("Party Master"), backgroundColor: Colors.indigo, foregroundColor: Colors.white),
-      body: Column(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(15),
-            color: Colors.indigo.shade50,
-            child: TextField(
-              decoration: InputDecoration(
-                hintText: "Search Name or City...",
-                prefixIcon: const Icon(Icons.search, color: Colors.indigo),
-                filled: true, fillColor: Colors.white,
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-                contentPadding: EdgeInsets.zero,
+      appBar: AppBar(title: const Text("Inventory Master"), backgroundColor: Colors.purple, foregroundColor: Colors.white),
+      body: Column(children: [
+        Container(padding: const EdgeInsets.all(15), color: Colors.purple.shade50, child: TextField(
+          decoration: InputDecoration(hintText: "Search Product...", prefixIcon: const Icon(Icons.search, color: Colors.purple), filled: true, fillColor: Colors.white, border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none)), 
+          onChanged: (v) => setState(() => searchQuery = v)
+        )),
+        Expanded(child: ListView.builder(
+          itemCount: list.length, 
+          itemBuilder: (c, i) {
+            final m = list[i];
+            return Card(
+              elevation: 2, margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6), 
+              child: ListTile(
+                leading: CircleAvatar(backgroundColor: Colors.purple.shade50, child: Text(m.systemId.replaceAll("PH-", ""), style: const TextStyle(fontSize: 8, fontWeight: FontWeight.bold, color: Colors.purple))),
+                title: Text("${m.name} (${m.packing})", style: const TextStyle(fontWeight: FontWeight.bold)),
+                subtitle: Text("ID: ${m.systemId} | Stock: ${m.stock}"),
+                trailing: const Icon(Icons.edit, size: 16, color: Colors.grey),
+                onTap: () => _showProductForm(med: m),
               ),
-              onChanged: (v) => setState(() => searchQuery = v),
-            ),
-          ),
-          Expanded(
-            child: filteredList.isEmpty
-                ? const Center(child: Text("No parties found."))
-                : ListView.builder(
-                    itemCount: filteredList.length,
-                    padding: const EdgeInsets.all(10),
-                    itemBuilder: (context, index) {
-                      final p = filteredList[index];
-                      return Card(
-                        elevation: 2,
-                        margin: const EdgeInsets.only(bottom: 8),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                        child: ListTile(
-                          leading: CircleAvatar(
-                            backgroundColor: p.group == "Sundry Debtors" ? Colors.green.shade50 : Colors.orange.shade50,
-                            child: Icon(Icons.person, color: p.group == "Sundry Debtors" ? Colors.green : Colors.orange),
-                          ),
-                          title: Text(p.name, style: const TextStyle(fontWeight: FontWeight.bold)),
-                          subtitle: Text("${p.group} | ${p.city}, ${p.state}"),
-                          trailing: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              IconButton(icon: const Icon(Icons.edit, color: Colors.blue), onPressed: () => _showPartyForm(party: p)),
-                              IconButton(icon: const Icon(Icons.delete_outline, color: Colors.red), onPressed: () => _confirmDelete(ph, p)),
-                            ],
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-          ),
-        ],
-      ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => _showPartyForm(),
-        backgroundColor: Colors.indigo,
-        icon: const Icon(Icons.add),
-        label: const Text("ADD NEW PARTY", style: TextStyle(fontWeight: FontWeight.bold)),
-      ),
+            );
+          }
+        ))
+      ]),
+      floatingActionButton: FloatingActionButton(onPressed: () => _showProductForm(), child: const Icon(Icons.add), backgroundColor: Colors.purple, foregroundColor: Colors.white),
     );
   }
 
-  Widget _sectionTitle(String title) => Align(alignment: Alignment.centerLeft, child: Padding(padding: const EdgeInsets.symmetric(vertical: 10), child: Text(title, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.blueGrey, letterSpacing: 1))));
-
-  Widget _inputField(TextEditingController ctrl, String label, IconData icon, {bool isNum = false}) => Padding(padding: const EdgeInsets.only(bottom: 12), child: TextField(controller: ctrl, keyboardType: isNum ? const TextInputType.numberWithOptions(decimal: true) : TextInputType.text, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold), decoration: InputDecoration(labelText: label, prefixIcon: Icon(icon, size: 18), border: const OutlineInputBorder(), contentPadding: const EdgeInsets.all(10))));
-
-  // NAYA: Box style trigger for searchable picker
-  Widget _searchableBox({required String label, required String value, required IconData icon, required VoidCallback onTap}) {
-    return InkWell(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.all(10),
-        decoration: BoxDecoration(border: Border.all(color: Colors.grey), borderRadius: BorderRadius.circular(5)),
-        child: Row(children: [
-          Icon(icon, color: Colors.grey, size: 18),
-          const SizedBox(width: 8),
-          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(label, style: const TextStyle(fontSize: 9, color: Colors.grey)),
-            Text(value, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold), overflow: TextOverflow.ellipsis),
-          ])),
-          const Icon(Icons.arrow_drop_down, color: Colors.grey),
-        ]),
-      ),
-    );
+  // UI HELPERS
+  Widget _sectionHeader(String t) => Padding(padding: const EdgeInsets.symmetric(vertical: 12), child: Align(alignment: Alignment.centerLeft, child: Text(t, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.blueGrey, letterSpacing: 1))));
+  
+  Widget _input(TextEditingController ctrl, String label, IconData icon, {bool isNum = false}) => Padding(padding: const EdgeInsets.only(bottom: 12), child: TextField(controller: ctrl, keyboardType: isNum ? const TextInputType.numberWithOptions(decimal: true) : TextInputType.text, textCapitalization: TextCapitalization.characters, decoration: InputDecoration(labelText: label, prefixIcon: Icon(icon, size: 18), border: const OutlineInputBorder())));
+  
+  Widget _searchableField({required String label, required String value, required IconData icon, required VoidCallback onTap}) {
+    return InkWell(onTap: onTap, child: Container(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 15), decoration: BoxDecoration(border: Border.all(color: Colors.grey), borderRadius: BorderRadius.circular(5)), child: Row(children: [Icon(icon, color: Colors.grey, size: 20), const SizedBox(width: 10), Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(label, style: const TextStyle(fontSize: 10, color: Colors.grey)), Text(value, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold))])), const Icon(Icons.arrow_drop_down, color: Colors.grey)])));
   }
 
-  void _confirmDelete(PharoahManager ph, Party p) {
-    if (p.name == "CASH") return;
-    showDialog(context: context, builder: (c) => AlertDialog(title: const Text("Delete Party?"), content: Text("Are you sure you want to delete '${p.name}'?"), actions: [TextButton(onPressed: () => Navigator.pop(c), child: const Text("NO")), ElevatedButton(onPressed: () { ph.deleteParty(p.id); Navigator.pop(c); }, child: const Text("YES, DELETE"))]));
+  void _showSearchablePicker({required String title, required List<dynamic> items, required Function(dynamic) onSelected, required VoidCallback onQuickAdd}) {
+    showDialog(context: context, builder: (context) {
+        String localSearch = "";
+        return StatefulBuilder(builder: (context, setPickerState) {
+          final filtered = items.where((item) => item.name.toLowerCase().contains(localSearch.toLowerCase())).toList();
+          return AlertDialog(title: Text("Select $title"), content: SizedBox(width: double.maxFinite, child: Column(mainAxisSize: MainAxisSize.min, children: [
+                  TextField(autofocus: true, decoration: InputDecoration(hintText: "Search $title...", prefixIcon: const Icon(Icons.search), border: const OutlineInputBorder()), onChanged: (v) => setPickerState(() => localSearch = v)),
+                  const SizedBox(height: 10),
+                  Flexible(child: filtered.isEmpty ? const Padding(padding: EdgeInsets.all(20.0), child: Text("No items found.")) : ListView.builder(shrinkWrap: true, itemCount: filtered.length, itemBuilder: (c, i) => ListTile(title: Text(filtered[i].name), onTap: () { onSelected(filtered[i]); Navigator.pop(context); }))),
+                  const Divider(),
+                  TextButton.icon(onPressed: () { Navigator.pop(context); onQuickAdd(); }, icon: const Icon(Icons.add), label: Text("ADD NEW ${title.toUpperCase()}"))
+          ])));
+        });
+    });
+  }
+
+  void _quickAddCompany(PharoahManager ph) async {
+    final cC = TextEditingController();
+    String nextId = await PharoahNumberingEngine.getNextNumber(type: "COMPANY", companyID: ph.activeCompany!.id, prefix: "CP-", startFrom: 1001, currentList: ph.companies);
+    if(!mounted) return;
+    showDialog(context: context, builder: (c) => AlertDialog(title: const Text("Quick Add Company"), content: TextField(controller: cC, decoration: InputDecoration(labelText: "Company Name", helperText: "Next ID: $nextId"), textCapitalization: TextCapitalization.characters), actions: [TextButton(onPressed: () => Navigator.pop(c), child: const Text("CANCEL")), ElevatedButton(onPressed: () { if(cC.text.isNotEmpty) { ph.addCompany(Company(id: nextId, name: cC.text.toUpperCase())); Navigator.pop(c); } }, child: const Text("ADD"))]));
+  }
+
+  void _quickAddSalt(PharoahManager ph) async {
+    final sC = TextEditingController();
+    String nextId = await PharoahNumberingEngine.getNextNumber(type: "SALT", companyID: ph.activeCompany!.id, prefix: "SL-", startFrom: 1001, currentList: ph.salts);
+    if(!mounted) return;
+    showDialog(context: context, builder: (c) => AlertDialog(title: const Text("Quick Add Salt"), content: TextField(controller: sC, decoration: InputDecoration(labelText: "Salt Name", helperText: "Next ID: $nextId"), textCapitalization: TextCapitalization.characters), actions: [TextButton(onPressed: () => Navigator.pop(c), child: const Text("CANCEL")), ElevatedButton(onPressed: () { if(sC.text.isNotEmpty) { ph.addSalt(Salt(id: nextId, name: sC.text.toUpperCase())); Navigator.pop(c); } }, child: const Text("ADD"))]));
   }
 }
