@@ -8,7 +8,13 @@ import 'logic/pharoah_numbering_engine.dart';
 
 class ProductMasterView extends StatefulWidget {
   final bool isSelectionMode; 
-  const ProductMasterView({super.key, this.isSelectionMode = false});
+  final Map<String, dynamic>? preFillData; 
+
+  ProductMasterView({
+    super.key, 
+    this.isSelectionMode = false, 
+    this.preFillData
+  });
 
   @override State<ProductMasterView> createState() => _ProductMasterViewState();
 }
@@ -28,21 +34,19 @@ class _ProductMasterViewState extends State<ProductMasterView> {
     }
   }
 
-  // ===========================================================================
-  // MAIN PRODUCT FORM DIALOG
-  // ===========================================================================
   void _showProductForm({Medicine? med}) async {
     final ph = Provider.of<PharoahManager>(context, listen: false);
     if (ph.activeCompany == null) return;
 
-    final nameC = TextEditingController(text: med?.name);
-    final packC = TextEditingController(text: med?.packing);
+    final pf = widget.preFillData;
+
+    final nameC = TextEditingController(text: med?.name ?? pf?['name']);
+    final packC = TextEditingController(text: med?.packing ?? pf?['packing']);
     final rackC = TextEditingController(text: med?.rackNo);
-    final hsnC = TextEditingController(text: med?.hsnCode);
+    final hsnC = TextEditingController(text: med?.hsnCode ?? pf?['hsn']);
     final reorderC = TextEditingController(text: med?.reorderLevel.toString() ?? "0");
-    final gstC = TextEditingController(text: med?.gst.toString() ?? "12");
+    final gstC = TextEditingController(text: med?.gst.toString() ?? pf?['gst']?.toString() ?? "12");
     
-    // 1. Generate Smart ID for New Product
     String sysIdDisplay = med?.systemId ?? "Generating...";
     if (med == null) {
       sysIdDisplay = await PharoahNumberingEngine.getNextNumber(
@@ -59,21 +63,33 @@ class _ProductMasterViewState extends State<ProductMasterView> {
     bool schH1 = med?.isScheduleH1 ?? false;
     String selStore = med?.storageCondition ?? "Room Temp";
     
+    if (pf != null && med == null) {
+      String flags = pf['flags'].toString();
+      if (flags.contains("NRX")) naco = true;
+      if (flags.contains("H1")) schH1 = true;
+    }
+
     String? companyId = med?.companyId;
     String? saltId = med?.saltId;
     String companyName = "Tap to Select Company";
     String saltName = "Tap to Select Salt";
 
-    try {
-       if(companyId != null && companyId.isNotEmpty) {
-         companyName = ph.companies.firstWhere((c) => c.id == companyId).name;
-       }
-       if(saltId != null && saltId.isNotEmpty) {
-         saltName = ph.salts.firstWhere((s) => s.id == saltId).name;
-       }
-    } catch(e) {
-       // Fallback if ID is stored but name not found
-       if(companyId != null) companyName = companyId;
+    if (pf != null && med == null) {
+       try {
+         final foundComp = ph.companies.firstWhere((c) => c.name.toUpperCase() == pf['company'].toString().toUpperCase());
+         companyId = foundComp.id;
+         companyName = foundComp.name;
+       } catch(e) {}
+       try {
+         final foundSalt = ph.salts.firstWhere((s) => s.name.toUpperCase() == pf['salt'].toString().toUpperCase());
+         saltId = foundSalt.id;
+         saltName = foundSalt.name;
+       } catch(e) {}
+    } else if (med != null) {
+       try {
+         if(companyId != null) companyName = ph.companies.firstWhere((c) => c.id == companyId).name;
+         if(saltId != null) saltName = ph.salts.firstWhere((s) => s.id == saltId).name;
+       } catch(e) {}
     }
 
     if (!mounted) return;
@@ -90,7 +106,6 @@ class _ProductMasterViewState extends State<ProductMasterView> {
             child: SingleChildScrollView(
               child: Column(
                 children: [
-                  // ID DISPLAY PANEL
                   Container(
                     padding: const EdgeInsets.all(10), margin: const EdgeInsets.only(bottom: 15),
                     decoration: BoxDecoration(color: Colors.indigo.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.indigo.shade100)),
@@ -99,7 +114,6 @@ class _ProductMasterViewState extends State<ProductMasterView> {
                         Text(sysIdDisplay, style: const TextStyle(fontWeight: FontWeight.w900, color: Colors.indigo)),
                     ]),
                   ),
-
                   _sectionHeader("PRIMARY DETAILS"),
                   _input(nameC, "Product Name *", Icons.medication),
                   Row(children: [
@@ -130,7 +144,6 @@ class _ProductMasterViewState extends State<ProductMasterView> {
                       onQuickAdd: () => _quickAddSalt(ph),
                     ),
                   ),
-                  
                   _sectionHeader("LEGAL & TAX"),
                   Row(children: [
                     Expanded(child: SwitchListTile(contentPadding: EdgeInsets.zero, title: const Text("Narcotic", style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)), value: naco, onChanged: (v) => setDialogState(() => naco = v))),
@@ -151,7 +164,6 @@ class _ProductMasterViewState extends State<ProductMasterView> {
               style: ElevatedButton.styleFrom(backgroundColor: Colors.purple, foregroundColor: Colors.white),
               onPressed: () {
                 if(nameC.text.isEmpty || packC.text.isEmpty) return;
-
                 final newItem = Medicine(
                   id: med?.id ?? DateTime.now().toString(),
                   systemId: sysIdDisplay, 
@@ -170,17 +182,10 @@ class _ProductMasterViewState extends State<ProductMasterView> {
                   storageCondition: selStore,
                   mrp: med?.mrp ?? 0, purRate: med?.purRate ?? 0, rateA: med?.rateA ?? 0, rateB: med?.rateB ?? 0, rateC: med?.rateC ?? 0,
                 );
-
-                if(med == null) {
-                  ph.addMedicine(newItem);
-                } else { 
-                  int i = ph.medicines.indexWhere((x)=>x.id==med.id); 
-                  ph.medicines[i] = newItem; 
-                  ph.save();
-                }
-                
-                if (widget.isSelectionMode) { Navigator.pop(c); Navigator.pop(context, newItem); } 
-                else { Navigator.pop(c); }
+                if(med == null) ph.addMedicine(newItem);
+                else { int i = ph.medicines.indexWhere((x)=>x.id==med.id); ph.medicines[i] = newItem; ph.save(); }
+                Navigator.pop(c);
+                if (widget.isSelectionMode) Navigator.pop(context, newItem);
               }, 
               child: const Text("SAVE PRODUCT")
             )
@@ -223,11 +228,8 @@ class _ProductMasterViewState extends State<ProductMasterView> {
     );
   }
 
-  // UI HELPERS
   Widget _sectionHeader(String t) => Padding(padding: const EdgeInsets.symmetric(vertical: 12), child: Align(alignment: Alignment.centerLeft, child: Text(t, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.blueGrey, letterSpacing: 1))));
-  
   Widget _input(TextEditingController ctrl, String label, IconData icon, {bool isNum = false}) => Padding(padding: const EdgeInsets.only(bottom: 12), child: TextField(controller: ctrl, keyboardType: isNum ? const TextInputType.numberWithOptions(decimal: true) : TextInputType.text, textCapitalization: TextCapitalization.characters, decoration: InputDecoration(labelText: label, prefixIcon: Icon(icon, size: 18), border: const OutlineInputBorder())));
-  
   Widget _searchableField({required String label, required String value, required IconData icon, required VoidCallback onTap}) {
     return InkWell(onTap: onTap, child: Container(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 15), decoration: BoxDecoration(border: Border.all(color: Colors.grey), borderRadius: BorderRadius.circular(5)), child: Row(children: [Icon(icon, color: Colors.grey, size: 20), const SizedBox(width: 10), Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(label, style: const TextStyle(fontSize: 10, color: Colors.grey)), Text(value, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold))])), const Icon(Icons.arrow_drop_down, color: Colors.grey)])));
   }
