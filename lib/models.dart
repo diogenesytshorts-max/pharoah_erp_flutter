@@ -39,7 +39,7 @@ class ChallanSignature {
   String imagePath;
   String verificationCode;
   double signedAmount; 
-  double signedQty;    // <--- Snapshot logic for security
+  double signedQty;    
   DateTime signDate;
   double signX; 
   double signY; 
@@ -49,26 +49,20 @@ class ChallanSignature {
     required this.imagePath,
     required this.verificationCode,
     required this.signedAmount,
-    required this.signedQty, // <--- Required parameter
+    required this.signedQty,
     required this.signDate,
     this.signX = 0.0,
     this.signY = 0.0,
   });
 
   Map<String, dynamic> toMap() => {
-    'id': id,
-    'imagePath': imagePath,
-    'verificationCode': verificationCode,
-    'signedAmount': signedAmount,
-    'signedQty': signedQty,
-    'signDate': signDate.toIso8601String(),
-    'signX': signX,
-    'signY': signY,
+    'id': id, 'imagePath': imagePath, 'verificationCode': verificationCode,
+    'signedAmount': signedAmount, 'signedQty': signedQty,
+    'signDate': signDate.toIso8601String(), 'signX': signX, 'signY': signY,
   };
 
   factory ChallanSignature.fromMap(Map<String, dynamic> map) => ChallanSignature(
-    id: map['id'] ?? '',
-    imagePath: map['imagePath'] ?? '',
+    id: map['id'] ?? '', imagePath: map['imagePath'] ?? '',
     verificationCode: map['verificationCode'] ?? '',
     signedAmount: (map['signedAmount'] ?? 0.0).toDouble(),
     signedQty: (map['signedQty'] ?? 0.0).toDouble(),
