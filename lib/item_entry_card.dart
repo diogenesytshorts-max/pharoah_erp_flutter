@@ -5,11 +5,12 @@ import 'package:provider/provider.dart';
 import 'models.dart';
 import 'pharoah_manager.dart';
 import 'expiry_master.dart';
-import 'batch_sync_engine.dart'; // NAYA IMPORT
+import 'batch_sync_engine.dart';
 
 class ItemEntryCard extends StatefulWidget {
   final Medicine med;
   final int srNo;
+  final String partyState; // NAYA: Party ka state pass karna zaroori hai
   final BillItem? existingItem;
   final Function(BillItem) onAdd;
   final VoidCallback onCancel;
@@ -18,6 +19,7 @@ class ItemEntryCard extends StatefulWidget {
     super.key,
     required this.med,
     required this.srNo,
+    required this.partyState, // NAYA
     this.existingItem,
     required this.onAdd,
     required this.onCancel,
@@ -28,7 +30,6 @@ class ItemEntryCard extends StatefulWidget {
 }
 
 class _ItemEntryCardState extends State<ItemEntryCard> {
-  // --- CONTROLLERS (Preserved) ---
   final batchC = TextEditingController();
   final expC = TextEditingController();
   final mrpC = TextEditingController();
@@ -69,7 +70,6 @@ class _ItemEntryCardState extends State<ItemEntryCard> {
     }
   }
 
-  // --- CALCULATION LOGIC (Preserved) ---
   void _calculateRateC() {
     double mrp = double.tryParse(mrpC.text) ?? 0.0;
     double gst = double.tryParse(gstC.text) ?? 0.0;
@@ -96,23 +96,53 @@ class _ItemEntryCardState extends State<ItemEntryCard> {
     setState(() {});
   }
 
+  // ===========================================================================
+  // NAYA CALCULATION LOGIC: AUTO IGST vs CGST/SGST RECOGNITION
+  // ===========================================================================
   Map<String, double> _calcTotals() {
+    final ph = Provider.of<PharoahManager>(context, listen: false);
+    
     double q = double.tryParse(qtyC.text) ?? 0;
     double r = double.tryParse(rateC.text) ?? 0;
     double d = double.tryParse(normDiscC.text) ?? 0;
     double g = double.tryParse(gstC.text) ?? 0;
+
     double gross = r * q;
     double discAmt = gross * (d / 100);
     double taxable = gross - discAmt;
-    double taxAmt = taxable * (g / 100);
-    return {'taxable': taxable, 'cgst': taxAmt / 2, 'sgst': taxAmt / 2, 'total': taxable + taxAmt, 'discountAmt': discAmt};
+    double totalTax = taxable * (g / 100);
+
+    // Recognition Logic
+    String shopState = ph.activeCompany?.state.trim().toLowerCase() ?? "rajasthan";
+    String partyState = widget.partyState.trim().toLowerCase();
+
+    bool isLocal = shopState == partyState || partyState.isEmpty;
+
+    double cgst = 0, sgst = 0, igst = 0;
+
+    if (isLocal) {
+      cgst = totalTax / 2;
+      sgst = totalTax / 2;
+      igst = 0;
+    } else {
+      igst = totalTax;
+      cgst = 0;
+      sgst = 0;
+    }
+
+    return {
+      'taxable': taxable, 
+      'cgst': cgst, 
+      'sgst': sgst, 
+      'igst': igst, 
+      'total': taxable + totalTax, 
+      'discountAmt': discAmt
+    };
   }
 
-  // --- THE NEW SYNC TRIGGER ---
   void _validateAndAdd(PharoahManager ph) {
     if (qtyC.text.isEmpty || qtyC.text == "0") return;
 
-    // 1. Rahul Enterprise ki diary mein ye batch turant register/update karo
     BatchSyncEngine.registerBatchActivity(
       ph: ph, 
       productKey: widget.med.identityKey, 
@@ -123,7 +153,6 @@ class _ItemEntryCardState extends State<ItemEntryCard> {
       rate: double.tryParse(rateC.text) ?? 0
     );
 
-    // 2. Expiry mismatch warning (Preserved logic)
     final history = BatchSyncEngine.getFilteredBatches(ph: ph, productKey: widget.med.identityKey);
     try {
       final existingBatch = history.firstWhere((b) => b.batch == batchC.text.toUpperCase());
@@ -170,6 +199,7 @@ class _ItemEntryCardState extends State<ItemEntryCard> {
       gstRate: double.tryParse(gstC.text) ?? 0,
       cgst: t['cgst']!,
       sgst: t['sgst']!,
+      igst: t['igst']!, // NAYA
       total: t['total']!,
       discountRupees: t['discountAmt']!,
     ));
@@ -180,14 +210,12 @@ class _ItemEntryCardState extends State<ItemEntryCard> {
     final ph = Provider.of<PharoahManager>(context);
     final totals = _calcTotals();
     
-    // NAYA: Ab suggestions Bills se nahi, Master Registry se aayenge
     final matchingBatches = BatchSyncEngine.getFilteredBatches(
       ph: ph, 
       productKey: widget.med.identityKey,
-      hideExpired: true // Sale/Billing screen ke liye expired hide rakhenge
+      hideExpired: true 
     ).where((b) => b.batch.toLowerCase().contains(batchC.text.toLowerCase())).toList();
 
-    // UI Status from ExpiryMaster
     String expStr = expC.text;
     ExpiryStatus expStatus = ExpiryMaster.getStatus(expStr);
     Color statusColor = ExpiryMaster.getStatusColor(expStr);
@@ -213,7 +241,6 @@ class _ItemEntryCardState extends State<ItemEntryCard> {
             Expanded(child: _buildInput("GST %", gstC, isNum: true, onChanged: (v){ if(selectedRateType=="C") _calculateRateC(); setState((){}); })),
           ]),
 
-          // BATCH CHIPS (Preserved Design, Integrated with Engine)
           if (matchingBatches.isNotEmpty && widget.existingItem == null)
             Container(height: 45, margin: const EdgeInsets.symmetric(vertical: 8),
               child: ListView(scrollDirection: Axis.horizontal, children: matchingBatches.map((b) {
@@ -256,8 +283,7 @@ class _ItemEntryCardState extends State<ItemEntryCard> {
                 "QTY", 
                 qtyC, 
                 isNum: true, 
-                // NAYA: Agar item Challan se aaya hai toh Qty lock rahegi
-                isReadOnly: widget.existingItem?.sourceChallanId.isNotEmpty ?? false,
+                isReadOnly: widget.existingItem?.sourceChallanNo.isNotEmpty ?? false, // Fixed typo from sourceChallanId to sourceChallanNo as per provided old code
                 onChanged: (v) => setState((){})
               )),
               const SizedBox(width: 8),
@@ -269,7 +295,14 @@ class _ItemEntryCardState extends State<ItemEntryCard> {
           const SizedBox(height: 15),
           Container(padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(8)),
             child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-              Text("Taxable: ₹${totals['taxable']!.toStringAsFixed(2)}", style: const TextStyle(fontSize: 12)),
+              // NAYA: Visual Tax Breakdown
+              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text("Taxable: ₹${totals['taxable']!.toStringAsFixed(2)}", style: const TextStyle(fontSize: 10)),
+                if (totals['igst']! > 0)
+                  Text("IGST: ₹${totals['igst']!.toStringAsFixed(2)}", style: const TextStyle(fontSize: 9, color: Colors.indigo, fontWeight: FontWeight.bold))
+                else
+                  Text("CGST+SGST: ₹${(totals['cgst']! + totals['sgst']!).toStringAsFixed(2)}", style: const TextStyle(fontSize: 9, color: Colors.blueGrey)),
+              ]),
               Text("TOTAL: ₹${totals['total']!.toStringAsFixed(2)}", style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 18, color: Colors.green)),
             ]),
           ),
@@ -280,7 +313,7 @@ class _ItemEntryCardState extends State<ItemEntryCard> {
               style: ElevatedButton.styleFrom(backgroundColor: isAllowed ? Colors.green : Colors.grey.shade400, foregroundColor: Colors.white),
               onPressed: (!isAllowed || qtyC.text.isEmpty || qtyC.text == "0") ? null : () => _validateAndAdd(ph),
               child: Text(
-                expStatus == ExpiryStatus.expired ? "EXPIRED BATCH: CANNOT SELL" : 
+                expStatus == ExpiryStatus.expired ? "EXPIRED BATCH" : 
                 (widget.existingItem != null ? "UPDATE ITEM" : "ADD TO BILL"), 
                 style: const TextStyle(fontWeight: FontWeight.bold)
               ),
