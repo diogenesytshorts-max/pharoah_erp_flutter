@@ -142,7 +142,7 @@ class _PurchaseBillingViewState extends State<PurchaseBillingView> {
                           Expanded(child: TextField(autofocus: true, decoration: InputDecoration(hintText: "Search Product...", prefixIcon: const Icon(Icons.search, color: Colors.orange), filled: true, fillColor: Colors.white, border: OutlineInputBorder(borderRadius: BorderRadius.circular(10))), onChanged: (v) => setSheetState(() => localSearch = v))),
                           const SizedBox(width: 10),
                           IconButton.filled(onPressed: () async {
-                              final result = await Navigator.push(context, MaterialPageRoute(builder: (c) => const ProductMasterView(isSelectionMode: true)));
+                            final result = await Navigator.push(context, MaterialPageRoute(builder: (c) => ProductMasterView(isSelectionMode: true)));
                               if (result != null && result is Medicine) { setSheetState(() => selectedMed = result); }
                             }, icon: const Icon(Icons.library_add_rounded), style: IconButton.styleFrom(backgroundColor: Colors.orange.shade900)),
                         ],
