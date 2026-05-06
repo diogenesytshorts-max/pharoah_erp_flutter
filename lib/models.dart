@@ -33,12 +33,13 @@ class NumberingSeries {
 // --- FINAL UPDATED CLASS FOR SIGNATURE ---
 // lib/models.dart mein ChallanSignature class ko isse replace karein:
 // lib/models.dart mein is class ko poora replace karein
+// lib/models.dart mein ChallanSignature class ko isse replace karein:
 class ChallanSignature {
   String id;
   String imagePath;
   String verificationCode;
   double signedAmount; 
-  double signedQty;    
+  double signedQty;    // <--- Snapshot logic for security
   DateTime signDate;
   double signX; 
   double signY; 
@@ -48,7 +49,7 @@ class ChallanSignature {
     required this.imagePath,
     required this.verificationCode,
     required this.signedAmount,
-    required this.signedQty,
+    required this.signedQty, // <--- Required parameter
     required this.signDate,
     this.signX = 0.0,
     this.signY = 0.0,
