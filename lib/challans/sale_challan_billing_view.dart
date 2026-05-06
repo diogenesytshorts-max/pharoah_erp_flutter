@@ -110,7 +110,7 @@ class _SaleChallanBillingViewState extends State<SaleChallanBillingView> {
                             onPressed: () async {
                               final result = await Navigator.push(
                                 context,
-                                MaterialPageRoute(builder: (c) => const ProductMasterView(isSelectionMode: true)),
+                                MaterialPageRoute(builder: (c) => ProductMasterView(isSelectionMode: true)),
                               );
                               if (result != null && result is Medicine) {
                                 setSheetState(() => selectedMed = result);
