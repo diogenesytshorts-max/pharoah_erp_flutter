@@ -70,8 +70,8 @@ class PharoahManager with ChangeNotifier {
   List<ModuleAction> get accountsActions => [
     ModuleAction(title: "Daybook", icon: Icons.event_note, color: Colors.blueGrey, navModule: "GO_DAYBOOK"),
     ModuleAction(title: "Ledgers", icon: Icons.people, color: Colors.indigo, navModule: "GO_LEDGERS"),
-    ActionIconBtn(title: "Receipts", icon: Icons.add_chart, color: Colors.green, navModule: "GO_RECEIPT"), // Simplified for Action list
-    ActionIconBtn(title: "Payments", icon: Icons.analytics, color: Colors.red, navModule: "GO_PAYMENT"),
+    ModuleAction(title: "Receipts", icon: Icons.add_chart, color: Colors.green, navModule: "GO_RECEIPT"), // FIXED: ModuleAction instead of ActionIconBtn
+    ModuleAction(title: "Payments", icon: Icons.analytics, color: Colors.red, navModule: "GO_PAYMENT"),   // FIXED: ModuleAction instead of ActionIconBtn
   ];
 
   List<ModuleAction> get mastersActions => [
@@ -256,7 +256,7 @@ class PharoahManager with ChangeNotifier {
   }
 
   // ===========================================================================
-  // TRANSACTIONS (FIXED FOR IMPORT SYNC & BATCH RECALL)
+  // TRANSACTIONS (FIXED FOR IMPORT SYNC)
   // ===========================================================================
 
   Future<void> finalizeSale({
@@ -279,7 +279,6 @@ class PharoahManager with ChangeNotifier {
       await PharoahNumberingEngine.updateSeriesCounter(type: "SALE", companyID: activeCompany!.id, usedNumber: billNo, prefix: p); 
     }
     
-    // ATOMIC SAVE: Zaroori hai Dashboard update ke liye
     await save(); 
     InventoryLogicCenter.rebuildAllInventory(medicines: medicines, batchHistory: batchHistory, purchases: purchases, sales: sales);
     notifyListeners(); 
@@ -320,16 +319,6 @@ class PharoahManager with ChangeNotifier {
     save().then((_) => loadAllData());
   }
 
-  void updateSystemUser(SystemUser u) { 
-    int i = systemUsers.indexWhere((x) => x.id == u.id); 
-    if(i != -1) { systemUsers[i] = u; save(); } 
-  }
-
-  void updateNumberingSeries(NumberingSeries ns) { 
-    int i = numberingSeries.indexWhere((x) => x.id == ns.id); 
-    if(i != -1) { numberingSeries[i] = ns; save(); } 
-  }
-
   // --- RETURNS & CHALLANS ---
   void finalizeSaleReturn({required String billNo, required DateTime date, required Party party, required List<BillItem> items, required double total, String type = "Sellable"}) { 
     saleReturns.add(SaleReturn(id: DateTime.now().toString(), billNo: billNo, date: date, partyName: party.name, items: items, totalAmount: total, returnType: type)); 
@@ -349,7 +338,7 @@ class PharoahManager with ChangeNotifier {
   void finalizePurchaseChallan({required String challanNo, required String internalNo, required DateTime date, required Party party, required List<PurchaseItem> items, required double total, String remarks = ""}) async { purchaseChallans.add(PurchaseChallan(id: DateTime.now().toString(), internalNo: internalNo, billNo: challanNo, date: date, distributorName: party.name, items: items, totalAmount: total, remarks: remarks)); if (activeCompany != null) await PharoahNumberingEngine.updateSeriesCounter(type: "CHALLAN_PUR", companyID: activeCompany!.id, usedNumber: internalNo, prefix: "PCH-"); save(); }
 
   // ===========================================================================
-  // SECURE-SIGN, BATCH HISTORY & SYSTEM TOOLS (RESTORED)
+  // SECURE-SIGN, INVENTORY INTEL & BATCH TOOLS (RESTORED)
   // ===========================================================================
 
   Future<void> addSignatureToChallan({required String challanId, required String imagePath, required String code, required double amount, required double qty, required double x, required double y}) async {
@@ -395,7 +384,21 @@ class PharoahManager with ChangeNotifier {
   void updateChequeStatus(String id, String s, String r) { int i = cheques.indexWhere((c) => c.id == id); if(i != -1) { cheques[i].status = s; cheques[i].remark = r; save(); } }
   void resetCounter(String t) { if (activeCompany != null) { String p = (t == "SALE_BILL") ? "INV-" : (t == "PUR_BILL" ? "PUR-" : "SCH-"); PharoahNumberingEngine.resetSeries(type: t.contains("SALE") ? "SALE" : "PURCHASE", companyID: activeCompany!.id, prefix: p); } notifyListeners(); }
 
-  // --- SYSTEM TOOLS ---
+  // --- CRUD HELPERS ---
+  void addLog(String a, String d) { logs.add(LogEntry(id: DateTime.now().toString(), action: a, details: d, time: DateTime.now())); save(); }
+  void addRoute(RouteArea r) { routes.add(r); save(); }
+  void addMedicine(Medicine m) { medicines.add(m); if (!batchHistory.containsKey(m.identityKey)) batchHistory[m.identityKey] = []; save(); }
+  void addSalt(Salt s) { salts.add(s); save(); }
+  void addCompany(Company c) { companies.add(c); save(); }
+  void addDrugType(DrugType d) { drugTypes.add(d); save(); }
+  void addSystemUser(SystemUser u) { systemUsers.add(u); save(); }
+  void addNumberingSeries(NumberingSeries ns) { numberingSeries.add(ns); save(); }
+  void addVoucher(Voucher v) { vouchers.add(v); save(); }
+  void addBank(Bank b) { banks.add(b); save(); }
+  void addCheque(ChequeEntry c) { cheques.add(c); save(); }
+  void updateAppConfig(AppConfig c) { config = c; save(); notifyListeners(); }
+
+  // --- SYSTEM ADMIN ---
   Future<void> setupNewCompanyEnvironment(CompanyProfile p, String f) async {
     activeCompany = p; currentFY = f;
     numberingSeries = [NumberingSeries(id: 's1', name: "Standard Retail", type: "SALE", prefix: "INV-", isDefault: true)];
@@ -424,19 +427,6 @@ class PharoahManager with ChangeNotifier {
     sorted.sort((a, b) { int countA = counts[a] ?? 0; int countB = counts[b] ?? 0; return countB.compareTo(countA); });
     return sorted;
   }
-
-  void addLog(String a, String d) { logs.add(LogEntry(id: DateTime.now().toString(), action: a, details: d, time: DateTime.now())); save(); }
-  void addRoute(RouteArea r) { routes.add(r); save(); }
-  void addMedicine(Medicine m) { medicines.add(m); if (!batchHistory.containsKey(m.identityKey)) batchHistory[m.identityKey] = []; save(); }
-  void addSalt(Salt s) { salts.add(s); save(); }
-  void addCompany(Company c) { companies.add(c); save(); }
-  void addDrugType(DrugType d) { drugTypes.add(d); save(); }
-  void addSystemUser(SystemUser u) { systemUsers.add(u); save(); }
-  void addNumberingSeries(NumberingSeries ns) { numberingSeries.add(ns); save(); }
-  void addVoucher(Voucher v) { vouchers.add(v); save(); }
-  void addBank(Bank b) { banks.add(b); save(); }
-  void addCheque(ChequeEntry c) { cheques.add(c); save(); }
-  void updateAppConfig(AppConfig c) { config = c; save(); notifyListeners(); }
 
   List<NumberingSeries> getSeriesByType(String t) => numberingSeries.where((s) => s.type == t).toList();
   NumberingSeries getDefaultSeries(String t) => numberingSeries.firstWhere((s) => s.type == t && s.isDefault, orElse: () => numberingSeries.firstWhere((s) => s.type == t, orElse: () => NumberingSeries(id: 'tmp', name: 'Default', type: t, prefix: 'TXN-', isDefault: true)));
