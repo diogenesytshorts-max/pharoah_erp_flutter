@@ -33,8 +33,6 @@ class _ExpiryBreakageReturnViewState extends State<ExpiryBreakageReturnView> {
   void _initBreakage() async {
     final ph = Provider.of<PharoahManager>(context, listen: false);
     if (ph.activeCompany != null) {
-      
-      // Using RETURN series for Breakage as well, or you can create a specific BRK- series in settings
       var defaultRetSeries = ph.getDefaultSeries("RETURN");
       
       String nextNo = await PharoahNumberingEngine.getNextNumber(
@@ -55,7 +53,6 @@ class _ExpiryBreakageReturnViewState extends State<ExpiryBreakageReturnView> {
 
   double get totalAmt => items.fold(0, (sum, it) => sum + it.total);
 
-  // NAYA: Serial Number Auto-Fixer
   void _recalculateSR() {
     setState(() {
       for (int i = 0; i < items.length; i++) {
@@ -131,6 +128,7 @@ class _ExpiryBreakageReturnViewState extends State<ExpiryBreakageReturnView> {
       builder: (c) => ItemEntryCard(
         med: med,
         srNo: items.length + 1,
+        partyState: selectedParty?.state ?? "Rajasthan", // NAYA: Added partyState parameter
         onAdd: (newItem) {
           setState(() { items.add(newItem); });
           Navigator.pop(context);
@@ -147,7 +145,7 @@ class _ExpiryBreakageReturnViewState extends State<ExpiryBreakageReturnView> {
     if (isLoading) return const Scaffold(body: Center(child: CircularProgressIndicator()));
 
     return Scaffold(
-      backgroundColor: const Color(0xFFFFEBEE), // Very Light Red
+      backgroundColor: const Color(0xFFFFEBEE), 
       appBar: AppBar(
         title: const Text("Expiry / Breakage Return"),
         backgroundColor: Colors.red.shade900,
@@ -255,7 +253,6 @@ class _ExpiryBreakageReturnViewState extends State<ExpiryBreakageReturnView> {
           trailing: IconButton(onPressed: () => setState(() => selectedParty = null), icon: const Icon(Icons.close)),
         ),
         
-        // --- NAYA: Search Bar Trigger ---
         _buildSearchBarTrigger(ph),
 
         Expanded(
@@ -271,7 +268,6 @@ class _ExpiryBreakageReturnViewState extends State<ExpiryBreakageReturnView> {
     );
   }
 
-  // NAYA: Search Bar Trigger
   Widget _buildSearchBarTrigger(PharoahManager ph) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
@@ -299,7 +295,6 @@ class _ExpiryBreakageReturnViewState extends State<ExpiryBreakageReturnView> {
     );
   }
 
-  // NAYA: Swipe to Delete Card
   Widget _buildItemCard(BillItem it, int index) {
     final card = Card(
       elevation: 2, margin: const EdgeInsets.symmetric(vertical: 4),
@@ -353,7 +348,6 @@ class _ExpiryBreakageReturnViewState extends State<ExpiryBreakageReturnView> {
       type: "Breakage", 
     );
     
-    // NAYA: Update Persistent Counter
     if (ph.activeCompany != null) {
       PharoahNumberingEngine.updateSeriesCounter(
         type: "RETURN", 
