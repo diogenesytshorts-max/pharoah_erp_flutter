@@ -28,17 +28,13 @@ class ChallanSignatureView extends StatefulWidget {
 class _ChallanSignatureViewState extends State<ChallanSignatureView> {
   bool isSignMode = false;
   bool isProcessing = false;
-  bool _isZoomed = false; 
+  bool _canScroll = true; 
   String uniqueCode = "";
   List<Offset?> points = [];
   int currentPage = 0;
-  double signXPercent = 0.5;
-  double signYPercent = 0.8;
 
   final PageController _pageController = PageController();
   final GlobalKey _signBoundaryKey = GlobalKey(); 
-  
-  // NAYA: TransformationController zoom levels ko track karne ke liye
   final TransformationController _transformationController = TransformationController();
 
   @override
@@ -48,38 +44,27 @@ class _ChallanSignatureViewState extends State<ChallanSignatureView> {
       DeviceOrientation.landscapeRight, 
       DeviceOrientation.landscapeLeft
     ]);
-
-    // Zoom listener setup
-    _transformationController.addListener(() {
-      double scale = _transformationController.value.storage[0];
-      if (scale > 1.0 && !_isZoomed) {
-        setState(() => _isZoomed = true);
-      } else if (scale <= 1.0 && _isZoomed) {
-        setState(() => _isZoomed = false);
-      }
-    });
   }
 
   @override
   void dispose() {
     SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
     _pageController.dispose();
-    _transformationController.dispose(); // Controller ko band karna zaroori hai
+    _transformationController.dispose();
     super.dispose();
   }
 
-  void _generateCode(Offset touchPoint) {
+  void _generateCode() {
     if (uniqueCode.isEmpty) {
       const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
       setState(() {
         uniqueCode = "VR-${List.generate(5, (i) => chars[Random().nextInt(chars.length)]).join()}";
-        signXPercent = touchPoint.dx / 800;
-        signYPercent = touchPoint.dy / 550;
       });
     }
   }
 
   Future<void> _handleFinalize(PharoahManager ph) async {
+    if (points.isEmpty) return;
     setState(() => isProcessing = true);
     try {
       RenderRepaintBoundary boundary = _signBoundaryKey.currentContext!.findRenderObject() as RenderRepaintBoundary;
@@ -88,9 +73,15 @@ class _ChallanSignatureViewState extends State<ChallanSignatureView> {
       Uint8List sigBytes = byteData!.buffer.asUint8List();
 
       String savedImgPath = await ph.saveSignatureFile(widget.challan.billNo, sigBytes);
+      
+      // Coordinate Logic: X: 0.1 means Left side (Receiver Area)
       await ph.addSignatureToChallan(
-        challanId: widget.challan.id, imagePath: savedImgPath, code: uniqueCode,
-        amount: widget.challan.totalAmount, x: signXPercent, y: signYPercent,
+        challanId: widget.challan.id, 
+        imagePath: savedImgPath, 
+        code: uniqueCode,
+        amount: widget.challan.totalAmount, 
+        x: 0.1, 
+        y: 0.82, 
       );
 
       if (mounted) {
@@ -147,25 +138,24 @@ class _ChallanSignatureViewState extends State<ChallanSignatureView> {
         backgroundColor: Colors.black,
         title: Text("Receiver Review: Page ${currentPage + 1} / $totalPages", style: const TextStyle(fontSize: 14)),
         actions: [
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-            child: ElevatedButton.icon(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: !isAtLastPage ? Colors.grey.shade800 : (isSignMode ? Colors.red : Colors.blueAccent),
+          if (isAtLastPage)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              child: ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: isSignMode ? Colors.red : Colors.blueAccent,
+                ),
+                onPressed: () {
+                  _transformationController.value = Matrix4.identity(); // Reset zoom before signing
+                  setState(() {
+                    isSignMode = !isSignMode;
+                    _canScroll = !isSignMode;
+                  });
+                },
+                icon: Icon(isSignMode ? Icons.close : Icons.draw, size: 18),
+                label: Text(isSignMode ? "CANCEL" : "SIGN HERE"),
               ),
-              onPressed: () {
-                if (!isAtLastPage) {
-                  _pageController.animateToPage(totalPages - 1, duration: const Duration(milliseconds: 600), curve: Curves.easeInOut);
-                } else {
-                  // Signature mode on karne par zoom reset kar dena chahiye logic ki safety ke liye
-                  _transformationController.value = Matrix4.identity();
-                  setState(() => isSignMode = !isSignMode);
-                }
-              },
-              icon: Icon(isSignMode ? Icons.close : Icons.edit_note, size: 18),
-              label: Text(isSignMode ? "CANCEL" : "SIGN HERE"),
-            ),
-          )
+            )
         ],
       ),
       body: Column(
@@ -173,16 +163,9 @@ class _ChallanSignatureViewState extends State<ChallanSignatureView> {
           Expanded(
             child: PageView.builder(
               controller: _pageController,
-              // Agar zoomed hai ya Sign Mode on hai, toh PageView ko hile nahi dena
-              physics: (_isZoomed || isSignMode) ? const NeverScrollableScrollPhysics() : const BouncingScrollPhysics(),
+              physics: _canScroll ? const BouncingScrollPhysics() : const NeverScrollableScrollPhysics(),
               itemCount: totalPages,
-              onPageChanged: (i) {
-                setState(() {
-                  currentPage = i;
-                  _isZoomed = false;
-                  _transformationController.value = Matrix4.identity(); // Page change par zoom reset
-                });
-              },
+              onPageChanged: (i) => setState(() => currentPage = i),
               itemBuilder: (context, index) {
                 bool isActualLastPage = (index == totalPages - 1);
                 
@@ -190,7 +173,15 @@ class _ChallanSignatureViewState extends State<ChallanSignatureView> {
                   transformationController: _transformationController,
                   minScale: 1.0, 
                   maxScale: 4.0,
-                  // onInteractionUpdate hatakar transformationController handle karega automation
+                  onInteractionStart: (_) {
+                    if (!isSignMode) setState(() => _canScroll = false);
+                  },
+                  onInteractionEnd: (_) {
+                    // Zoom level check: agar scale 1 hai toh scrolling on kar do
+                    if (!isSignMode && _transformationController.value.getMaxScaleOnAxis() <= 1.0) {
+                      setState(() => _canScroll = true);
+                    }
+                  },
                   child: Center(
                     child: FittedBox(
                       fit: BoxFit.contain,
@@ -201,18 +192,27 @@ class _ChallanSignatureViewState extends State<ChallanSignatureView> {
                         child: Stack(
                           children: [
                             _buildBillLayout(index, totalPages, isActualLastPage, ph),
-                            if (uniqueCode.isNotEmpty) _buildWatermarkSeal(),
                             
                             if (isActualLastPage && isSignMode)
-                              RepaintBoundary(
-                                key: _signBoundaryKey,
-                                child: GestureDetector(
-                                  onPanStart: (d) => _generateCode(d.localPosition),
-                                  onPanUpdate: (d) => setState(() => points.add(d.localPosition)),
-                                  onPanEnd: (d) => setState(() => points.add(null)),
-                                  child: Container(
-                                    color: Colors.transparent,
-                                    child: CustomPaint(painter: SignaturePainter(points: points), size: Size.infinite),
+                              Positioned(
+                                bottom: 50, left: 30, // FIXED: Positioned directly above "Receiver Signature" text
+                                child: Container(
+                                  width: 280, height: 130,
+                                  decoration: BoxDecoration(
+                                    border: Border.all(color: Colors.blue.withOpacity(0.3), width: 1),
+                                    color: Colors.blue.withOpacity(0.02),
+                                  ),
+                                  child: RepaintBoundary(
+                                    key: _signBoundaryKey,
+                                    child: GestureDetector(
+                                      onPanStart: (d) => _generateCode(),
+                                      onPanUpdate: (d) => setState(() => points.add(d.localPosition)),
+                                      onPanEnd: (d) => setState(() => points.add(null)),
+                                      child: CustomPaint(
+                                        painter: SignaturePainter(points: points),
+                                        size: const Size(280, 130),
+                                      ),
+                                    ),
                                   ),
                                 ),
                               ),
@@ -248,11 +248,16 @@ class _ChallanSignatureViewState extends State<ChallanSignatureView> {
           if (isLastPage) ...[
             const Divider(),
             Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-              _buildSecurityDisclaimer(), 
+              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                const SizedBox(height: 50),
+                const Text("RECEIVER SIGNATURE", style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.black54)),
+                if (uniqueCode.isNotEmpty) Text("SEAL: $uniqueCode", style: const TextStyle(fontSize: 8, color: Colors.red, fontWeight: FontWeight.bold)),
+              ]), 
               Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-                const Text("RECEIVER SIGNATURE", style: TextStyle(fontSize: 8, fontWeight: FontWeight.bold, color: Colors.grey)),
-                const SizedBox(height: 10),
-                Text("TOTAL: ₹${widget.challan.totalAmount.toStringAsFixed(2)}", style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900))
+                Text("For ${shop.name}", style: const TextStyle(fontSize: 8, fontWeight: FontWeight.bold)),
+                const SizedBox(height: 50),
+                const Text("AUTHORISED SIGNATORY", style: TextStyle(fontSize: 8, fontWeight: FontWeight.bold, color: Colors.grey)),
+                Text("TOTAL: ₹${widget.challan.totalAmount.toStringAsFixed(2)}", style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w900))
               ]),
             ]),
           ] else
@@ -275,26 +280,19 @@ class _ChallanSignatureViewState extends State<ChallanSignatureView> {
   Widget _cell(String t, double w, bool b, [bool isLeft = false]) => Container(width: w, padding: const EdgeInsets.all(6), decoration: BoxDecoration(border: Border.all(color: Colors.black12, width: 0.4)), child: Text(t, textAlign: isLeft ? TextAlign.left : TextAlign.center, style: TextStyle(fontSize: 9, fontWeight: b ? FontWeight.bold : FontWeight.normal)));
   Widget _headerBox(double w, List<Widget> ch) => Container(width: w, padding: const EdgeInsets.all(8), decoration: BoxDecoration(border: Border.all(width: 0.5, color: Colors.black38)), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: ch));
   
-  Widget _buildSecurityDisclaimer() => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-    if (uniqueCode.isNotEmpty) Text("SEAL: $uniqueCode", style: const TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.red)), 
-    const SizedBox(width: 320, child: Text("SECURE DOCUMENT: Digitally verified challan. Integrity locked.", style: TextStyle(fontSize: 7, color: Colors.blueGrey, fontWeight: FontWeight.bold)))
-  ]);
-  
-  Widget _buildWatermarkSeal() => Positioned.fill(child: Center(child: IgnorePointer(child: Transform.rotate(angle: -0.4, child: Opacity(opacity: 0.1, child: Container(padding: const EdgeInsets.all(20), decoration: BoxDecoration(border: Border.all(color: Colors.red, width: 5)), child: Text(uniqueCode, style: const TextStyle(fontSize: 60, fontWeight: FontWeight.bold, color: Colors.red))))))));
-  
   Widget _buildBottomActionPanel(PharoahManager ph, bool isLastPage) => Container(
     padding: const EdgeInsets.all(15), 
     color: Colors.black, 
     child: Row(children: [
-      if (uniqueCode.isNotEmpty) Text("CODE: $uniqueCode", style: const TextStyle(color: Colors.orange, fontWeight: FontWeight.bold, fontSize: 18)), 
+      if (uniqueCode.isNotEmpty) Text("SEAL CODE: $uniqueCode", style: const TextStyle(color: Colors.orange, fontWeight: FontWeight.bold, fontSize: 16)), 
       const Spacer(), 
       ElevatedButton.icon(
         style: ElevatedButton.styleFrom(
-          backgroundColor: isLastPage ? Colors.green : Colors.grey.shade900, 
+          backgroundColor: (isLastPage && points.isNotEmpty) ? Colors.green : Colors.grey.shade900, 
           padding: const EdgeInsets.symmetric(horizontal: 25, vertical: 15)
         ), 
         onPressed: (!isLastPage || points.isEmpty || isProcessing) ? null : () => _handleFinalize(ph), 
-        icon: isProcessing ? const SizedBox(width: 15, height: 15, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)) : const Icon(Icons.lock_outline), 
+        icon: isProcessing ? const SizedBox(width: 15, height: 15, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)) : const Icon(Icons.lock_open), 
         label: const Text("FINALIZE & LOCK")
       )
     ])
@@ -306,7 +304,7 @@ class SignaturePainter extends CustomPainter {
   SignaturePainter({required this.points});
   @override
   void paint(Canvas canvas, Size size) {
-    Paint paint = Paint()..color = Colors.blue[900]!..strokeCap = StrokeCap.round..strokeWidth = 4.0;
+    Paint paint = Paint()..color = Colors.blue[900]!..strokeCap = StrokeCap.round..strokeWidth = 3.5;
     for (int i = 0; i < points.length - 1; i++) {
       if (points[i] != null && points[i + 1] != null) canvas.drawLine(points[i]!, points[i + 1]!, paint);
     }
