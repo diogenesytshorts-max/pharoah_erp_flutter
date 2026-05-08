@@ -87,11 +87,12 @@ class BulkPdfService {
           child: pw.Column(children: [
             // Header (Total: 800)
             pw.Row(children: [
-              _hBox(290, pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
-                pw.Text(shop.name.toUpperCase(), style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold, color: PdfColors.blue900)),
-                pw.Text(shop.address, style: const pw.TextStyle(fontSize: 8)),
-                pw.Text("Phone: ${shop.phone} | GSTIN: ${shop.gstin}", style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold)),
-              ])),
+              _hBox(335, pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
+  pw.Text("PARTY DETAILS:", style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold, color: PdfColors.grey)),
+  pw.Text(party.name, style: pw.TextStyle(fontSize: 11, fontWeight: pw.FontWeight.bold, color: PdfColors.blue900)),
+  pw.Text("GSTIN: ${party.gst} | DL: ${party.dl}", style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold)),
+  pw.Text("Mob: ${party.phone} | Email: ${party.email.toLowerCase()}", style: const pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold)),
+])),
               _hBox(175, pw.Column(children: [
                 pw.Text("GST INVOICE", style: pw.TextStyle(fontSize: 13, fontWeight: pw.FontWeight.bold)),
                 pw.Text(sale.paymentMode.toUpperCase(), style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold)),
