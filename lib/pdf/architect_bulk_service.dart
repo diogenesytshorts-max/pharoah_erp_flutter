@@ -90,13 +90,15 @@ class ArchitectBulkService {
             // --- HEADER ---
             pw.Row(children: [
               _hBox(290, true, pw.Row(children: [
-                if (config.showLogo && config.logoPath != null && File(config.logoPath!).existsSync())
-                  pw.Container(width: 45, height: 45, margin: const pw.EdgeInsets.only(right: 8), child: pw.Image(pw.MemoryImage(File(config.logoPath!).readAsBytesSync()))),
-                pw.Expanded(child: pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
-                  pw.Text(shop.name.toUpperCase(), style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold, color: PdfColors.blue900)),
-                  pw.Text(shop.address, style: const pw.TextStyle(fontSize: 7.5)),
-                  pw.Text("GST: ${shop.gstin}", style: pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold)),
-                ])),
+  if (config.showLogo && config.logoPath != null && File(config.logoPath!).existsSync())
+    pw.Container(width: 45, height: 45, margin: const pw.EdgeInsets.only(right: 8), child: pw.Image(pw.MemoryImage(File(config.logoPath!).readAsBytesSync()))),
+  pw.Expanded(child: pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
+    pw.Text(shop.name.toUpperCase(), style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold, color: PdfColors.blue900)),
+    pw.Text(shop.address, style: const pw.TextStyle(fontSize: 7)),
+    pw.Text("GSTIN: ${shop.gstin} | DL: ${shop.dlNo}", style: pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold)),
+    pw.Text("Mob: ${shop.phone} | Email: ${shop.email.toLowerCase()}", style: const pw.TextStyle(fontSize: 7)),
+  ])),
+])),
               ])),
               _hBox(175, true, pw.Column(children: [
                 pw.Text("GST INVOICE", style: pw.TextStyle(fontSize: 11, fontWeight: pw.FontWeight.bold)),
