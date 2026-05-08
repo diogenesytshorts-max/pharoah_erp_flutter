@@ -42,27 +42,27 @@ class ArchitectSalePdf {
           decoration: pw.BoxDecoration(border: pw.Border.all(width: 1)),
           child: pw.Column(children: [
             pw.Row(children: [
-              // Box 1: Shop
+              // Box 1: Shop with Logo
               _hBox(285, true, pw.Row(children: [
                 if (config.showLogo && config.logoPath != null && File(config.logoPath!).existsSync())
                   pw.Container(width: 40, height: 40, margin: const pw.EdgeInsets.only(right: 5), child: pw.Image(pw.MemoryImage(File(config.logoPath!).readAsBytesSync()))),
                 pw.Expanded(child: pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
-                  pw.Text(shop.name.toUpperCase(), style: pw.AlphaAlignment.start == null ? pw.TextStyle(fontSize: 13, fontWeight: pw.FontWeight.bold, color: PdfColors.blue900) : pw.TextStyle(fontSize: 13, fontWeight: pw.FontWeight.bold, color: PdfColors.blue900)),
+                  pw.Text(shop.name.toUpperCase(), style: pw.TextStyle(fontSize: 13, fontWeight: pw.FontWeight.bold, color: PdfColors.blue900)),
                   pw.Text("GSTIN: ${shop.gstin} | DL: ${shop.dlNo}", style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold)),
                   pw.Text("Mob: ${shop.phone}", style: const pw.TextStyle(fontSize: 7)),
                   pw.Text("Email: ${shop.email.toLowerCase()}", style: const pw.TextStyle(fontSize: 6.5)),
                 ])),
               ])),
-              // Box 2: Info
+              // Box 2: Info (Width 170)
               _hBox(170, true, pw.Column(children: [
                 pw.Text("TAX INVOICE", style: pw.TextStyle(fontSize: 11, fontWeight: pw.FontWeight.bold)),
                 pw.Divider(thickness: 0.5),
                 pw.Text(sale.billNo, style: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold)),
                 pw.Text(DateFormat('dd/MM/yyyy').format(sale.date), style: const pw.TextStyle(fontSize: 8)),
               ])),
-              // Box 3: Party
+              // Box 3: Party (Width 335)
               _hBox(335, false, pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
-                pw.Text("CONSIGNEE DETAILS:", style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold, color: PdfColors.grey700)),
+                pw.Text("CONSIGNEE DETAILS:", style: pw.AlphaAlignment.start == null ? pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold, color: PdfColors.grey700) : pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold, color: PdfColors.grey700)),
                 pw.Text(party.name, style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold, color: PdfColors.blue900)),
                 pw.Text("GSTIN: ${party.gst} | DL: ${party.dl}", style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold)),
                 pw.Text("Mob: ${party.phone} | Email: ${party.email.toLowerCase()}", style: const pw.TextStyle(fontSize: 7)),
