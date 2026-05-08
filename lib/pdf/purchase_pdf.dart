@@ -48,25 +48,28 @@ class PurchasePdf {
                 children: [
                   // Header
                   pw.Row(children: [
-                   _hBox(290, true, pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
-  pw.Text(shop.name.toUpperCase(), style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold, color: PdfColors.blue900)),
-  pw.Text(shop.address, style: const pw.TextStyle(fontSize: 7.5)),
-  pw.Text("GSTIN: ${shop.gstin} | DL: ${shop.dlNo}", style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold)),
-  pw.Text("Mob: ${shop.phone} | Email: ${shop.email.toLowerCase()}", style: const pw.TextStyle(fontSize: 7.5)),
-])),
-                    _hBox(175, true, pw.Column(children: [
-                      pw.Text("PURCHASE BILL", style: pw.TextStyle(fontSize: 13, fontWeight: pw.FontWeight.bold, color: PdfColors.orange900)),
-                      pw.Text(pur.paymentMode.toUpperCase(), style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold)),
-                      pw.Divider(thickness: 0.5),
-                      pw.Text("Bill No: ${pur.billNo}", style: pw.TextStyle(fontSize: 8.5, fontWeight: pw.FontWeight.bold)),
-                      pw.Text("Date: ${DateFormat('dd/MM/yyyy').format(pur.date)}", style: const pw.TextStyle(fontSize: 8.5)),
+                    // Box 1: Shop (Width 285)
+                    _hBox(285, true, pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
+                      pw.Text(shop.name.toUpperCase(), style: pw.TextStyle(fontSize: 13, fontWeight: pw.FontWeight.bold, color: PdfColors.blue900)),
+                      pw.Text(shop.address, style: const pw.TextStyle(fontSize: 7), maxLines: 2),
+                      pw.Text("GSTIN: ${shop.gstin} | DL: ${shop.dlNo}", style: pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold)),
+                      pw.Text("Mob: ${shop.phone} | Email: ${shop.email.toLowerCase()}", style: const pw.TextStyle(fontSize: 7)),
                     ])),
-                    _hBox(335, false, pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
-  pw.Text("SUPPLIER / DISTRIBUTOR:", style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold, color: PdfColors.grey)),
-  pw.Text(supplier.name, style: pw.TextStyle(fontSize: 11, fontWeight: pw.FontWeight.bold, color: PdfColors.blue900)),
-  pw.Text("GSTIN: ${supplier.gst} | DL: ${supplier.dl}", style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold)),
-  pw.Text("Mob: ${supplier.phone} | Email: ${supplier.email.toLowerCase()}", style: const pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold)),
-])),
+                    // Box 2: Invoice Info (Width 170)
+                    _hBox(170, true, pw.Column(children: [
+                      pw.Text("PURCHASE BILL", style: pw.TextStyle(fontSize: 11, fontWeight: pw.FontWeight.bold, color: PdfColors.orange900)),
+                      pw.Divider(thickness: 0.5),
+                      pw.Text(pur.billNo, style: pw.TextStyle(fontSize: 8.5, fontWeight: pw.FontWeight.bold)),
+                      pw.Text(DateFormat('dd/MM/yyyy').format(pur.date), style: const pw.TextStyle(fontSize: 8)),
+                      pw.Text(pur.paymentMode, style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold)),
+                    ])),
+                    // Box 3: Supplier (Width 340)
+                    _hBox(340, false, pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
+                      pw.Text("SUPPLIER DETAILS:", style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold, color: PdfColors.grey700)),
+                      pw.Text(supplier.name, style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold, color: PdfColors.blue900)),
+                      pw.Text("GSTIN: ${supplier.gst} | DL: ${supplier.dl}", style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold)),
+                      pw.Text("Mob: ${supplier.phone} | Email: ${supplier.email.toLowerCase()}", style: const pw.TextStyle(fontSize: 7)),
+                    ])),
                   ]),
 
                   // Table Header
