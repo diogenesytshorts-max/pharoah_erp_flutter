@@ -44,24 +44,28 @@ class SaleInvoicePdf {
           child: pw.Column(children: [
             // --- HEADER (280+170+350 = 800) ---
             pw.Row(children: [
+              // Box 1: Shop
               _hBox(285, true, pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
                 pw.Text(shop.name.toUpperCase(), style: pw.TextStyle(fontSize: 13, fontWeight: pw.FontWeight.bold, color: PdfColors.blue900)),
                 pw.Text(shop.address, style: const pw.TextStyle(fontSize: 7), maxLines: 2),
                 pw.Text("GSTIN: ${shop.gstin} | DL: ${shop.dlNo}", style: pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold)),
                 pw.Text("Mob: ${shop.phone} | Email: ${shop.email.toLowerCase()}", style: const pw.TextStyle(fontSize: 7)),
               ])),
-              // ... baaki boxes same width ke saath (170 aur 335)
+              // Box 2: Info
+              _hBox(170, true, pw.Column(children: [
+                pw.Text("TAX INVOICE", style: pw.TextStyle(fontSize: 11, fontWeight: pw.FontWeight.bold)),
+                pw.Divider(thickness: 0.5),
+                pw.Text(sale.billNo, style: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold)),
+                pw.Text(DateFormat('dd/MM/yyyy').format(sale.date), style: const pw.TextStyle(fontSize: 8)),
+              ])),
+              // Box 3: Party
+              _hBox(335, false, pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
+                pw.Text("CONSIGNEE:", style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold, color: PdfColors.grey700)),
+                pw.Text(party.name, style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold, color: PdfColors.blue900)),
+                pw.Text("GSTIN: ${party.gst} | DL: ${party.dl}", style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold)),
+                pw.Text("Mob: ${party.phone} | Email: ${party.email.toLowerCase()}", style: const pw.TextStyle(fontSize: 7)),
+              ])),
             ]),
-
-            // --- TABLE HEADER (25+60+40+220+75+45+45+55+55+40+40+100 = 800) ---
-            pw.Container(color: PdfColors.grey200, child: pw.Row(children: [
-              _tCol("S.N", 25), _tCol("Qty+Free", 60), _tCol("Pack", 40), 
-              _tCol("Product Description", 220, isLeft: true), 
-              _tCol("Batch", 75), _tCol("Exp", 45), _tCol("HSN", 45),
-              _tCol("MRP", 55), _tCol("Rate", 55), 
-              _tCol("CGST", 40), _tCol("SGST", 40),
-              _tCol("Net Amt", 100, isLast: true), 
-            ])),
 
             // --- ITEM ROWS ---
             pw.Expanded(child: pw.Column(children: pageItems.asMap().entries.map((entry) {
