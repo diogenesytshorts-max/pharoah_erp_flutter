@@ -41,9 +41,10 @@ class ArchitectSalePdf {
           width: masterWidth,
           decoration: pw.BoxDecoration(border: pw.Border.all(width: 1)),
           child: pw.Column(children: [
+            // --- ARCHITECT HEADER (TOTAL 800 POINTS) ---
             pw.Row(children: [
-              // Box 1: Shop Details (Width 285)
-              _hBox(285, true, pw.Row(children: [
+              // Box 1: Shop with Logo (Width: 280)
+              _hBox(280, true, pw.Row(children: [
                 if (config.showLogo && config.logoPath != null && File(config.logoPath!).existsSync())
                   pw.Container(width: 40, height: 40, margin: const pw.EdgeInsets.only(right: 5), child: pw.Image(pw.MemoryImage(File(config.logoPath!).readAsBytesSync()))),
                 pw.Expanded(child: pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
@@ -53,21 +54,32 @@ class ArchitectSalePdf {
                   pw.Text("Email: ${shop.email.toLowerCase()}", style: const pw.TextStyle(fontSize: 6.5)),
                 ])),
               ])),
-              // Box 2: Invoice Info (Width 170)
-              _hBox(170, true, pw.Column(children: [
+              // Box 2: Inv Info (Width: 175)
+              _hBox(175, true, pw.Column(children: [
                 pw.Text("TAX INVOICE", style: pw.TextStyle(fontSize: 11, fontWeight: pw.FontWeight.bold)),
                 pw.Divider(thickness: 0.5),
                 pw.Text(sale.billNo, style: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold)),
                 pw.Text(DateFormat('dd/MM/yyyy').format(sale.date), style: const pw.TextStyle(fontSize: 8)),
               ])),
-              // Box 3: Party Details (Width 335)
-              _hBox(335, false, pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
+              // Box 3: Party Snapshot (Width: 345)
+              _hBox(345, false, pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
                 pw.Text("CONSIGNEE DETAILS:", style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold, color: PdfColors.grey700)),
-                pw.Text(party.name, style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold, color: PdfColors.blue900)),
-                pw.Text("GSTIN: ${party.gst} | DL: ${party.dl}", style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold)),
-                pw.Text("Mob: ${party.phone} | Email: ${party.email.toLowerCase()}", style: const pw.TextStyle(fontSize: 7)),
+                pw.Text(sale.partyName, style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold, color: PdfColors.blue900)),
+                pw.Text("${sale.partyAddress}, ${sale.partyCity}", style: const pw.TextStyle(fontSize: 7.5), maxLines: 2),
+                pw.Text("GSTIN: ${sale.partyGstin} | DL: ${sale.partyDl}", style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold)),
+                pw.Text("Mob: ${sale.partyPhone} | Email: ${sale.partyEmail}", style: const pw.TextStyle(fontSize: 7)),
               ])),
             ]),
+
+            // --- ARCHITECT TABLE HEADER (800 POINTS ALIGNED) ---
+            pw.Container(color: PdfColors.grey200, child: pw.Row(children: [
+              _tCol("S.N", 25), _tCol("Qty+Free", 50), _tCol("Pack", 40), 
+              _tCol("Product Description", 210, isLeft: true), 
+              _tCol("Batch", 70), _tCol("Exp", 45), _tCol("HSN", 45),
+              _tCol("MRP", 55), _tCol("Rate", 55), 
+              _tCol("CGST", 40), _tCol("SGST", 40),
+              _tCol("Net Total", 125, isLast: true), 
+            ])),
 
             // --- TABLE MATH ADJUSTED TO EXACT 800 ---
             pw.Container(color: PdfColors.grey200, child: pw.Row(children: [
