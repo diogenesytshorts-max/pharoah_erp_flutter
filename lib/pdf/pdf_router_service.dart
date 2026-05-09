@@ -69,7 +69,12 @@ class PdfRouterService {
       String billNo;
 
       if (billObj is Sale) {
-        pdfBytes = await ArchitectSalePdf.generateBytes(billObj, party, shop, config);
+        // ZIP ke andar wahi format jayega jo settings mein set hai (Standard ya Architect)
+        if (config.isArchitectMode) {
+          pdfBytes = await ArchitectSalePdf.generateBytes(billObj, party, shop, config);
+        } else {
+          pdfBytes = await SaleInvoicePdf.generateBytes(billObj, party, shop);
+        }
         billNo = billObj.billNo;
       } else {
         pdfBytes = await PurchasePdf.generateBytes(billObj as Purchase, party, shop);
