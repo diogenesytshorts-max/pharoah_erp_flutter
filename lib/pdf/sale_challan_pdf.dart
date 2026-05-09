@@ -106,7 +106,8 @@ class SaleChallanPdf {
                       decoration: const pw.BoxDecoration(border: pw.Border(bottom: pw.BorderSide(width: 0.1, color: PdfColors.grey400))),
                       child: pw.Row(children: [
                         _cell("$sn", 25), 
-                        _cell("${i.qty.toInt()} + ${i.freeQty.toInt()}", 55), 
+                        // Smart formatting for decimals
+_cell("${i.qty % 1 == 0 ? i.qty.toInt() : i.qty} + ${i.freeQty % 1 == 0 ? i.freeQty.toInt() : i.freeQty}", 55),
                         _cell(i.packing, 45), 
                         _cell(i.name, 210, isLeft: true), 
                         _cell(i.batch, 75), 
