@@ -75,17 +75,29 @@ class _ChallanStitcherWizardState extends State<ChallanStitcherWizard> with Sing
 
       for (var b in selected) {
         String finalBillNo = "${series.prefix}$nextNum";
+        // NAYA: Party snapshot ko yahan se uthana hai
+        final p = b['party'] as Party;
+        
         batchToSave.add(Sale(
           id: DateTime.now().millisecondsSinceEpoch.toString() + finalBillNo,
           billNo: finalBillNo,
           date: b['date'],
-          partyName: b['party'].name,
-          partyGstin: b['party'].gst,
-          partyState: b['party'].state,
+          partyName: p.name,
+          partyGstin: p.gst,
+          partyState: p.state,
+          // --- SNAPSHOT START ---
+          partyAddress: p.address,
+          partyCity: p.city,
+          partyPhone: p.phone,
+          partyEmail: p.email,
+          partyDl: p.dl,
+          // --- SNAPSHOT END ---
           items: b['items'].cast<BillItem>(),
           totalAmount: b['total'],
           paymentMode: "CREDIT",
-          linkedChallanIds: List<String>.from(b['challanIds'])
+          linkedChallanIds: List<String>.from(b['challanIds']),
+          extraDiscount: 0.0,
+          roundOff: 0.0,
         ));
         nextNum++;
       }
