@@ -71,15 +71,7 @@ class ArchitectSalePdf {
               ])),
             ]),
 
-            // --- ARCHITECT TABLE HEADER (800 POINTS ALIGNED) ---
-            pw.Container(color: PdfColors.grey200, child: pw.Row(children: [
-              _tCol("S.N", 25), _tCol("Qty+Free", 50), _tCol("Pack", 40), 
-              _tCol("Product Description", 210, isLeft: true), 
-              _tCol("Batch", 70), _tCol("Exp", 45), _tCol("HSN", 45),
-              _tCol("MRP", 55), _tCol("Rate", 55), 
-              _tCol("CGST", 40), _tCol("SGST", 40),
-              _tCol("Net Total", 125, isLast: true), 
-            ])),
+          
 
             // --- TABLE MATH ADJUSTED TO EXACT 800 ---
             pw.Container(color: PdfColors.grey200, child: pw.Row(children: [
