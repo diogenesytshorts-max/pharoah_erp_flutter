@@ -25,11 +25,14 @@ class PdfRouterService {
   static Future<void> printSale({required Sale sale, required Party party, required PharoahManager ph}) async {
     final config = ph.config;
     final shop = ph.activeCompany!;
+    
     if (config.printFormat == "Thermal") {
       await ThermalInvoicePdf.generate(sale, party, shop, config);
     } else if (config.isArchitectMode) {
+      // Hamesha Architect layout call hoga
       await ArchitectSalePdf.generate(sale, party, shop, config);
     } else {
+      // Hamesha Standard updated layout call hoga
       await SaleInvoicePdf.generate(sale, party, shop);
     }
   }
