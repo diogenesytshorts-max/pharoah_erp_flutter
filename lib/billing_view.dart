@@ -118,7 +118,7 @@ class _BillingViewState extends State<BillingView> {
                         child: ItemEntryCard(
                           med: selectedMed!, 
                           srNo: itemToEdit != null ? itemToEdit.srNo : items.length + 1, 
-                          partyState: widget.party.state, // FIXED: partyState parameter added
+                          partyState: widget.party.state, 
                           existingItem: itemToEdit, 
                           onAdd: (newItem) {
                             setState(() { if (itemToEdit != null) { int idx = items.indexWhere((it) => it.id == itemToEdit.id); items[idx] = newItem; } else { items.add(newItem); } });
@@ -148,6 +148,7 @@ class _BillingViewState extends State<BillingView> {
         backgroundColor: widget.isReadOnly ? Colors.purple.shade700 : Colors.teal.shade700,
         foregroundColor: Colors.white,
         actions: [
+          // NAYA: Print button updated to send PharoahManager
           IconButton(icon: const Icon(Icons.print_rounded), onPressed: items.isEmpty ? null : () => _printBill(ph)),
           if (!widget.isReadOnly) 
             TextButton(onPressed: items.isEmpty ? null : () => _handleSave(ph), child: const Text("FINISH", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold))),
@@ -236,20 +237,34 @@ class _BillingViewState extends State<BillingView> {
     Navigator.of(context).popUntil((route) => route.isFirst);
   }
 
+  // ===========================================================================
+  // 🔥 UPDATED: PRINT LOGIC WITH FULL SNAPSHOT
+  // ===========================================================================
   void _printBill(PharoahManager ph) async {
-    final sale = Sale(
+    // NAYA: Temporary Sale object mein party ki poori detail pack karna
+    final saleSnapshot = Sale(
       id: widget.modifySaleId ?? "temp", 
       billNo: billNoC.text, 
-      partyId: widget.party.id, // ID Link
+      partyId: widget.party.id, 
       date: selectedBillDate, 
       partyName: widget.party.name, 
       partyGstin: widget.party.gst, 
       partyState: widget.party.state, 
+      // Snapshot details from current party object
+      partyAddress: widget.party.address,
+      partyCity: widget.party.city,
+      partyPhone: widget.party.phone,
+      partyEmail: widget.party.email,
+      partyDl: widget.party.dl,
+      partyPan: widget.party.pan,
       items: items, 
       totalAmount: totalAmt, 
       paymentMode: widget.mode, 
-      extraDiscount: double.tryParse(discountC.text) ?? 0.0
+      extraDiscount: double.tryParse(discountC.text) ?? 0.0,
+      roundOff: (totalAmt - (double.tryParse(discountC.text) ?? 0.0)).roundToDouble() - (totalAmt - (double.tryParse(discountC.text) ?? 0.0)),
     );
-    await PdfRouterService.printSale(sale: sale, party: widget.party, ph: ph);
+
+    // Universal Router call: Yeh hamesha latest settings use karega
+    await PdfRouterService.printSale(sale: saleSnapshot, party: widget.party, ph: ph);
   }
 }
