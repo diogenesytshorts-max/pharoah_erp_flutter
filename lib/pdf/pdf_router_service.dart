@@ -21,37 +21,68 @@ import 'purchase_challan_pdf.dart';
 
 class PdfRouterService {
   
-  // 1. SINGLE SALE PRINT
+  // ===========================================================================
+  // 1. UNIVERSAL PARTY FINDER (Live Data Fetcher)
+  // ===========================================================================
+  static Party _getLatestParty(PharoahManager ph, String partyId, String partyName, {String gst = "", String state = "Rajasthan"}) {
+    try {
+      // Pehle ID se dhoondo (Sabse safe rasta)
+      return ph.parties.firstWhere((p) => p.id == partyId);
+    } catch (e) {
+      try {
+        // Agar ID nahi mili toh Name se dhoondo
+        return ph.parties.firstWhere((p) => p.name.toUpperCase() == partyName.toUpperCase());
+      } catch (e) {
+        // Agar Master mein mil hi nahi rahi (Delete ho gayi), toh temporary object banao
+        return Party(id: 'temp', name: partyName, gst: gst, state: state);
+      }
+    }
+  }
+
+  // ===========================================================================
+  // 2. SINGLE SALE PRINT (Standard / Architect / Thermal)
+  // ===========================================================================
   static Future<void> printSale({required Sale sale, required Party party, required PharoahManager ph}) async {
     final config = ph.config;
     final shop = ph.activeCompany!;
-    
+
+    // LIVE SYNC: Print se pehle Master se latest details uthana
+    final latestParty = _getLatestParty(ph, sale.partyId, sale.partyName, gst: sale.partyGstin, state: sale.partyState);
+
     if (config.printFormat == "Thermal") {
-      await ThermalInvoicePdf.generate(sale, party, shop, config);
+      await ThermalInvoicePdf.generate(sale, latestParty, shop, config);
     } else if (config.isArchitectMode) {
-      // Hamesha Architect layout call hoga
-      await ArchitectSalePdf.generate(sale, party, shop, config);
+      await ArchitectSalePdf.generate(sale, latestParty, shop, config);
     } else {
-      // Hamesha Standard updated layout call hoga
-      await SaleInvoicePdf.generate(sale, party, shop);
+      await SaleInvoicePdf.generate(sale, latestParty, shop);
     }
   }
 
-  // 2. SINGLE PURCHASE PRINT
+  // ===========================================================================
+  // 3. SINGLE PURCHASE PRINT
+  // ===========================================================================
   static Future<void> printPurchase({required Purchase purchase, required Party supplier, required PharoahManager ph}) async {
-    await PurchasePdf.generate(purchase, supplier, ph.activeCompany!);
+    // LIVE SYNC for Supplier
+    final latestSupplier = _getLatestParty(ph, purchase.partyId, purchase.distributorName);
+    await PurchasePdf.generate(purchase, latestSupplier, ph.activeCompany!);
   }
 
-  // 3. SINGLE CHALLAN PRINT
+  // ===========================================================================
+  // 4. SINGLE CHALLAN PRINT
+  // ===========================================================================
   static Future<void> printChallan({required dynamic challan, required Party party, required PharoahManager ph, required bool isSaleChallan}) async {
     if (isSaleChallan) {
-      await SaleChallanPdf.generate(challan, party, ph.activeCompany!);
+      final latestParty = _getLatestParty(ph, challan.partyId, challan.partyName, gst: challan.partyGstin, state: challan.partyState);
+      await SaleChallanPdf.generate(challan, latestParty, ph.activeCompany!);
     } else {
-      await PurchaseChallanPdf.generate(challan, party, ph.activeCompany!);
+      final latestSupplier = _getLatestParty(ph, challan.partyId, challan.distributorName);
+      await PurchaseChallanPdf.generate(challan, latestSupplier, ph.activeCompany!);
     }
   }
 
-  // 4. BULK ZIP GENERATOR (Fixed Brackets)
+  // ===========================================================================
+  // 5. BULK ZIP GENERATOR (Batch Export with Live Sync)
+  // ===========================================================================
   static Future<String> createBulkZip({
     required List<Map<String, dynamic>> selectedDrafts,
     required PharoahManager ph,
@@ -64,27 +95,30 @@ class PdfRouterService {
     for (int i = 0; i < selectedDrafts.length; i++) {
       var draft = selectedDrafts[i];
       dynamic billObj = draft['saleObj']; 
-      Party party = draft['party'];
-
-      onProgress((i + 1) / selectedDrafts.length, party.name);
-
+      
       Uint8List pdfBytes;
       String billNo;
 
       if (billObj is Sale) {
-        // ZIP ke andar wahi format jayega jo settings mein set hai (Standard ya Architect)
+        // LIVE SYNC for Bulk PDF
+        final latestParty = _getLatestParty(ph, billObj.partyId, billObj.partyName, gst: billObj.partyGstin, state: billObj.partyState);
+        onProgress((i + 1) / selectedDrafts.length, latestParty.name);
+
         if (config.isArchitectMode) {
-          pdfBytes = await ArchitectSalePdf.generateBytes(billObj, party, shop, config);
+          pdfBytes = await ArchitectSalePdf.generateBytes(billObj, latestParty, shop, config);
         } else {
-          pdfBytes = await SaleInvoicePdf.generateBytes(billObj, party, shop);
+          pdfBytes = await SaleInvoicePdf.generateBytes(billObj, latestParty, shop);
         }
         billNo = billObj.billNo;
       } else {
-        pdfBytes = await PurchasePdf.generateBytes(billObj as Purchase, party, shop);
-        billNo = (billObj as Purchase).billNo;
+        // Purchase logic
+        final latestSupplier = _getLatestParty(ph, (billObj as Purchase).partyId, billObj.distributorName);
+        onProgress((i + 1) / selectedDrafts.length, latestSupplier.name);
+        pdfBytes = await PurchasePdf.generateBytes(billObj, latestSupplier, shop);
+        billNo = billObj.billNo;
       }
 
-      String cleanName = party.name.replaceAll(RegExp(r'[^A-Z0-9]'), '');
+      String cleanName = (billObj is Sale ? billObj.partyName : (billObj as Purchase).distributorName).replaceAll(RegExp(r'[^A-Z0-9]'), '');
       String p5 = cleanName.padRight(5, 'X').substring(0, 5);
       String fileName = "${p5}_$billNo.pdf";
 
@@ -98,4 +132,4 @@ class PdfRouterService {
     
     return zipPath;
   }
-} // Class ends here correctly
+}
