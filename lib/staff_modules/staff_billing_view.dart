@@ -242,9 +242,10 @@ class _StaffBillingViewState extends State<StaffBillingView> {
     final newSale = Sale(
       id: DateTime.now().toString(),
       billNo: widget.billNo,
+      partyId: widget.party.id, // ID Link
       date: widget.billDate,
       partyName: widget.party.name,
-      partyGstin: widget.party.gst, // FIXED TYPO
+      partyGstin: widget.party.gst, 
       partyState: widget.party.state,
       items: items,
       totalAmount: totalAmt,
