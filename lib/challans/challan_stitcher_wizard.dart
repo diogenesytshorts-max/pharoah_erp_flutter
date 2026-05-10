@@ -127,7 +127,8 @@ class _ChallanStitcherWizardState extends State<ChallanStitcherWizard> with Sing
         purBatch.add(Purchase(
             id: DateTime.now().millisecondsSinceEpoch.toString() + finalPurNo,
             internalNo: finalPurNo,
-            billNo: "CH-CONV-$nextPurNum", // Ref No mein bhi wahi digit
+            billNo: "CH-CONV-$nextPurNum", 
+            partyId: b['party'].id, // Link Added
             date: b['date'],
             entryDate: DateTime.now(),
             distributorName: b['party'].name,
