@@ -148,7 +148,6 @@ class _BillingViewState extends State<BillingView> {
         backgroundColor: widget.isReadOnly ? Colors.purple.shade700 : Colors.teal.shade700,
         foregroundColor: Colors.white,
         actions: [
-          // NAYA: Print button updated to send PharoahManager
           IconButton(icon: const Icon(Icons.print_rounded), onPressed: items.isEmpty ? null : () => _printBill(ph)),
           if (!widget.isReadOnly) 
             TextButton(onPressed: items.isEmpty ? null : () => _handleSave(ph), child: const Text("FINISH", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold))),
@@ -238,10 +237,15 @@ class _BillingViewState extends State<BillingView> {
   }
 
   // ===========================================================================
-  // 🔥 UPDATED: PRINT LOGIC WITH FULL SNAPSHOT
+  // 🔥 FINAL FIXED PRINT LOGIC (Discount & RoundOff Included)
   // ===========================================================================
   void _printBill(PharoahManager ph) async {
-    // NAYA: Temporary Sale object mein party ki poori detail pack karna
+    double itemTotal = items.fold(0.0, (sum, it) => sum + it.total);
+    double extraDisc = double.tryParse(discountC.text) ?? 0.0;
+    double rawTotal = itemTotal - extraDisc;
+    double finalGrandTotal = rawTotal.roundToDouble();
+    double roundOffVal = finalGrandTotal - rawTotal;
+
     final saleSnapshot = Sale(
       id: widget.modifySaleId ?? "temp", 
       billNo: billNoC.text, 
@@ -250,7 +254,6 @@ class _BillingViewState extends State<BillingView> {
       partyName: widget.party.name, 
       partyGstin: widget.party.gst, 
       partyState: widget.party.state, 
-      // Snapshot details from current party object
       partyAddress: widget.party.address,
       partyCity: widget.party.city,
       partyPhone: widget.party.phone,
@@ -258,13 +261,12 @@ class _BillingViewState extends State<BillingView> {
       partyDl: widget.party.dl,
       partyPan: widget.party.pan,
       items: items, 
-      totalAmount: totalAmt, 
+      totalAmount: finalGrandTotal, // NAYA: Discounted total bhej rahe hain
       paymentMode: widget.mode, 
-      extraDiscount: double.tryParse(discountC.text) ?? 0.0,
-      roundOff: (totalAmt - (double.tryParse(discountC.text) ?? 0.0)).roundToDouble() - (totalAmt - (double.tryParse(discountC.text) ?? 0.0)),
+      extraDiscount: extraDisc,      // NAYA: Discount pack kar diya
+      roundOff: roundOffVal,         // NAYA: Round-off pack kar diya
     );
 
-    // Universal Router call: Yeh hamesha latest settings use karega
     await PdfRouterService.printSale(sale: saleSnapshot, party: widget.party, ph: ph);
   }
 }
