@@ -106,7 +106,7 @@ class ArchitectSalePdf {
                   _cell("${start + idx + 1}", 25), 
                   _cell(qtyDisplay, 50), // Decimal quantity yahan aayegi
                   _cell(i.packing, 40),
-                  pw.Container(width: 210, padding: const pw.EdgeInsets.only(left: 8), alignment: pw.Alignment.centerLeft, ? pw.Alignment.centerLeft : pw.Alignment.centerLeft, child: pw.Text(i.name, style: const pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold))),
+                  pw.Container(width: 210, padding: const pw.EdgeInsets.only(left: 8), alignment: pw.Alignment.centerLeft, child: pw.Text(i.name, style: const pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold))),
                   _cell(i.batch, 70), _cell(i.exp, 45), _cell(i.hsn, 45),
                   _cell(i.mrp.toStringAsFixed(2), 55), _cell(i.rate.toStringAsFixed(2), 55),
                   _cell("${(i.gstRate / 2).toStringAsFixed(1)}%", 40), _cell("${(i.gstRate / 2).toStringAsFixed(1)}%", 40),
