@@ -78,8 +78,6 @@ class _ChallanStitcherWizardState extends State<ChallanStitcherWizard> with Sing
         // NAYA: Party snapshot ko yahan se uthana hai
         final p = b['party'] as Party;
         
-        // NAYA: Party object ko reference ke liye nikaalna
-        final p = b['party'] as Party;
         
         batchToSave.add(Sale(
           id: DateTime.now().millisecondsSinceEpoch.toString() + finalBillNo,
