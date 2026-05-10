@@ -102,12 +102,16 @@ class SaleChallanPdf {
                   child: pw.Column(children: pageItems.asMap().entries.map((entry) {
                     int sn = start + entry.key + 1;
                     var i = entry.value;
+
+                    // NAYA: Decimal formatting logic
+                    String fmt(double v) => v % 1 == 0 ? v.toInt().toString() : v.toStringAsFixed(1);
+                    String qtyDisplay = "${fmt(i.qty)} + ${fmt(i.freeQty)}";
+
                     return pw.Container(
                       decoration: const pw.BoxDecoration(border: pw.Border(bottom: pw.BorderSide(width: 0.1, color: PdfColors.grey400))),
                       child: pw.Row(children: [
                         _cell("$sn", 25), 
-                        // Smart formatting for decimals
-_cell("${i.qty % 1 == 0 ? i.qty.toInt() : i.qty} + ${i.freeQty % 1 == 0 ? i.freeQty.toInt() : i.freeQty}", 55),
+                        _cell(qtyDisplay, 55), // Smart Qty Fix
                         _cell(i.packing, 45), 
                         _cell(i.name, 210, isLeft: true), 
                         _cell(i.batch, 75), 
