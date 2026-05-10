@@ -163,14 +163,6 @@ class PurchaseItem {
 // ===========================================================================
 
 class Sale { 
-  String id, billNo, partyName, partyGstin, partyState, status, invoiceType, paymentMode, transporterName, transporterId, vehicleNo, salesmanName; 
-  DateTime date; List<BillItem> items; double totalAmount, extraDiscount, roundOff;
-  List<String> linkedChallanIds; 
-
-  // --- NAYE P2P SNAPSHOT FIELDS ---
-  String partyAddress, partyPhone, partyEmail, partyDl, partyPan, partyCity;
-
-  class Sale { 
   String id, billNo, partyId, partyName, partyGstin, partyState, status, invoiceType, paymentMode, transporterName, transporterId, vehicleNo, salesmanName; 
   DateTime date; List<BillItem> items; double totalAmount, extraDiscount, roundOff;
   List<String> linkedChallanIds; 
@@ -204,8 +196,8 @@ class Sale {
   };
   
   factory Sale.fromMap(Map<String, dynamic> map) => Sale(
-    id: map['id'], billNo: map['billNo'], partyId: map['partyId'] ?? "", date: DateTime.parse(map['date']), 
-    partyName: map['partyName'], partyGstin: map['partyGstin'] ?? "", 
+    id: map['id'] ?? '', billNo: map['billNo'] ?? '', partyId: map['partyId'] ?? '', date: DateTime.parse(map['date'] ?? DateTime.now().toIso8601String()), 
+    partyName: map['partyName'] ?? '', partyGstin: map['partyGstin'] ?? "", 
     partyState: map['partyState'] ?? "Rajasthan", paymentMode: map['paymentMode'] ?? "CASH", 
     totalAmount: (map['totalAmount'] ?? 0.0).toDouble(), status: map['status'] ?? "Active", 
     invoiceType: map['invoiceType'] ?? "B2C", 
@@ -213,7 +205,7 @@ class Sale {
     transporterId: map['transporterId'] ?? "", 
     vehicleNo: map['vehicleNo'] ?? "", 
     salesmanName: map['salesmanName'] ?? "", 
-    items: (map['items'] as List).map((i) => BillItem.fromMap(i)).toList(), 
+    items: (map['items'] as List?)?.map((i) => BillItem.fromMap(i)).toList() ?? [], 
     linkedChallanIds: List<String>.from(map['linkedChallanIds'] ?? []),
     extraDiscount: (map['extraDiscount'] ?? 0.0).toDouble(), 
     roundOff: (map['roundOff'] ?? 0.0).toDouble(),
