@@ -237,7 +237,19 @@ class _BillingViewState extends State<BillingView> {
   }
 
   void _printBill(PharoahManager ph) async {
-    final sale = Sale(id: widget.modifySaleId ?? "temp", billNo: billNoC.text, date: selectedBillDate, partyName: widget.party.name, partyGstin: widget.party.gst, partyState: widget.party.state, items: items, totalAmount: totalAmt, paymentMode: widget.mode, extraDiscount: double.tryParse(discountC.text) ?? 0.0);
+    final sale = Sale(
+      id: widget.modifySaleId ?? "temp", 
+      billNo: billNoC.text, 
+      partyId: widget.party.id, // ID Link
+      date: selectedBillDate, 
+      partyName: widget.party.name, 
+      partyGstin: widget.party.gst, 
+      partyState: widget.party.state, 
+      items: items, 
+      totalAmount: totalAmt, 
+      paymentMode: widget.mode, 
+      extraDiscount: double.tryParse(discountC.text) ?? 0.0
+    );
     await PdfRouterService.printSale(sale: sale, party: widget.party, ph: ph);
   }
 }
