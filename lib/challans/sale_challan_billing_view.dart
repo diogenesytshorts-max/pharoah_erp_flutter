@@ -182,9 +182,15 @@ class _SaleChallanBillingViewState extends State<SaleChallanBillingView> {
             onPressed: items.isEmpty ? null : () async {
               if (ph.activeCompany != null) {
                 final tempChallan = SaleChallan(
-                  id: "temp", billNo: widget.challanNo, date: widget.challanDate, 
-                  partyName: widget.party.name, partyGstin: widget.party.gst, 
-                  partyState: widget.party.state, items: items, totalAmount: totalAmt, 
+                  id: "temp", 
+                  billNo: widget.challanNo, 
+                  partyId: widget.party.id, // ID Link Added
+                  date: widget.challanDate, 
+                  partyName: widget.party.name, 
+                  partyGstin: widget.party.gst, 
+                  partyState: widget.party.state, 
+                  items: items, 
+                  totalAmount: totalAmt, 
                   remarks: remarksC.text.trim()
                 );
                 await PdfRouterService.printChallan(
@@ -331,6 +337,7 @@ class _SaleChallanBillingViewState extends State<SaleChallanBillingView> {
     final newChallan = SaleChallan(
       id: DateTime.now().toString(),
       billNo: widget.challanNo,
+      partyId: widget.party.id, // ID Link Added
       date: widget.challanDate,
       partyName: widget.party.name,
       partyGstin: widget.party.gst,
