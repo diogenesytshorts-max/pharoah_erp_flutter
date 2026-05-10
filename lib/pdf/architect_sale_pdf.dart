@@ -74,28 +74,43 @@ class ArchitectSalePdf {
           
 
             // --- TABLE MATH ADJUSTED TO EXACT 800 ---
-            pw.Container(color: PdfColors.grey200, child: pw.Row(children: [
-              _tCol("S.N", 25), _tCol("Qty+Free", 50), _tCol("Pack", 40), 
-              _tCol("Product Description", 230, isLeft: true), 
-              _tCol("Batch", 75), _tCol("Exp", 45), _tCol("HSN", 45),
-              _tCol("MRP", 55), _tCol("Rate", 55), 
-              _tCol("CGST", 40), _tCol("SGST", 40),
-              _tCol("Net Total", 120, isLast: true), 
-            ])),
+            // --- ARCHITECT TABLE HEADER (ALIGNED & CLEAN) ---
+            pw.Container(
+              color: PdfColors.grey200, 
+              decoration: const pw.BoxDecoration(
+                border: pw.Border(bottom: pw.BorderSide(width: 0.5)) // Double line fix: Sirf niche ki line rakhi hai
+              ),
+              child: pw.Row(children: [
+                _tCol("S.N", 25), _tCol("Qty+Free", 50), _tCol("Pack", 40), 
+                _tCol("Product Description", 210, isLeft: true), 
+                _tCol("Batch", 70), _tCol("Exp", 45), _tCol("HSN", 45),
+                _tCol("MRP", 55), _tCol("Rate", 55), 
+                _tCol("CGST", 40), _tCol("SGST", 40),
+                _tCol("Net Total", 125, isLast: true), 
+              ]),
+            ),
 
+            // --- ITEM ROWS (DECIMAL FIX) ---
             pw.Expanded(child: pw.Column(children: pageItems.asMap().entries.map((entry) {
               int idx = entry.key; var i = entry.value;
               bool isShaded = config.useZebraShading && (idx % 2 != 0);
+              
+              // Decimal Logic: Agar 50.0 hai toh 50 dikhaye, 50.5 hai toh 50.5 dikhaye
+              String formatQty(double v) => v % 1 == 0 ? v.toInt().toString() : v.toStringAsFixed(1);
+              String qtyDisplay = "${formatQty(i.qty)}+${formatQty(i.freeQty)}";
+
               return pw.Container(
                 color: isShaded ? PdfColors.grey50 : PdfColors.white,
                 decoration: const pw.BoxDecoration(border: pw.Border(bottom: pw.BorderSide(width: 0.1, color: PdfColors.grey400))),
                 child: pw.Row(children: [
-                  _cell("${start + idx + 1}", 25), _cell("${i.qty.toInt()}+${i.freeQty.toInt()}", 50), _cell(i.packing, 40),
-                  pw.Container(width: 230, padding: const pw.EdgeInsets.only(left: 8), alignment: pw.Alignment.centerLeft, child: pw.Text(i.name, style: const pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold))),
-                  _cell(i.batch, 75), _cell(i.exp, 45), _cell(i.hsn, 45),
+                  _cell("${start + idx + 1}", 25), 
+                  _cell(qtyDisplay, 50), // Decimal quantity yahan aayegi
+                  _cell(i.packing, 40),
+                  pw.Container(width: 210, padding: const pw.EdgeInsets.only(left: 8), alignment: pw.AlphaAlignment.start == null ? pw.Alignment.centerLeft : pw.Alignment.centerLeft, child: pw.Text(i.name, style: const pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold))),
+                  _cell(i.batch, 70), _cell(i.exp, 45), _cell(i.hsn, 45),
                   _cell(i.mrp.toStringAsFixed(2), 55), _cell(i.rate.toStringAsFixed(2), 55),
                   _cell("${(i.gstRate / 2).toStringAsFixed(1)}%", 40), _cell("${(i.gstRate / 2).toStringAsFixed(1)}%", 40),
-                  _cell(i.total.toStringAsFixed(2), 120),
+                  _cell(i.total.toStringAsFixed(2), 125),
                 ]),
               );
             }).toList())),
