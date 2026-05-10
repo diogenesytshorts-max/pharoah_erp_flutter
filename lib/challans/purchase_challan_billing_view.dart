@@ -187,6 +187,7 @@ class _PurchaseChallanBillingViewState extends State<PurchaseChallanBillingView>
                   id: "temp", 
                   internalNo: widget.internalNo, 
                   billNo: widget.supplierChallanNo, 
+                  partyId: widget.distributor.id, // ID Link Added
                   date: widget.challanDate, 
                   distributorName: widget.distributor.name, 
                   items: items, 
