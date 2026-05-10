@@ -43,42 +43,40 @@ class ArchitectSalePdf {
           child: pw.Column(children: [
             // --- ARCHITECT HEADER (TOTAL 800 POINTS) ---
             pw.Row(children: [
-              // Box 1: Shop with Logo (Width: 280)
+              // Box 1: Company Details (Width 280)
               _hBox(280, true, pw.Row(children: [
                 if (config.showLogo && config.logoPath != null && File(config.logoPath!).existsSync())
                   pw.Container(width: 40, height: 40, margin: const pw.EdgeInsets.only(right: 5), child: pw.Image(pw.MemoryImage(File(config.logoPath!).readAsBytesSync()))),
                 pw.Expanded(child: pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
                   pw.Text(shop.name.toUpperCase(), style: pw.TextStyle(fontSize: 13, fontWeight: pw.FontWeight.bold, color: PdfColors.blue900)),
+                  pw.Text(shop.address, style: const pw.TextStyle(fontSize: 7), maxLines: 2),
                   pw.Text("GSTIN: ${shop.gstin} | DL: ${shop.dlNo}", style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold)),
-                  pw.Text("Mob: ${shop.phone}", style: const pw.TextStyle(fontSize: 7)),
-                  pw.Text("Email: ${shop.email.toLowerCase()}", style: const pw.TextStyle(fontSize: 6.5)),
+                  pw.Text("Mob: ${shop.phone} | Email: ${shop.email.toLowerCase()}", style: const pw.TextStyle(fontSize: 6.5)),
                 ])),
               ])),
-              // Box 2: Inv Info (Width: 175)
+              // Box 2: Invoice Info (Width 175)
               _hBox(175, true, pw.Column(children: [
                 pw.Text("TAX INVOICE", style: pw.TextStyle(fontSize: 11, fontWeight: pw.FontWeight.bold)),
                 pw.Divider(thickness: 0.5),
                 pw.Text(sale.billNo, style: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold)),
                 pw.Text(DateFormat('dd/MM/yyyy').format(sale.date), style: const pw.TextStyle(fontSize: 8)),
+                pw.Text(sale.paymentMode.toUpperCase(), style: pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold)),
               ])),
-              // Box 3: Party Snapshot (Width: 345)
+              // Box 3: Party Live Master Details (Width 345)
               _hBox(345, false, pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
                 pw.Text("CONSIGNEE DETAILS:", style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold, color: PdfColors.grey700)),
-                pw.Text(sale.partyName, style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold, color: PdfColors.blue900)),
-                pw.Text("${sale.partyAddress}, ${sale.partyCity}", style: const pw.TextStyle(fontSize: 7.5), maxLines: 2),
-                pw.Text("GSTIN: ${sale.partyGstin} | DL: ${sale.partyDl}", style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold)),
-                pw.Text("Mob: ${sale.partyPhone} | Email: ${sale.partyEmail}", style: const pw.TextStyle(fontSize: 7)),
+                pw.Text(party.name, style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold, color: PdfColors.blue900)),
+                pw.Text("${party.address}, ${party.city}", style: const pw.TextStyle(fontSize: 7.5), maxLines: 2),
+                pw.Text("GSTIN: ${party.gst} | DL: ${party.dl}", style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold)),
+                pw.Text("Mob: ${party.phone} | Email: ${party.email.toLowerCase()}", style: const pw.TextStyle(fontSize: 7)),
               ])),
             ]),
 
-          
-
-            // --- TABLE MATH ADJUSTED TO EXACT 800 ---
             // --- ARCHITECT TABLE HEADER (ALIGNED & CLEAN) ---
             pw.Container(
               color: PdfColors.grey200, 
               decoration: const pw.BoxDecoration(
-                border: pw.Border(bottom: pw.BorderSide(width: 0.5)) // Double line fix: Sirf niche ki line rakhi hai
+                border: pw.Border(bottom: pw.BorderSide(width: 0.5)) 
               ),
               child: pw.Row(children: [
                 _tCol("S.N", 25), _tCol("Qty+Free", 50), _tCol("Pack", 40), 
@@ -90,21 +88,19 @@ class ArchitectSalePdf {
               ]),
             ),
 
-            // --- ITEM ROWS (DECIMAL FIX) ---
+            // --- ITEM ROWS (DECIMAL FIXED) ---
             pw.Expanded(child: pw.Column(children: pageItems.asMap().entries.map((entry) {
               int idx = entry.key; var i = entry.value;
               bool isShaded = config.useZebraShading && (idx % 2 != 0);
-              
-              // Decimal Logic: Agar 50.0 hai toh 50 dikhaye, 50.5 hai toh 50.5 dikhaye
-              String formatQty(double v) => v % 1 == 0 ? v.toInt().toString() : v.toStringAsFixed(1);
-              String qtyDisplay = "${formatQty(i.qty)}+${formatQty(i.freeQty)}";
+              String fmt(double v) => v % 1 == 0 ? v.toInt().toString() : v.toStringAsFixed(1);
+              String qtyDisplay = "${fmt(i.qty)}+${fmt(i.freeQty)}";
 
               return pw.Container(
                 color: isShaded ? PdfColors.grey50 : PdfColors.white,
                 decoration: const pw.BoxDecoration(border: pw.Border(bottom: pw.BorderSide(width: 0.1, color: PdfColors.grey400))),
                 child: pw.Row(children: [
                   _cell("${start + idx + 1}", 25), 
-                  _cell(qtyDisplay, 50), // Decimal quantity yahan aayegi
+                  _cell(qtyDisplay, 50), 
                   _cell(i.packing, 40),
                   pw.Container(width: 210, padding: const pw.EdgeInsets.only(left: 8), alignment: pw.Alignment.centerLeft, child: pw.Text(i.name, style: const pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold))),
                   _cell(i.batch, 70), _cell(i.exp, 45), _cell(i.hsn, 45),
@@ -124,6 +120,7 @@ class ArchitectSalePdf {
     return pdf.save();
   }
 
+  // --- HELPERS (Exact Height 105 & Standard Alignments) ---
   static pw.Widget _hBox(double w, bool b, pw.Widget child) => pw.Container(width: w, height: 105, padding: const pw.EdgeInsets.all(5), decoration: pw.BoxDecoration(border: pw.Border(right: pw.BorderSide(width: b ? 0.5 : 0), bottom: const pw.BorderSide(width: 0.5))), child: child);
   static pw.Widget _tCol(String t, double w, {bool isLast = false, bool isLeft = false}) => pw.Container(width: w, height: 20, alignment: isLeft ? pw.Alignment.centerLeft : pw.Alignment.center, padding: pw.EdgeInsets.only(left: 5), decoration: pw.BoxDecoration(border: pw.Border(right: pw.BorderSide(width: isLast ? 0 : 0.5), bottom: const pw.BorderSide(width: 0.5))), child: pw.Text(t, style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold)));
   static pw.Widget _cell(String t, double w) => pw.Container(width: w, height: 18, alignment: pw.Alignment.center, decoration: const pw.BoxDecoration(border: pw.Border(right: pw.BorderSide(width: 0.2, color: PdfColors.grey))), child: pw.Text(t, style: const pw.TextStyle(fontSize: 7.5)));
@@ -142,7 +139,7 @@ class ArchitectSalePdf {
       pw.Container(width: 250, padding: const pw.EdgeInsets.all(5), decoration: const pw.BoxDecoration(border: pw.Border(right: pw.BorderSide(width: 0.5))), child: pw.Column(children: [
         _fRow("TAXABLE TOTAL", taxableTotal),
         if (isLocal) ...[ _fRow("CGST TOTAL", totalTax / 2), _fRow("SGST TOTAL", totalTax / 2), ] else _fRow("IGST TOTAL", totalTax),
-        if (sale.extraDiscount > 0) _fRow("EXTRA DISCOUNT (-)", sale.extraDiscount), // FIXED
+        if (sale.extraDiscount > 0) _fRow("EXTRA DISCOUNT (-)", sale.extraDiscount),
         _fRow("ROUND OFF", sale.roundOff),
         pw.Divider(thickness: 0.5),
         pw.Row(mainAxisAlignment: pw.MainAxisAlignment.spaceBetween, children: [
