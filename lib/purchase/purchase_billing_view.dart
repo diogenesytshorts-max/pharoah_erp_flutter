@@ -189,6 +189,7 @@ class _PurchaseBillingViewState extends State<PurchaseBillingView> {
                   id: "temp", 
                   internalNo: internalNoC.text, 
                   billNo: distBillNoC.text.trim(), 
+                  partyId: widget.distributor.id, // ID Link
                   date: selectedBillDate, 
                   entryDate: widget.entryDate, 
                   distributorName: widget.distributor.name, 
