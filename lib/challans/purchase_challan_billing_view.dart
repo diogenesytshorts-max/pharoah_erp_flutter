@@ -5,9 +5,9 @@ import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import '../pharoah_manager.dart';
 import '../models.dart';
-import '../purchase/purchase_billing_view.dart'; // Yahan se PurchaseItemEntryCard lenge
+import '../purchase/purchase_billing_view.dart'; 
 import '../product_master.dart';
-import '../pdf/pdf_router_service.dart'; // NAYA: Central Router Import
+import '../pdf/pdf_router_service.dart'; 
 
 class PurchaseChallanBillingView extends StatefulWidget {
   final Party distributor;
@@ -80,7 +80,7 @@ class _PurchaseChallanBillingViewState extends State<PurchaseChallanBillingView>
             child: Container(
               height: MediaQuery.of(context).size.height * 0.85,
               decoration: const BoxDecoration(
-                color: Color(0xFFFFF8E1), // Amber light shade
+                color: Color(0xFFFFF8E1),
                 borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
               ),
               child: Column(
@@ -112,7 +112,7 @@ class _PurchaseChallanBillingViewState extends State<PurchaseChallanBillingView>
                             onPressed: () async {
                               final result = await Navigator.push(
                                 context,
-                                MaterialPageRoute(builder: (c) => ProductMasterView(isSelectionMode: true)),
+                                MaterialPageRoute(builder: (c) => const ProductMasterView(isSelectionMode: true)),
                               );
                               if (result != null && result is Medicine) {
                                 setSheetState(() => selectedMed = result);
@@ -178,7 +178,6 @@ class _PurchaseChallanBillingViewState extends State<PurchaseChallanBillingView>
         backgroundColor: widget.isReadOnly ? Colors.purple.shade700 : Colors.amber.shade900,
         foregroundColor: Colors.white,
         actions: [
-          // NAYA: Print Action updated via Router
           IconButton(
             icon: const Icon(Icons.print_rounded),
             onPressed: items.isEmpty ? null : () async {
@@ -187,20 +186,18 @@ class _PurchaseChallanBillingViewState extends State<PurchaseChallanBillingView>
                   id: "temp", 
                   internalNo: widget.internalNo, 
                   billNo: widget.supplierChallanNo, 
-                  partyId: widget.distributor.id, // ID Link Added
+                  partyId: widget.distributor.id,
                   date: widget.challanDate, 
                   distributorName: widget.distributor.name, 
                   items: items, 
                   totalAmount: totalAmt, 
                   remarks: remarksC.text.trim()
                 );
-
-                // Central Router ko Inward Challan print karne ko bolna
                 await PdfRouterService.printChallan(
                   challan: tempChallan, 
                   party: widget.distributor, 
                   ph: ph, 
-                  isSaleChallan: false // False means Inward/Purchase
+                  isSaleChallan: false 
                 );
               }
             },
@@ -215,9 +212,7 @@ class _PurchaseChallanBillingViewState extends State<PurchaseChallanBillingView>
       body: Column(
         children: [
           _buildHeader(),
-
           if (!widget.isReadOnly) _buildSearchBarTrigger(ph),
-
           Expanded(
             child: items.isEmpty
                 ? const Center(child: Text("Cart is empty"))
@@ -227,7 +222,6 @@ class _PurchaseChallanBillingViewState extends State<PurchaseChallanBillingView>
                     itemBuilder: (c, i) => _buildItemCard(items[i], i, ph),
                   ),
           ),
-          
           _buildFooter(),
         ],
       ),
@@ -286,9 +280,7 @@ class _PurchaseChallanBillingViewState extends State<PurchaseChallanBillingView>
         onTap: widget.isReadOnly ? null : () => _showItemSearchSheet(ph, itemToEdit: it),
       ),
     );
-
     if (widget.isReadOnly) return card;
-
     return Dismissible(
       key: Key(it.id),
       direction: DismissDirection.endToStart,
@@ -340,15 +332,16 @@ class _PurchaseChallanBillingViewState extends State<PurchaseChallanBillingView>
       ph.deletePurchaseChallan(widget.existingRecord!.id);
     }
     ph.finalizePurchaseChallan(
-      billNo: widget.supplierChallanNo, // Corrected from challanNo
+      billNo: widget.supplierChallanNo,
       internalNo: widget.internalNo,
       date: widget.challanDate,
       party: widget.distributor,
       items: items,
       total: totalAmt,
       remarks: remarksC.text.trim(),
-      partyId: widget.distributor.id, // Mandatory ID
+      partyId: widget.distributor.id,
     );
     Navigator.of(context).popUntil((route) => route.isFirst);
     ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("✅ Purchase Challan Saved Successfully!"), backgroundColor: Colors.green));
   }
+}
