@@ -340,15 +340,15 @@ class _PurchaseChallanBillingViewState extends State<PurchaseChallanBillingView>
       ph.deletePurchaseChallan(widget.existingRecord!.id);
     }
     ph.finalizePurchaseChallan(
-      challanNo: widget.supplierChallanNo,
+      billNo: widget.supplierChallanNo, // Corrected from challanNo
       internalNo: widget.internalNo,
       date: widget.challanDate,
       party: widget.distributor,
       items: items,
       total: totalAmt,
       remarks: remarksC.text.trim(),
+      partyId: widget.distributor.id, // Mandatory ID
     );
     Navigator.of(context).popUntil((route) => route.isFirst);
     ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("✅ Purchase Challan Saved Successfully!"), backgroundColor: Colors.green));
   }
-}
