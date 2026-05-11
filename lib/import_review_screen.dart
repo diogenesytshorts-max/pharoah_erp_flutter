@@ -169,9 +169,13 @@ class _ImportReviewScreenState extends State<ImportReviewScreen> {
 
       ph.finalizePurchase(
         internalNo: "P2P-PUR-${DateTime.now().millisecondsSinceEpoch.toString().substring(7)}",
-        billNo: senderInfo['billNo'], partyId: targetParty.id,
-        date: DateFormat('dd/MM/yyyy').parse(senderInfo['date']), entryDate: DateTime.now(),
-        party: targetParty, items: finalItems, total: finalItems.fold(0, (s, i) => s + i.total), mode: "CREDIT"
+        billNo: senderInfo['billNo'], 
+        date: DateFormat('dd/MM/yyyy').parse(senderInfo['date']), 
+        entryDate: DateTime.now(),
+        party: targetParty, 
+        items: finalItems, 
+        total: finalItems.fold(0, (s, i) => s + i.total), 
+        mode: "CREDIT"
       );
     } 
     else {
