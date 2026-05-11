@@ -15,7 +15,13 @@ import 'csv_engine.dart';
 
 class ExportSelectorView extends StatefulWidget {
   final String exportType; // "SALE" or "PURCHASE"
-  const ExportSelectorView({super.key, required this.exportType});
+  final bool maskPurchaseRate; // NAYA: C2V mode ke liye true aayega
+
+  const ExportSelectorView({
+    super.key, 
+    required this.exportType, 
+    this.maskPurchaseRate = false
+  });
 
   @override State<ExportSelectorView> createState() => _ExportSelectorViewState();
 }
@@ -29,18 +35,14 @@ class _ExportSelectorViewState extends State<ExportSelectorView> {
   Widget build(BuildContext context) {
     final ph = Provider.of<PharoahManager>(context);
     
-    // 1. Data Source Selection (Sales or Purchases)
+    // 1. Logic: Filter Source (Sale/Purchase)
     List<dynamic> source = widget.exportType == "SALE" ? ph.sales : ph.purchases;
-    
-    // Active bills only if Sale
     if (widget.exportType == "SALE") {
       source = source.where((s) => s.status == "Active").toList();
     }
-    
-    // Latest bills at top
     source = source.reversed.toList();
 
-    // 2. Filter Logic (Search by Name or Specific Party select)
+    // 2. Logic: Search Filter
     List<dynamic> filtered = source.where((b) {
       String pName = widget.exportType == "SALE" ? (b as Sale).partyName : (b as Purchase).distributorName;
       bool matchesSearch = pName.toLowerCase().contains(partySearch.toLowerCase());
@@ -51,21 +53,22 @@ class _ExportSelectorViewState extends State<ExportSelectorView> {
     return Scaffold(
       backgroundColor: const Color(0xFFF5F6F9),
       appBar: AppBar(
-        title: Text("Export ${widget.exportType} to CSV"), 
+        title: Text("${widget.exportType} Export (${widget.maskPurchaseRate ? 'C2V' : 'C2C'})", 
+              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)), 
         backgroundColor: Colors.indigo.shade800, 
         foregroundColor: Colors.white,
         elevation: 0,
       ),
       body: Column(children: [
-        // --- FILTER BAR ---
+        // --- SEARCH/PARTY SELECTOR ---
         Container(
           padding: const EdgeInsets.all(15), color: Colors.white,
           child: targetParty == null 
             ? TextField(
                 decoration: InputDecoration(
-                  hintText: "Search Party/Supplier to Export...", 
+                  hintText: "Search Ledger to export...", 
                   prefixIcon: const Icon(Icons.person_search, color: Colors.indigo), 
-                  filled: true, fillColor: Colors.grey.shade50,
+                  filled: true, fillColor: Colors.grey.shade100,
                   border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none)
                 ), 
                 onChanged: (v) => setState(() => partySearch = v)
@@ -75,40 +78,32 @@ class _ExportSelectorViewState extends State<ExportSelectorView> {
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)), 
                 leading: const Icon(Icons.person, color: Colors.indigo), 
                 title: Text(targetParty!.name, style: const TextStyle(fontWeight: FontWeight.bold)), 
-                trailing: IconButton(
-                  icon: const Icon(Icons.close, color: Colors.red), 
-                  onPressed: () => setState(() { targetParty = null; selectedIds.clear(); })
-                )
+                trailing: IconButton(icon: const Icon(Icons.close, color: Colors.red), onPressed: () => setState(() { targetParty = null; selectedIds.clear(); }))
               ),
         ),
 
-        // --- SELECTION UTILITY ---
+        // --- UTILITY BAR ---
         if (filtered.isNotEmpty) 
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 10), 
+            padding: const EdgeInsets.all(15), 
             child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-              Text("${filtered.length} Bills Available", style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.blueGrey)),
+              Text("${filtered.length} Bills", style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.blueGrey)),
               TextButton.icon(
                 onPressed: () {
                   setState(() {
-                    if (selectedIds.length == filtered.length) {
-                      selectedIds.clear();
-                    } else {
-                      selectedIds = filtered.map((e) => (widget.exportType == "SALE" ? (e as Sale).id : (e as Purchase).id)).toList();
-                    }
+                    if (selectedIds.length == filtered.length) selectedIds.clear();
+                    else selectedIds = filtered.map((e) => (widget.exportType == "SALE" ? (e as Sale).id : (e as Purchase).id)).toList();
                   });
                 }, 
-                icon: Icon(selectedIds.length == filtered.length ? Icons.deselect : Icons.select_all),
+                icon: const Icon(Icons.select_all, size: 18),
                 label: Text(selectedIds.length == filtered.length ? "UNSELECT ALL" : "SELECT ALL")
               ),
             ])
           ),
 
-        // --- BILLS LIST ---
+        // --- BILLS CHECKLIST ---
         Expanded(
-          child: filtered.isEmpty 
-            ? Center(child: Text("No ${widget.exportType} bills found.", style: const TextStyle(color: Colors.grey)))
-            : ListView.builder(
+          child: ListView.builder(
                 padding: const EdgeInsets.only(bottom: 100),
                 itemCount: filtered.length, 
                 itemBuilder: (c, i) {
@@ -122,19 +117,15 @@ class _ExportSelectorViewState extends State<ExportSelectorView> {
                   final isSel = selectedIds.contains(bId);
                   return Card(
                     margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4), 
-                    elevation: 1,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    elevation: 1, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                     child: CheckboxListTile(
                       activeColor: Colors.indigo, 
                       value: isSel, 
-                      title: Text(pName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)), 
-                      subtitle: Text("Inv: $bNo | Date: ${DateFormat('dd/MM/yy').format(dt)}"), 
+                      title: Text(pName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)), 
+                      subtitle: Text("Invoice: $bNo | ${DateFormat('dd/MM/yy').format(dt)}"), 
                       secondary: Text("₹${amt.toStringAsFixed(0)}", style: const TextStyle(fontWeight: FontWeight.w900, color: Colors.indigo)), 
                       onChanged: (v) {
-                        setState(() {
-                          if (v!) { selectedIds.add(bId); } 
-                          else { selectedIds.remove(bId); }
-                        });
+                        setState(() { if (v!) selectedIds.add(bId); else selectedIds.remove(bId); });
                       },
                     )
                   );
@@ -143,75 +134,71 @@ class _ExportSelectorViewState extends State<ExportSelectorView> {
         ),
       ]),
       
-      // --- ACTION BUTTONS ---
+      // --- FINAL ACTIONS ---
       bottomNavigationBar: selectedIds.isEmpty ? null : Container(
         padding: const EdgeInsets.all(20), 
         decoration: const BoxDecoration(color: Colors.white, boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 15, offset: Offset(0, -5))]),
         child: Row(children: [
           Expanded(child: ElevatedButton.icon(
             style: ElevatedButton.styleFrom(backgroundColor: Colors.green.shade700, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(vertical: 15), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))), 
-            onPressed: () => _handleExportProcess(filtered, "SHARE"), 
-            icon: const Icon(Icons.share), 
-            label: const Text("SHARE CSV", style: TextStyle(fontWeight: FontWeight.bold)))),
+            onPressed: () => _startExport(filtered, "SHARE"), 
+            icon: const Icon(Icons.share), label: const Text("SHARE CSV", style: TextStyle(fontWeight: FontWeight.bold)))),
           const SizedBox(width: 15),
           Expanded(child: ElevatedButton.icon(
             style: ElevatedButton.styleFrom(backgroundColor: Colors.blue.shade900, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(vertical: 15), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))), 
-            onPressed: () => _handleExportProcess(filtered, "SAVE"), 
-            icon: const Icon(Icons.download_for_offline), 
-            label: const Text("SAVE FILE", style: TextStyle(fontWeight: FontWeight.bold)))),
+            onPressed: () => _startExport(filtered, "SAVE"), 
+            icon: const Icon(Icons.download), label: const Text("SAVE FILE", style: TextStyle(fontWeight: FontWeight.bold)))),
         ]),
       ),
     );
   }
 
   // ===========================================================================
-  // 🔥 FINAL SURGICAL FIX: Passing ALL Master Data to 36-Column Engine
+  // 🔥 FINAL EXPORT LOGIC: CALLING 36-COLUMN ENGINE
   // ===========================================================================
-  void _handleExportProcess(List<dynamic> allBills, String mode) async {
+  void _startExport(List<dynamic> all, String mode) async {
     final ph = Provider.of<PharoahManager>(context, listen: false);
     
-    // Filter out only selected bills
-    List<dynamic> selectedData = allBills.where((b) {
+    // Filter selected items
+    List<dynamic> selected = all.where((b) {
       String id = widget.exportType == "SALE" ? (b as Sale).id : (b as Purchase).id;
       return selectedIds.contains(id);
     }).toList();
     
-    String csvContent = "";
+    String csv = "";
 
-    // Hum ab Universal 36-column engine ko call kar rahe hain
     if (widget.exportType == "SALE") {
-      csvContent = CsvEngine.convertSalesToCsv(
-        sales: selectedData.cast<Sale>(), 
+      csv = CsvEngine.convertSalesToCsv(
+        sales: selected.cast<Sale>(), 
         shop: ph.activeCompany!,
         allMeds: ph.medicines,
         allComps: ph.companies,
         allSalts: ph.salts,
+        allParties: ph.parties,
+        maskPurchaseRate: widget.maskPurchaseRate, // PRIVACY COMMAND
       );
     } else {
-      csvContent = CsvEngine.convertPurchasesToCsv(
-        purchases: selectedData.cast<Purchase>(), 
+      csv = CsvEngine.convertPurchasesToCsv(
+        purchases: selected.cast<Purchase>(), 
         shop: ph.activeCompany!,
         allMeds: ph.medicines,
         allComps: ph.companies,
         allSalts: ph.salts,
-        allParties: ph.parties, // Yahan se N/A khatam hoga
+        allParties: ph.parties,
       );
     }
 
-    String timestamp = DateFormat('ddMMM_HHmm').format(DateTime.now());
-    String fileName = "${widget.exportType}_EXPORT_$timestamp";
+    String fn = "${widget.exportType}_${DateFormat('ddMMM_HHmm').format(DateTime.now())}";
 
     if (mode == "SHARE") {
       final dir = await getTemporaryDirectory();
-      final file = File('${dir.path}/$fileName.csv');
-      await file.writeAsString(csvContent);
+      final file = File('${dir.path}/$fn.csv');
+      await file.writeAsString(csv);
       await Share.shareXFiles([XFile(file.path)], subject: "Pharoah Data Export");
     } else {
-      Uint8List bytes = Uint8List.fromList(utf8.encode(csvContent));
-      await FileSaver.instance.saveAs(name: fileName, bytes: bytes, ext: "csv", mimeType: MimeType.csv);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("✅ CSV File Ready with 36-column Data Sync!"), backgroundColor: Colors.green));
-      }
+      Uint8List bytes = Uint8List.fromList(utf8.encode(csv));
+      await FileSaver.instance.saveAs(name: fn, bytes: bytes, ext: "csv", mimeType: MimeType.csv);
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("✅ CSV Exported successfully!"), backgroundColor: Colors.green));
     }
   }
 }
