@@ -1,4 +1,5 @@
 // FILE: lib/pharoah_manager.dart
+
 import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
@@ -16,9 +17,14 @@ import 'logic/pharoah_numbering_engine.dart';
 import 'master_data_library.dart';
 
 class PharoahManager with ChangeNotifier {
+  // --- NAVIGATION STATE ---
   String activeModule = "HOME"; 
-  void updateModule(String n) { activeModule = n; notifyListeners(); }
+  void updateModule(String newModule) {
+    activeModule = newModule;
+    notifyListeners();
+  }
 
+  // --- DYNAMIC MENU ACTIONS ---
   List<ModuleAction> get mainMenuActions => [
     ModuleAction(title: "BILLING", icon: Icons.receipt_long, color: Colors.blue, navModule: "BILLING"),
     ModuleAction(title: "CHALLANS", icon: Icons.local_shipping, color: Colors.teal, navModule: "CHALLANS"),
@@ -83,24 +89,46 @@ class PharoahManager with ChangeNotifier {
     ModuleAction(title: "Portal", icon: Icons.fact_check, color: Colors.teal, navModule: "GO_GST_RECON"),
   ];
 
-  List<Medicine> medicines = []; List<SystemUser> systemUsers = []; SystemUser? loggedInStaff;
-  List<Party> parties = []; List<RouteArea> routes = []; List<Company> companies = [];
-  List<Salt> salts = []; List<DrugType> drugTypes = []; List<Bank> banks = [];
-  List<ChequeEntry> cheques = []; List<ShortageItem> shortages = [];
-  List<NumberingSeries> numberingSeries = []; List<Sale> sales = []; List<Purchase> purchases = [];
-  List<SaleChallan> saleChallans = []; List<PurchaseChallan> purchaseChallans = [];
-  List<SaleReturn> saleReturns = []; List<PurchaseReturn> purchaseReturns = [];
-  List<Voucher> vouchers = []; List<LogEntry> logs = []; 
+  // --- DATA LISTS ---
+  List<Medicine> medicines = []; 
+  List<SystemUser> systemUsers = []; 
+  SystemUser? loggedInStaff;
+  List<Party> parties = []; 
+  List<RouteArea> routes = []; 
+  List<Company> companies = [];
+  List<Salt> salts = []; 
+  List<DrugType> drugTypes = []; 
+  List<Bank> banks = [];
+  List<ChequeEntry> cheques = []; 
+  List<ShortageItem> shortages = [];
+  List<NumberingSeries> numberingSeries = []; 
+  List<Sale> sales = []; 
+  List<Purchase> purchases = [];
+  List<SaleChallan> saleChallans = []; 
+  List<PurchaseChallan> purchaseChallans = [];
+  List<SaleReturn> saleReturns = []; 
+  List<PurchaseReturn> purchaseReturns = [];
+  List<Voucher> vouchers = []; 
+  List<LogEntry> logs = []; 
   Map<String, List<BatchInfo>> batchHistory = {};
-  AppConfig config = AppConfig(); List<CompanyProfile> companiesRegistry = [];
-  CompanyProfile? activeCompany; String currentFY = ""; bool isAdminAuthenticated = false;
+  AppConfig config = AppConfig(); 
+  List<CompanyProfile> companiesRegistry = [];
+  CompanyProfile? activeCompany; 
+  String currentFY = ""; 
+  bool isAdminAuthenticated = false;
 
   PharoahManager() { initRegistry(); }
 
+  // --- REGISTRY & SESSION ---
   Future<void> initRegistry() async {
     final root = await getApplicationDocumentsDirectory(); 
     final file = File('${root.path}/pharoah_registry.json');
-    if (await file.exists()) { try { List l = jsonDecode(await file.readAsString()); companiesRegistry = l.map((e) => CompanyProfile.fromMap(e)).toList(); } catch (e) {} }
+    if (await file.exists()) { 
+      try { 
+        List l = jsonDecode(await file.readAsString()); 
+        companiesRegistry = l.map((e) => CompanyProfile.fromMap(e)).toList(); 
+      } catch (e) { debugPrint("Registry error: $e"); } 
+    }
     notifyListeners();
   }
 
@@ -110,9 +138,24 @@ class PharoahManager with ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> loginToCompany(CompanyProfile c, String fy) async { activeCompany = c; currentFY = fy; await loadAllData(); }
-  void clearSession() { activeCompany = null; currentFY = ""; isAdminAuthenticated = false; loggedInStaff = null; notifyListeners(); }
-  void authenticateAdmin(bool s) { isAdminAuthenticated = s; notifyListeners(); }
+  Future<void> loginToCompany(CompanyProfile c, String fy) async { 
+    activeCompany = c; 
+    currentFY = fy; 
+    await loadAllData(); 
+  }
+
+  void clearSession() { 
+    activeCompany = null; 
+    currentFY = ""; 
+    isAdminAuthenticated = false; 
+    loggedInStaff = null; 
+    notifyListeners(); 
+  }
+
+  void authenticateAdmin(bool s) { 
+    isAdminAuthenticated = s; 
+    notifyListeners(); 
+  }
 
   Future<String> getWorkingPath() async {
     if (activeCompany == null || currentFY.isEmpty) return "";
@@ -122,48 +165,78 @@ class PharoahManager with ChangeNotifier {
     return dir.path;
   }
 
+  // --- PERSISTENCE ---
   Future<void> save() async {
-    final dir = await getWorkingPath(); if (dir.isEmpty) return;
+    final dir = await getWorkingPath(); 
+    if (dir.isEmpty) return;
     Future _w(String n, List data) async => await File('$dir/$n').writeAsString(jsonEncode(data.map((e) => e.toMap()).toList()));
-    await _w('meds.json', medicines); await _w('parts.json', parties); await _w('sales.json', sales);
-    await _w('purc.json', purchases); await _w('vouc.json', vouchers); await _w('sys_users.json', systemUsers);
-    await _w('series.json', numberingSeries); await _w('s_challan.json', saleChallans); await _w('p_challan.json', purchaseChallans);
-    await _w('s_return.json', saleReturns); await _w('p_return.json', purchaseReturns); await _w('cheques.json', cheques);
-    await _w('shortage.json', shortages); await _w('logs.json', logs); await _w('routs.json', routes);
-    await _w('comps.json', companies); await _w('salts.json', salts); await _w('dtypes.json', drugTypes); await _w('banks.json', banks);
+    await _w('meds.json', medicines); 
+    await _w('parts.json', parties); 
+    await _w('sales.json', sales);
+    await _w('purc.json', purchases); 
+    await _w('vouc.json', vouchers); 
+    await _w('sys_users.json', systemUsers);
+    await _w('series.json', numberingSeries); 
+    await _w('s_challan.json', saleChallans); 
+    await _w('p_challan.json', purchaseChallans);
+    await _w('s_return.json', saleReturns); 
+    await _w('p_return.json', purchaseReturns); 
+    await _w('cheques.json', cheques);
+    await _w('shortage.json', shortages); 
+    await _w('logs.json', logs); 
+    await _w('routs.json', routes);
+    await _w('comps.json', companies); 
+    await _w('salts.json', salts); 
+    await _w('dtypes.json', drugTypes); 
+    await _w('banks.json', banks);
     await File('$dir/bats.json').writeAsString(jsonEncode(batchHistory.map((k, v) => MapEntry(k, v.map((b) => b.toMap()).toList()))));
     await File('$dir/config.json').writeAsString(jsonEncode(config.toMap()));
     notifyListeners();
   }
 
   Future<void> loadAllData() async {
-    final dir = await getWorkingPath(); if (dir.isEmpty) return;
-    dynamic _l(String n) { final f = File('$dir/$n'); return f.existsSync() ? jsonDecode(f.readAsStringSync()) : null; }
-    var cD = _l('config.json'); if (cD != null) config = AppConfig.fromMap(cD);
-    medicines = (_l('meds.json') as List?)?.map((e) => Medicine.fromMap(e)).toList() ?? DemoData.getMedicines();
-    parties = (_l('parts.json') as List?)?.map((e) => Party.fromMap(e)).toList() ?? [Party(id:'cash',name:"CASH",group:"Cash in Hand")];
-    sales = (_l('sales.json') as List?)?.map((e) => Sale.fromMap(e)).toList() ?? [];
-    purchases = (_l('purc.json') as List?)?.map((e) => Purchase.fromMap(e)).toList() ?? [];
-    vouchers = (_l('vouc.json') as List?)?.map((e) => Voucher.fromMap(e)).toList() ?? [];
-    saleChallans = (_l('s_challan.json') as List?)?.map((e) => SaleChallan.fromMap(e)).toList() ?? [];
-    purchaseChallans = (_l('p_challan.json') as List?)?.map((e) => PurchaseChallan.fromMap(e)).toList() ?? [];
-    saleReturns = (_l('s_return.json') as List?)?.map((e) => SaleReturn.fromMap(e)).toList() ?? [];
-    purchaseReturns = (_l('p_return.json') as List?)?.map((e) => PurchaseReturn.fromMap(e)).toList() ?? [];
-    cheques = (_l('cheques.json') as List?)?.map((e) => ChequeEntry.fromMap(e)).toList() ?? [];
-    shortages = (_l('shortage.json') as List?)?.map((e) => ShortageItem.fromMap(e)).toList() ?? [];
-    logs = (_l('logs.json') as List?)?.map((e) => LogEntry.fromMap(e)).toList() ?? [];
-    routes = (_l('routs.json') as List?)?.map((e) => RouteArea.fromMap(e)).toList() ?? [];
-    banks = (_l('banks.json') as List?)?.map((e) => Bank.fromMap(e)).toList() ?? [];
-    var sD = _l('series.json'); if (sD!=null) numberingSeries = (sD as List).map((e)=>NumberingSeries.fromMap(e)).toList();
-    var uD = _l('sys_users.json'); if (uD!=null) systemUsers = (uD as List).map((e)=>SystemUser.fromMap(e)).toList();
-    var bD = _l('bats.json'); if (bD!=null) { batchHistory.clear(); (bD as Map).forEach((k,v)=>batchHistory[k]=(v as List).map((b)=>BatchInfo.fromMap(b)).toList()); }
+    final dir = await getWorkingPath(); 
+    if (dir.isEmpty) return;
+    dynamic load(String n) { final f = File('$dir/$n'); return f.existsSync() ? jsonDecode(f.readAsStringSync()) : null; }
+    var cData = load('config.json');
+    if (cData != null) config = AppConfig.fromMap(cData);
+    else config = AppConfig();
+    
+    medicines = (load('meds.json') as List?)?.map((e) => Medicine.fromMap(e)).toList() ?? DemoData.getMedicines();
+    parties = (load('parts.json') as List?)?.map((e) => Party.fromMap(e)).toList() ?? [Party(id:'cash',name:"CASH",group:"Cash in Hand")];
+    companies = (load('comps.json') as List?)?.map((e) => Company.fromMap(e)).toList() ?? MasterDataLibrary.getTopCompanies();
+    salts = (load('salts.json') as List?)?.map((e) => Salt.fromMap(e)).toList() ?? MasterDataLibrary.getTopSalts();
+    drugTypes = (load('dtypes.json') as List?)?.map((e) => DrugType.fromMap(e)).toList() ?? MasterDataLibrary.getDrugTypes();
+    sales = (load('sales.json') as List?)?.map((e) => Sale.fromMap(e)).toList() ?? [];
+    purchases = (load('purc.json') as List?)?.map((e) => Purchase.fromMap(e)).toList() ?? [];
+    vouchers = (load('vouc.json') as List?)?.map((e) => Voucher.fromMap(e)).toList() ?? [];
+    saleChallans = (load('s_challan.json') as List?)?.map((e) => SaleChallan.fromMap(e)).toList() ?? [];
+    purchaseChallans = (load('p_challan.json') as List?)?.map((e) => PurchaseChallan.fromMap(e)).toList() ?? [];
+    saleReturns = (load('s_return.json') as List?)?.map((e) => SaleReturn.fromMap(e)).toList() ?? [];
+    purchaseReturns = (load('p_return.json') as List?)?.map((e) => PurchaseReturn.fromMap(e)).toList() ?? [];
+    cheques = (load('cheques.json') as List?)?.map((e) => ChequeEntry.fromMap(e)).toList() ?? [];
+    shortages = (load('shortage.json') as List?)?.map((e) => ShortageItem.fromMap(e)).toList() ?? [];
+    logs = (load('logs.json') as List?)?.map((e) => LogEntry.fromMap(e)).toList() ?? [];
+    routes = (load('routs.json') as List?)?.map((e) => RouteArea.fromMap(e)).toList() ?? [];
+    banks = (load('banks.json') as List?)?.map((e) => Bank.fromMap(e)).toList() ?? [];
+    
+    var sD = load('series.json'); if (sD!=null) numberingSeries = (sD as List).map((e)=>NumberingSeries.fromMap(e)).toList();
+    var uD = load('sys_users.json'); if (uD!=null) systemUsers = (uD as List).map((e)=>SystemUser.fromMap(e)).toList();
+    var bD = load('bats.json'); if (bD!=null) { batchHistory.clear(); (bD as Map).forEach((k,v)=>batchHistory[k]=(v as List).map((b)=>BatchInfo.fromMap(b)).toList()); }
+    
     InventoryLogicCenter.rebuildAllInventory(medicines: medicines, batchHistory: batchHistory, purchases: purchases, sales: sales);
     notifyListeners();
   }
 
+  // ===========================================================================
+  // MASTER HELPERS
+  // ===========================================================================
   String getOrCreateCompany(String n) { try { return companies.firstWhere((c) => c.name.toUpperCase() == n.trim().toUpperCase()).id; } catch (e) { String id = "CP-${1000 + companies.length + 1}"; companies.add(Company(id: id, name: n.trim().toUpperCase())); save(); return id; } }
   String getOrCreateSalt(String n) { try { return salts.firstWhere((s) => s.name.toUpperCase() == n.trim().toUpperCase()).id; } catch (e) { String id = "SL-${1000 + salts.length + 1}"; salts.add(Salt(id: id, name: n.trim().toUpperCase())); save(); return id; } }
 
+  // ===========================================================================
+  // TRANSACTIONS
+  // ===========================================================================
   Future<void> finalizeSale({required String billNo, required DateTime date, required Party party, required List<BillItem> items, required double total, required String mode, List<String>? linkedIds, double extraDiscount = 0.0, double roundOff = 0.0, String sourceTag = ""}) async { 
     final p = parties.firstWhere((pt) => pt.id == party.id, orElse: () => party);
     sales.add(Sale(id: DateTime.now().toString(), billNo: billNo, partyId: p.id, date: date, partyName: p.name, partyGstin: p.gst, partyState: p.state, items: items, totalAmount: total, paymentMode: mode, linkedChallanIds: linkedIds ?? [], extraDiscount: extraDiscount, roundOff: roundOff, partyAddress: p.address, partyPhone: p.phone, partyEmail: p.email, partyDl: p.dl, partyPan: p.pan, partyCity: p.city, sourceTag: sourceTag)); 
@@ -182,16 +255,19 @@ class PharoahManager with ChangeNotifier {
   Future<void> finalizeBatchSales(List<Sale> batch) async { sales.addAll(batch); for (var s in batch) { if (s.linkedChallanIds.isNotEmpty) { for (var id in s.linkedChallanIds) { int i = saleChallans.indexWhere((c) => c.id == id); if (i != -1) saleChallans[i].status = "Billed"; } } } if (batch.isNotEmpty && activeCompany != null) { String l = batch.last.billNo; String p = l.split(RegExp(r'\d')).first; await PharoahNumberingEngine.updateSeriesCounter(type: "SALE", companyID: activeCompany!.id, usedNumber: l, prefix: p); } await save(); InventoryLogicCenter.rebuildAllInventory(medicines: medicines, batchHistory: batchHistory, purchases: purchases, sales: sales); notifyListeners(); }
   Future<void> finalizeBatchPurchases(List<Purchase> batch) async { purchases.addAll(batch); for (var p in batch) { if (p.linkedChallanIds.isNotEmpty) { for (var id in p.linkedChallanIds) { int i = purchaseChallans.indexWhere((c) => c.id == id); if (i != -1) purchaseChallans[i].status = "Billed"; } } } await save(); InventoryLogicCenter.rebuildAllInventory(medicines: medicines, batchHistory: batchHistory, purchases: purchases, sales: sales); notifyListeners(); }
 
+  // --- UPDATES ---
   void updatePurchase({required String id, required String internalNo, required String billNo, required DateTime date, DateTime? entryDate, required Party party, required List<PurchaseItem> items, required double total, required String mode, required List<String> linkedChallanIds}) { int i = purchases.indexWhere((p) => p.id == id); if (i == -1) return; String t = purchases[i].sourceTag; purchases[i] = Purchase(id: id, internalNo: internalNo, billNo: billNo, partyId: party.id, date: date, entryDate: entryDate ?? DateTime.now(), distributorName: party.name, items: items, totalAmount: total, paymentMode: mode, linkedChallanIds: linkedChallanIds, sourceTag: t); save().then((_) => loadAllData()); }
   void updateSale({required String id, required String billNo, required DateTime date, required Party party, required List<BillItem> items, required double total, required String mode, required List<String> linkedChallanIds, double extraDiscount = 0.0, double roundOff = 0.0}) { int i = sales.indexWhere((s) => s.id == id); if (i == -1) return; String t = sales[i].sourceTag; sales[i] = Sale(id: id, billNo: billNo, partyId: party.id, date: date, partyName: party.name, partyGstin: party.gst, partyState: party.state, items: items, totalAmount: total, paymentMode: mode, linkedChallanIds: linkedChallanIds, extraDiscount: extraDiscount, roundOff: roundOff, sourceTag: t); save().then((_) => loadAllData()); }
   void updateSystemUser(SystemUser u) { int i = systemUsers.indexWhere((x) => x.id == u.id); if(i != -1) { systemUsers[i] = u; save(); } }
   void updateNumberingSeries(NumberingSeries ns) { int i = numberingSeries.indexWhere((x) => x.id == ns.id); if(i != -1) { numberingSeries[i] = ns; save(); } }
 
+  // --- RETURNS & CHALLANS ---
   void finalizeSaleChallan({required String billNo, required DateTime date, required Party party, required List<BillItem> items, required double total, String remarks = "", required String partyId}) { saleChallans.add(SaleChallan(id: DateTime.now().toString(), billNo: billNo, partyId: partyId, date: date, partyName: party.name, partyGstin: party.gst, partyState: party.state, items: items, totalAmount: total, remarks: remarks)); save(); }
   void finalizePurchaseChallan({required String billNo, required String internalNo, required DateTime date, required Party party, required List<PurchaseItem> items, required double total, String remarks = "", required String partyId}) { purchaseChallans.add(PurchaseChallan(id: DateTime.now().toString(), internalNo: internalNo, billNo: billNo, partyId: partyId, date: date, distributorName: party.name, items: items, totalAmount: total, remarks: remarks)); save(); }
   void finalizeSaleReturn({required String billNo, required DateTime date, required Party party, required List<BillItem> items, required double total, String type = "Sellable"}) { saleReturns.add(SaleReturn(id: DateTime.now().toString(), billNo: billNo, date: date, partyName: party.name, items: items, totalAmount: total, returnType: type)); save().then((_) => loadAllData()); }
   void finalizePurchaseReturn({required String billNo, required DateTime date, required Party party, required List<PurchaseItem> items, required double total, String type = "Breakage"}) { purchaseReturns.add(PurchaseReturn(id: DateTime.now().toString(), billNo: billNo, distributorName: party.name, date: date, items: items, totalAmount: total, status: "Active", returnType: type)); save().then((_) => loadAllData()); }
 
+  // --- DELETE & TOOLS ---
   Future<void> addSignatureToChallan({required String challanId, required String imagePath, required String code, required double amount, required double qty, required double x, required double y}) async { int idx = saleChallans.indexWhere((c) => c.id == challanId); if (idx != -1) { final s = ChallanSignature(id: DateTime.now().toString(), imagePath: imagePath, verificationCode: code, signedAmount: amount, signedQty: qty, signDate: DateTime.now(), signX: x, signY: y); List<ChallanSignature> h = List.from(saleChallans[idx].sigHistory); h.add(s); saleChallans[idx].sigHistory = h; saleChallans[idx].isSigned = true; save(); } }
   Future<String> saveSignatureFile(String cNo, Uint8List b) async { final r = await getApplicationDocumentsDirectory(); final d = Directory('${r.path}/Pharoah_Data/${activeCompany!.id}/Signatures'); if (!await d.exists()) await d.create(recursive: true); final f = File('${d.path}/Sign_${cNo}_${DateTime.now().millisecondsSinceEpoch}.png'); await f.writeAsBytes(b); return f.path; }
   void deleteBill(String id) { try { final s = sales.firstWhere((x) => x.id == id); if (s.linkedChallanIds.isNotEmpty) { for (var cid in s.linkedChallanIds) { int i = saleChallans.indexWhere((c) => c.id == cid); if (i != -1) saleChallans[i].status = "Pending"; } } sales.removeWhere((x) => x.id == id); save().then((_) => loadAllData()); } catch (e) {} }
