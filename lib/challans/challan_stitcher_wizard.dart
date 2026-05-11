@@ -73,34 +73,29 @@ class _ChallanStitcherWizardState extends State<ChallanStitcherWizard> with Sing
       String startNoStr = await PharoahNumberingEngine.getNextNumber(type: "SALE", companyID: ph.activeCompany!.id, prefix: series.prefix, startFrom: series.startNumber, currentList: ph.sales);
       int nextNum = int.parse(startNoStr.replaceAll(series.prefix, ""));
 
+      // Line 80 ke aas-paas _handleBatchSave ke andar
+
       for (var b in selected) {
         String finalBillNo = "${series.prefix}$nextNum";
-        // NAYA: Party snapshot ko yahan se uthana hai
-        final p = b['party'] as Party;
-        
-        
+        final Party pRef = b['party'] as Party; // Renamed to pRef to avoid conflict
+
         batchToSave.add(Sale(
           id: DateTime.now().millisecondsSinceEpoch.toString() + finalBillNo,
           billNo: finalBillNo,
-          partyId: p.id, // ID link preserve ki
+          partyId: pRef.id, 
           date: b['date'],
-          partyName: p.name,
-          partyGstin: p.gst,
-          partyState: p.state,
-          // --- SNAPSHOT DATA COPY START ---
-          partyAddress: p.address,
-          partyCity: p.city,
-          partyPhone: p.phone,
-          partyEmail: p.email,
-          partyDl: p.dl,
-          partyPan: p.pan,
-          // --- SNAPSHOT DATA COPY END ---
+          partyName: pRef.name,
+          partyGstin: pRef.gst,
+          partyState: pRef.state,
+          partyAddress: pRef.address,
+          partyCity: pRef.city,
+          partyPhone: pRef.phone,
+          partyEmail: pRef.email,
+          partyDl: pRef.dl,
           items: b['items'].cast<BillItem>(),
           totalAmount: b['total'],
           paymentMode: "CREDIT",
-          linkedChallanIds: List<String>.from(b['challanIds']),
-          extraDiscount: 0.0,
-          roundOff: 0.0,
+          linkedChallanIds: List<String>.from(b['challanIds'])
         ));
         nextNum++;
       }
