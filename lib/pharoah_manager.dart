@@ -260,78 +260,54 @@ class PharoahManager with ChangeNotifier {
   // ===========================================================================
 
   Future<void> finalizeSale({
-    required String billNo, required DateTime date, required Party party, 
-    required List<BillItem> items, required double total, required String mode, 
-    List<String>? linkedIds, double extraDiscount = 0.0, double roundOff = 0.0
-  }) async { 
-    // ID se search karna zyada safe hai
-    Party masterParty = parties.firstWhere((p) => p.id == party.id, orElse: () => party);
-    
-    sales.add(Sale(
-      id: DateTime.now().toString(), 
-      billNo: billNo, 
-      partyId: masterParty.id, // ID link ho gayi
-      date: date, 
-      partyName: masterParty.name, 
-      partyGstin: masterParty.gst, 
-      partyState: masterParty.state, 
-      items: items, 
-      totalAmount: total, 
-      paymentMode: mode, 
-      linkedChallanIds: linkedIds ?? [], 
-      extraDiscount: extraDiscount, 
-      roundOff: roundOff,
-      partyAddress: masterParty.address, 
-      partyPhone: masterParty.phone, 
-      partyEmail: masterParty.email,
-      partyDl: masterParty.dl, 
-      partyPan: masterParty.pan, 
-      partyCity: masterParty.city,
-    )); 
-
-    if (linkedIds != null) { for (var id in linkedIds) { int idx = saleChallans.indexWhere((c) => c.id == id); if (idx != -1) saleChallans[idx].status = "Billed"; } }
-    if (activeCompany != null) { 
-      String p = billNo.split(RegExp(r'\d')).first; 
-      await PharoahNumberingEngine.updateSeriesCounter(type: "SALE", companyID: activeCompany!.id, usedNumber: billNo, prefix: p); 
-    }
-    await save(); 
-    InventoryLogicCenter.rebuildAllInventory(medicines: medicines, batchHistory: batchHistory, purchases: purchases, sales: sales);
-    notifyListeners(); 
+  required String billNo, required DateTime date, required Party party, 
+  required List<BillItem> items, required double total, required String mode, 
+  List<String>? linkedIds, double extraDiscount = 0.0, double roundOff = 0.0,
+  bool isImported = false, // NAYA
+}) async { 
+  String finalBillNo = isImported ? "$billNo [P2P-IMP]" : billNo; // Tagging
+  
+  final p = parties.firstWhere((pt) => pt.id == party.id, orElse: () => party);
+  
+  sales.add(Sale(
+    id: DateTime.now().toString(), billNo: finalBillNo, partyId: p.id, date: date, 
+    partyName: p.name, partyGstin: p.gst, partyState: p.state, items: items, 
+    totalAmount: total, paymentMode: mode, linkedChallanIds: linkedIds ?? [], 
+    extraDiscount: extraDiscount, roundOff: roundOff, 
+    partyAddress: p.address, partyPhone: p.phone, partyEmail: p.email, 
+    partyDl: p.dl, partyPan: p.pan, partyCity: p.city
+  )); 
+  
+  if (linkedIds != null) { for (var id in linkedIds) { int i = saleChallans.indexWhere((c) => c.id == id); if (i != -1) saleChallans[i].status = "Billed"; } }
+  if (!isImported && activeCompany != null) { // Import par counter update nahi hoga
+    String prefix = billNo.split(RegExp(r'\d')).first;
+    await PharoahNumberingEngine.updateSeriesCounter(type: "SALE", companyID: activeCompany!.id, usedNumber: billNo, prefix: prefix);
   }
+  await save();
+  InventoryLogicCenter.rebuildAllInventory(medicines: medicines, batchHistory: batchHistory, purchases: purchases, sales: sales);
+  notifyListeners();
+}
 
-  void finalizePurchase({required String internalNo, required String billNo, required DateTime date, DateTime? entryDate, required Party party, required List<PurchaseItem> items, required double total, required String mode, List<String>? linkedChallanIds}) { 
-    purchases.add(Purchase(
-      id: DateTime.now().toString(), 
-      internalNo: internalNo, 
-      billNo: billNo, 
-      partyId: party.id, // ID link ho gayi
-      date: date, 
-      entryDate: entryDate ?? DateTime.now(), 
-      distributorName: party.name, 
-      items: items, 
-      totalAmount: total, 
-      paymentMode: mode, 
-      linkedChallanIds: linkedChallanIds ?? []
-    )); 
-    if (linkedChallanIds != null) { for (var id in linkedChallanIds) { int i = purchaseChallans.indexWhere((c) => c.id == id); if (i != -1) purchaseChallans[i].status = "Billed"; } }
-    if (activeCompany != null) PharoahNumberingEngine.updateSeriesCounter(type: "PURCHASE", companyID: activeCompany!.id, usedNumber: internalNo, prefix: "PUR-"); 
-    save().then((_) => loadAllData()); 
-  }
 
-  Future<void> finalizeBatchSales(List<Sale> b) async {
-    sales.addAll(b);
-    for (var s in b) { if (s.linkedChallanIds.isNotEmpty) { for (var id in s.linkedChallanIds) { int i = saleChallans.indexWhere((c) => c.id == id); if (i != -1) saleChallans[i].status = "Billed"; } } }
-    if (b.isNotEmpty && activeCompany != null) { String l = b.last.billNo; String p = l.split(RegExp(r'\d')).first; await PharoahNumberingEngine.updateSeriesCounter(type: "SALE", companyID: activeCompany!.id, usedNumber: l, prefix: p); }
-    await save(); InventoryLogicCenter.rebuildAllInventory(medicines: medicines, batchHistory: batchHistory, purchases: purchases, sales: sales);
-    notifyListeners();
-  }
-
-  Future<void> finalizeBatchPurchases(List<Purchase> b) async {
-    purchases.addAll(b);
-    for (var p in b) { if (p.linkedChallanIds.isNotEmpty) { for (var id in p.linkedChallanIds) { int i = purchaseChallans.indexWhere((c) => c.id == id); if (i != -1) purchaseChallans[i].status = "Billed"; } } }
-    await save(); InventoryLogicCenter.rebuildAllInventory(medicines: medicines, batchHistory: batchHistory, purchases: purchases, sales: sales);
-    notifyListeners();
-  }
+  void finalizePurchase({
+  required String internalNo, required String billNo, required DateTime date, 
+  DateTime? entryDate, required Party party, required List<PurchaseItem> items, 
+  required double total, required String mode, List<String>? linkedChallanIds,
+  bool isImported = false, // NAYA
+}) { 
+  String finalBillNo = isImported ? "$billNo [P2P-IMP]" : billNo;
+  
+  purchases.add(Purchase(
+    id: DateTime.now().toString(), internalNo: internalNo, billNo: finalBillNo, 
+    partyId: party.id, date: date, entryDate: entryDate ?? DateTime.now(), 
+    distributorName: party.name, items: items, totalAmount: total, 
+    paymentMode: mode, linkedChallanIds: linkedChallanIds ?? []
+  )); 
+  
+  if (linkedChallanIds != null) { for (var id in linkedChallanIds) { int i = purchaseChallans.indexWhere((c) => c.id == id); if (i != -1) purchaseChallans[i].status = "Billed"; } }
+  if (!isImported && activeCompany != null) PharoahNumberingEngine.updateSeriesCounter(type: "PURCHASE", companyID: activeCompany!.id, usedNumber: internalNo, prefix: "PUR-"); 
+  save().then((_) => loadAllData()); 
+}
 
   // --- UPDATES (ALL RESTORED) ---
   void updatePurchase({required String id, required String internalNo, required String billNo, required DateTime date, DateTime? entryDate, required Party party, required List<PurchaseItem> items, required double total, required String mode, required List<String> linkedChallanIds}) {
