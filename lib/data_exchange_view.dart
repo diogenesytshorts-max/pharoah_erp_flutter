@@ -158,6 +158,8 @@ class _DataExchangeViewState extends State<DataExchangeView> {
     trailing: const Icon(Icons.chevron_right, size: 16),
   );
 
+  // FILE: lib/data_exchange_view.dart (Partially provided, focus on _pickFile)
+
   void _pickFile(PharoahManager ph, String importType, String exchangeMode) async {
     FilePickerResult? result = await FilePicker.platform.pickFiles(type: FileType.custom, allowedExtensions: ['csv']);
     if (result != null && result.files.single.path != null) {
@@ -170,7 +172,7 @@ class _DataExchangeViewState extends State<DataExchangeView> {
           ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Selected file is empty!"))); 
           return; 
         }
-        // Navigation with both Type and Mode
+        // FIXED: Passing all required named parameters
         Navigator.push(context, MaterialPageRoute(
           builder: (c) => ImportReviewScreen(
             csvData: rows, 
@@ -180,5 +182,4 @@ class _DataExchangeViewState extends State<DataExchangeView> {
         ));
       }
     }
-  }
-}
+  }}
