@@ -12,11 +12,13 @@ import 'batch_sync_engine.dart';
 class ImportReviewScreen extends StatefulWidget {
   final List<List<dynamic>> csvData; 
   final String importType; // "SALE" or "PURCHASE"
+  final String exchangeMode; // NAYA: C2C or C2V (Iske bina error aa raha tha)
 
   const ImportReviewScreen({
     super.key, 
     required this.csvData, 
     required this.importType,
+    required this.exchangeMode, // Required in constructor
   });
 
   @override
@@ -36,16 +38,16 @@ class _ImportReviewScreenState extends State<ImportReviewScreen> {
   }
 
   // ===========================================================================
-  // 1. MIRROR ENGINE: 36-COLUMN PARSER
+  // 1. MIRROR ENGINE: 36-COLUMN PARSER (aQ14256BBc Case Sensitive)
   // ===========================================================================
   void _processMirrorLogic() {
     final ph = Provider.of<PharoahManager>(context, listen: false);
     final data = widget.csvData;
     if (data.length < 2) return;
 
-    var r1 = data[1]; // First Data Row
+    var r1 = data[1]; 
     
-    // Column 2-10: ALWAYS THE EXTERNAL PARTY (Dwarika)
+    // Column 2-10: Detailed External Party Snapshot (Dwarika)
     partyInfoInFile = {
       'name': r1[2].toString().trim().toUpperCase(),
       'gst': r1[3].toString().trim().toUpperCase(),
@@ -73,7 +75,7 @@ class _ImportReviewScreenState extends State<ImportReviewScreen> {
       String csvName = row[18].toString().toUpperCase().trim();
       String csvPack = row[19].toString().toUpperCase().trim();
 
-      // NATURAL KEY MATCHING (Name + Packing)
+      // MATCHING BY NATURAL KEY (Name + Pack)
       Medicine? match;
       try {
         match = ph.medicines.firstWhere((m) => 
@@ -93,7 +95,7 @@ class _ImportReviewScreenState extends State<ImportReviewScreen> {
         'form': row[23].toString().toUpperCase(),
         'isNaco': row[24].toString().toUpperCase() == "YES",
         'isH1': row[25].toString().toUpperCase() == "YES",
-        'batch': row[26].toString().trim(), // CASE PRESERVED (aQ14256BBc)
+        'batch': row[26].toString().trim(), // FIXED: aQ14256BBc As-Is
         'exp': row[27].toString(),
         'qty': double.tryParse(row[28].toString()) ?? 0.0,
         'free': double.tryParse(row[29].toString()) ?? 0.0,
@@ -110,22 +112,21 @@ class _ImportReviewScreenState extends State<ImportReviewScreen> {
   }
 
   // ===========================================================================
-  // 2. FINAL ACTION: COPY-PASTE TO DATABASE
+  // 2. FINAL ACTION: SAVE MIRROR TO DATABASE
   // ===========================================================================
   void _finalizeImport(PharoahManager ph) async {
     if (reviewedItems.any((it) => it['isSelected'] && it['match'] == null)) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Please Link or Create all products!")));
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Link or Create all products first!")));
       return;
     }
 
-    // A. PARTY SYNC (Dwarika check)
+    // A. PARTY AUTO-SYNC (Dwarika logic)
     Party targetParty;
     try {
       targetParty = ph.parties.firstWhere((p) => 
         (p.gst.isNotEmpty && p.gst == partyInfoInFile['gst']) || p.name == partyInfoInFile['name']
       );
     } catch (e) {
-      // Auto-Create Dwarika if missing
       targetParty = Party(
         id: DateTime.now().millisecondsSinceEpoch.toString(),
         name: partyInfoInFile['name'],
@@ -142,13 +143,13 @@ class _ImportReviewScreenState extends State<ImportReviewScreen> {
       ph.parties.add(targetParty);
     }
 
-    // B. TRANSACTION SYNC
+    // B. TRANSACTION SYNC (Direct Mirroring)
     if (widget.importType == "PURCHASE") {
       List<PurchaseItem> finalItems = [];
       for (var it in reviewedItems.where((e) => e['isSelected'])) {
         Medicine m = it['match'];
         
-        // Master Update (MFG/Salt Link)
+        // Master Metadata Sync
         String mfgId = ph.getOrCreateCompany(it['mfg']);
         String saltId = ph.getOrCreateSalt(it['salt']);
         int mIdx = ph.medicines.indexWhere((med) => med.id == m.id);
@@ -159,7 +160,7 @@ class _ImportReviewScreenState extends State<ImportReviewScreen> {
           ph.medicines[mIdx].mrp = it['mrp'];
         }
 
-        // Register Batch (As-Is Case)
+        // Register Batch Activity (Case Sensitive)
         ph.registerBatchActivity(productKey: m.identityKey, batchNo: it['batch'], exp: it['exp'], packing: m.packing, mrp: it['mrp'], rate: it['purRateInFile']);
 
         finalItems.add(PurchaseItem(
@@ -180,10 +181,19 @@ class _ImportReviewScreenState extends State<ImportReviewScreen> {
       );
     } 
     else {
-      // SALE IMPORT
+      // SALE MIRROR IMPORT
       List<BillItem> finalItems = [];
       for (var it in reviewedItems.where((e) => e['isSelected'])) {
         Medicine m = it['match'];
+
+        // NAYA: Sale mein bhi Master metadata refresh karein
+        String mfgId = ph.getOrCreateCompany(it['mfg']);
+        String saltId = ph.getOrCreateSalt(it['salt']);
+        int mIdx = ph.medicines.indexWhere((med) => med.id == m.id);
+        if(mIdx != -1) {
+          ph.medicines[mIdx].companyId = mfgId; 
+          ph.medicines[mIdx].saltId = saltId;
+        }
         
         ph.registerBatchActivity(productKey: m.identityKey, batchNo: it['batch'], exp: it['exp'], packing: m.packing, mrp: it['mrp'], rate: it['saleRateInFile']);
         
@@ -219,11 +229,15 @@ class _ImportReviewScreenState extends State<ImportReviewScreen> {
 
     return Scaffold(
       backgroundColor: const Color(0xFFF1F3F6),
-      appBar: AppBar(title: Text("C2C Review: ${widget.importType}"), backgroundColor: Colors.indigo.shade900, foregroundColor: Colors.white),
+      appBar: AppBar(
+        title: Text("${widget.exchangeMode} Mirror: ${widget.importType}"), 
+        backgroundColor: Colors.indigo.shade900, 
+        foregroundColor: Colors.white
+      ),
       body: SingleChildScrollView(
         child: Column(children: [
           _buildPartyBanner(),
-          const Padding(padding: EdgeInsets.all(15), child: Align(alignment: Alignment.centerLeft, child: Text("ITEMS VERIFICATION", style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.blueGrey)))),
+          const Padding(padding: EdgeInsets.all(15), child: Align(alignment: Alignment.centerLeft, child: Text("REVIEW TRANSACTION ITEMS", style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.blueGrey, letterSpacing: 1)))),
           ListView.builder(shrinkWrap: true, physics: const NeverScrollableScrollPhysics(), itemCount: reviewedItems.length, itemBuilder: (c, i) => _buildItemRow(reviewedItems[i])),
           const SizedBox(height: 100),
         ]),
@@ -234,11 +248,11 @@ class _ImportReviewScreenState extends State<ImportReviewScreen> {
 
   Widget _buildPartyBanner() => Container(
     margin: const EdgeInsets.all(12), padding: const EdgeInsets.all(15),
-    decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(15), border: Border.all(color: Colors.indigo.withOpacity(0.2))),
+    decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(15), border: Border.all(color: Colors.indigo.withOpacity(0.1))),
     child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
         Text(partyInfoInFile['name'], style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16, color: Colors.indigo)),
-        Text("Inv: ${partyInfoInFile['billNo']}", style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.blueGrey)),
+        Text("No: ${partyInfoInFile['billNo']}", style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.blueGrey)),
       ]),
       const Divider(),
       Text("GST: ${partyInfoInFile['gst']} | City: ${partyInfoInFile['city']}", style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold)),
@@ -254,10 +268,9 @@ class _ImportReviewScreenState extends State<ImportReviewScreen> {
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10), side: BorderSide(color: it['isSelected'] ? Colors.green.shade200 : Colors.grey.shade300)),
       child: ListTile(
         leading: Checkbox(value: it['isSelected'], activeColor: Colors.green, onChanged: (v) => setState(() => it['isSelected'] = v!)),
-        title: Text(it['name'], style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-        subtitle: Text("Batch: ${it['batch']} | Exp: ${it['exp']} | MRP: ${it['mrp']}", style: const TextStyle(fontSize: 9, color: Colors.blueGrey)),
+        title: Text(it['name'], style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+        subtitle: Text("Batch: ${it['batch']} | Exp: ${it['exp']} | Rate: ${it['purRateInFile']}", style: const TextStyle(fontSize: 10, color: Colors.blueGrey)),
         trailing: it['match'] == null ? IconButton(icon: const Icon(Icons.add_box_rounded, color: Colors.red), onPressed: () async {
-          // NAYA: Pre-fill data for Product Master
           final res = await Navigator.push(context, MaterialPageRoute(builder: (c) => ProductMasterView(isSelectionMode: true, preFillData: it)));
           if (res != null) setState(() { it['match'] = res; it['isSelected'] = true; it['status'] = 'exact'; });
         }) : const Icon(Icons.check_circle, color: Colors.green),
@@ -272,11 +285,11 @@ class _ImportReviewScreenState extends State<ImportReviewScreen> {
       padding: const EdgeInsets.all(20), color: Colors.white,
       child: Row(children: [
         Expanded(child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-          const Text("NET PAYABLE", style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.grey)),
-          Text("₹${net.toStringAsFixed(2)}", style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: Colors.indigo)),
+          const Text("NET AMOUNT TO PASTE", style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.grey)),
+          Text("₹${net.toStringAsFixed(2)}", style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: Colors.indigo)),
         ])),
         ElevatedButton(
-          style: ElevatedButton.styleFrom(backgroundColor: Colors.indigo.shade900, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 15)),
+          style: ElevatedButton.styleFrom(backgroundColor: Colors.indigo.shade900, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(horizontal: 25, vertical: 15), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
           onPressed: () => _finalizeImport(ph),
           child: const Text("FINALIZE MIRROR", style: TextStyle(fontWeight: FontWeight.bold)),
         ),
