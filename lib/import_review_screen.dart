@@ -28,7 +28,7 @@ class ImportReviewScreen extends StatefulWidget {
 class _ImportReviewScreenState extends State<ImportReviewScreen> {
   List<Map<String, dynamic>> reviewedItems = [];
   Map<String, dynamic> partyInfoInFile = {};
-  Party? matchedParty; // The actual linked Party object
+  Party? matchedParty; 
   bool isLoading = true;
   String? errorMessage;
 
@@ -38,9 +38,6 @@ class _ImportReviewScreenState extends State<ImportReviewScreen> {
     _processMirrorLogic();
   }
 
-  // ===========================================================================
-  // 1. DATA PARSER (WITH SAFETY GUARDS)
-  // ===========================================================================
   void _processMirrorLogic() {
     try {
       final ph = Provider.of<PharoahManager>(context, listen: false);
@@ -52,7 +49,6 @@ class _ImportReviewScreenState extends State<ImportReviewScreen> {
       }
 
       var r1 = data[1];
-      // Basic validation for 36 columns
       if (r1.length < 18) {
         setState(() { errorMessage = "CSV structure mismatch. Need at least 18 columns."; isLoading = false; });
         return;
@@ -74,7 +70,6 @@ class _ImportReviewScreenState extends State<ImportReviewScreen> {
         'roundOff': r1.length > 35 ? (double.tryParse(r1[35].toString()) ?? 0.0) : 0.0,
       };
 
-      // ATTEMPT AUTO-LINK PARTY
       try {
         matchedParty = ph.parties.firstWhere((p) => 
           (p.gst.isNotEmpty && p.gst == partyInfoInFile['gst']) || p.name == partyInfoInFile['name']
@@ -84,7 +79,7 @@ class _ImportReviewScreenState extends State<ImportReviewScreen> {
       reviewedItems.clear();
       for (int i = 1; i < data.length; i++) {
         var row = data[i];
-        if (row.length < 18) continue;
+        if (row.length < 34) continue;
 
         String csvName = row[18]?.toString().toUpperCase().trim() ?? "UNKNOWN";
         String csvPack = row[19]?.toString().toUpperCase().trim() ?? "N/A";
@@ -128,10 +123,6 @@ class _ImportReviewScreenState extends State<ImportReviewScreen> {
     }
   }
 
-  // ===========================================================================
-  // 2. INTERACTIVE ACTIONS (LINK & CREATE)
-  // ===========================================================================
-  
   void _linkPartyManual() async {
     final res = await Navigator.push(context, MaterialPageRoute(builder: (c) => const PartyMasterView(isSelectionMode: true)));
     if (res != null && res is Party) { setState(() => matchedParty = res); }
@@ -182,7 +173,8 @@ class _ImportReviewScreenState extends State<ImportReviewScreen> {
       List<PurchaseItem> finalItems = [];
       for (var it in reviewedItems.where((e) => e['isSelected'])) {
         Medicine m = it['match'];
-        ph.registerBatchActivity(ph: ph, productKey: m.identityKey, batchNo: it['batch'], exp: it['exp'], packing: m.packing, mrp: it['mrp'], rate: it['purRateInFile']);
+        // FIXED: Removed 'ph: ph' parameter from internal call
+        ph.registerBatchActivity(productKey: m.identityKey, batchNo: it['batch'], exp: it['exp'], packing: m.packing, mrp: it['mrp'], rate: it['purRateInFile']);
         finalItems.add(PurchaseItem(
           id: DateTime.now().toString() + m.id, srNo: finalItems.length + 1,
           medicineID: m.id, name: m.name, packing: m.packing, batch: it['batch'], exp: it['exp'],
@@ -201,7 +193,8 @@ class _ImportReviewScreenState extends State<ImportReviewScreen> {
       List<BillItem> finalItems = [];
       for (var it in reviewedItems.where((e) => e['isSelected'])) {
         Medicine m = it['match'];
-        ph.registerBatchActivity(ph: ph, productKey: m.identityKey, batchNo: it['batch'], exp: it['exp'], packing: m.packing, mrp: it['mrp'], rate: it['saleRateInFile']);
+        // FIXED: Removed 'ph: ph' parameter from internal call
+        ph.registerBatchActivity(productKey: m.identityKey, batchNo: it['batch'], exp: it['exp'], packing: m.packing, mrp: it['mrp'], rate: it['saleRateInFile']);
         finalItems.add(BillItem(
           id: DateTime.now().toString() + m.id, srNo: finalItems.length + 1,
           medicineID: m.id, name: m.name, packing: m.packing, batch: it['batch'], exp: it['exp'],
@@ -221,10 +214,6 @@ class _ImportReviewScreenState extends State<ImportReviewScreen> {
     Navigator.pop(context);
     ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("✅ Mirroring Complete!"), backgroundColor: Colors.green));
   }
-
-  // ===========================================================================
-  // 3. UI BUILDERS
-  // ===========================================================================
 
   @override
   Widget build(BuildContext context) {
@@ -255,7 +244,7 @@ class _ImportReviewScreenState extends State<ImportReviewScreen> {
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
           Text(partyInfoInFile['name'], style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-          Text("Inv: ${partyInfoInFile['billNo']}", style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.blueGrey)),
+          Text("No: ${partyInfoInFile['billNo']}", style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.blueGrey)),
         ]),
         const Divider(),
         if (isMatched) 
