@@ -7,7 +7,7 @@ import 'pharoah_manager.dart';
 import 'models.dart';
 import 'party_master.dart';
 import 'product_master.dart';
-import 'batch_sync_engine.dart';
+import 'logic/pharoah_numbering_engine.dart';
 
 class ImportReviewScreen extends StatefulWidget {
   final List<List<dynamic>> csvData; 
@@ -38,22 +38,26 @@ class _ImportReviewScreenState extends State<ImportReviewScreen> {
     _processMirrorLogic();
   }
 
+  // ===========================================================================
+  // 1. CORE PARSER (Aligning 36 Columns)
+  // ===========================================================================
   void _processMirrorLogic() {
     try {
       final ph = Provider.of<PharoahManager>(context, listen: false);
       final data = widget.csvData;
 
       if (data.length < 2) {
-        setState(() { errorMessage = "File is empty or invalid."; isLoading = false; });
+        setState(() { errorMessage = "File is empty."; isLoading = false; });
         return;
       }
 
-      var r1 = data[1];
+      var r1 = data[1]; 
       if (r1.length < 18) {
-        setState(() { errorMessage = "CSV structure mismatch. Need at least 18 columns."; isLoading = false; });
+        setState(() { errorMessage = "Invalid CSV: Minimum 18 columns required."; isLoading = false; });
         return;
       }
 
+      // Party Data Snapshot (Dwarika)
       partyInfoInFile = {
         'name': r1[2]?.toString().trim().toUpperCase() ?? "UNKNOWN",
         'gst': r1[3]?.toString().trim().toUpperCase() ?? "",
@@ -70,6 +74,7 @@ class _ImportReviewScreenState extends State<ImportReviewScreen> {
         'roundOff': r1.length > 35 ? (double.tryParse(r1[35].toString()) ?? 0.0) : 0.0,
       };
 
+      // Auto-match Party
       try {
         matchedParty = ph.parties.firstWhere((p) => 
           (p.gst.isNotEmpty && p.gst == partyInfoInFile['gst']) || p.name == partyInfoInFile['name']
@@ -79,7 +84,7 @@ class _ImportReviewScreenState extends State<ImportReviewScreen> {
       reviewedItems.clear();
       for (int i = 1; i < data.length; i++) {
         var row = data[i];
-        if (row.length < 34) continue;
+        if (row.length < 18) continue;
 
         String csvName = row[18]?.toString().toUpperCase().trim() ?? "UNKNOWN";
         String csvPack = row[19]?.toString().toUpperCase().trim() ?? "N/A";
@@ -119,100 +124,93 @@ class _ImportReviewScreenState extends State<ImportReviewScreen> {
       }
       setState(() => isLoading = false);
     } catch (e) {
-      setState(() { errorMessage = "Critical Error: $e"; isLoading = false; });
+      setState(() { errorMessage = "Parser Error: $e"; isLoading = false; });
     }
   }
 
-  void _linkPartyManual() async {
+  // ===========================================================================
+  // 2. ADVANCED BULK RESOLVER (SEQUENTIAL ID LOGIC: 6, 7, 8...)
+  // ===========================================================================
+  void _autoResolveAllNewProducts(PharoahManager ph) async {
+    List<int> newIndices = [];
+    for (int i = 0; i < reviewedItems.length; i++) {
+      if (reviewedItems[i]['status'] == 'new') newIndices.add(i);
+    }
+
+    if (newIndices.isEmpty) return;
+
+    setState(() => isLoading = true);
+
+    // Get the base number just ONCE from the engine
+    String startNoStr = await PharoahNumberingEngine.getNextNumber(
+      type: "PRODUCT", companyID: ph.activeCompany!.id, prefix: "PH-", startFrom: 10001, currentList: ph.medicines,
+    );
+    int currentNum = int.parse(startNoStr.replaceAll("PH-", ""));
+
+    for (int idx in newIndices) {
+      var it = reviewedItems[idx];
+      
+      // Auto-Generate Unique Sequential ID
+      String generatedSysId = "PH-$currentNum";
+      
+      final newMed = Medicine(
+        id: DateTime.now().millisecondsSinceEpoch.toString() + idx.toString(),
+        systemId: generatedSysId,
+        name: it['name'],
+        packing: it['pack'],
+        hsnCode: it['hsn'],
+        gst: it['gstPer'],
+        mrp: it['mrp'],
+        purRate: it['purRateInFile'],
+        rateA: it['saleRateInFile'],
+        drugForm: it['form'],
+        isNarcotic: it['isNaco'],
+        isScheduleH1: it['isH1'],
+        companyId: ph.getOrCreateCompany(it['mfg']),
+        saltId: ph.getOrCreateSalt(it['salt']),
+      );
+
+      ph.addMedicine(newMed);
+      
+      // Update local state row
+      it['match'] = newMed;
+      it['status'] = 'exact';
+      it['isSelected'] = true;
+
+      currentNum++; // Increment for next item
+    }
+
+    await ph.save(); 
+    setState(() => isLoading = false);
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("✅ Created ${newIndices.length} new products sequentially."), backgroundColor: Colors.indigo));
+  }
+
+  // ===========================================================================
+  // 3. UI & MANUAL ACTIONS
+  // ===========================================================================
+  
+  void _linkParty() async {
     final res = await Navigator.push(context, MaterialPageRoute(builder: (c) => const PartyMasterView(isSelectionMode: true)));
-    if (res != null && res is Party) { setState(() => matchedParty = res); }
+    if (res != null && res is Party) setState(() => matchedParty = res);
   }
 
-  void _createPartyAuto(PharoahManager ph) async {
-    final res = await Navigator.push(context, MaterialPageRoute(
-      builder: (c) => PartyMasterView(isSelectionMode: true, preFillData: partyInfoInFile)
-    ));
-    if (res != null && res is Party) { setState(() => matchedParty = res); }
+  void _createParty(PharoahManager ph) async {
+    final res = await Navigator.push(context, MaterialPageRoute(builder: (c) => PartyMasterView(isSelectionMode: true, preFillData: partyInfoInFile)));
+    if (res != null && res is Party) setState(() => matchedParty = res);
   }
 
-  void _linkProductManual(int index) async {
+  void _linkItem(int i) async {
     final res = await Navigator.push(context, MaterialPageRoute(builder: (c) => const ProductMasterView(isSelectionMode: true)));
     if (res != null && res is Medicine) {
-      setState(() {
-        reviewedItems[index]['match'] = res;
-        reviewedItems[index]['isSelected'] = true;
-        reviewedItems[index]['status'] = 'exact';
-      });
+      setState(() { reviewedItems[i]['match'] = res; reviewedItems[i]['isSelected'] = true; reviewedItems[i]['status'] = 'exact'; });
     }
   }
 
-  void _createProductAuto(int index) async {
-    final res = await Navigator.push(context, MaterialPageRoute(
-      builder: (c) => ProductMasterView(isSelectionMode: true, preFillData: reviewedItems[index])
-    ));
+  void _createItem(int i) async {
+    final res = await Navigator.push(context, MaterialPageRoute(builder: (c) => ProductMasterView(isSelectionMode: true, preFillData: reviewedItems[i])));
     if (res != null && res is Medicine) {
-      setState(() {
-        reviewedItems[index]['match'] = res;
-        reviewedItems[index]['isSelected'] = true;
-        reviewedItems[index]['status'] = 'exact';
-      });
+      setState(() { reviewedItems[i]['match'] = res; reviewedItems[i]['isSelected'] = true; reviewedItems[i]['status'] = 'exact'; });
     }
-  }
-
-  void _finalizeImport(PharoahManager ph) async {
-    if (matchedParty == null) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Please Link or Create the Party first!"), backgroundColor: Colors.red));
-      return;
-    }
-    if (reviewedItems.any((it) => it['isSelected'] && it['match'] == null)) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Link or Create all selected products!"), backgroundColor: Colors.red));
-      return;
-    }
-
-    if (widget.importType == "PURCHASE") {
-      List<PurchaseItem> finalItems = [];
-      for (var it in reviewedItems.where((e) => e['isSelected'])) {
-        Medicine m = it['match'];
-        // FIXED: Removed 'ph: ph' parameter from internal call
-        ph.registerBatchActivity(productKey: m.identityKey, batchNo: it['batch'], exp: it['exp'], packing: m.packing, mrp: it['mrp'], rate: it['purRateInFile']);
-        finalItems.add(PurchaseItem(
-          id: DateTime.now().toString() + m.id, srNo: finalItems.length + 1,
-          medicineID: m.id, name: m.name, packing: m.packing, batch: it['batch'], exp: it['exp'],
-          hsn: it['hsn'], mrp: it['mrp'], qty: it['qty'], freeQty: it['free'], purchaseRate: it['purRateInFile'],
-          gstRate: it['gstPer'], total: it['total']
-        ));
-      }
-      ph.finalizePurchase(
-        internalNo: "IMP-PUR-${DateTime.now().millisecondsSinceEpoch.toString().substring(7)}",
-        billNo: partyInfoInFile['billNo'], date: DateFormat('dd/MM/yyyy').parse(partyInfoInFile['date']), 
-        party: matchedParty!, items: finalItems, total: finalItems.fold(0.0, (s, i) => s + i.total), 
-        mode: "CREDIT", sourceTag: "P2P"
-      );
-    } 
-    else {
-      List<BillItem> finalItems = [];
-      for (var it in reviewedItems.where((e) => e['isSelected'])) {
-        Medicine m = it['match'];
-        // FIXED: Removed 'ph: ph' parameter from internal call
-        ph.registerBatchActivity(productKey: m.identityKey, batchNo: it['batch'], exp: it['exp'], packing: m.packing, mrp: it['mrp'], rate: it['saleRateInFile']);
-        finalItems.add(BillItem(
-          id: DateTime.now().toString() + m.id, srNo: finalItems.length + 1,
-          medicineID: m.id, name: m.name, packing: m.packing, batch: it['batch'], exp: it['exp'],
-          hsn: it['hsn'], mrp: it['mrp'], qty: it['qty'], freeQty: it['free'], rate: it['saleRateInFile'],
-          gstRate: it['gstPer'], total: it['total']
-        ));
-      }
-      double gross = finalItems.fold(0.0, (s, i) => s + i.total);
-      await ph.finalizeSale(
-        billNo: partyInfoInFile['billNo'], date: DateFormat('dd/MM/yyyy').parse(partyInfoInFile['date']),
-        party: matchedParty!, items: finalItems, 
-        total: (gross - partyInfoInFile['extraDisc'] + partyInfoInFile['roundOff']), 
-        mode: "CREDIT", sourceTag: "P2P",
-        extraDiscount: partyInfoInFile['extraDisc'], roundOff: partyInfoInFile['roundOff']
-      );
-    }
-    Navigator.pop(context);
-    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("✅ Mirroring Complete!"), backgroundColor: Colors.green));
   }
 
   @override
@@ -221,97 +219,153 @@ class _ImportReviewScreenState extends State<ImportReviewScreen> {
     if (isLoading) return const Scaffold(body: Center(child: CircularProgressIndicator()));
     if (errorMessage != null) return Scaffold(body: Center(child: Text(errorMessage!, style: const TextStyle(color: Colors.red))));
 
+    int newCount = reviewedItems.where((it) => it['status'] == 'new').length;
+
     return Scaffold(
-      backgroundColor: const Color(0xFFF1F3F6),
-      appBar: AppBar(title: Text("${widget.exchangeMode} Review"), backgroundColor: Colors.indigo.shade900, foregroundColor: Colors.white),
-      body: SingleChildScrollView(
-        child: Column(children: [
+      backgroundColor: const Color(0xFFF4F7FA),
+      appBar: AppBar(title: Text("${widget.exchangeMode} Mirror"), backgroundColor: const Color(0xFF1A237E), foregroundColor: Colors.white),
+      body: Column(
+        children: [
           _buildPartyMappingCard(ph),
-          const Padding(padding: EdgeInsets.all(15), child: Align(alignment: Alignment.centerLeft, child: Text("REVIEW TRANSACTION ITEMS", style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.blueGrey, letterSpacing: 1)))),
-          ListView.builder(shrinkWrap: true, physics: const NeverScrollableScrollPhysics(), itemCount: reviewedItems.length, itemBuilder: (c, i) => _buildItemRow(i)),
-          const SizedBox(height: 120),
-        ]),
+          
+          if (newCount > 0) 
+            _buildBulkAlertBanner(ph, newCount),
+
+          Expanded(
+            child: ListView.builder(
+              padding: const EdgeInsets.only(bottom: 20),
+              itemCount: reviewedItems.length, 
+              itemBuilder: (c, i) => _buildItemRow(i)
+            ),
+          ),
+          _buildSummaryFooter(ph),
+        ],
       ),
-      bottomNavigationBar: _buildBottomBar(ph),
     );
   }
 
   Widget _buildPartyMappingCard(PharoahManager ph) {
-    bool isMatched = matchedParty != null;
+    bool isOk = matchedParty != null;
     return Container(
-      margin: const EdgeInsets.all(12), padding: const EdgeInsets.all(15),
-      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(15), border: Border.all(color: isMatched ? Colors.green : Colors.red, width: 2)),
+      margin: const EdgeInsets.all(12), padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(15), border: Border.all(color: isOk ? Colors.green : Colors.red, width: 2)),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-          Text(partyInfoInFile['name'], style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-          Text("No: ${partyInfoInFile['billNo']}", style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.blueGrey)),
+          Text(partyInfoInFile['name'], style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 17, color: Color(0xFF1A237E))),
+          Text("Ref: ${partyInfoInFile['billNo']}", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Colors.blueGrey)),
         ]),
-        const Divider(),
-        if (isMatched) 
-          ListTile(contentPadding: EdgeInsets.zero, leading: const Icon(Icons.check_circle, color: Colors.green), title: Text("Matched to: ${matchedParty!.name}"), subtitle: Text("${matchedParty!.city} | ${matchedParty!.gst}"), trailing: TextButton(onPressed: () => setState(() => matchedParty = null), child: const Text("CHANGE")))
+        const Divider(height: 25),
+        if (isOk) 
+          ListTile(contentPadding: EdgeInsets.zero, leading: const Icon(Icons.check_circle, color: Colors.green, size: 28), title: Text(matchedParty!.name, style: const TextStyle(fontWeight: FontWeight.bold)), subtitle: Text("${matchedParty!.city} | ${matchedParty!.gst}"), trailing: IconButton(icon: const Icon(Icons.edit_note, color: Colors.blue), onPressed: () => setState(() => matchedParty = null)))
         else 
           Column(children: [
-            const Text("This party is not recognized in your Master Data.", style: TextStyle(color: Colors.red, fontSize: 12, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 10),
+            const Text("Party not recognized. Choose action:", style: TextStyle(color: Colors.red, fontSize: 11, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 12),
             Row(children: [
-              Expanded(child: OutlinedButton(onPressed: _linkPartyManual, child: const Text("MAP TO EXISTING"))),
+              Expanded(child: OutlinedButton.icon(onPressed: _linkParty, icon: const Icon(Icons.link, size: 16), label: const Text("LINK"))),
               const SizedBox(width: 10),
-              Expanded(child: ElevatedButton(style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white), onPressed: () => _createPartyAuto(ph), child: const Text("CREATE NEW"))),
+              Expanded(child: ElevatedButton.icon(style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white), onPressed: () => _createParty(ph), icon: const Icon(Icons.add, size: 16), label: const Text("CREATE"))),
             ])
           ]),
       ]),
     );
   }
 
+  Widget _buildBulkAlertBanner(PharoahManager ph, int count) {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 12), padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 10),
+      decoration: BoxDecoration(color: Colors.orange.shade50, borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.orange.shade200)),
+      child: Row(children: [
+        Icon(Icons.auto_fix_high_rounded, color: Colors.orange.shade900, size: 20),
+        const SizedBox(width: 12),
+        Expanded(child: Text("Found $count new items. Resolve all sequentially?", style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.orange.shade900))),
+        ElevatedButton(onPressed: () => _autoResolveAllNewProducts(ph), style: ElevatedButton.styleFrom(backgroundColor: Colors.orange.shade900, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(horizontal: 12)), child: const Text("AUTO-CREATE", style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold))),
+      ]),
+    );
+  }
+
   Widget _buildItemRow(int i) {
     var it = reviewedItems[i];
-    bool isMatched = it['match'] != null;
+    bool isOk = it['match'] != null;
     return Card(
-      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-      elevation: 0, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10), side: BorderSide(color: isMatched ? Colors.green.shade200 : Colors.red.shade200)),
+      margin: const EdgeInsets.fromLTRB(12, 8, 12, 0), elevation: 0,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: BorderSide(color: isOk ? Colors.green.shade100 : Colors.red.shade100, width: 1.5)),
       child: ExpansionTile(
         leading: Checkbox(value: it['isSelected'], activeColor: Colors.green, onChanged: (v) => setState(() => it['isSelected'] = v!)),
-        title: Text(it['name'], style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: isMatched ? Colors.black87 : Colors.red)),
-        subtitle: Text("Batch: ${it['batch']} | Exp: ${it['exp']} | Price: ${it['purRateInFile']}", style: const TextStyle(fontSize: 10)),
+        title: Text(it['name'], style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: isOk ? Colors.black87 : Colors.red)),
+        subtitle: Text("Batch: ${it['batch']} | Exp: ${it['exp']} | Price: ₹${it['purRateInFile']}", style: const TextStyle(fontSize: 10, color: Colors.blueGrey)),
         children: [
-          if (!isMatched) 
-            Padding(padding: const EdgeInsets.all(10), child: Row(children: [
-              Expanded(child: OutlinedButton(onPressed: () => _linkProductManual(i), child: const Text("MAP", style: TextStyle(fontSize: 11)))),
-              const SizedBox(width: 8),
-              Expanded(child: ElevatedButton(style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white), onPressed: () => _createProductAuto(i), child: const Text("CREATE", style: TextStyle(fontSize: 11)))),
-            ]))
-          else
-            ListTile(dense: true, leading: const Icon(Icons.link, color: Colors.green), title: Text("Linked to: ${it['match'].name}"))
+          if (!isOk) Padding(padding: const EdgeInsets.all(12), child: Row(children: [
+            Expanded(child: OutlinedButton(onPressed: () => _linkItem(i), child: const Text("MAP TO EXISTING"))),
+            const SizedBox(width: 10),
+            Expanded(child: ElevatedButton(onPressed: () => _createItem(i), child: const Text("CREATE NEW"))),
+          ]))
+          else ListTile(dense: true, leading: const Icon(Icons.link, color: Colors.green), title: Text("Linked to Master ID: ${it['match'].systemId}"))
         ],
       ),
     );
   }
 
-  Widget _buildBottomBar(PharoahManager ph) {
-    double total = reviewedItems.where((it) => it['isSelected']).fold(0.0, (sum, it) => sum + (it['total'] as double));
+  Widget _buildSummaryFooter(PharoahManager ph) {
+    double gross = reviewedItems.where((it) => it['isSelected']).fold(0.0, (sum, it) => sum + (it['total'] as double));
     double disc = partyInfoInFile['extraDisc'];
     double ro = partyInfoInFile['roundOff'];
-    double net = total - disc + ro;
+    double net = gross - disc + ro;
 
     return Container(
       padding: const EdgeInsets.all(20), color: Colors.white,
       decoration: const BoxDecoration(boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 10, offset: Offset(0, -5))]),
       child: Column(mainAxisSize: MainAxisSize.min, children: [
         Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-          Text("Gross: ₹${total.toStringAsFixed(2)}", style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
-          Text("Disc: ₹${disc.toStringAsFixed(2)}", style: const TextStyle(fontSize: 11, color: Colors.red, fontWeight: FontWeight.bold)),
-          Text("RO: ${ro.toStringAsFixed(2)}", style: const TextStyle(fontSize: 11, color: Colors.blueGrey)),
+          _sumText("GROSS", "₹${gross.toStringAsFixed(2)}", Colors.black),
+          _sumText("DISC (-)", "₹${disc.toStringAsFixed(2)}", Colors.red),
+          _sumText("RO", ro.toStringAsFixed(2), Colors.blueGrey),
         ]),
-        const Divider(),
+        const Divider(height: 25),
         Row(children: [
-          Expanded(child: Text("NET PAYABLE: ₹${net.toStringAsFixed(2)}", style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: Colors.indigo))),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.indigo.shade900, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(horizontal: 25, vertical: 15)),
-            onPressed: () => _finalizeImport(ph),
-            child: const Text("FINALIZE MIRROR", style: TextStyle(fontWeight: FontWeight.bold)),
-          ),
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            const Text("NET PAYABLE", style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.grey)),
+            Text("₹${net.toStringAsFixed(2)}", style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w900, color: Color(0xFF1A237E))),
+          ])),
+          SizedBox(height: 55, child: ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1A237E), foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+            onPressed: () => _finalizeMirror(ph),
+            child: const Text("FINALIZE MIRROR", style: TextStyle(fontWeight: FontWeight.bold, letterSpacing: 1)),
+          )),
         ]),
       ]),
     );
+  }
+
+  Widget _sumText(String l, String v, Color c) => Column(children: [Text(l, style: const TextStyle(fontSize: 8, fontWeight: FontWeight.bold, color: Colors.grey)), Text(v, style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: c))]);
+
+  void _finalizeMirror(PharoahManager ph) async {
+    if (matchedParty == null) { ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Link Party first!"), backgroundColor: Colors.red)); return; }
+    if (reviewedItems.any((it) => it['isSelected'] && it['match'] == null)) { ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Link all Items first!"), backgroundColor: Colors.red)); return; }
+
+    setState(() => isLoading = true);
+
+    if (widget.importType == "PURCHASE") {
+      List<PurchaseItem> items = [];
+      for (var it in reviewedItems.where((e) => e['isSelected'])) {
+        Medicine m = it['match'];
+        ph.registerBatchActivity(productKey: m.identityKey, batchNo: it['batch'], exp: it['exp'], packing: m.packing, mrp: it['mrp'], rate: it['purRateInFile']);
+        items.add(PurchaseItem(id: DateTime.now().toString()+m.id, srNo: items.length+1, medicineID: m.id, name: m.name, packing: m.packing, batch: it['batch'], exp: it['exp'], hsn: it['hsn'], mrp: it['mrp'], qty: it['qty'], freeQty: it['free'], purchaseRate: it['purRateInFile'], gstRate: it['gstPer'], total: it['total']));
+      }
+      ph.finalizePurchase(internalNo: "IMP-PUR-${DateTime.now().millisecondsSinceEpoch.toString().substring(7)}", billNo: partyInfoInFile['billNo'], date: DateFormat('dd/MM/yyyy').parse(partyInfoInFile['date']), party: matchedParty!, items: items, total: items.fold(0, (s, e)=>s+e.total), mode: "CREDIT", sourceTag: "P2P");
+    } else {
+      List<BillItem> items = [];
+      for (var it in reviewedItems.where((e) => e['isSelected'])) {
+        Medicine m = it['match'];
+        ph.registerBatchActivity(productKey: m.identityKey, batchNo: it['batch'], exp: it['exp'], packing: m.packing, mrp: it['mrp'], rate: it['saleRateInFile']);
+        items.add(BillItem(id: DateTime.now().toString()+m.id, srNo: items.length+1, medicineID: m.id, name: m.name, packing: m.packing, batch: it['batch'], exp: it['exp'], hsn: it['hsn'], mrp: it['mrp'], qty: it['qty'], freeQty: it['free'], rate: it['saleRateInFile'], gstRate: it['gstPer'], total: it['total']));
+      }
+      double total = items.fold(0.0, (s, e)=>s+e.total) - partyInfoInFile['extraDisc'] + partyInfoInFile['roundOff'];
+      await ph.finalizeSale(billNo: partyInfoInFile['billNo'], date: DateFormat('dd/MM/yyyy').parse(partyInfoInFile['date']), party: matchedParty!, items: items, total: total, mode: "CREDIT", sourceTag: "P2P", extraDiscount: partyInfoInFile['extraDisc'], roundOff: partyInfoInFile['roundOff']);
+    }
+
+    await ph.save();
+    Navigator.pop(context);
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("✅ Import Mirroring Success!"), backgroundColor: Colors.green));
   }
 }
