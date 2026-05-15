@@ -8,7 +8,7 @@ import 'logic/pharoah_numbering_engine.dart';
 
 class ProductMasterView extends StatefulWidget {
   final bool isSelectionMode; 
-  final Map<String, dynamic>? preFillData; // Data carrier for C2C Import
+  final Map<String, dynamic>? preFillData; // P2P data carrier
 
   const ProductMasterView({
     super.key, 
@@ -27,6 +27,7 @@ class _ProductMasterViewState extends State<ProductMasterView> {
   @override
   void initState() {
     super.initState();
+    // Agar import review screen se data aaya hai toh seedha form kholo
     if (widget.preFillData != null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         _showProductForm();
@@ -35,7 +36,7 @@ class _ProductMasterViewState extends State<ProductMasterView> {
   }
 
   // ===========================================================================
-  // 🛠️ THE CORE FORM: MIRROR-READY (PRESERVES CASE)
+  // 🛠️ THE CORE FORM: AUTO-FILL & MAPPING LOGIC
   // ===========================================================================
   void _showProductForm({Medicine? med}) async {
     final ph = Provider.of<PharoahManager>(context, listen: false);
@@ -43,19 +44,22 @@ class _ProductMasterViewState extends State<ProductMasterView> {
 
     final pf = widget.preFillData;
 
-    // Controllers - Using trim() instead of toUpperCase() to preserve 'aQ14256BBc' style
-    final nameC = TextEditingController(text: med?.name ?? pf?['name']?.toString());
-    final packC = TextEditingController(text: med?.packing ?? pf?['pack']?.toString());
-    final hsnC = TextEditingController(text: med?.hsn ?? pf?['hsn']?.toString());
+    final nameC = TextEditingController(text: med?.name ?? pf?['name']?.toString().toUpperCase());
+    final packC = TextEditingController(text: med?.packing ?? pf?['pack']?.toString().toUpperCase());
+    
+    // FIXED: Naming aligned with models.dart (hsnCode instead of hsn)
+    final hsnC = TextEditingController(text: med?.hsnCode ?? pf?['hsn']?.toString());
+    
     final gstC = TextEditingController(text: med?.gst.toString() ?? pf?['gstPer']?.toString() ?? "12");
     final rackC = TextEditingController(text: med?.rackNo);
     final reorderC = TextEditingController(text: med?.reorderLevel.toString() ?? "0");
 
+    // Price Controllers
     final mrpC = TextEditingController(text: med?.mrp.toString() ?? pf?['mrp']?.toString() ?? "0");
     final purRateC = TextEditingController(text: med?.purRate.toString() ?? pf?['purRateInFile']?.toString() ?? "0");
     final rateAC = TextEditingController(text: med?.rateA.toString() ?? pf?['saleRateInFile']?.toString() ?? "0");
 
-    // Smart ID Generation
+    // SMART ID GENERATION (Sequential PH- Series)
     String sysIdDisplay = med?.systemId ?? "Generating...";
     if (med == null) {
       sysIdDisplay = await PharoahNumberingEngine.getNextNumber(
@@ -67,34 +71,34 @@ class _ProductMasterViewState extends State<ProductMasterView> {
       );
     }
 
-    String selForm = med?.drugForm ?? pf?['form']?.toString() ?? "TAB";
+    String selForm = med?.drugForm ?? pf?['form']?.toString().toUpperCase() ?? "TAB";
     bool naco = med?.isNarcotic ?? (pf?['isNaco'] == true);
     bool schH1 = med?.isScheduleH1 ?? (pf?['isH1'] == true);
     String selStore = med?.storageCondition ?? "Room Temp";
 
+    // AUTO-LINK COMPANY & SALT BY NAME
     String? companyId = med?.companyId;
     String? saltId = med?.saltId;
     String companyName = "Tap to Select Company";
     String saltName = "Tap to Select Salt";
 
-    // Auto-Mapping Names to IDs
     if (pf != null && med == null) {
        if (pf['mfg'] != null) {
          try {
            final found = ph.companies.firstWhere((c) => c.name.toUpperCase() == pf['mfg'].toString().toUpperCase());
            companyId = found.id; companyName = found.name;
-         } catch(e) { companyName = pf['mfg'].toString(); } 
+         } catch(e) { companyName = pf['mfg'].toString().toUpperCase(); }
        }
        if (pf['salt'] != null) {
          try {
            final found = ph.salts.firstWhere((s) => s.name.toUpperCase() == pf['salt'].toString().toUpperCase());
            saltId = found.id; saltName = found.name;
-         } catch(e) { saltName = pf['salt'].toString(); }
+         } catch(e) { saltName = pf['salt'].toString().toUpperCase(); }
        }
     } else if (med != null) {
        try {
-         if(companyId != null && companyId.isNotEmpty) companyName = ph.companies.firstWhere((c) => c.id == companyId).name;
-         if(saltId != null && saltId.isNotEmpty) saltName = ph.salts.firstWhere((s) => s.id == saltId).name;
+         if(companyId != null) companyName = ph.companies.firstWhere((c) => c.id == companyId).name;
+         if(saltId != null) saltName = ph.salts.firstWhere((s) => s.id == saltId).name;
        } catch(e) {}
     }
 
@@ -106,7 +110,7 @@ class _ProductMasterViewState extends State<ProductMasterView> {
       builder: (c) => StatefulBuilder(builder: (context, setDialogState) {
         return AlertDialog(
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-          title: Text(med == null ? "Register Product" : "Edit Product Details"),
+          title: Text(med == null ? "Register New Product" : "Edit Product Details"),
           content: SizedBox(
             width: 500,
             child: SingleChildScrollView(
@@ -145,9 +149,9 @@ class _ProductMasterViewState extends State<ProductMasterView> {
                   Row(children: [
                     Expanded(child: _input(mrpC, "MRP", Icons.currency_rupee, isNum: true)),
                     const SizedBox(width: 8),
-                    Expanded(child: _input(purRateC, "P.Rate", Icons.shopping_cart, isNum: true)),
+                    Expanded(child: _input(purRateC, "Pur. Rate", Icons.shopping_cart, isNum: true)),
                     const SizedBox(width: 8),
-                    Expanded(child: _input(rateAC, "S.Rate", Icons.sell, isNum: true)),
+                    Expanded(child: _input(rateAC, "Sale Rate", Icons.sell, isNum: true)),
                   ]),
                 ],
               ),
@@ -158,8 +162,9 @@ class _ProductMasterViewState extends State<ProductMasterView> {
             ElevatedButton(
               style: ElevatedButton.styleFrom(backgroundColor: Colors.purple, foregroundColor: Colors.white),
               onPressed: () {
-                if(nameC.text.trim().isEmpty || packC.text.trim().isEmpty) return;
+                if(nameC.text.isEmpty || packC.text.isEmpty) return;
 
+                // Final Link Check
                 if (companyId == null && companyName != "Tap to Select Company") {
                   companyId = ph.getOrCreateCompany(companyName);
                 }
@@ -170,11 +175,11 @@ class _ProductMasterViewState extends State<ProductMasterView> {
                 final newItem = Medicine(
                   id: med?.id ?? DateTime.now().toString(),
                   systemId: sysIdDisplay, 
-                  name: nameC.text.trim(), // Case Preserved
-                  packing: packC.text.trim(), // Case Preserved
+                  name: nameC.text.trim().toUpperCase(),
+                  packing: packC.text.trim().toUpperCase(),
                   companyId: companyId ?? "",
                   saltId: saltId ?? "",
-                  hsnCode: hsnC.text.trim().isEmpty ? "3004" : hsnC.text.trim(),
+                  hsnCode: hsnC.text.isEmpty ? "3004" : hsnC.text.toUpperCase(),
                   gst: double.tryParse(gstC.text) ?? 12.0,
                   mrp: double.tryParse(mrpC.text) ?? 0.0,
                   purRate: double.tryParse(purRateC.text) ?? 0.0,
@@ -183,12 +188,11 @@ class _ProductMasterViewState extends State<ProductMasterView> {
                   isNarcotic: naco,
                   isScheduleH1: schH1,
                   stock: med?.stock ?? 0.0,
-                  rackNo: rackC.text.trim(),
-                  storageCondition: selStore,
+                  rackNo: rackC.text.toUpperCase(),
                 );
 
                 if(med == null) ph.addMedicine(newItem);
-                else { int i = ph.medicines.indexWhere((x)=>x.id==med.id); if(i!=-1) ph.medicines[i] = newItem; ph.save(); }
+                else { int i = ph.medicines.indexWhere((x)=>x.id==med.id); ph.medicines[i] = newItem; ph.save(); }
                 
                 Navigator.pop(c);
                 if (widget.isSelectionMode) Navigator.pop(context, newItem);
@@ -201,13 +205,17 @@ class _ProductMasterViewState extends State<ProductMasterView> {
     );
   }
 
+  // ===========================================================================
+  // UI HELPERS
+  // ===========================================================================
+
   @override Widget build(BuildContext context) {
     final ph = Provider.of<PharoahManager>(context);
     final list = ph.medicines.where((m) => m.name.toLowerCase().contains(searchQuery.toLowerCase())).toList();
 
     return Scaffold(
       backgroundColor: const Color(0xFFF5F6F9),
-      appBar: AppBar(title: const Text("Medicine Master"), backgroundColor: Colors.purple, foregroundColor: Colors.white),
+      appBar: AppBar(title: const Text("Product Master"), backgroundColor: Colors.purple, foregroundColor: Colors.white),
       body: Column(children: [
         Container(padding: const EdgeInsets.all(15), color: Colors.purple.shade50, child: TextField(
           decoration: InputDecoration(hintText: "Search Product...", prefixIcon: const Icon(Icons.search, color: Colors.purple), filled: true, fillColor: Colors.white, border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none)), 
@@ -228,10 +236,19 @@ class _ProductMasterViewState extends State<ProductMasterView> {
     );
   }
 
-  // --- UI ATOMS (FIXED: NO TextCapitalization.characters) ---
   Widget _infoBanner(String t, Color c) => Container(width: double.infinity, padding: const EdgeInsets.all(10), margin: const EdgeInsets.only(bottom: 15), decoration: BoxDecoration(color: c.withOpacity(0.1), borderRadius: BorderRadius.circular(10), border: Border.all(color: c.withOpacity(0.2))), child: Text(t, textAlign: TextAlign.center, style: TextStyle(fontWeight: FontWeight.bold, color: c, fontSize: 12)));
   Widget _sectionHeader(String t) => Padding(padding: const EdgeInsets.symmetric(vertical: 10), child: Align(alignment: Alignment.centerLeft, child: Text(t, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.blueGrey, letterSpacing: 1))));
-  Widget _input(TextEditingController ctrl, String l, IconData i, {bool isNum = false}) => Padding(padding: const EdgeInsets.only(bottom: 12), child: TextField(controller: ctrl, keyboardType: isNum ? const TextInputType.numberWithOptions(decimal: true) : TextInputType.text, decoration: InputDecoration(labelText: l, prefixIcon: Icon(i, size: 18), border: const OutlineInputBorder(), isDense: true)));
+  
+  Widget _input(TextEditingController ctrl, String l, IconData i, {bool isNum = false}) => Padding(
+    padding: const EdgeInsets.only(bottom: 12), 
+    child: TextField(
+      controller: ctrl, 
+      keyboardType: isNum ? const TextInputType.numberWithOptions(decimal: true) : TextInputType.text, 
+      textCapitalization: TextCapitalization.characters, 
+      decoration: InputDecoration(labelText: l, prefixIcon: Icon(i, size: 18), border: const OutlineInputBorder(), isDense: true)
+    )
+  );
+
   Widget _searchableBox({required String label, required String value, required IconData icon, required VoidCallback onTap}) => InkWell(onTap: onTap, child: Container(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10), decoration: BoxDecoration(border: Border.all(color: Colors.grey.shade400), borderRadius: BorderRadius.circular(5)), child: Row(children: [Icon(icon, color: Colors.grey, size: 18), const SizedBox(width: 10), Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(label, style: const TextStyle(fontSize: 9, color: Colors.grey)), Text(value, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold), overflow: TextOverflow.ellipsis)])), const Icon(Icons.arrow_drop_down)])));
 
   void _showSearchablePicker({required String title, required List<dynamic> items, required Function(dynamic) onSelected, required VoidCallback onQuickAdd}) {
@@ -252,11 +269,11 @@ class _ProductMasterViewState extends State<ProductMasterView> {
 
   void _quickAddCompany(PharoahManager ph) async {
     final cC = TextEditingController();
-    showDialog(context: context, builder: (c) => AlertDialog(title: const Text("Quick Add Company"), content: TextField(controller: cC, decoration: const InputDecoration(labelText: "Company Name")), actions: [TextButton(onPressed: () => Navigator.pop(c), child: const Text("CANCEL")), ElevatedButton(onPressed: () { if(cC.text.isNotEmpty) { ph.addCompany(Company(id: DateTime.now().toString(), name: cC.text.trim())); Navigator.pop(c); } }, child: const Text("ADD"))]));
+    showDialog(context: context, builder: (c) => AlertDialog(title: const Text("Quick Add Company"), content: TextField(controller: cC, decoration: const InputDecoration(labelText: "Company Name"), textCapitalization: TextCapitalization.characters), actions: [TextButton(onPressed: () => Navigator.pop(c), child: const Text("CANCEL")), ElevatedButton(onPressed: () { if(cC.text.isNotEmpty) { ph.addCompany(Company(id: DateTime.now().toString(), name: cC.text.toUpperCase())); Navigator.pop(c); } }, child: const Text("ADD"))]));
   }
 
   void _quickAddSalt(PharoahManager ph) async {
     final sC = TextEditingController();
-    showDialog(context: context, builder: (c) => AlertDialog(title: const Text("Quick Add Salt"), content: TextField(controller: sC, decoration: const InputDecoration(labelText: "Salt Name")), actions: [TextButton(onPressed: () => Navigator.pop(c), child: const Text("CANCEL")), ElevatedButton(onPressed: () { if(sC.text.isNotEmpty) { ph.addSalt(Salt(id: DateTime.now().toString(), name: sC.text.trim())); Navigator.pop(c); } }, child: const Text("ADD"))]));
+    showDialog(context: context, builder: (c) => AlertDialog(title: const Text("Quick Add Salt"), content: TextField(controller: sC, decoration: const InputDecoration(labelText: "Salt Name"), textCapitalization: TextCapitalization.characters), actions: [TextButton(onPressed: () => Navigator.pop(c), child: const Text("CANCEL")), ElevatedButton(onPressed: () { if(sC.text.isNotEmpty) { ph.addSalt(Salt(id: DateTime.now().toString(), name: sC.text.toUpperCase())); Navigator.pop(c); } }, child: const Text("ADD"))]));
   }
 }
