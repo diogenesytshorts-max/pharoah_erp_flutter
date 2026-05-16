@@ -115,25 +115,45 @@ class _PurchaseSummaryViewState extends State<PurchaseSummaryView> {
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                 child: ListTile(
                   title: Text(p.distributorName, style: const TextStyle(fontWeight: FontWeight.bold)),
-                  subtitle: Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      Row(
-        children: [
-          Text("Bill: ${p.billNo} | ${AppDateLogic.format(p.date)}", style: const TextStyle(fontSize: 12)),
-          if (p.linkedChallanIds.isNotEmpty) ...[
-            const SizedBox(width: 8),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
-              decoration: BoxDecoration(color: Colors.orange.shade50, borderRadius: BorderRadius.circular(4), border: Border.all(color: Colors.orange.shade200)),
-              child: Text("MERGED", style: TextStyle(color: Colors.orange.shade900, fontSize: 8, fontWeight: FontWeight.bold)),
+                  // FILE: lib/purchase/purchase_summary_view.dart (Subtitle Section Fix)
+
+subtitle: Column(
+  crossAxisAlignment: CrossAxisAlignment.start,
+  children: [
+    Row(
+      children: [
+        Text("Bill: ${p.billNo} | ${AppDateLogic.format(p.date)}", style: const TextStyle(fontSize: 11)),
+        const SizedBox(width: 8),
+
+        // 1. ORIGINAL MERGED LOGIC
+        if (p.linkedChallanIds.isNotEmpty)
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+            decoration: BoxDecoration(color: Colors.orange.shade50, borderRadius: BorderRadius.circular(4), border: Border.all(color: Colors.orange.shade200)),
+            child: const Text("MERGED", style: TextStyle(color: Colors.orange, fontSize: 7, fontWeight: FontWeight.bold)),
+          ),
+
+        const SizedBox(width: 5),
+
+        // 2. NAYA IMPORT TAG LOGIC
+        if (p.sourceTag.isNotEmpty)
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+            decoration: BoxDecoration(
+              color: Colors.indigo.shade50,
+              borderRadius: BorderRadius.circular(4),
+              border: Border.all(color: Colors.indigo.shade200),
             ),
-          ],
-        ],
-      ),
-      Text("Total: ₹${p.totalAmount.toStringAsFixed(2)}", style: const TextStyle(fontWeight: FontWeight.bold)),
-    ],
-  ),
+            child: Text(
+              "IMPORT: ${p.sourceTag}", 
+              style: TextStyle(color: Colors.indigo.shade900, fontSize: 7, fontWeight: FontWeight.bold)
+            ),
+          ),
+      ],
+    ),
+    Text("Total: ₹${p.totalAmount.toStringAsFixed(2)}", style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.black87)),
+  ],
+),
                   trailing: Row(mainAxisSize: MainAxisSize.min, children: [
                     IconButton(
   icon: const Icon(Icons.print, color: Colors.blueGrey), 
