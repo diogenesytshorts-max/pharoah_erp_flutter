@@ -52,7 +52,7 @@ class _ImportReviewScreenState extends State<ImportReviewScreen> {
       'gst': r1[3]?.toString().trim().toUpperCase() ?? "",
       'dl': r1[4]?.toString().trim().toUpperCase() ?? "",
       'pan': r1[5]?.toString().trim().toUpperCase() ?? "",
-      'phone': r1[6]?.toString().trim() ?? "", // MOBILE INDEX 6 (PartyMaster key: phone)
+      'phone': r1[6]?.toString().trim() ?? "", // INDEX 6: Key 'phone' for PartyMaster
       'email': r1[7]?.toString().trim().toLowerCase() ?? "",
       'address': r1[8]?.toString().trim().toUpperCase() ?? "",
       'city': r1[9]?.toString().trim().toUpperCase() ?? "",
@@ -60,13 +60,11 @@ class _ImportReviewScreenState extends State<ImportReviewScreen> {
       'billNo': r1[1]?.toString() ?? "DRAFT",
       'date': r1[0]?.toString() ?? DateFormat('dd/MM/yyyy').format(DateTime.now()),
       'extraDisc': r1.length > 35 ? (double.tryParse(r1[35].toString()) ?? 0.0) : 0.0,
-      'roundOff': r1.length > 36 ? (double.tryParse(r1[36].toString()) ?? 0.0) : 0.0,
+      'roundOff': r1.length > 37 ? (double.tryParse(r1[37].toString()) ?? 0.0) : 0.0, // ROUNDOFF INDEX 37
     };
 
     try {
-      matchedParty = ph.parties.firstWhere((p) => 
-        (p.gst.isNotEmpty && p.gst == partyInfoInFile['gst']) || p.name == partyInfoInFile['name']
-      );
+      matchedParty = ph.parties.firstWhere((p) => p.gst == partyInfoInFile['gst'] || p.name == partyInfoInFile['name']);
     } catch (e) { matchedParty = null; }
 
     reviewedItems.clear();
@@ -74,36 +72,39 @@ class _ImportReviewScreenState extends State<ImportReviewScreen> {
       var row = data[i];
       if (row.length < 34) continue;
 
-      String csvName = row[18]?.toString().toUpperCase().trim() ?? "UNKNOWN";
-      String csvPack = row[19]?.toString().toUpperCase().trim() ?? "N/A";
+      // 🔥 SMART RATE DETECTOR (Purchase Export Fix)
+      // Purchase Export se import karte waqt Index 31 (Purchase Rate) asli bhav hai.
+      // Sale Export se import karte waqt Index 32 (Sale Rate) asli bhav hai.
+      double rate = 0.0;
+      if (widget.importType == "PURCHASE") {
+        rate = double.tryParse(row[31].toString()) ?? 0.0; // Index 31: PUR_RATE
+      } else {
+        rate = double.tryParse(row[32].toString()) ?? 0.0; // Index 32: SALE_RATE
+      }
+
       double qty = double.tryParse(row[28].toString()) ?? 0.0;
-      double rate = double.tryParse(row[32].toString()) ?? 0.0;
       double gstPer = double.tryParse(row[33].toString()) ?? 12.0;
       double csvTotal = double.tryParse(row[34].toString()) ?? 0.0; // Index 34: ITEM_TOTAL
-      double itemDiscPer = r1.length > 35 ? (double.tryParse(row[35].toString()) ?? 0.0) : 0.0; // Index 35
+      double itemDiscPer = double.tryParse(row[35].toString()) ?? 0.0; // Index 35: %
+      double itemDiscAmtInFile = double.tryParse(row[36].toString()) ?? 0.0; // Index 36: ₹ AMT
 
-      // REAL-TIME AUTO CALCULATION (Split Tax & Adjust Discount)
+      // CALCULATION LOGIC (Using File's Discount Amount as Source of Truth)
       double gross = qty * rate;
-      double discAmt = gross * (itemDiscPer / 100);
+      double discAmt = (itemDiscAmtInFile > 0) ? itemDiscAmtInFile : (gross * (itemDiscPer / 100));
       double taxable = gross - discAmt;
       double totalTax = taxable * (gstPer / 100);
       double systemTotal = double.parse((taxable + totalTax).toStringAsFixed(2));
 
-      // State Check for Register Sync
       bool isLocal = partyInfoInFile['state'].toString().toLowerCase() == (ph.activeCompany?.state.toLowerCase() ?? "rajasthan");
 
       Medicine? match;
-      try { match = ph.medicines.firstWhere((m) => m.name == csvName && m.packing == csvPack); } 
-      catch (e) { try { match = ph.medicines.firstWhere((m) => m.name == csvName); } catch (e) { match = null; } }
+      try { match = ph.medicines.firstWhere((m) => m.name == row[18].toString().toUpperCase()); } catch(e) { match = null; }
 
       reviewedItems.add({
-        'name': csvName, 'pack': csvPack, 'hsn': row[20]?.toString() ?? "3004",
-        'mfg': row[21]?.toString().toUpperCase() ?? "N/A", 'salt': row[22]?.toString().toUpperCase() ?? "N/A",
-        'form': row[23]?.toString().toUpperCase() ?? "TAB", 'isNaco': row[24]?.toString() == "YES",
-        'isH1': row[25]?.toString() == "YES", 'batch': row[26]?.toString().trim() ?? "AUTO",
-        'exp': row[27]?.toString() ?? "12/26", 'qty': qty, 'free': double.tryParse(row[29].toString()) ?? 0.0,
-        'mrp': double.tryParse(row[30].toString()) ?? 0.0, 'purRate': double.tryParse(row[31].toString()) ?? 0.0,
-        'rate': rate, 'gstPer': gstPer, 'csvTotal': csvTotal, 'sysTotal': systemTotal, 'itemDiscPer': itemDiscPer, 'discAmt': discAmt,
+        'name': row[18].toString().toUpperCase(), 'pack': row[19].toString(), 'batch': row[26].toString(), 'exp': row[27].toString(),
+        'qty': qty, 'free': double.tryParse(row[29].toString()) ?? 0.0, 'hsn': row[20].toString(), 'mrp': double.tryParse(row[30].toString()) ?? 0.0,
+        'rate': rate, 'gstPer': gstPer, 'csvTotal': csvTotal, 'sysTotal': systemTotal, 
+        'itemDiscPer': itemDiscPer, 'discAmt': discAmt,
         'match': match, 'isSelected': match != null, 'status': match == null ? 'new' : 'exact',
         'isFixed': false, 'taxable': taxable, 'cgst': isLocal ? totalTax/2 : 0.0, 'sgst': isLocal ? totalTax/2 : 0.0, 'igst': isLocal ? 0.0 : totalTax,
       });
@@ -274,29 +275,31 @@ class _ImportReviewScreenState extends State<ImportReviewScreen> {
   void _handleFinalImport(PharoahManager ph) async {
     if (matchedParty == null) { ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Link/Create Party first!"))); return; }
     if (reviewedItems.any((it) => it['isSelected'] && it['match'] == null)) { ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Link all products first!"))); return; }
+    
     setState(() => isLoading = true);
     
-    // Total calculation for the full bill
-    double finalGrossTotal = reviewedItems.where((e)=>e['isSelected']).fold(0.0, (s, e)=>s+e['sysTotal']);
+    // Total calculation with Discount/Roundoff subtraction
+    double currentNetTotal = reviewedItems.where((e)=>e['isSelected']).fold(0.0, (s, e)=>s+e['sysTotal']);
+    double finalBillTotal = currentNetTotal - partyInfoInFile['extraDisc'] + partyInfoInFile['roundOff'];
 
     if (widget.importType == "PURCHASE") {
       List<PurchaseItem> items = [];
       for (var it in reviewedItems.where((e) => e['isSelected'])) {
         Medicine m = it['match'];
         ph.registerBatchActivity(productKey: m.identityKey, batchNo: it['batch'], exp: it['exp'], packing: m.packing, mrp: it['mrp'], rate: it['rate']);
-        items.add(PurchaseItem(id: DateTime.now().toString() + m.id, srNo: items.length + 1, medicineID: m.id, name: m.name, packing: m.packing, batch: it['batch'], exp: it['exp'], hsn: it['hsn'], mrp: it['mrp'], qty: it['qty'], freeQty: it['free'], purchaseRate: it['rate'], gstRate: it['gstPer'], total: it['sysTotal']));
+        items.add(PurchaseItem(id: DateTime.now().toString() + m.id, srNo: items.length + 1, medicineID: m.id, name: m.name, packing: m.packing, batch: it['batch'], exp: it['exp'], hsn: it['hsn'], mrp: it['mrp'], qty: it['qty'], freeQty: it['free'], purchaseRate: it['rate'], gstRate: it['gstPer'], total: it['sysTotal'], discountPer: it['itemDiscPer'], discountRupees: it['discAmt']));
       }
       ph.finalizePurchase(internalNo: "MIR-PUR-${DateTime.now().millisecondsSinceEpoch.toString().substring(7)}", billNo: partyInfoInFile['billNo'], date: DateFormat('dd/MM/yyyy').parse(partyInfoInFile['date']), entryDate: DateTime.now(), party: matchedParty!, items: items, total: items.fold(0, (s, e)=>s+e.total), mode: "CREDIT", sourceTag: widget.exchangeMode);
     } else {
       List<BillItem> items = [];
       for (var it in reviewedItems.where((e) => e['isSelected'])) {
         Medicine m = it['match'];
-        items.add(BillItem(id: DateTime.now().toString() + m.id, srNo: items.length + 1, medicineID: m.id, name: m.name, packing: m.packing, batch: it['batch'], exp: it['exp'], hsn: it['hsn'], mrp: it['mrp'], qty: it['qty'], freeQty: it['free'], rate: it['rate'], gstRate: it['gstPer'], cgst: it['cgst'], sgst: it['sgst'], igst: it['igst'], total: it['sysTotal'], discountRupees: it['discAmt']));
+        items.add(BillItem(id: DateTime.now().toString() + m.id, srNo: items.length + 1, medicineID: m.id, name: m.name, packing: m.packing, batch: it['batch'], exp: it['exp'], hsn: it['hsn'], mrp: it['mrp'], qty: it['qty'], freeQty: it['free'], rate: it['rate'], gstRate: it['gstPer'], cgst: it['cgst'], sgst: it['sgst'], igst: it['igst'], total: it['sysTotal'], discountRupees: it['discAmt'], discountPer: it['itemDiscPer']));
       }
-      await ph.finalizeSale(billNo: partyInfoInFile['billNo'], date: DateFormat('dd/MM/yyyy').parse(partyInfoInFile['date']), party: matchedParty!, items: items, total: (finalGrossTotal - partyInfoInFile['extraDisc'] + partyInfoInFile['roundOff']), mode: "CREDIT", sourceTag: widget.exchangeMode, extraDiscount: partyInfoInFile['extraDisc'], roundOff: partyInfoInFile['roundOff']);
+      await ph.finalizeSale(billNo: partyInfoInFile['billNo'], date: DateFormat('dd/MM/yyyy').parse(partyInfoInFile['date']), party: matchedParty!, items: items, total: finalBillTotal, mode: "CREDIT", sourceTag: widget.exchangeMode, extraDiscount: partyInfoInFile['extraDisc'], roundOff: partyInfoInFile['roundOff']);
     }
     Navigator.pop(context);
-    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("✅ Mirror Import Sync Successful!"), backgroundColor: Colors.green));
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("✅ Mirror Import Complete!"), backgroundColor: Colors.green));
   }
 
   // UI Components
