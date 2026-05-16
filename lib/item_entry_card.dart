@@ -30,16 +30,21 @@ class ItemEntryCard extends StatefulWidget {
 }
 
 class _ItemEntryCardState extends State<ItemEntryCard> {
+  // --- Controllers for Rate & Formula ---
   final batchC = TextEditingController();
   final expC = TextEditingController();
   final mrpC = TextEditingController();
-  final rateC = TextEditingController();
+  final rateC = TextEditingController(); // Final Unit Rate
+  final rateCDiscC = TextEditingController(text: "0.0"); // 🔥 RATE C SPECIAL FORMULA BOX
+  
+  // --- Controllers for Billing ---
   final qtyC = TextEditingController();
   final freeC = TextEditingController(text: "0"); 
   final gstC = TextEditingController();
-  final rateCDiscC = TextEditingController(text: "0.0");
-  final normDiscC = TextEditingController(text: "0.0"); // % Discount
-  final discAmtC = TextEditingController(text: "0.0");  // ₹ Discount (NEW)
+  
+  // --- Controllers for Item Discount (Two-Way Sync) ---
+  final normDiscC = TextEditingController(text: "0.0"); // Bill Disc %
+  final discAmtC = TextEditingController(text: "0.0");  // Bill Disc ₹
 
   String selectedRateType = "A";
   String originalExp = "";
@@ -62,7 +67,7 @@ class _ItemEntryCardState extends State<ItemEntryCard> {
       freeC.text = i.freeQty.toString();
       gstC.text = i.gstRate.toString();
       
-      // Load Existing Discount
+      // Load Existing Discount into Two-Way Sync
       discAmtC.text = i.discountRupees.toStringAsFixed(2);
       double gross = i.rate * i.qty;
       if (gross > 0) {
@@ -76,9 +81,25 @@ class _ItemEntryCardState extends State<ItemEntryCard> {
   }
 
   // ===========================================================================
-  // 🔥 TWO-WAY DISCOUNT SYNC LOGIC
+  // 🔥 RATE C SPECIAL FORMULA: MRP -> Tax Free -> Formula % = Rate
   // ===========================================================================
-  void _syncDiscount(bool isPercentSource) {
+  void _calculateRateC() {
+    double mrp = double.tryParse(mrpC.text) ?? 0.0;
+    double gst = double.tryParse(gstC.text) ?? 0.0;
+    double formulaDisc = double.tryParse(rateCDiscC.text) ?? 0.0;
+
+    // Formula: MRP se tax bahar nikalna aur fir formula discount minus karna
+    double baseTaxable = (mrp / (1 + (gst / 100)));
+    double finalDerivedRate = baseTaxable - (baseTaxable * (formulaDisc / 100));
+    
+    rateC.text = finalDerivedRate.toStringAsFixed(2);
+    _syncBillDiscount(true); // Sync extra discounts based on new rate
+  }
+
+  // ===========================================================================
+  // 🔥 TWO-WAY BILL DISCOUNT SYNC: % <-> ₹
+  // ===========================================================================
+  void _syncBillDiscount(bool isPercentSource) {
     double q = double.tryParse(qtyC.text) ?? 0;
     double r = double.tryParse(rateC.text) ?? 0;
     double gross = q * r;
@@ -86,31 +107,23 @@ class _ItemEntryCardState extends State<ItemEntryCard> {
     if (gross <= 0) return;
 
     if (isPercentSource) {
-      // User entered % -> Calculate ₹
       double p = double.tryParse(normDiscC.text) ?? 0;
       discAmtC.text = (gross * (p / 100)).toStringAsFixed(2);
     } else {
-      // User entered ₹ -> Calculate %
       double a = double.tryParse(discAmtC.text) ?? 0;
       normDiscC.text = ((a / gross) * 100).toStringAsFixed(2);
     }
     setState(() {});
   }
 
-  void _calculateRateC() {
-    double mrp = double.tryParse(mrpC.text) ?? 0.0;
-    double gst = double.tryParse(gstC.text) ?? 0.0;
-    double disc = double.tryParse(rateCDiscC.text) ?? 0.0;
-    double baseTaxable = (mrp / (1 + (gst / 100)));
-    double finalRate = baseTaxable - (baseTaxable * (disc / 100));
-    rateC.text = finalRate.toStringAsFixed(2);
-    _syncDiscount(true);
-  }
-
   void _updateRateLogic() {
-    if (selectedRateType == "C") { _calculateRateC(); } 
-    else { rateC.text = selectedRateType == "A" ? widget.med.rateA.toString() : widget.med.rateB.toString(); }
-    _syncDiscount(true);
+    if (selectedRateType == "C") { 
+      _calculateRateC(); 
+    } else { 
+      rateC.text = selectedRateType == "A" ? widget.med.rateA.toString() : widget.med.rateB.toString(); 
+      _syncBillDiscount(true);
+    }
+    setState(() {});
   }
 
   void _formatExpiry(String val) {
@@ -162,13 +175,9 @@ class _ItemEntryCardState extends State<ItemEntryCard> {
     if (qtyC.text.isEmpty || qtyC.text == "0") return;
 
     BatchSyncEngine.registerBatchActivity(
-      ph: ph, 
-      productKey: widget.med.identityKey, 
-      batchNo: batchC.text.trim(), 
-      exp: expC.text, 
-      packing: widget.med.packing, 
-      mrp: double.tryParse(mrpC.text) ?? 0, 
-      rate: double.tryParse(rateC.text) ?? 0
+      ph: ph, productKey: widget.med.identityKey, batchNo: batchC.text.trim(), 
+      exp: expC.text, packing: widget.med.packing, 
+      mrp: double.tryParse(mrpC.text) ?? 0, rate: double.tryParse(rateC.text) ?? 0
     );
 
     final history = BatchSyncEngine.getFilteredBatches(ph: ph, productKey: widget.med.identityKey);
@@ -227,12 +236,8 @@ class _ItemEntryCardState extends State<ItemEntryCard> {
   Widget build(BuildContext context) {
     final ph = Provider.of<PharoahManager>(context);
     final totals = _calcTotals();
-    
-    final matchingBatches = BatchSyncEngine.getFilteredBatches(
-      ph: ph, 
-      productKey: widget.med.identityKey,
-      hideExpired: true 
-    ).where((b) => b.batch.toLowerCase().contains(batchC.text.toLowerCase())).toList();
+    final matchingBatches = BatchSyncEngine.getFilteredBatches(ph: ph, productKey: widget.med.identityKey, hideExpired: true)
+        .where((b) => b.batch.toLowerCase().contains(batchC.text.toLowerCase())).toList();
 
     String expStr = expC.text;
     Color statusColor = ExpiryMaster.getStatusColor(expStr);
@@ -255,7 +260,7 @@ class _ItemEntryCardState extends State<ItemEntryCard> {
             const SizedBox(width: 8),
             Expanded(child: _buildInput("EXPIRY (MM/YY)", expC, onChanged: _formatExpiry, isNum: true, color: statusColor)),
             const SizedBox(width: 8),
-            Expanded(child: _buildInput("GST %", gstC, isNum: true, onChanged: (v)=>setState((){}))),
+            Expanded(child: _buildInput("GST %", gstC, isNum: true, onChanged: (v){ if(selectedRateType=="C") _calculateRateC(); setState((){}); })),
           ]),
 
           if (matchingBatches.isNotEmpty && widget.existingItem == null)
@@ -267,7 +272,8 @@ class _ItemEntryCardState extends State<ItemEntryCard> {
                         setState(() {
                           batchC.text = b.batch; expC.text = b.exp; originalExp = b.exp;
                           mrpC.text = b.mrp.toString(); rateC.text = b.rate.toString();
-                          _syncDiscount(true);
+                          if (selectedRateType == "C") _calculateRateC();
+                          else _syncBillDiscount(true);
                         });
                       },
                     ))).toList())),
@@ -280,23 +286,28 @@ class _ItemEntryCardState extends State<ItemEntryCard> {
           ),
           
           const SizedBox(height: 12),
+          // --- ROW 3: Derived Selling Rate Section ---
           Row(children: [
-            Expanded(child: _buildInput("MRP", mrpC, isNum: true)),
+            if (selectedRateType == "C") ...[
+              Expanded(child: _buildInput("C FORMULA %", rateCDiscC, isNum: true, color: Colors.purple, onChanged: (v) => _calculateRateC())),
+              const SizedBox(width: 8),
+            ],
+            Expanded(child: _buildInput("MRP", mrpC, isNum: true, onChanged: (v) { if(selectedRateType=="C") _calculateRateC(); })),
             const SizedBox(width: 8),
-            Expanded(child: _buildInput("RATE", rateC, isNum: true, isReadOnly: selectedRateType == "C", color: Colors.blue, onChanged: (v) => _syncDiscount(true))),
-            const SizedBox(width: 8),
-            Expanded(child: _buildInput("QTY", qtyC, isNum: true, isReadOnly: widget.existingItem?.sourceChallanNo.isNotEmpty ?? false, onChanged: (v) => _syncDiscount(true))),
+            Expanded(child: _buildInput("RATE", rateC, isNum: true, isReadOnly: selectedRateType == "C", color: Colors.blue, onChanged: (v) => _syncBillDiscount(true))),
           ]),
-          const SizedBox(height: 10),
-
-          // 🔥 NEW DUAL DISCOUNT ROW
+          
+          const SizedBox(height: 8),
+          // --- ROW 4: Qty & Bill Adjustment Section ---
           Row(
             children: [
-              Expanded(child: _buildInput("DISC %", normDiscC, isNum: true, color: Colors.orange.shade900, onChanged: (v) => _syncDiscount(true))),
-              const SizedBox(width: 8),
-              Expanded(child: _buildInput("DISC ₹ (FIX)", discAmtC, isNum: true, color: Colors.red.shade900, onChanged: (v) => _syncDiscount(false))),
+              Expanded(child: _buildInput("QTY", qtyC, isNum: true, isReadOnly: widget.existingItem?.sourceChallanNo.isNotEmpty ?? false, onChanged: (v) => _syncBillDiscount(true))),
               const SizedBox(width: 8),
               Expanded(child: _buildInput("FREE", freeC, isNum: true)),
+              const SizedBox(width: 8),
+              Expanded(child: _buildInput("BILL DISC %", normDiscC, isNum: true, color: Colors.orange.shade900, onChanged: (v) => _syncBillDiscount(true))),
+              const SizedBox(width: 8),
+              Expanded(child: _buildInput("BILL DISC ₹", discAmtC, isNum: true, color: Colors.red.shade900, onChanged: (v) => _syncBillDiscount(false))),
           ]),
 
           const SizedBox(height: 15),
