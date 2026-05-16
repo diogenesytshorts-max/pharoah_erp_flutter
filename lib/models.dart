@@ -163,6 +163,7 @@ class BillItem {
 }
 
 // --- REPLACE PurchaseItem Class with this ---
+// --- REPLACE PurchaseItem Class with this ---
 class PurchaseItem {
   String id, medicineID, name, packing, batch, exp, hsn, sourceChallanNo, sourceChallanId; int srNo; 
   double mrp, qty, freeQty, purchaseRate, gstRate, total, rateA, rateB, rateC, discountPer, discountRupees;
