@@ -394,7 +394,15 @@ class PharoahManager with ChangeNotifier {
   void updateBatchMetadata({required String medId, required String batchNo, required String newExp, required double newMrp, required double newRate}) { if (batchHistory.containsKey(medId)) { try { var b = batchHistory[medId]!.firstWhere((x) => x.batch == batchNo); b.exp = newExp; b.mrp = newMrp; b.rate = newRate; save().then((_) => loadAllData()); } catch (e) {} } }
   void addLog(String a, String d) { logs.add(LogEntry(id: DateTime.now().toString(), action: a, details: d, time: DateTime.now())); save(); }
   void addRoute(RouteArea r) { routes.add(r); save(); }
-  void addMedicine(Medicine m) { medicines.add(m); if (!batchHistory.containsKey(m.identityKey)) batchHistory[m.identityKey] = []; save(); }
+  // lib/pharoah_manager.dart ke andar ise replace karein
+void addMedicine(Medicine m, {bool doSave = true}) { 
+  medicines.add(m); 
+  if (!batchHistory.containsKey(m.identityKey)) {
+    batchHistory[m.identityKey] = [];
+  }
+  if (doSave) save(); 
+  notifyListeners();
+}
   void addSalt(Salt s) { salts.add(s); save(); }
   void addCompany(Company c) { companies.add(c); save(); }
   void addDrugType(DrugType d) { drugTypes.add(d); save(); }
