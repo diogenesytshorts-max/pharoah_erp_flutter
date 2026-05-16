@@ -257,6 +257,8 @@ class _PurchaseItemEntryCardState extends State<PurchaseItemEntryCard> {
 
   @override Widget build(BuildContext context) {
     final ph = Provider.of<PharoahManager>(context);
+    final matchingBatches = BatchSyncEngine.getFilteredBatches(ph: ph, productKey: widget.med.identityKey, hideExpired: false)
+        .where((b) => b.batch.toLowerCase().contains(batchC.text.toLowerCase())).toList();
     double q = double.tryParse(qtyC.text) ?? 0; double r = double.tryParse(purRateC.text) ?? 0;
     double dAmt = double.tryParse(discAmtC.text) ?? 0; double g = double.tryParse(gstC.text) ?? 0;
     double taxable = (q * r) - dAmt;
