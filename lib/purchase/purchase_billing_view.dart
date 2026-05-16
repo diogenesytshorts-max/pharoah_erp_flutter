@@ -1,4 +1,4 @@
-// FILE: lib/purchase/purchase_billing_view.dart
+// FILE: lib/purchase/purchase_billing_view.dart (FINAL REPLACEMENT)
 
 import '../pharoah_date_controller.dart';
 import 'package:flutter/material.dart';
@@ -192,17 +192,12 @@ class PurchaseItemEntryCard extends StatefulWidget {
 }
 
 class _PurchaseItemEntryCardState extends State<PurchaseItemEntryCard> {
-  // Master Controllers
   final batchC = TextEditingController(); final expC = TextEditingController(); final gstC = TextEditingController();
   final mrpC = TextEditingController(); final purRateC = TextEditingController(); final qtyC = TextEditingController(text: "1");
-  final freeC = TextEditingController(text: "0");
-  
-  // Selling Rate Controllers
+  final freeC = TextEditingController(text: "0"); 
   final rateAC = TextEditingController(); final rateBC = TextEditingController();
   final rateCC = TextEditingController(); 
-  final rateCDiscC = TextEditingController(text: "0.0"); // 🔥 RESTORED FORMULA BOX
-  
-  // Bill Discount Controllers
+  final rateCDiscC = TextEditingController(text: "0.0"); // 🔥 RESTORED FORMULA
   final discPerC = TextEditingController(text: "0.0"); 
   final discAmtC = TextEditingController(text: "0.0"); 
 
@@ -221,25 +216,19 @@ class _PurchaseItemEntryCardState extends State<PurchaseItemEntryCard> {
       discPerC.text = i.discountPer.toString(); discAmtC.text = i.discountRupees.toString();
     } else {
       gstC.text = widget.med.gst.toString(); mrpC.text = widget.med.mrp.toString();
-      purRateC.text = widget.med.purRate.toString(); 
-      rateAC.text = widget.med.rateA.toString(); rateBC.text = widget.med.rateB.toString();
-      _calcRateC(); // Initial Rate C Calculation
+      purRateC.text = widget.med.purRate.toString(); rateAC.text = widget.med.rateA.toString(); 
+      rateBC.text = widget.med.rateB.toString(); _calcRateC();
     }
   }
 
-  // 🔥 RESTORED SPECIAL RATE C FORMULA
   void _calcRateC() {
-    double mrp = double.tryParse(mrpC.text) ?? 0.0; 
-    double gst = double.tryParse(gstC.text) ?? 0.0;
-    double formulaDisc = double.tryParse(rateCDiscC.text) ?? 0.0;
-    
-    // Formula: (MRP / 1.GST) - Formula %
+    double mrp = double.tryParse(mrpC.text) ?? 0.0; double gst = double.tryParse(gstC.text) ?? 0.0;
+    double disc = double.tryParse(rateCDiscC.text) ?? 0.0; 
     double baseTaxable = (mrp / (1 + (gst / 100)));
-    rateCC.text = (baseTaxable - (baseTaxable * (formulaDisc / 100))).toStringAsFixed(2);
+    rateCC.text = (baseTaxable - (baseTaxable * (disc / 100))).toStringAsFixed(2);
     setState(() {});
   }
 
-  // 🔥 TWO-WAY BILL DISCOUNT SYNC
   void _syncDiscount(bool isPercentSource) {
     double q = double.tryParse(qtyC.text) ?? 0;
     double r = double.tryParse(purRateC.text) ?? 0;
@@ -268,11 +257,8 @@ class _PurchaseItemEntryCardState extends State<PurchaseItemEntryCard> {
 
   @override Widget build(BuildContext context) {
     final ph = Provider.of<PharoahManager>(context);
-    double q = double.tryParse(qtyC.text) ?? 0; 
-    double r = double.tryParse(purRateC.text) ?? 0;
-    double dAmt = double.tryParse(discAmtC.text) ?? 0; 
-    double g = double.tryParse(gstC.text) ?? 0;
-    
+    double q = double.tryParse(qtyC.text) ?? 0; double r = double.tryParse(purRateC.text) ?? 0;
+    double dAmt = double.tryParse(discAmtC.text) ?? 0; double g = double.tryParse(gstC.text) ?? 0;
     double taxable = (q * r) - dAmt;
     double netTotal = taxable * (1 + g / 100);
 
@@ -281,42 +267,31 @@ class _PurchaseItemEntryCardState extends State<PurchaseItemEntryCard> {
       decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(15)),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [Text("${widget.srNo}. ${widget.med.name}", style: const TextStyle(fontWeight: FontWeight.bold)), IconButton(icon: const Icon(Icons.cancel), onPressed: widget.onCancel)]),
-          
-          // Row 1: Primary Data
           Row(children: [
             Expanded(child: _buildInput("BATCH", batchC)), const SizedBox(width: 8), 
             Expanded(child: _buildInput("EXP", expC, isNum: true, onChanged: _formatExpiry)), const SizedBox(width: 8), 
-            Expanded(child: _buildInput("GST%", gstC, isNum: true, onChanged: (v){ _calcRateC(); }))
+            Expanded(child: _buildInput("GST%", gstC, isNum: true, onChanged: (v) => _calcRateC()))
           ]),
           const SizedBox(height: 10),
-          
-          // Row 2: Purchase Data
           Row(children: [
             Expanded(child: _buildInput("MRP", mrpC, isNum: true, onChanged: (v) => _calcRateC())), const SizedBox(width: 8), 
-            Expanded(child: _buildInput("PUR. RATE", purRateC, isNum: true, onChanged: (v) => _syncDiscount(true))), const SizedBox(width: 8), 
+            Expanded(child: _buildInput("P. RATE", purRateC, isNum: true, onChanged: (v) => _syncDiscount(true))), const SizedBox(width: 8), 
             Expanded(child: _buildInput("QTY", qtyC, isNum: true, onChanged: (v) => _syncDiscount(true))),
           ]),
           const SizedBox(height: 10),
-          
-          // Row 3: Item Bill Discount (NEW DUAL SYSTEM)
           Row(children: [
-            Expanded(child: _buildInput("ITEM DISC %", discPerC, isNum: true, color: Colors.orange.shade900, onChanged: (v) => _syncDiscount(true))), const SizedBox(width: 8), 
-            Expanded(child: _buildInput("ITEM DISC ₹", discAmtC, isNum: true, color: Colors.red.shade900, onChanged: (v) => _syncDiscount(false))), const SizedBox(width: 8), 
+            Expanded(child: _buildInput("DISC %", discPerC, isNum: true, color: Colors.orange.shade900, onChanged: (v) => _syncDiscount(true))), const SizedBox(width: 8), 
+            Expanded(child: _buildInput("DISC ₹", discAmtC, isNum: true, color: Colors.red.shade900, onChanged: (v) => _syncDiscount(false))), const SizedBox(width: 8), 
             Expanded(child: _buildInput("FREE", freeC, isNum: true)),
           ]),
-          const SizedBox(height: 10),
-          
-          // Row 4: SELLING RATES (WITH RATE C FORMULA)
+          const SizedBox(height: 12),
           const Text("SET SELLING RATES", style: TextStyle(fontSize: 8, fontWeight: FontWeight.bold, color: Colors.blueGrey)),
-          const SizedBox(height: 5),
           Row(children: [
             Expanded(child: _buildInput("RATE A", rateAC, isNum: true)), const SizedBox(width: 8), 
             Expanded(child: _buildInput("RATE B", rateBC, isNum: true)), const SizedBox(width: 8), 
-            Expanded(child: _buildInput("RATE C", rateCC, isNum: true, isReadOnly: true, color: Colors.purple)),
-            const SizedBox(width: 8), 
+            Expanded(child: _buildInput("RATE C", rateCC, isNum: true, isReadOnly: true, color: Colors.purple)), const SizedBox(width: 8), 
             Expanded(child: _buildInput("C FORMULA %", rateCDiscC, isNum: true, color: Colors.purple, onChanged: (v) => _calcRateC())),
           ]),
-          
           const SizedBox(height: 15),
           Container(width: double.infinity, padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: Colors.orange.shade50, borderRadius: BorderRadius.circular(8)), child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
             const Text("Item Inward Net:", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11)),
@@ -331,5 +306,5 @@ class _PurchaseItemEntryCardState extends State<PurchaseItemEntryCard> {
     );
   }
 
-  Widget _buildInput(String l, TextEditingController c, {bool isNum = false, Function(String)? onChanged, Color? color, bool isReadOnly = false}) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(l, style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: color)), TextField(controller: c, keyboardType: isNum ? const TextInputType.numberWithOptions(decimal: true) : TextInputType.text, onChanged: onChanged, readOnly: isReadOnly, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: color), decoration: InputDecoration(isDense: true, border: const OutlineInputBorder(), fillColor: isReadOnly ? Colors.grey.shade100 : Colors.white, filled: isReadOnly))]);
+  Widget _buildInput(String l, TextEditingController c, {bool isNum = false, Function(String)? onChanged, Color? color, bool isReadOnly = false}) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(l, style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: color)), TextField(controller: c, keyboardType: isNum ? TextInputType.number : TextInputType.text, onChanged: onChanged, readOnly: isReadOnly, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: color), decoration: InputDecoration(isDense: true, border: const OutlineInputBorder(), fillColor: isReadOnly ? Colors.grey.shade100 : Colors.white, filled: isReadOnly))]);
 }
