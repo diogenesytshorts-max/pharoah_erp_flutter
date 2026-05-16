@@ -115,25 +115,46 @@ class _SaleSummaryViewState extends State<SaleSummaryView> {
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                 child: ListTile(
                   title: Text(s.partyName, style: const TextStyle(fontWeight: FontWeight.bold)),
-                  subtitle: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Text("Bill: ${s.billNo} | ${AppDateLogic.format(s.date)}", style: const TextStyle(fontSize: 12)),
-                          if (s.linkedChallanIds.isNotEmpty) ...[
-                            const SizedBox(width: 8),
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
-                              decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(4), border: Border.all(color: Colors.blue.shade200)),
-                              child: const Text("MERGED", style: TextStyle(color: Colors.blue, fontSize: 8, fontWeight: FontWeight.bold)),
-                            ),
-                          ],
-                        ],
-                      ),
-                      Text("Total: ₹${s.totalAmount.toStringAsFixed(2)}", style: const TextStyle(fontWeight: FontWeight.bold)),
-                    ],
-                  ),
+                  // FILE: lib/sale_summary_view.dart (Subtitle Section Fix)
+// Purani file mein subtitle: Column(...) dhundiye aur usey isse replace kijiye
+
+subtitle: Column(
+  crossAxisAlignment: CrossAxisAlignment.start,
+  children: [
+    Row(
+      children: [
+        Text("Bill: ${s.billNo} | ${AppDateLogic.format(s.date)}", style: const TextStyle(fontSize: 11)),
+        const SizedBox(width: 8),
+        
+        // 1. ORIGINAL MERGED LOGIC (Do not touch)
+        if (s.linkedChallanIds.isNotEmpty)
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+            decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(4), border: Border.all(color: Colors.blue.shade200)),
+            child: const Text("MERGED", style: TextStyle(color: Colors.blue, fontSize: 7, fontWeight: FontWeight.bold)),
+          ),
+        
+        const SizedBox(width: 5),
+
+        // 2. NAYA IMPORT TAG LOGIC
+        if (s.sourceTag.isNotEmpty)
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+            decoration: BoxDecoration(
+              color: s.sourceTag == "C2C" ? Colors.purple.shade50 : Colors.teal.shade50,
+              borderRadius: BorderRadius.circular(4),
+              border: Border.all(color: s.sourceTag == "C2C" ? Colors.purple.shade200 : Colors.teal.shade200),
+            ),
+            child: Text(
+              "IMPORT: ${s.sourceTag}", 
+              style: TextStyle(color: s.sourceTag == "C2C" ? Colors.purple.shade900 : Colors.teal.shade900, fontSize: 7, fontWeight: FontWeight.bold)
+            ),
+          ),
+      ],
+    ),
+    Text("Total: ₹${s.totalAmount.toStringAsFixed(2)}", style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.black87)),
+  ],
+),
                   trailing: Row(mainAxisSize: MainAxisSize.min, children: [
                     // FIXED: PRINT BUTTON CALL
                     IconButton(
