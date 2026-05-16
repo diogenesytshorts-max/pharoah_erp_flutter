@@ -1,4 +1,5 @@
 // FILE: lib/import_review_screen.dart
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
@@ -11,10 +12,15 @@ import 'logic/pharoah_numbering_engine.dart';
 
 class ImportReviewScreen extends StatefulWidget {
   final List<List<dynamic>> csvData;
-  final String importType;
-  final String exchangeMode;
+  final String importType; // "SALE" or "PURCHASE"
+  final String exchangeMode; // "C2C" or "C2V"
 
-  const ImportReviewScreen({super.key, required this.csvData, required this.importType, required this.exchangeMode});
+  const ImportReviewScreen({
+    super.key, 
+    required this.csvData, 
+    required this.importType, 
+    required this.exchangeMode
+  });
 
   @override
   State<ImportReviewScreen> createState() => _ImportReviewScreenState();
@@ -32,6 +38,9 @@ class _ImportReviewScreenState extends State<ImportReviewScreen> {
     _processUniversalLogic();
   }
 
+  // ===========================================================================
+  // 1. DATA PARSER: Index Mapping for 37 Columns (Mobile & Totals)
+  // ===========================================================================
   void _processUniversalLogic() {
     final ph = Provider.of<PharoahManager>(context, listen: false);
     final data = widget.csvData;
@@ -43,7 +52,7 @@ class _ImportReviewScreenState extends State<ImportReviewScreen> {
       'gst': r1[3]?.toString().trim().toUpperCase() ?? "",
       'dl': r1[4]?.toString().trim().toUpperCase() ?? "",
       'pan': r1[5]?.toString().trim().toUpperCase() ?? "",
-      'phone': r1[6]?.toString().trim() ?? "", // FIXED KEY: 'mobile' to 'phone' for PartyMaster
+      'phone': r1[6]?.toString().trim() ?? "", // MOBILE INDEX 6 (PartyMaster key: phone)
       'email': r1[7]?.toString().trim().toLowerCase() ?? "",
       'address': r1[8]?.toString().trim().toUpperCase() ?? "",
       'city': r1[9]?.toString().trim().toUpperCase() ?? "",
@@ -55,35 +64,45 @@ class _ImportReviewScreenState extends State<ImportReviewScreen> {
     };
 
     try {
-      matchedParty = ph.parties.firstWhere((p) => p.gst == partyInfoInFile['gst'] || p.name == partyInfoInFile['name']);
+      matchedParty = ph.parties.firstWhere((p) => 
+        (p.gst.isNotEmpty && p.gst == partyInfoInFile['gst']) || p.name == partyInfoInFile['name']
+      );
     } catch (e) { matchedParty = null; }
 
     reviewedItems.clear();
     for (int i = 1; i < data.length; i++) {
       var row = data[i];
-      if (row.length < 35) continue;
+      if (row.length < 34) continue;
 
+      String csvName = row[18]?.toString().toUpperCase().trim() ?? "UNKNOWN";
+      String csvPack = row[19]?.toString().toUpperCase().trim() ?? "N/A";
       double qty = double.tryParse(row[28].toString()) ?? 0.0;
       double rate = double.tryParse(row[32].toString()) ?? 0.0;
       double gstPer = double.tryParse(row[33].toString()) ?? 12.0;
-      double csvTotal = double.tryParse(row[34].toString()) ?? 0.0;
-      double itemDiscPer = double.tryParse(row[35].toString()) ?? 0.0; // NEW: Index 35
+      double csvTotal = double.tryParse(row[34].toString()) ?? 0.0; // Index 34: ITEM_TOTAL
+      double itemDiscPer = r1.length > 35 ? (double.tryParse(row[35].toString()) ?? 0.0) : 0.0; // Index 35
 
-      // FIXED AUTO CALCULATION (Including Item-wise Discount)
+      // REAL-TIME AUTO CALCULATION (Split Tax & Adjust Discount)
       double gross = qty * rate;
       double discAmt = gross * (itemDiscPer / 100);
       double taxable = gross - discAmt;
       double totalTax = taxable * (gstPer / 100);
       double systemTotal = double.parse((taxable + totalTax).toStringAsFixed(2));
 
+      // State Check for Register Sync
       bool isLocal = partyInfoInFile['state'].toString().toLowerCase() == (ph.activeCompany?.state.toLowerCase() ?? "rajasthan");
 
       Medicine? match;
-      try { match = ph.medicines.firstWhere((m) => m.name == row[18].toString().toUpperCase()); } catch(e) { match = null; }
+      try { match = ph.medicines.firstWhere((m) => m.name == csvName && m.packing == csvPack); } 
+      catch (e) { try { match = ph.medicines.firstWhere((m) => m.name == csvName); } catch (e) { match = null; } }
 
       reviewedItems.add({
-        'name': row[18].toString().toUpperCase(), 'pack': row[19].toString(), 'batch': row[26].toString(), 'exp': row[27].toString(),
-        'qty': qty, 'free': double.tryParse(row[29].toString()) ?? 0.0, 'hsn': row[20].toString(), 'mrp': double.tryParse(row[30].toString()) ?? 0.0,
+        'name': csvName, 'pack': csvPack, 'hsn': row[20]?.toString() ?? "3004",
+        'mfg': row[21]?.toString().toUpperCase() ?? "N/A", 'salt': row[22]?.toString().toUpperCase() ?? "N/A",
+        'form': row[23]?.toString().toUpperCase() ?? "TAB", 'isNaco': row[24]?.toString() == "YES",
+        'isH1': row[25]?.toString() == "YES", 'batch': row[26]?.toString().trim() ?? "AUTO",
+        'exp': row[27]?.toString() ?? "12/26", 'qty': qty, 'free': double.tryParse(row[29].toString()) ?? 0.0,
+        'mrp': double.tryParse(row[30].toString()) ?? 0.0, 'purRate': double.tryParse(row[31].toString()) ?? 0.0,
         'rate': rate, 'gstPer': gstPer, 'csvTotal': csvTotal, 'sysTotal': systemTotal, 'itemDiscPer': itemDiscPer, 'discAmt': discAmt,
         'match': match, 'isSelected': match != null, 'status': match == null ? 'new' : 'exact',
         'isFixed': false, 'taxable': taxable, 'cgst': isLocal ? totalTax/2 : 0.0, 'sgst': isLocal ? totalTax/2 : 0.0, 'igst': isLocal ? 0.0 : totalTax,
@@ -92,38 +111,57 @@ class _ImportReviewScreenState extends State<ImportReviewScreen> {
     setState(() => isLoading = false);
   }
 
+  // ===========================================================================
+  // 2. BULK ACTION: AUTO-CREATE WITH SEQUENTIAL PH- SERIES
+  // ===========================================================================
+  void _autoResolveAllNewProducts(PharoahManager ph) async {
+    List<int> newIndices = [];
+    for (int i = 0; i < reviewedItems.length; i++) { if (reviewedItems[i]['status'] == 'new') newIndices.add(i); }
+    if (newIndices.isEmpty) return;
+
+    setState(() => isLoading = true);
+    String startNoStr = await PharoahNumberingEngine.getNextNumber(type: "PRODUCT", companyID: ph.activeCompany!.id, prefix: "PH-", startFrom: 10001, currentList: ph.medicines);
+    int currentNum = int.parse(startNoStr.replaceAll("PH-", ""));
+
+    for (int idx in newIndices) {
+      var it = reviewedItems[idx];
+      String genId = "PH-$currentNum";
+      final m = Medicine(id: DateTime.now().millisecondsSinceEpoch.toString() + idx.toString(), systemId: genId, name: it['name'], packing: it['pack'], hsnCode: it['hsn'], gst: it['gstPer'], mrp: it['mrp'], purRate: it['purRate'], rateA: it['rate'], drugForm: it['form'], isNarcotic: it['isNaco'], isScheduleH1: it['isH1'], companyId: ph.getOrCreateCompany(it['mfg']), saltId: ph.getOrCreateSalt(it['salt']));
+      ph.addMedicine(m);
+      it['match'] = m; it['status'] = 'exact'; it['isSelected'] = true; currentNum++;
+    }
+    await ph.save(); setState(() => isLoading = false);
+  }
+
+  // ===========================================================================
+  // 3. UI: COMPONENTS & PICKERS
+  // ===========================================================================
   void _showQuickPartyPicker(PharoahManager ph) {
-    showModalBottomSheet(
-      context: context, isScrollControlled: true, backgroundColor: const Color(0xFF0F172A),
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(25))),
-      builder: (c) {
-        String search = "";
-        return StatefulBuilder(builder: (context, setPickerState) {
-          final list = ph.parties.where((p) => p.name.toLowerCase().contains(search.toLowerCase())).toList();
-          return Container(height: MediaQuery.of(context).size.height * 0.8, padding: const EdgeInsets.all(20), child: Column(children: [
-              const Text("SEARCH & LINK PARTY", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18)),
-              const SizedBox(height: 15),
-              TextField(style: const TextStyle(color: Colors.white), autofocus: true, decoration: InputDecoration(hintText: "Type name...", hintStyle: const TextStyle(color: Colors.white24), prefixIcon: const Icon(Icons.search, color: Colors.blueAccent), filled: true, fillColor: Colors.white10, border: OutlineInputBorder(borderRadius: BorderRadius.circular(15))), onChanged: (v) => setPickerState(() => search = v)),
-              Expanded(child: ListView.builder(itemCount: list.length, itemBuilder: (c, i) => ListTile(title: Text(list[i].name, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)), subtitle: Text("${list[i].city} | GST: ${list[i].gst}", style: const TextStyle(color: Colors.white54, fontSize: 11)), onTap: () { setState(() => matchedParty = list[i]); Navigator.pop(context); })))
-            ]),
-          );
-        });
-      }
-    );
+    showModalBottomSheet(context: context, isScrollControlled: true, backgroundColor: const Color(0xFF0F172A), shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(25))), builder: (c) {
+      String s = ""; return StatefulBuilder(builder: (context, setPickerState) {
+        final list = ph.parties.where((p) => p.name.toLowerCase().contains(s.toLowerCase())).toList();
+        return Container(height: MediaQuery.of(context).size.height * 0.8, padding: const EdgeInsets.all(20), child: Column(children: [
+          const Text("SELECT PARTY FROM SYSTEM", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18)),
+          const SizedBox(height: 15),
+          TextField(style: const TextStyle(color: Colors.white), autofocus: true, decoration: InputDecoration(hintText: "Type name to search...", hintStyle: const TextStyle(color: Colors.white24), prefixIcon: const Icon(Icons.search, color: Colors.blueAccent), filled: true, fillColor: Colors.white10, border: OutlineInputBorder(borderRadius: BorderRadius.circular(15))), onChanged: (v) => setPickerState(() => s = v)),
+          Expanded(child: ListView.builder(itemCount: list.length, itemBuilder: (c, i) => ListTile(title: Text(list[i].name, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)), subtitle: Text("${list[i].city} | GST: ${list[i].gst}", style: const TextStyle(color: Colors.white38, fontSize: 11)), onTap: () { setState(() => matchedParty = list[i]); Navigator.pop(context); })))
+        ]));
+      });
+    });
   }
 
   @override
   Widget build(BuildContext context) {
     final ph = Provider.of<PharoahManager>(context);
     if (isLoading) return const Scaffold(backgroundColor: Color(0xFF0F172A), body: Center(child: CircularProgressIndicator()));
-    int newItems = reviewedItems.where((it) => it['status'] == 'new').length;
+    int newCount = reviewedItems.where((it) => it['status'] == 'new').length;
 
     return Scaffold(
       backgroundColor: const Color(0xFF0F172A),
-      appBar: AppBar(title: const Text("MIRROR AUDIT ENGINE"), backgroundColor: const Color(0xFF1E293B)),
+      appBar: AppBar(title: const Text("MIRROR AUDIT ENGINE"), backgroundColor: const Color(0xFF1E293B), foregroundColor: Colors.white),
       body: Column(children: [
         _buildPartyCard(),
-        if (newItems > 0) _buildBulkBanner(ph, newItems),
+        if (newCount > 0) _buildBulkBanner(ph, newCount),
         Expanded(child: ListView.builder(padding: const EdgeInsets.all(12), itemCount: reviewedItems.length, itemBuilder: (c, i) => _buildRow(i))),
         _buildAnalyticsFooter(ph),
       ]),
@@ -219,41 +257,28 @@ class _ImportReviewScreenState extends State<ImportReviewScreen> {
     ])));
   }
 
-  void _autoResolveAllNewProducts(PharoahManager ph) async {
-    List<int> newIndices = [];
-    for (int i = 0; i < reviewedItems.length; i++) { if (reviewedItems[i]['status'] == 'new') newIndices.add(i); }
-    if (newIndices.isEmpty) return;
-
-    setState(() => isLoading = true);
-    String startNoStr = await PharoahNumberingEngine.getNextNumber(type: "PRODUCT", companyID: ph.activeCompany!.id, prefix: "PH-", startFrom: 10001, currentList: ph.medicines);
-    int currentNum = int.parse(startNoStr.replaceAll("PH-", ""));
-
-    for (int idx in newIndices) {
-      var it = reviewedItems[idx];
-      String genId = "PH-$currentNum";
-      final m = Medicine(id: DateTime.now().millisecondsSinceEpoch.toString() + idx.toString(), systemId: genId, name: it['name'], packing: it['pack'], hsnCode: it['hsn'], gst: it['gstPer'], mrp: it['mrp'], purRate: it['purRate'], rateA: it['rate'], drugForm: it['form'], isNarcotic: it['isNaco'], isScheduleH1: it['isH1'], companyId: ph.getOrCreateCompany(it['mfg']), saltId: ph.getOrCreateSalt(it['salt']));
-      ph.addMedicine(m);
-      it['match'] = m; it['status'] = 'exact'; it['isSelected'] = true; currentNum++;
-    }
-    await ph.save(); setState(() => isLoading = false);
-  }
-
   Widget _buildAnalyticsFooter(PharoahManager ph) {
-    double sysTotal = reviewedItems.where((e)=>e['isSelected']).fold(0.0, (s, e)=>s+e['sysTotal']);
-    double csvTotal = reviewedItems.where((e)=>e['isSelected']).fold(0.0, (s, e)=>s+e['csvTotal']);
-    double diff = sysTotal - csvTotal;
+    double currentSysTotal = reviewedItems.where((e)=>e['isSelected']).fold(0.0, (s, e)=>s+e['sysTotal']);
+    double currentCsvTotal = reviewedItems.where((e)=>e['isSelected']).fold(0.0, (s, e)=>s+e['csvTotal']);
+    double diff = currentSysTotal - currentCsvTotal;
     return Container(padding: const EdgeInsets.all(20), decoration: const BoxDecoration(color: Color(0xFF1E293B), borderRadius: BorderRadius.vertical(top: Radius.circular(25))), child: Column(mainAxisSize: MainAxisSize.min, children: [
-      Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [ _footStat("SYSTEM NET", sysTotal), _footStat("CSV NET", csvTotal), _footStat("DIFF", diff, color: diff.abs() > 0.1 ? Colors.redAccent : Colors.greenAccent), ]),
+      Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [ _footStat("SYSTEM NET", currentSysTotal), _footStat("CSV NET", currentCsvTotal), _footStat("DIFF", diff, color: diff.abs() > 0.1 ? Colors.redAccent : Colors.greenAccent), ]),
       const Divider(color: Colors.white10, height: 25),
-      SizedBox(width: double.infinity, height: 55, child: ElevatedButton.icon(onPressed: () => _handleFinalImport(ph), icon: const Icon(Icons.cloud_done), label: const Text("FINALIZE MIRROR"), style: ElevatedButton.styleFrom(backgroundColor: Colors.blueAccent, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)))))
+      SizedBox(width: double.infinity, height: 55, child: ElevatedButton.icon(onPressed: () => _handleFinalImport(ph), icon: const Icon(Icons.cloud_done), label: const Text("FINALIZE MIRROR DATA"), style: ElevatedButton.styleFrom(backgroundColor: Colors.blueAccent, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)))))
     ]));
   }
 
+  // ===========================================================================
+  // 4. FINAL MIRROR: Dynamic SourceTag (C2C/C2V) & Tax Sync
+  // ===========================================================================
   void _handleFinalImport(PharoahManager ph) async {
     if (matchedParty == null) { ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Link/Create Party first!"))); return; }
     if (reviewedItems.any((it) => it['isSelected'] && it['match'] == null)) { ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Link all products first!"))); return; }
     setState(() => isLoading = true);
     
+    // Total calculation for the full bill
+    double finalGrossTotal = reviewedItems.where((e)=>e['isSelected']).fold(0.0, (s, e)=>s+e['sysTotal']);
+
     if (widget.importType == "PURCHASE") {
       List<PurchaseItem> items = [];
       for (var it in reviewedItems.where((e) => e['isSelected'])) {
@@ -261,20 +286,20 @@ class _ImportReviewScreenState extends State<ImportReviewScreen> {
         ph.registerBatchActivity(productKey: m.identityKey, batchNo: it['batch'], exp: it['exp'], packing: m.packing, mrp: it['mrp'], rate: it['rate']);
         items.add(PurchaseItem(id: DateTime.now().toString() + m.id, srNo: items.length + 1, medicineID: m.id, name: m.name, packing: m.packing, batch: it['batch'], exp: it['exp'], hsn: it['hsn'], mrp: it['mrp'], qty: it['qty'], freeQty: it['free'], purchaseRate: it['rate'], gstRate: it['gstPer'], total: it['sysTotal']));
       }
-      ph.finalizePurchase(internalNo: "MIR-PUR-${DateTime.now().millisecondsSinceEpoch.toString().substring(7)}", billNo: partyInfoInFile['billNo'], date: DateFormat('dd/MM/yyyy').parse(partyInfoInFile['date']), entryDate: DateTime.now(), party: matchedParty!, items: items, total: items.fold(0, (s, e)=>s+e.total), mode: "CREDIT", sourceTag: "P2P");
+      ph.finalizePurchase(internalNo: "MIR-PUR-${DateTime.now().millisecondsSinceEpoch.toString().substring(7)}", billNo: partyInfoInFile['billNo'], date: DateFormat('dd/MM/yyyy').parse(partyInfoInFile['date']), entryDate: DateTime.now(), party: matchedParty!, items: items, total: items.fold(0, (s, e)=>s+e.total), mode: "CREDIT", sourceTag: widget.exchangeMode);
     } else {
       List<BillItem> items = [];
       for (var it in reviewedItems.where((e) => e['isSelected'])) {
         Medicine m = it['match'];
         items.add(BillItem(id: DateTime.now().toString() + m.id, srNo: items.length + 1, medicineID: m.id, name: m.name, packing: m.packing, batch: it['batch'], exp: it['exp'], hsn: it['hsn'], mrp: it['mrp'], qty: it['qty'], freeQty: it['free'], rate: it['rate'], gstRate: it['gstPer'], cgst: it['cgst'], sgst: it['sgst'], igst: it['igst'], total: it['sysTotal'], discountRupees: it['discAmt']));
       }
-      double finalBillTotal = reviewedItems.where((e)=>e['isSelected']).fold(0.0, (s, e)=>s+e['sysTotal']) - partyInfoInFile['extraDisc'] + partyInfoInFile['roundOff'];
-      await ph.finalizeSale(billNo: partyInfoInFile['billNo'], date: DateFormat('dd/MM/yyyy').parse(partyInfoInFile['date']), party: matchedParty!, items: items, total: finalBillTotal, mode: "CREDIT", sourceTag: "P2P", extraDiscount: partyInfoInFile['extraDisc'], roundOff: partyInfoInFile['roundOff']);
+      await ph.finalizeSale(billNo: partyInfoInFile['billNo'], date: DateFormat('dd/MM/yyyy').parse(partyInfoInFile['date']), party: matchedParty!, items: items, total: (finalGrossTotal - partyInfoInFile['extraDisc'] + partyInfoInFile['roundOff']), mode: "CREDIT", sourceTag: widget.exchangeMode, extraDiscount: partyInfoInFile['extraDisc'], roundOff: partyInfoInFile['roundOff']);
     }
     Navigator.pop(context);
-    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("✅ C2C Data Sync Successful!"), backgroundColor: Colors.green));
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("✅ Mirror Import Sync Successful!"), backgroundColor: Colors.green));
   }
 
+  // UI Components
   Widget _badge(String t, Color c) => Container(margin: const EdgeInsets.only(top: 4, right: 4), padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2), decoration: BoxDecoration(color: c.withOpacity(0.1), borderRadius: BorderRadius.circular(4)), child: Text(t, style: TextStyle(color: c, fontSize: 8, fontWeight: FontWeight.bold)));
   Widget _metric(String l, double v, {Color color = Colors.white70}) => Column(children: [Text(l, style: const TextStyle(color: Colors.white38, fontSize: 8, fontWeight: FontWeight.bold)), Text("₹${v.toStringAsFixed(2)}", style: TextStyle(color: color, fontSize: 13, fontWeight: FontWeight.w900))]);
   Widget _footStat(String l, double v, {Color color = Colors.white70}) => Column(children: [Text(l, style: const TextStyle(color: Colors.white38, fontSize: 9, fontWeight: FontWeight.bold)), Text("₹${v.toStringAsFixed(2)}", style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.bold))]);
