@@ -1,4 +1,4 @@
-// FILE: lib/purchase/purchase_billing_view.dart (FINAL REPLACEMENT)
+// FILE: lib/purchase/purchase_billing_view.dart
 
 import '../pharoah_date_controller.dart';
 import 'package:flutter/material.dart';
@@ -176,14 +176,14 @@ class _PurchaseBillingViewState extends State<PurchaseBillingView> {
     if (widget.modifyPurchaseId != null) {
       ph.updatePurchase(id: widget.modifyPurchaseId!, internalNo: internalNoC.text, billNo: distBillNoC.text.trim(), date: selectedBillDate, entryDate: widget.entryDate, party: widget.distributor, items: items, total: totalAmt, mode: widget.mode, linkedChallanIds: links);
     } else {
-      ph.finalizePurchase(internalNo: internalNoC.text, billNo: distBillNoC.text.trim(), date: selectedBillDate, entryDate: widget.entryDate, party: widget.distributor, items: items, total: totalAmt, mode: widget.mode);
+      ph.finalizePurchase(internalNo: internalNoC.text, billNo: distBillNoC.text.trim(), date: selectedBillDate, entryDate: widget.entryDate, party: widget.distributor, items: items, total: totalAmt, mode: widget.mode, linkedChallanIds: links);
     }
     Navigator.of(context).popUntil((route) => route.isFirst);
   }
 }
 
 // =============================================================================
-// 🛒 PURCHASE ITEM ENTRY CARD (RESTORED RATE C FORMULA & DUAL DISCOUNT)
+// 🛒 PURCHASE ITEM ENTRY CARD (RESTORED BATCH CHIPS, DUAL DISC & RATE C)
 // =============================================================================
 class PurchaseItemEntryCard extends StatefulWidget {
   final Medicine med; final int srNo; final PurchaseItem? existingItem; final Function(PurchaseItem) onAdd; final VoidCallback onCancel;
@@ -192,12 +192,17 @@ class PurchaseItemEntryCard extends StatefulWidget {
 }
 
 class _PurchaseItemEntryCardState extends State<PurchaseItemEntryCard> {
+  // Master Controllers
   final batchC = TextEditingController(); final expC = TextEditingController(); final gstC = TextEditingController();
   final mrpC = TextEditingController(); final purRateC = TextEditingController(); final qtyC = TextEditingController(text: "1");
-  final freeC = TextEditingController(text: "0"); 
+  final freeC = TextEditingController(text: "0");
+  
+  // Selling Rate Controllers
   final rateAC = TextEditingController(); final rateBC = TextEditingController();
   final rateCC = TextEditingController(); 
-  final rateCDiscC = TextEditingController(text: "0.0"); // 🔥 RESTORED FORMULA
+  final rateCDiscC = TextEditingController(text: "0.0"); 
+  
+  // Bill Discount Controllers
   final discPerC = TextEditingController(text: "0.0"); 
   final discAmtC = TextEditingController(text: "0.0"); 
 
@@ -216,16 +221,18 @@ class _PurchaseItemEntryCardState extends State<PurchaseItemEntryCard> {
       discPerC.text = i.discountPer.toString(); discAmtC.text = i.discountRupees.toString();
     } else {
       gstC.text = widget.med.gst.toString(); mrpC.text = widget.med.mrp.toString();
-      purRateC.text = widget.med.purRate.toString(); rateAC.text = widget.med.rateA.toString(); 
-      rateBC.text = widget.med.rateB.toString(); _calcRateC();
+      purRateC.text = widget.med.purRate.toString(); 
+      rateAC.text = widget.med.rateA.toString(); rateBC.text = widget.med.rateB.toString();
+      _calcRateC();
     }
   }
 
   void _calcRateC() {
-    double mrp = double.tryParse(mrpC.text) ?? 0.0; double gst = double.tryParse(gstC.text) ?? 0.0;
-    double disc = double.tryParse(rateCDiscC.text) ?? 0.0; 
+    double mrp = double.tryParse(mrpC.text) ?? 0.0; 
+    double gst = double.tryParse(gstC.text) ?? 0.0;
+    double formulaDisc = double.tryParse(rateCDiscC.text) ?? 0.0;
     double baseTaxable = (mrp / (1 + (gst / 100)));
-    rateCC.text = (baseTaxable - (baseTaxable * (disc / 100))).toStringAsFixed(2);
+    rateCC.text = (baseTaxable - (baseTaxable * (formulaDisc / 100))).toStringAsFixed(2);
     setState(() {});
   }
 
@@ -257,10 +264,15 @@ class _PurchaseItemEntryCardState extends State<PurchaseItemEntryCard> {
 
   @override Widget build(BuildContext context) {
     final ph = Provider.of<PharoahManager>(context);
+    
+    // 🔥 RESTORED BATCH HISTORY FETCH
     final matchingBatches = BatchSyncEngine.getFilteredBatches(ph: ph, productKey: widget.med.identityKey, hideExpired: false)
         .where((b) => b.batch.toLowerCase().contains(batchC.text.toLowerCase())).toList();
-    double q = double.tryParse(qtyC.text) ?? 0; double r = double.tryParse(purRateC.text) ?? 0;
-    double dAmt = double.tryParse(discAmtC.text) ?? 0; double g = double.tryParse(gstC.text) ?? 0;
+
+    double q = double.tryParse(qtyC.text) ?? 0; 
+    double r = double.tryParse(purRateC.text) ?? 0;
+    double dAmt = double.tryParse(discAmtC.text) ?? 0; 
+    double g = double.tryParse(gstC.text) ?? 0;
     double taxable = (q * r) - dAmt;
     double netTotal = taxable * (1 + g / 100);
 
@@ -269,11 +281,28 @@ class _PurchaseItemEntryCardState extends State<PurchaseItemEntryCard> {
       decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(15)),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [Text("${widget.srNo}. ${widget.med.name}", style: const TextStyle(fontWeight: FontWeight.bold)), IconButton(icon: const Icon(Icons.cancel), onPressed: widget.onCancel)]),
+          
           Row(children: [
-            Expanded(child: _buildInput("BATCH", batchC)), const SizedBox(width: 8), 
+            Expanded(child: _buildInput("BATCH", batchC, onChanged: (v) => setState(() {}))), const SizedBox(width: 8), 
             Expanded(child: _buildInput("EXP", expC, isNum: true, onChanged: _formatExpiry)), const SizedBox(width: 8), 
             Expanded(child: _buildInput("GST%", gstC, isNum: true, onChanged: (v) => _calcRateC()))
           ]),
+
+          // 🔥 RESTORED BATCH CHIPS UI
+          if (matchingBatches.isNotEmpty && widget.existingItem == null)
+            Container(height: 45, margin: const EdgeInsets.symmetric(vertical: 8),
+              child: ListView(scrollDirection: Axis.horizontal, children: matchingBatches.map((b) => Padding(padding: const EdgeInsets.only(right: 8),
+                    child: ActionChip(
+                      label: Text("${b.batch} (${b.exp})"),
+                      onPressed: () {
+                        setState(() {
+                          batchC.text = b.batch; expC.text = b.exp;
+                          mrpC.text = b.mrp.toString(); purRateC.text = b.rate.toString();
+                          _calcRateC(); _syncDiscount(true);
+                        });
+                      },
+                    ))).toList())),
+
           const SizedBox(height: 10),
           Row(children: [
             Expanded(child: _buildInput("MRP", mrpC, isNum: true, onChanged: (v) => _calcRateC())), const SizedBox(width: 8), 
@@ -308,5 +337,5 @@ class _PurchaseItemEntryCardState extends State<PurchaseItemEntryCard> {
     );
   }
 
-  Widget _buildInput(String l, TextEditingController c, {bool isNum = false, Function(String)? onChanged, Color? color, bool isReadOnly = false}) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(l, style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: color)), TextField(controller: c, keyboardType: isNum ? TextInputType.number : TextInputType.text, onChanged: onChanged, readOnly: isReadOnly, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: color), decoration: InputDecoration(isDense: true, border: const OutlineInputBorder(), fillColor: isReadOnly ? Colors.grey.shade100 : Colors.white, filled: isReadOnly))]);
+  Widget _buildInput(String l, TextEditingController c, {bool isNum = false, Function(String)? onChanged, Color? color, bool isReadOnly = false}) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(l, style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: color)), TextField(controller: c, keyboardType: isNum ? const TextInputType.numberWithOptions(decimal: true) : TextInputType.text, onChanged: onChanged, readOnly: isReadOnly, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: color), decoration: InputDecoration(isDense: true, border: const OutlineInputBorder(), fillColor: isReadOnly ? Colors.grey.shade100 : Colors.white, filled: isReadOnly))]);
 }
