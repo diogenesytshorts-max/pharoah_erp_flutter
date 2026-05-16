@@ -101,13 +101,21 @@ class _ImportReviewScreenState extends State<ImportReviewScreen> {
       try { match = ph.medicines.firstWhere((m) => m.name == row[18].toString().toUpperCase()); } catch(e) { match = null; }
 
       reviewedItems.add({
-        'name': row[18].toString().toUpperCase(), 'pack': row[19].toString(), 'batch': row[26].toString(), 'exp': row[27].toString(),
-        'qty': qty, 'free': double.tryParse(row[29].toString()) ?? 0.0, 'hsn': row[20].toString(), 'mrp': double.tryParse(row[30].toString()) ?? 0.0,
-        'rate': rate, 'gstPer': gstPer, 'csvTotal': csvTotal, 'sysTotal': systemTotal, 
-        'itemDiscPer': itemDiscPer, 'discAmt': discAmt,
+        'name': row[18].toString().toUpperCase(), 
+        'pack': row[19].toString(), 
+        'hsn': row[20]?.toString() ?? "3004", // ADDED BACK
+        'mfg': row[21]?.toString().toUpperCase() ?? "N/A", // ADDED BACK
+        'salt': row[22]?.toString().toUpperCase() ?? "N/A", // ADDED BACK
+        'form': row[23]?.toString().toUpperCase() ?? "TAB", // ADDED BACK
+        'isNaco': row[24]?.toString().toUpperCase() == "YES", // FIXED KEY
+        'isH1': row[25]?.toString().toUpperCase() == "YES",   // FIXED KEY
+        'batch': row[26].toString(), 'exp': row[27].toString(),
+        'qty': qty, 'free': double.tryParse(row[29].toString()) ?? 0.0, 'mrp': double.tryParse(row[30].toString()) ?? 0.0,
+        'rate': rate, 'gstPer': gstPer, 'csvTotal': csvTotal, 'sysTotal': systemTotal, 'itemDiscPer': itemDiscPer, 'discAmt': discAmt,
         'match': match, 'isSelected': match != null, 'status': match == null ? 'new' : 'exact',
-        'isFixed': false, 'taxable': taxable, 'cgst': isLocal ? totalTax/2 : 0.0, 'sgst': isLocal ? totalTax/2 : 0.0, 'igst': isLocal ? 0.0 : totalTax,
+        'isFixed': false, 'taxable': taxable, 'cgst': isLocal ? taxAmt/2 : 0.0, 'sgst': isLocal ? taxAmt/2 : 0.0, 'igst': isLocal ? 0.0 : taxAmt,
       });
+
     }
     setState(() => isLoading = false);
   }
@@ -128,10 +136,11 @@ class _ImportReviewScreenState extends State<ImportReviewScreen> {
       var it = reviewedItems[idx];
       String genId = "PH-$currentNum";
       final m = Medicine(id: DateTime.now().millisecondsSinceEpoch.toString() + idx.toString(), systemId: genId, name: it['name'], packing: it['pack'], hsnCode: it['hsn'], gst: it['gstPer'], mrp: it['mrp'], purRate: it['purRate'], rateA: it['rate'], drugForm: it['form'], isNarcotic: it['isNaco'], isScheduleH1: it['isH1'], companyId: ph.getOrCreateCompany(it['mfg']), saltId: ph.getOrCreateSalt(it['salt']));
-      ph.addMedicine(m);
+      ph.addMedicine(m, doSave: false); // FAST LOADING: NO RE-SAVE IN LOOP
       it['match'] = m; it['status'] = 'exact'; it['isSelected'] = true; currentNum++;
     }
-    await ph.save(); setState(() => isLoading = false);
+    await ph.save(); // SAVE ONLY ONCE AFTER LOOP
+    setState(() => isLoading = false);
   }
 
   // ===========================================================================
