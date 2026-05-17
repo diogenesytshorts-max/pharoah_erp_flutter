@@ -22,10 +22,12 @@ import 'master_data_library.dart';
 
 class PharoahManager with ChangeNotifier {
   // ===========================================================================
-  // 1. STATE & SECURITY VARIABLES
+  // 1. GLOBAL STATE & SECURITY VARIABLES (CLASS LEVEL)
   // ===========================================================================
   
   String activeModule = "HOME"; 
+  
+  // --- 🛡️ NEW SECURITY & AUTO-LOCK STATE ---
   bool isAppLocked = false;           
   Timer? _inactivityTimer;            
   final _auth = LocalAuthentication(); 
@@ -62,7 +64,7 @@ class PharoahManager with ChangeNotifier {
   PharoahManager() { initRegistry(); }
 
   // ===========================================================================
-  // 2. NAVIGATION & MODULE GETTERS
+  // 2. NAVIGATION & DYNAMIC MENU GETTERS
   // ===========================================================================
 
   void updateModule(String newModule) {
@@ -79,7 +81,7 @@ class PharoahManager with ChangeNotifier {
     ModuleAction(title: "MASTERS", icon: Icons.stars, color: Colors.orange, navModule: "MASTERS"),
     ModuleAction(title: "MODIFICATIONS", icon: Icons.edit_note_rounded, color: Colors.blueGrey, navModule: "GO_MODIFICATION"),
     ModuleAction(title: "GST", icon: Icons.verified, color: Colors.green, navModule: "GST"),
-    ModuleAction(title: "DATA HUB", icon: Icons.cloud_sync_rounded, color: Colors.teal.shade700, navModule: "GO_DATA_HUB"),
+    ModuleAction(title: "DATA HUB", icon: Icons.cloud_sync, color: Colors.teal, navModule: "GO_DATA_HUB"),
   ];
 
   List<ModuleAction> get billingActions => [
@@ -108,7 +110,6 @@ class PharoahManager with ChangeNotifier {
     ModuleAction(title: "Stock", icon: Icons.view_in_ar, color: Colors.purple, navModule: "GO_STOCK"),
     ModuleAction(title: "Shortage", icon: Icons.trending_down, color: Colors.red, navModule: "GO_SHORTAGE"),
     ModuleAction(title: "Ledger", icon: Icons.menu_book, color: Colors.blueGrey, navModule: "GO_ITEM_LEDGER"),
-    ModuleAction(title: "Dump Stock", icon: Icons.delete_sweep, color: Colors.brown, navModule: "GO_DUMP"),
   ];
 
   List<ModuleAction> get accountsActions => [
@@ -121,8 +122,8 @@ class PharoahManager with ChangeNotifier {
   List<ModuleAction> get mastersActions => [
     ModuleAction(title: "Parties", icon: Icons.group_add, color: Colors.indigo, navModule: "GO_M_PARTY"),
     ModuleAction(title: "Items", icon: Icons.medication, color: Colors.purple, navModule: "GO_M_ITEM"),
-    ModuleAction(title: "Series Master", icon: Icons.format_list_numbered, color: Colors.blue, navModule: "GO_M_SERIES"),
-    ModuleAction(title: "Staff & Security", icon: Icons.admin_panel_settings, color: Colors.red, navModule: "GO_M_STAFF"),
+    ModuleAction(title: "Series", icon: Icons.format_list_numbered, color: Colors.blue, navModule: "GO_M_SERIES"),
+    ModuleAction(title: "Staff", icon: Icons.admin_panel_settings, color: Colors.red, navModule: "GO_M_STAFF"),
     ModuleAction(title: "Batches", icon: Icons.layers, color: Colors.blueGrey, navModule: "GO_M_BATCH"),
     ModuleAction(title: "Routes", icon: Icons.map, color: Colors.teal, navModule: "GO_M_ROUTE"),
     ModuleAction(title: "Company", icon: Icons.business, color: Colors.brown, navModule: "GO_M_COMP"),
@@ -132,11 +133,11 @@ class PharoahManager with ChangeNotifier {
   List<ModuleAction> get gstActions => [
     ModuleAction(title: "GSTR-1", icon: Icons.assignment, color: Colors.green, navModule: "GO_GST_1"),
     ModuleAction(title: "GSTR-3B", icon: Icons.summarize, color: Colors.blue, navModule: "GO_GST_3B"),
-    ModuleAction(title: "Portal Match", icon: Icons.fact_check, color: Colors.teal, navModule: "GO_GST_RECON"),
+    ModuleAction(title: "Portal", icon: Icons.fact_check, color: Colors.teal, navModule: "GO_GST_RECON"),
   ];
 
   // ===========================================================================
-  // 3. SECURITY ENGINE
+  // 3. SECURITY & AUTH LOGIC
   // ===========================================================================
 
   void authenticateAdmin(bool status) { 
@@ -196,7 +197,7 @@ class PharoahManager with ChangeNotifier {
   }
 
   // ===========================================================================
-  // 4. REGISTRY & DATA MANAGEMENT
+  // 4. REGISTRY & PERSISTENCE
   // ===========================================================================
 
   Future<void> initRegistry() async {
@@ -241,8 +242,73 @@ class PharoahManager with ChangeNotifier {
     return dir.path;
   }
 
+  Future<void> save() async {
+    final dir = await getWorkingPath(); 
+    if (dir.isEmpty) return;
+    Future _w(String n, List data) async => await File('$dir/$n').writeAsString(jsonEncode(data.map((e) => e.toMap()).toList()));
+    
+    await _w('meds.json', medicines); 
+    await _w('parts.json', parties); 
+    await _w('sales.json', sales);
+    await _w('purc.json', purchases); 
+    await _w('vouc.json', vouchers); 
+    await _w('sys_users.json', systemUsers);
+    await _w('series.json', numberingSeries); 
+    await _w('s_challan.json', saleChallans); 
+    await _w('p_challan.json', purchaseChallans);
+    await _w('s_return.json', saleReturns); 
+    await _w('p_return.json', purchaseReturns); 
+    await _w('cheques.json', cheques);
+    await _w('shortage.json', shortages); 
+    await _w('logs.json', logs); 
+    await _w('routs.json', routes);
+    await _w('comps.json', companies); 
+    await _w('salts.json', salts); 
+    await _w('dtypes.json', drugTypes); 
+    await _w('banks.json', banks);
+    
+    await File('$dir/bats.json').writeAsString(jsonEncode(batchHistory.map((k, v) => MapEntry(k, v.map((b) => b.toMap()).toList()))));
+    await File('$dir/config.json').writeAsString(jsonEncode(config.toMap()));
+    notifyListeners();
+  }
+
+  Future<void> loadAllData() async {
+    final dir = await getWorkingPath(); 
+    if (dir.isEmpty) return;
+    dynamic load(String n) { final f = File('$dir/$n'); return f.existsSync() ? jsonDecode(f.readAsStringSync()) : null; }
+    
+    var cData = load('config.json');
+    if (cData != null) config = AppConfig.fromMap(cData);
+    else config = AppConfig();
+    
+    medicines = (load('meds.json') as List?)?.map((e) => Medicine.fromMap(e)).toList() ?? DemoData.getMedicines();
+    parties = (load('parts.json') as List?)?.map((e) => Party.fromMap(e)).toList() ?? [Party(id:'cash',name:"CASH",group:"Cash in Hand")];
+    companies = (load('comps.json') as List?)?.map((e) => Company.fromMap(e)).toList() ?? MasterDataLibrary.getTopCompanies();
+    salts = (load('salts.json') as List?)?.map((e) => Salt.fromMap(e)).toList() ?? MasterDataLibrary.getTopSalts();
+    drugTypes = (load('dtypes.json') as List?)?.map((e) => DrugType.fromMap(e)).toList() ?? MasterDataLibrary.getDrugTypes();
+    sales = (load('sales.json') as List?)?.map((e) => Sale.fromMap(e)).toList() ?? [];
+    purchases = (load('purc.json') as List?)?.map((e) => Purchase.fromMap(e)).toList() ?? [];
+    vouchers = (load('vouc.json') as List?)?.map((e) => Voucher.fromMap(e)).toList() ?? [];
+    saleChallans = (load('s_challan.json') as List?)?.map((e) => SaleChallan.fromMap(e)).toList() ?? [];
+    purchaseChallans = (load('p_challan.json') as List?)?.map((e) => PurchaseChallan.fromMap(e)).toList() ?? [];
+    saleReturns = (load('s_return.json') as List?)?.map((e) => SaleReturn.fromMap(e)).toList() ?? [];
+    purchaseReturns = (load('p_return.json') as List?)?.map((e) => PurchaseReturn.fromMap(e)).toList() ?? [];
+    cheques = (load('cheques.json') as List?)?.map((e) => ChequeEntry.fromMap(e)).toList() ?? [];
+    shortages = (load('shortage.json') as List?)?.map((e) => ShortageItem.fromMap(e)).toList() ?? [];
+    logs = (load('logs.json') as List?)?.map((e) => LogEntry.fromMap(e)).toList() ?? [];
+    routes = (load('routs.json') as List?)?.map((e) => RouteArea.fromMap(e)).toList() ?? [];
+    banks = (load('banks.json') as List?)?.map((e) => Bank.fromMap(e)).toList() ?? [];
+    
+    var sD = load('series.json'); if (sD!=null) numberingSeries = (sD as List).map((e)=>NumberingSeries.fromMap(e)).toList();
+    var uD = load('sys_users.json'); if (uD!=null) systemUsers = (uD as List).map((e)=>SystemUser.fromMap(e)).toList();
+    var bD = load('bats.json'); if (bD!=null) { batchHistory.clear(); (bD as Map).forEach((k,v)=>batchHistory[k]=(v as List).map((b)=>BatchInfo.fromMap(b)).toList()); }
+    
+    InventoryLogicCenter.rebuildAllInventory(medicines: medicines, batchHistory: batchHistory, purchases: purchases, sales: sales);
+    notifyListeners();
+  }
+
   // ===========================================================================
-  // 5. BUSINESS FINALIZATION (SALES, PUR, STITCHER)
+  // 6. BUSINESS LOGIC (SALES, PURCHASES, STITCHER)
   // ===========================================================================
 
   Future<void> finalizeSale({required String billNo, required DateTime date, required Party party, required List<BillItem> items, required double total, required String mode, List<String>? linkedIds, double extraDiscount = 0.0, double roundOff = 0.0, String sourceTag = ""}) async { 
@@ -273,9 +339,41 @@ class PharoahManager with ChangeNotifier {
     await save(); InventoryLogicCenter.rebuildAllInventory(medicines: medicines, batchHistory: batchHistory, purchases: purchases, sales: sales); notifyListeners(); 
   }
 
+  // --- CHALLANS & RETURNS ---
+  void finalizeSaleChallan({required String billNo, required DateTime date, required Party party, required List<BillItem> items, required double total, String remarks = "", required String partyId}) { saleChallans.add(SaleChallan(id: DateTime.now().toString(), billNo: billNo, partyId: partyId, date: date, partyName: party.name, partyGstin: party.gst, partyState: party.state, items: items, totalAmount: total, remarks: remarks)); save(); }
+  void finalizePurchaseChallan({required String billNo, required String internalNo, required DateTime date, required Party party, required List<PurchaseItem> items, required double total, String remarks = "", required String partyId}) { purchaseChallans.add(PurchaseChallan(id: DateTime.now().toString(), internalNo: internalNo, billNo: billNo, partyId: partyId, date: date, distributorName: party.name, items: items, totalAmount: total, remarks: remarks)); save(); }
+  void finalizeSaleReturn({required String billNo, required DateTime date, required Party party, required List<BillItem> items, required double total, String type = "Sellable"}) { saleReturns.add(SaleReturn(id: DateTime.now().toString(), billNo: billNo, date: date, partyName: party.name, items: items, totalAmount: total, returnType: type)); save().then((_) => loadAllData()); }
+  void finalizePurchaseReturn({required String billNo, required DateTime date, required Party party, required List<PurchaseItem> items, required double total, String type = "Breakage"}) { purchaseReturns.add(PurchaseReturn(id: DateTime.now().toString(), billNo: billNo, distributorName: party.name, date: date, items: items, totalAmount: total, status: "Active", returnType: type)); save().then((_) => loadAllData()); }
+
   // ===========================================================================
-  // 6. MASTER OPERATIONS (CRUD)
+  // 7. BATCH TOOLS & INVENTORY INTEL
   // ===========================================================================
+
+  void registerBatchActivity({required String productKey, required String batchNo, required String exp, required String packing, required double mrp, required double rate}) {
+    if (activeCompany == null) return;
+    if (!batchHistory.containsKey(productKey)) batchHistory[productKey] = [];
+    List<BatchInfo> history = batchHistory[productKey]!;
+    int existingIdx = history.indexWhere((b) => b.batch.trim() == batchNo.trim());
+    if (existingIdx != -1) {
+      history[existingIdx].exp = exp; history[existingIdx].mrp = mrp; history[existingIdx].rate = rate; history[existingIdx].packing = packing;
+    } else {
+      history.add(BatchInfo(batch: batchNo.trim(), exp: exp, packing: packing, mrp: mrp, rate: rate, qty: 0.0, isShell: false));
+    }
+    save();
+  }
+
+  void runAutoShortageScan() { shortages.removeWhere((s) => s.source == "Auto"); for (var m in medicines) { double a = calculateAvgMonthlySale(m.id); double r = a * 1.5; if (m.stock < r && r > 0) { shortages.add(ShortageItem(id: "auto_${m.id}", medicineId: m.id, medicineName: m.name, companyName: m.companyId, qtyRequired: r - m.stock, currentStock: m.stock, date: DateTime.now(), source: "Auto")); } } save(); }
+  double calculateAvgMonthlySale(String mid) { DateTime d = DateTime.now().subtract(const Duration(days: 30)); double q = 0; for (var s in sales.where((x) => x.status == "Active" && x.date.isAfter(d))) { for (var it in s.items.where((it) => it.medicineID == mid)) { q += (it.qty + it.freeQty); } } return q; }
+
+  void adjustBatchStock({required String medId, required String batchNo, required double adjQty, required String reason}) { if (batchHistory.containsKey(medId)) { try { var b = batchHistory[medId]!.firstWhere((x) => x.batch == batchNo); b.adjustmentQty += adjQty; b.adjReason = reason; save().then((_) => loadAllData()); } catch (e) {} } }
+  void updateBatchMetadata({required String medId, required String batchNo, required String newExp, required double newMrp, required double newRate}) { if (batchHistory.containsKey(medId)) { try { var b = batchHistory[medId]!.firstWhere((x) => x.batch == batchNo); b.exp = newExp; b.mrp = newMrp; b.rate = newRate; save().then((_) => loadAllData()); } catch (e) {} } }
+
+  // ===========================================================================
+  // 8. MASTERS CRUD (ADD/UPDATE/DELETE)
+  // ===========================================================================
+
+  String getOrCreateCompany(String n) { try { return companies.firstWhere((c) => c.name.toUpperCase() == n.trim().toUpperCase()).id; } catch (e) { String id = "CP-${1000 + companies.length + 1}"; companies.add(Company(id: id, name: n.trim().toUpperCase())); save(); return id; } }
+  String getOrCreateSalt(String n) { try { return salts.firstWhere((s) => s.name.toUpperCase() == n.trim().toUpperCase()).id; } catch (e) { String id = "SL-${1000 + salts.length + 1}"; salts.add(Salt(id: id, name: n.trim().toUpperCase())); save(); return id; } }
 
   void addMedicine(Medicine m, {bool doSave = true}) { medicines.add(m); if (!batchHistory.containsKey(m.identityKey)) batchHistory[m.identityKey] = []; if (doSave) save(); notifyListeners(); }
   void addRoute(RouteArea r) { routes.add(r); save(); }
@@ -307,43 +405,11 @@ class PharoahManager with ChangeNotifier {
   void deleteShortage(String id) { shortages.removeWhere((s) => s.id == id); save(); }
   void deleteBank(String id) { banks.removeWhere((b) => b.id == id); save(); }
 
-  // --- 🔥 MISSING RESET COUNTER (RESTORED) ---
-  void resetCounter(String t) { 
-    if (activeCompany != null) { 
-      String pfx = (t == "SALE_BILL") ? "INV-" : (t == "PUR_BILL" ? "PUR-" : "SCH-"); 
-      PharoahNumberingEngine.resetSeries(type: t.contains("SALE") ? "SALE" : "PURCHASE", companyID: activeCompany!.id, prefix: pfx); 
-    } 
-    notifyListeners(); 
-  }
+  // --- 🔥 RESTORED COUNTER RESET ---
+  void resetCounter(String t) { if (activeCompany != null) { String pfx = (t == "SALE_BILL") ? "INV-" : (t == "PUR_BILL" ? "PUR-" : "SCH-"); PharoahNumberingEngine.resetSeries(type: t.contains("SALE") ? "SALE" : "PURCHASE", companyID: activeCompany!.id, prefix: pfx); } notifyListeners(); }
 
   // ===========================================================================
-  // 7. INVENTORY INTEL & HELPERS
-  // ===========================================================================
-
-  void registerBatchActivity({required String productKey, required String batchNo, required String exp, required String packing, required double mrp, required double rate}) {
-    if (activeCompany == null) return;
-    if (!batchHistory.containsKey(productKey)) batchHistory[productKey] = [];
-    List<BatchInfo> history = batchHistory[productKey]!;
-    int existingIdx = history.indexWhere((b) => b.batch.trim() == batchNo.trim());
-    if (existingIdx != -1) {
-      history[existingIdx].exp = exp; history[existingIdx].mrp = mrp; history[existingIdx].rate = rate; history[existingIdx].packing = packing;
-    } else {
-      history.add(BatchInfo(batch: batchNo.trim(), exp: exp, packing: packing, mrp: mrp, rate: rate, qty: 0.0, isShell: false));
-    }
-    save();
-  }
-
-  void runAutoShortageScan() { shortages.removeWhere((s) => s.source == "Auto"); for (var m in medicines) { double a = calculateAvgMonthlySale(m.id); double r = a * 1.5; if (m.stock < r && r > 0) { shortages.add(ShortageItem(id: "auto_${m.id}", medicineId: m.id, medicineName: m.name, companyName: m.companyId, qtyRequired: r - m.stock, currentStock: m.stock, date: DateTime.now(), source: "Auto")); } } save(); }
-  double calculateAvgMonthlySale(String mid) { DateTime d = DateTime.now().subtract(const Duration(days: 30)); double q = 0; for (var s in sales.where((x) => x.status == "Active" && x.date.isAfter(d))) { for (var it in s.items.where((it) => it.medicineID == mid)) { q += (it.qty + it.freeQty); } } return q; }
-
-  String getOrCreateCompany(String n) { try { return companies.firstWhere((c) => c.name.toUpperCase() == n.trim().toUpperCase()).id; } catch (e) { String id = "CP-${1000 + companies.length + 1}"; companies.add(Company(id: id, name: n.trim().toUpperCase())); save(); return id; } }
-  String getOrCreateSalt(String n) { try { return salts.firstWhere((s) => s.name.toUpperCase() == n.trim().toUpperCase()).id; } catch (e) { String id = "SL-${1000 + salts.length + 1}"; salts.add(Salt(id: id, name: n.trim().toUpperCase())); save(); return id; } }
-
-  void adjustBatchStock({required String medId, required String batchNo, required double adjQty, required String reason}) { if (batchHistory.containsKey(medId)) { try { var b = batchHistory[medId]!.firstWhere((x) => x.batch == batchNo); b.adjustmentQty += adjQty; b.adjReason = reason; save().then((_) => loadAllData()); } catch (e) {} } }
-  void updateBatchMetadata({required String medId, required String batchNo, required String newExp, required double newMrp, required double newRate}) { if (batchHistory.containsKey(medId)) { try { var b = batchHistory[medId]!.firstWhere((x) => x.batch == batchNo); b.exp = newExp; b.mrp = newMrp; b.rate = newRate; save().then((_) => loadAllData()); } catch (e) {} } }
-
-  // ===========================================================================
-  // 8. DATA REGISTRY & YEAR-END
+  // 9. DATA REGISTRY & YEAR-END
   // ===========================================================================
 
   Future<void> setupNewCompanyEnvironment(CompanyProfile p, String f) async { activeCompany = p; currentFY = f; numberingSeries = [NumberingSeries(id: 's1', name: "Standard Retail", type: "SALE", prefix: "INV-", isDefault: true)]; medicines = DemoData.getMedicines(); companies = MasterDataLibrary.getTopCompanies(); salts = MasterDataLibrary.getTopSalts(); drugTypes = MasterDataLibrary.getDrugTypes(); parties = [DemoData.getDemoParty(), Party(id: 'cash', name: "CASH", group: "Cash in Hand")]; await save(); if (!companiesRegistry.any((c) => c.id == p.id)) { companiesRegistry.add(p); await saveRegistry(); } notifyListeners(); }
@@ -351,14 +417,14 @@ class PharoahManager with ChangeNotifier {
   Future<void> masterReset() async { final p = await getWorkingPath(); if(p.isNotEmpty) { final d = Directory(p); if(d.existsSync()) d.deleteSync(recursive: true); } await loadAllData(); }
 
   // ===========================================================================
-  // 9. CORE GETTERS
+  // 10. GETTERS & RECOVERY
   // ===========================================================================
 
   NumberingSeries getDefaultSeries(String t) => numberingSeries.firstWhere((s) => s.type == t && s.isDefault, orElse: () => numberingSeries.firstWhere((s) => s.type == t, orElse: () => NumberingSeries(id: 'tmp', name: 'Default', type: t, prefix: 'TXN-', isDefault: true)));
   List<NumberingSeries> getSeriesByType(String t) => numberingSeries.where((s) => s.type == t).toList();
   List<String> getSortedStates() { final all = ["Andhra Pradesh", "Assam", "Bihar", "Chhattisgarh", "Goa", "Gujarat", "Haryana", "Himachal Pradesh", "Jharkhand", "Karnataka", "Kerala", "Madhya Pradesh", "Maharashtra", "Manipur", "Meghalaya", "Mizoram", "Nagaland", "Odisha", "Punjab", "Rajasthan", "Sikkim", "Tamil Nadu", "Telangana", "Tripura", "Uttar Pradesh", "Uttarakhand", "West Bengal", "Delhi", "Jammu and Kashmir", "Ladakh", "Puducherry", "Chandigarh"]; Map<String, int> counts = {}; for (var p in parties) { counts[p.state] = (counts[p.state] ?? 0) + 1; } List<String> sorted = List.from(all); sorted.sort((a, b) => (counts[b] ?? 0).compareTo(counts[a] ?? 0)); return sorted; }
 
-  // --- SIGNATURES ---
+  // --- SIGNATURES (RESTORED) ---
   Future<void> addSignatureToChallan({required String challanId, required String imagePath, required String code, required double amount, required double qty, required double x, required double y}) async { int idx = saleChallans.indexWhere((c) => c.id == challanId); if (idx != -1) { final s = ChallanSignature(id: DateTime.now().toString(), imagePath: imagePath, verificationCode: code, signedAmount: amount, signedQty: qty, signDate: DateTime.now(), signX: x, signY: y); List<ChallanSignature> h = List.from(saleChallans[idx].sigHistory); h.add(s); saleChallans[idx].sigHistory = h; saleChallans[idx].isSigned = true; save(); } }
   Future<String> saveSignatureFile(String cNo, Uint8List b) async { final r = await getApplicationDocumentsDirectory(); final d = Directory('${r.path}/Pharoah_Data/${activeCompany!.id}/Signatures'); if (!await d.exists()) await d.create(recursive: true); final f = File('${d.path}/Sign_${cNo}_${DateTime.now().millisecondsSinceEpoch}.png'); await f.writeAsBytes(b); return f.path; }
 }
