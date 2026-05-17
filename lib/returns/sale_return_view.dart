@@ -198,8 +198,11 @@ class _SaleReturnViewState extends State<SaleReturnView> {
         srNo: items.length + 1,
         partyState: selectedParty?.state ?? "Rajasthan",
         existingItem: preFilled,
+        allowExpired: true, // 🔥 NAYA: Yeh line expiry block ko khatam kar degi
         onAdd: (newItem) {
-          setState(() { items.add(newItem.copyWith(isBreakage: isBreakageMode)); });
+          setState(() {
+            items.add(newItem.copyWith(isBreakage: isBreakageMode)); 
+          });
           Navigator.pop(context);
         },
         onCancel: () => Navigator.pop(context),
