@@ -3,6 +3,7 @@
 import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
 import 'models.dart';
@@ -10,9 +11,11 @@ import 'administration/system_user_model.dart';
 import 'finance/bank_transaction_model.dart';
 import 'demo_data.dart';
 import 'inventory_logic_center.dart';
+import 'package:local_auth/local_auth.dart';
 import 'fy_transfer_engine.dart';
 import 'gateway/company_registry_model.dart';
 import 'logic/app_settings_model.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'logic/pharoah_numbering_engine.dart';
 import 'master_data_library.dart';
 
@@ -22,6 +25,11 @@ class PharoahManager with ChangeNotifier {
   void updateModule(String newModule) {
     activeModule = newModule;
     notifyListeners();
+    // --- NEW SECURITY & AUTO-LOCK STATE ---
+  bool isAppLocked = false;           // Kya parda (Overlay) dikhana hai?
+  Timer? _inactivityTimer;            // Inactivity nazar rakhne wala timer
+  final _auth = LocalAuthentication(); // Hardware hardware connector
+  final _secureStorage = const FlutterSecureStorage(); // Secure storage chabi
   }
 
   // --- DYNAMIC MENU ACTIONS ---
@@ -152,8 +160,12 @@ class PharoahManager with ChangeNotifier {
     notifyListeners(); 
   }
 
-  void authenticateAdmin(bool s) { 
-    isAdminAuthenticated = s; 
+  void authenticateAdmin(bool status) { 
+    isAdminAuthenticated = status; 
+    if (status) {
+      isAppLocked = false;
+      resetInactivityTimer(); // Timer shuru karein
+    }
     notifyListeners(); 
   }
 
@@ -418,5 +430,75 @@ void addMedicine(Medicine m, {bool doSave = true}) {
   Future<void> masterReset() async { final p = await getWorkingPath(); if(p.isNotEmpty) { final d = Directory(p); if(d.existsSync()) d.deleteSync(recursive: true); } await loadAllData(); }
   List<NumberingSeries> getSeriesByType(String t) => numberingSeries.where((s) => s.type == t).toList();
   NumberingSeries getDefaultSeries(String t) => numberingSeries.firstWhere((s) => s.type == t && s.isDefault, orElse: () => numberingSeries.firstWhere((s) => s.type == t, orElse: () => NumberingSeries(id: 'tmp', name: 'Default', type: t, prefix: 'TXN-', isDefault: true)));
+  // ===========================================================================
+  // 🛡️ ADVANCED SECURITY ENGINE (BIOMETRIC & AUTO-LOCK)
+  // ===========================================================================
+
+  // 1. Timer Reset: Jab bhi screen touch hogi, ye call hoga
+  void resetInactivityTimer() {
+    // Agar company select nahi hai ya auto-lock OFF (0) hai, toh kuch mat karo
+    if (activeCompany == null || activeCompany!.autoLockMinutes == 0) return;
+
+    _inactivityTimer?.cancel(); // Purana timer band karo
+    
+    // Naya timer shuru karo
+    _inactivityTimer = Timer(Duration(minutes: activeCompany!.autoLockMinutes), () {
+      lockApp(); // Time up! App lock karo
+    });
+  }
+
+  // 2. App Lock Trigger
+  void lockApp() {
+    if (isAppLocked || activeCompany == null) return;
+    isAppLocked = true;
+    notifyListeners();
+    debugPrint("🛡️ System: App Locked due to inactivity.");
+  }
+
+  // 3. Biometric Unlock Logic
+  Future<bool> authenticateBiometric() async {
+    try {
+      bool canCheck = await _auth.canCheckBiometrics || await _auth.isDeviceSupported();
+      if (!canCheck) return false;
+
+      bool didAuthenticate = await _auth.authenticate(
+        localizedReason: 'Please scan fingerprint to unlock ERP',
+        options: const AuthenticationOptions(
+          stickyAuth: true,
+          biometricOnly: true,
+        ),
+      );
+
+      if (didAuthenticate) {
+        isAppLocked = false;
+        resetInactivityTimer(); // Unlock hote hi timer fir shuru
+        notifyListeners();
+      }
+      return didAuthenticate;
+    } catch (e) {
+      debugPrint("Biometric Error: $e");
+      return false;
+    }
+  }
+
+  // 4. Secure Token Storage (Password hardware mein chipana)
+  Future<void> saveSecureToken(String password) async {
+    if (activeCompany == null) return;
+    await _secureStorage.write(key: 'auth_${activeCompany!.id}', value: password);
+  }
+
+  Future<String?> getSecureToken() async {
+    if (activeCompany == null) return null;
+    return await _secureStorage.read(key: 'auth_${activeCompany!.id}');
+  }
+
+  // 5. App Lifecycle Lock (Minimize hone par lock)
+  void handleAppLifecycle(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused || state == AppLifecycleState.inactive) {
+      if (activeCompany != null && activeCompany!.autoLockMinutes > 0) {
+        lockApp();
+      }
+    }
+  }
   List<String> getSortedStates() { final all = ["Andhra Pradesh", "Assam", "Bihar", "Chhattisgarh", "Goa", "Gujarat", "Haryana", "Himachal Pradesh", "Jharkhand", "Karnataka", "Kerala", "Madhya Pradesh", "Maharashtra", "Manipur", "Meghalaya", "Mizoram", "Nagaland", "Odisha", "Punjab", "Rajasthan", "Sikkim", "Tamil Nadu", "Telangana", "Tripura", "Uttar Pradesh", "Uttarakhand", "West Bengal", "Delhi", "Jammu and Kashmir", "Ladakh", "Puducherry", "Chandigarh"]; Map<String, int> counts = {}; for (var p in parties) { counts[p.state] = (counts[p.state] ?? 0) + 1; } List<String> sorted = List.from(all); sorted.sort((a, b) => (counts[b] ?? 0).compareTo(counts[a] ?? 0)); return sorted; }
 }
