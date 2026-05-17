@@ -345,7 +345,7 @@ class _ExpiryBreakageReturnViewState extends State<ExpiryBreakageReturnView> {
       party: selectedParty!,
       items: items,
       total: totalAmt,
-      type: "Breakage", 
+      // type: "Breakage", <-- Ise delete kar dein ya rehne dein agar Manager update kar liya hai
     );
     
     if (ph.activeCompany != null) {
