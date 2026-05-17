@@ -29,7 +29,8 @@ class PharoahManager with ChangeNotifier {
   
   // --- 🛡️ NEW SECURITY & AUTO-LOCK STATE ---
   bool isAppLocked = false;           
-  Timer? _inactivityTimer;            
+  Timer? _inactivityTimer; 
+  Timer? _backgroundLockTimer;
   final _auth = LocalAuthentication(); 
   final _secureStorage = const FlutterSecureStorage(); 
 
@@ -191,8 +192,20 @@ class PharoahManager with ChangeNotifier {
   }
 
   void handleAppLifecycle(AppLifecycleState state) {
+    // Agar user app se bahar gaya (Minimize kiya ya PDF window kholi)
     if (state == AppLifecycleState.paused || state == AppLifecycleState.inactive) {
-      if (activeCompany != null && activeCompany!.autoLockMinutes > 0) lockApp();
+      if (activeCompany != null && activeCompany!.autoLockMinutes > 0) {
+        // Turant lock karne ki jagah 60 second ka buffer timer shuru karein
+        _backgroundLockTimer?.cancel();
+        _backgroundLockTimer = Timer(const Duration(seconds: 60), () {
+          lockApp(); // Agar 60 second tak wapas nahi aaya toh lock karo
+        });
+      }
+    } 
+    // Agar user 60 second ke andar wapas aa gaya (Resumed)
+    else if (state == AppLifecycleState.resumed) {
+      _backgroundLockTimer?.cancel(); // Buffer timer ko stop kar do, lock mat hone do
+      debugPrint("🛡️ System: Welcome back! Lock cancelled via Grace Period.");
     }
   }
 
