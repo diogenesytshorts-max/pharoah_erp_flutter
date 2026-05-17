@@ -103,7 +103,6 @@ class PharoahManager with ChangeNotifier {
   List<ModuleAction> get returnActions => [
     ModuleAction(title: "Credit Note", icon: Icons.assignment_return, color: Colors.red, navModule: "GO_RETURN_SALE"),
     ModuleAction(title: "Debit Note", icon: Icons.remove_shopping_cart, color: Colors.brown, navModule: "GO_RETURN_PUR"),
-    ModuleAction(title: "Breakage", icon: Icons.delete_sweep, color: Colors.deepOrange, navModule: "GO_RETURN_BREAKAGE"),
     ModuleAction(title: "Return Reg", icon: Icons.format_list_bulleted, color: Colors.red.shade900, navModule: "GO_RETURN_SALE_REG"),
   ];
 
@@ -362,9 +361,16 @@ class PharoahManager with ChangeNotifier {
   // --- CHALLANS & RETURNS ---
   void finalizeSaleChallan({required String billNo, required DateTime date, required Party party, required List<BillItem> items, required double total, String remarks = "", required String partyId}) { saleChallans.add(SaleChallan(id: DateTime.now().toString(), billNo: billNo, partyId: partyId, date: date, partyName: party.name, partyGstin: party.gst, partyState: party.state, items: items, totalAmount: total, remarks: remarks)); save(); }
   void finalizePurchaseChallan({required String billNo, required String internalNo, required DateTime date, required Party party, required List<PurchaseItem> items, required double total, String remarks = "", required String partyId}) { purchaseChallans.add(PurchaseChallan(id: DateTime.now().toString(), internalNo: internalNo, billNo: billNo, partyId: partyId, date: date, distributorName: party.name, items: items, totalAmount: total, remarks: remarks)); save(); }
-  void finalizeSaleReturn({required String billNo, required DateTime date, required Party party, required List<BillItem> items, required double total, String type = "Sellable"}) { saleReturns.add(SaleReturn(id: DateTime.now().toString(), billNo: billNo, date: date, partyName: party.name, items: items, totalAmount: total, returnType: type)); save().then((_) => loadAllData()); }
-  void finalizePurchaseReturn({required String billNo, required DateTime date, required Party party, required List<PurchaseItem> items, required double total, String type = "Breakage"}) { purchaseReturns.add(PurchaseReturn(id: DateTime.now().toString(), billNo: billNo, distributorName: party.name, date: date, items: items, totalAmount: total, status: "Active", returnType: type)); save().then((_) => loadAllData()); }
+  void finalizeSaleReturn({required String billNo, required DateTime date, required Party party, required List<BillItem> items, required double total}) { 
+    // Hum returnType ko automatic "Mixed" rakh rahe hain kyunki items ke andar isBreakage flag hai
+    saleReturns.add(SaleReturn(id: DateTime.now().toString(), billNo: billNo, date: date, partyName: party.name, items: items, totalAmount: total, returnType: "Mixed")); 
+    save().then((_) => loadAllData()); 
+  }
 
+  void finalizePurchaseReturn({required String billNo, required DateTime date, required Party party, required List<PurchaseItem> items, required double total}) { 
+    purchaseReturns.add(PurchaseReturn(id: DateTime.now().toString(), billNo: billNo, distributorName: party.name, date: date, items: items, totalAmount: total, status: "Active", returnType: "Mixed")); 
+    save().then((_) => loadAllData()); 
+  }
   // ===========================================================================
   // 7. BATCH TOOLS & INVENTORY INTEL
   // ===========================================================================
@@ -447,4 +453,43 @@ class PharoahManager with ChangeNotifier {
   // --- SIGNATURES (RESTORED) ---
   Future<void> addSignatureToChallan({required String challanId, required String imagePath, required String code, required double amount, required double qty, required double x, required double y}) async { int idx = saleChallans.indexWhere((c) => c.id == challanId); if (idx != -1) { final s = ChallanSignature(id: DateTime.now().toString(), imagePath: imagePath, verificationCode: code, signedAmount: amount, signedQty: qty, signDate: DateTime.now(), signX: x, signY: y); List<ChallanSignature> h = List.from(saleChallans[idx].sigHistory); h.add(s); saleChallans[idx].sigHistory = h; saleChallans[idx].isSigned = true; save(); } }
   Future<String> saveSignatureFile(String cNo, Uint8List b) async { final r = await getApplicationDocumentsDirectory(); final d = Directory('${r.path}/Pharoah_Data/${activeCompany!.id}/Signatures'); if (!await d.exists()) await d.create(recursive: true); final f = File('${d.path}/Sign_${cNo}_${DateTime.now().millisecondsSinceEpoch}.png'); await f.writeAsBytes(b); return f.path; }
+// 🔥 MAGIC HISTORY ENGINE: FY Locked Transaction Lookup (MRP Included)
+  List<Map<String, dynamic>> getMedicineHistory({required String partyId, required String medicineId, required bool isSale}) {
+    List<Map<String, dynamic>> history = [];
+
+    if (isSale) {
+      // Sales History: Check karega ki is Customer ne ye item kab liya tha
+      for (var s in sales.where((s) => s.partyId == partyId && s.status == "Active")) {
+        for (var it in s.items.where((it) => it.medicineID == medicineId)) {
+          history.add({
+            'date': s.date,
+            'billNo': s.billNo,
+            'batch': it.batch,
+            'qty': it.qty,
+            'rate': it.rate,
+            'mrp': it.mrp,
+            'gst': it.gstRate,
+          });
+        }
+      }
+    } else {
+      // Purchase History: Check karega ki is Supplier se humne kab kharida tha
+      for (var p in purchases.where((p) => p.partyId == partyId)) {
+        for (var it in p.items.where((it) => it.medicineID == medicineId)) {
+          history.add({
+            'date': p.date,
+            'billNo': p.billNo, 
+            'batch': it.batch,
+            'qty': it.qty,
+            'rate': it.purchaseRate,
+            'mrp': it.mrp,
+            'gst': it.gstRate,
+          });
+        }
+      }
+    }
+    // Latest transactions ko sabse upar dikhayenge
+    history.sort((a, b) => b['date'].compareTo(a['date']));
+    return history;
+  }
 }
