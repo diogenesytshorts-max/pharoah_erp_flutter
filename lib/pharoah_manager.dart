@@ -315,7 +315,15 @@ class PharoahManager with ChangeNotifier {
     var uD = load('sys_users.json'); if (uD!=null) systemUsers = (uD as List).map((e)=>SystemUser.fromMap(e)).toList();
     var bD = load('bats.json'); if (bD!=null) { batchHistory.clear(); (bD as Map).forEach((k,v)=>batchHistory[k]=(v as List).map((b)=>BatchInfo.fromMap(b)).toList()); }
     
-    InventoryLogicCenter.rebuildAllInventory(medicines: medicines, batchHistory: batchHistory, purchases: purchases, sales: sales);
+    // 🔥 UPDATED: Rebuild engine ab Returns ko bhi scan karega
+    InventoryLogicCenter.rebuildAllInventory(
+      medicines: medicines, 
+      batchHistory: batchHistory, 
+      purchases: purchases, 
+      sales: sales,
+      saleReturns: saleReturns,      // 👈 Naya connection
+      purchaseReturns: purchaseReturns // 👈 Naya connection
+    );
     notifyListeners();
   }
 
