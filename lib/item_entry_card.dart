@@ -14,7 +14,7 @@ class ItemEntryCard extends StatefulWidget {
   final BillItem? existingItem;
   final Function(BillItem) onAdd;
   final VoidCallback onCancel;
-  final bool allowExpired; // 🔥 NAYA: Returns ke liye expiry bypass
+  final bool allowExpired; 
 
   const ItemEntryCard({
     super.key,
@@ -24,7 +24,7 @@ class ItemEntryCard extends StatefulWidget {
     this.existingItem,
     required this.onAdd,
     required this.onCancel,
-    this.allowExpired = false, // 🔥 Default False (Sale Bill ke liye)
+    this.allowExpired = false, 
   });
 
   @override
@@ -88,7 +88,6 @@ class _ItemEntryCardState extends State<ItemEntryCard> {
     double r = double.tryParse(rateC.text) ?? 0;
     double gross = q * r;
     if (gross <= 0) return;
-
     if (isPercentSource) {
       double p = double.tryParse(normDiscC.text) ?? 0;
       discAmtC.text = (gross * (p / 100)).toStringAsFixed(2);
@@ -124,29 +123,22 @@ class _ItemEntryCardState extends State<ItemEntryCard> {
     double r = double.tryParse(rateC.text) ?? 0;
     double dAmt = double.tryParse(discAmtC.text) ?? 0;
     double g = double.tryParse(gstC.text) ?? 0;
-
     double gross = r * q;
     double taxable = gross - dAmt;
     double totalTax = taxable * (g / 100);
-
     String shopState = ph.activeCompany?.state.trim().toLowerCase() ?? "rajasthan";
     String pState = widget.partyState.trim().toLowerCase();
     bool isLocal = shopState == pState || pState.isEmpty;
-
     return {
       'taxable': taxable, 
-      'cgst': isLocal ? totalTax / 2 : 0, 
-      'sgst': isLocal ? totalTax / 2 : 0, 
-      'igst': !isLocal ? totalTax : 0, 
-      'total': taxable + totalTax, 
-      'discountAmt': dAmt
+      'cgst': isLocal ? totalTax / 2 : 0, 'sgst': isLocal ? totalTax / 2 : 0, 'igst': !isLocal ? totalTax : 0, 
+      'total': taxable + totalTax, 'discountAmt': dAmt
     };
   }
 
   void _validateAndAdd(PharoahManager ph) {
     if (qtyC.text.isEmpty || qtyC.text == "0") return;
 
-    // 🔥 Conditional Expiry Check: Returns ke liye bypass
     if (!widget.allowExpired && !ExpiryMaster.isSaleAllowed(expC.text)) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Cannot add expired batch in Sale Bill!"), backgroundColor: Colors.red));
       return;
@@ -159,24 +151,12 @@ class _ItemEntryCardState extends State<ItemEntryCard> {
     final t = _calcTotals();
     widget.onAdd(BillItem(
       id: widget.existingItem?.id ?? DateTime.now().toString(),
-      srNo: widget.srNo,
-      medicineID: widget.med.id,
-      name: widget.med.name,
-      packing: widget.med.packing,
-      batch: batchC.text.trim(),
-      exp: expC.text,
-      hsn: widget.med.hsnCode,
-      mrp: double.tryParse(mrpC.text) ?? 0,
-      qty: double.tryParse(qtyC.text) ?? 0,
-      freeQty: double.tryParse(freeC.text) ?? 0,
-      rate: double.tryParse(rateC.text) ?? 0,
-      gstRate: double.tryParse(gstC.text) ?? 0,
-      cgst: t['cgst']!,
-      sgst: t['sgst']!,
-      igst: t['igst']!,
-      total: t['total']!,
-      discountRupees: t['discountAmt']!,
-      isBreakage: widget.allowExpired, // 🔥 TAG PASSING
+      srNo: widget.srNo, medicineID: widget.med.id, name: widget.med.name, packing: widget.med.packing,
+      batch: batchC.text.trim(), exp: expC.text, hsn: widget.med.hsnCode, mrp: double.tryParse(mrpC.text) ?? 0,
+      qty: double.tryParse(qtyC.text) ?? 0, freeQty: double.tryParse(freeC.text) ?? 0,
+      rate: double.tryParse(rateC.text) ?? 0, gstRate: double.tryParse(gstC.text) ?? 0,
+      cgst: t['cgst']!, sgst: t['sgst']!, igst: t['igst']!, total: t['total']!,
+      discountRupees: t['discountAmt']!, isBreakage: widget.allowExpired,
     ));
   }
 
@@ -184,116 +164,149 @@ class _ItemEntryCardState extends State<ItemEntryCard> {
   Widget build(BuildContext context) {
     final ph = Provider.of<PharoahManager>(context);
     final totals = _calcTotals();
-    
-    // Batch Suggestions (Filtered for Expiry if not in Return mode)
     final matchingBatches = BatchSyncEngine.getFilteredBatches(ph: ph, productKey: widget.med.identityKey, hideExpired: !widget.allowExpired)
         .where((b) => b.batch.toLowerCase().contains(batchC.text.toLowerCase())).toList();
 
     bool isAllowed = widget.allowExpired ? true : ExpiryMaster.isSaleAllowed(expC.text);
-    Color statusColor = ExpiryMaster.getStatusColor(expC.text);
+    Color statusColor = widget.allowExpired ? Color(0xFF0891B2) : ExpiryMaster.getStatusColor(expC.text);
 
-    return Dialog( // 🔥 Use Dialog instead of Container for better overlay control
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+    return Dialog(
+      backgroundColor: Colors.transparent,
       insetPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 20),
       child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(15),
-        child: SingleChildScrollView( // 🔥 PREVENTS YELLOW LINES
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-                Expanded(child: Text("${widget.srNo}. ${widget.med.name}", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Colors.indigo))),
-                IconButton(icon: const Icon(Icons.cancel, color: Colors.grey), onPressed: widget.onCancel)
+        width: 500,
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(28),
+          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.15), blurRadius: 30, offset: const Offset(0, 10))],
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(28),
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            // Enterprise Header
+            Container(
+              padding: const EdgeInsets.all(20), width: double.infinity, color: const Color(0xFFF8FAFC),
+              child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  const Text("PRODUCT CONFIGURATION", style: TextStyle(color: Color(0xFF64748B), fontWeight: FontWeight.w900, fontSize: 9, letterSpacing: 2)),
+                  const SizedBox(height: 4),
+                  Text("${widget.srNo}. ${widget.med.name}", style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: Color(0xFF0F172A)), overflow: TextOverflow.ellipsis),
+                ])),
+                IconButton(icon: const Icon(Icons.close_rounded, color: Color(0xFF64748B)), onPressed: widget.onCancel)
               ]),
-              const Divider(),
+            ),
 
-              // ROW 1: Batch & Exp
-              Row(children: [
-                Expanded(child: _buildInput("BATCH", batchC, onChanged: (v) => setState(() {}))),
-                const SizedBox(width: 8),
-                Expanded(child: _buildInput("EXP (MM/YY)", expC, onChanged: _formatExpiry, isNum: true, color: widget.allowExpired ? Colors.black : statusColor)),
-              ]),
-
-              // Batch Chips
-              if (matchingBatches.isNotEmpty && widget.existingItem == null)
-                Container(height: 45, margin: const EdgeInsets.symmetric(vertical: 8),
-                  child: ListView(scrollDirection: Axis.horizontal, children: matchingBatches.map((b) => Padding(padding: const EdgeInsets.only(right: 8),
-                        child: ActionChip(label: Text("${b.batch} (${b.exp})"), onPressed: () {
-                            setState(() { batchC.text = b.batch; expC.text = b.exp; mrpC.text = b.mrp.toString(); rateC.text = b.rate.toString(); _syncBillDiscount(true); });
-                        }))).toList())),
-              
-              const SizedBox(height: 10),
-              SegmentedButton<String>(
-                segments: const [ButtonSegment(value: "A", label: Text("A")), ButtonSegment(value: "B", label: Text("B")), ButtonSegment(value: "C", label: Text("Rate C"))],
-                selected: {selectedRateType},
-                onSelectionChanged: (v) { setState(() { selectedRateType = v.first; _updateRateLogic(); }); },
-              ),
-              
-              const SizedBox(height: 12),
-              // ROW 2: Pricing
-              Row(children: [
-                if (selectedRateType == "C") ...[Expanded(child: _buildInput("C FORMULA %", rateCDiscC, isNum: true, color: Colors.purple, onChanged: (v) => _calculateRateC())), const SizedBox(width: 8)],
-                Expanded(child: _buildInput("MRP", mrpC, isNum: true, onChanged: (v) { if(selectedRateType=="C") _calculateRateC(); })),
-                const SizedBox(width: 8),
-                Expanded(child: _buildInput("SALE RATE", rateC, isNum: true, color: Colors.blue, onChanged: (v) => _syncBillDiscount(true))),
-              ]),
-              
-              const SizedBox(height: 12),
-              // ROW 3: Quantities
-              Row(children: [
-                Expanded(child: _buildInput("QTY", qtyC, isNum: true, onChanged: (v) => _syncBillDiscount(true))),
-                const SizedBox(width: 8),
-                Expanded(child: _buildInput("FREE", freeC, isNum: true)),
-                const SizedBox(width: 8),
-                Expanded(child: _buildInput("GST %", gstC, isNum: true, onChanged: (v) { if(selectedRateType=="C") _calculateRateC(); })),
-              ]),
-
-              const SizedBox(height: 12),
-              // ROW 4: Item Discounts
-              Row(children: [
-                Expanded(child: _buildInput("DISC %", normDiscC, isNum: true, color: Colors.orange.shade900, onChanged: (v) => _syncBillDiscount(true))),
-                const SizedBox(width: 8),
-                Expanded(child: _buildInput("DISC ₹", discAmtC, isNum: true, color: Colors.red.shade900, onChanged: (v) => _syncBillDiscount(false))),
-              ]),
-
-              const SizedBox(height: 20),
-              // Summary Box
-              Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: Colors.blueGrey.shade50, borderRadius: BorderRadius.circular(10)),
-                child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-                  Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Text("Taxable: ₹${totals['taxable']!.toStringAsFixed(2)}", style: const TextStyle(fontSize: 10)),
-                    Text(totals['igst']! > 0 ? "IGST: ₹${totals['igst']!.toStringAsFixed(2)}" : "CGST+SGST: ₹${(totals['cgst']! + totals['sgst']!).toStringAsFixed(2)}", style: const TextStyle(fontSize: 9, color: Colors.blueGrey, fontWeight: FontWeight.bold)),
+            Flexible(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(25),
+                child: Column(children: [
+                  // Row 1: Batch & Exp
+                  Row(children: [
+                    Expanded(child: _modernInput("BATCH", batchC, const Color(0xFF475569), onChanged: (v)=>setState((){}))),
+                    const SizedBox(width: 12),
+                    Expanded(child: _modernInput("EXPIRY", expC, statusColor, isNum: true, onChanged: _formatExpiry)),
                   ]),
-                  Text("TOTAL: ₹${totals['total']!.toStringAsFixed(2)}", style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 20, color: Colors.green)),
+                  
+                  if (matchingBatches.isNotEmpty && widget.existingItem == null)
+                    Container(height: 40, margin: const EdgeInsets.only(top: 15),
+                      child: ListView(scrollDirection: Axis.horizontal, children: matchingBatches.map((b) => Padding(padding: const EdgeInsets.only(right: 8),
+                            child: ActionChip(
+                              label: Text(b.batch, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold)), 
+                              onPressed: () {
+                                setState(() { batchC.text = b.batch; expC.text = b.exp; mrpC.text = b.mrp.toString(); rateC.text = b.rate.toString(); _syncBillDiscount(true); });
+                            }))).toList())),
+
+                  const SizedBox(height: 20),
+                  // Row 2: MRP & GST
+                  Row(children: [
+                    Expanded(child: _modernInput("MRP", mrpC, const Color(0xFFBE185D), isNum: true, isBold: true, onChanged: (v) { if(selectedRateType=="C") _calculateRateC(); })),
+                    const SizedBox(width: 12),
+                    Expanded(child: _modernInput("GST %", gstC, const Color(0xFF6366F1), isNum: true, onChanged: (v) { if(selectedRateType=="C") _calculateRateC(); })),
+                  ]),
+                  
+                  const SizedBox(height: 25),
+                  SegmentedButton<String>(
+                    segments: const [
+                      ButtonSegment(value: "A", label: Text("Rate A")),
+                      ButtonSegment(value: "B", label: Text("Rate B")),
+                      ButtonSegment(value: "C", label: Text("Rate C")),
+                    ],
+                    selected: {selectedRateType},
+                    onSelectionChanged: (v) { setState(() { selectedRateType = v.first; _updateRateLogic(); }); },
+                  ),
+                  
+                  const SizedBox(height: 25),
+                  // Row 3: Rates
+                  Row(children: [
+                    if (selectedRateType == "C") ...[
+                      Expanded(child: _modernInput("C FORMULA %", rateCDiscC, const Color(0xFF7C3AED), isNum: true, onChanged: (v) => _calculateRateC())),
+                      const SizedBox(width: 12),
+                    ],
+                    Expanded(child: _modernInput("FINAL RATE", rateC, const Color(0xFF2563EB), isNum: true, isReadOnly: selectedRateType == "C", onChanged: (v) => _syncBillDiscount(true))),
+                  ]),
+
+                  const SizedBox(height: 20),
+                  // Row 4: Quantity & Free
+                  Row(children: [
+                    Expanded(child: _modernInput("QUANTITY", qtyC, const Color(0xFF059669), isNum: true, hasFocus: true, onChanged: (v) => _syncBillDiscount(true))),
+                    const SizedBox(width: 12),
+                    Expanded(child: _modernInput("FREE QTY", freeC, const Color(0xFF059669), isNum: true)),
+                  ]),
+
+                  const SizedBox(height: 20),
+                  // Row 5: Bill Discounts
+                  Row(children: [
+                    Expanded(child: _modernInput("DISC %", normDiscC, const Color(0xFFEA580C), isNum: true, onChanged: (v) => _syncBillDiscount(true))),
+                    const SizedBox(width: 12),
+                    Expanded(child: _modernInput("DISC ₹", discAmtC, const Color(0xFFBE185D), isNum: true, onChanged: (v) => _syncBillDiscount(false))),
+                  ]),
+
+                  const SizedBox(height: 35),
+                  // Final High-Impact Summary Card
+                  Container(
+                    padding: const EdgeInsets.all(20),
+                    decoration: BoxDecoration(color: const Color(0xFF0F172A), borderRadius: BorderRadius.circular(20)),
+                    child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+                      Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                         const Text("ITEM TOTAL (NET)", style: TextStyle(color: Colors.white60, fontSize: 9, fontWeight: FontWeight.bold, letterSpacing: 1)),
+                         Text("GST Breakdown Applied", style: TextStyle(color: Colors.white.withOpacity(0.3), fontSize: 8)),
+                      ]),
+                      Text("₹${totals['total']!.toStringAsFixed(2)}", style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w900, color: Colors.white)),
+                    ]),
+                  ),
+
+                  const SizedBox(height: 25),
+                  SizedBox(width: double.infinity, height: 60, child: ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: isAllowed ? const Color(0xFF2563EB) : Colors.grey, 
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+                      elevation: 0,
+                    ),
+                    onPressed: (!isAllowed || qtyC.text.isEmpty || qtyC.text == "0") ? null : () => _validateAndAdd(ph),
+                    child: Text(isAllowed ? "UPDATE & SAVE" : "BATCH EXPIRED", style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16, letterSpacing: 1)),
+                  ))
                 ]),
               ),
-
-              const SizedBox(height: 15),
-              SizedBox(width: double.infinity, height: 55,
-                child: ElevatedButton(
-                  style: ElevatedButton.styleFrom(backgroundColor: isAllowed ? Colors.green.shade800 : Colors.grey, foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
-                  onPressed: (!isAllowed || qtyC.text.isEmpty || qtyC.text == "0") ? null : () => _validateAndAdd(ph),
-                  child: Text(isAllowed ? (widget.existingItem != null ? "UPDATE ITEM" : "ADD TO LIST") : "BATCH EXPIRED", style: const TextStyle(fontWeight: FontWeight.bold)),
-                ),
-              )
-            ],
-          ),
+            ),
+          ]),
         ),
       ),
     );
   }
 
-  Widget _buildInput(String label, TextEditingController ctrl, {bool isNum = false, Function(String)? onChanged, Color? color}) {
+  Widget _modernInput(String label, TextEditingController ctrl, Color accentColor, {bool isBold = false, bool hasFocus = false, bool isNum = false, Function(String)? onChanged, bool isReadOnly = false}) {
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Text(label, style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: color ?? Colors.black54)),
-      const SizedBox(height: 2),
+      Padding(padding: const EdgeInsets.only(left: 4, bottom: 6), child: Text(label, style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: accentColor.withOpacity(0.8)))),
       TextField(
-        controller: ctrl, onChanged: onChanged, 
-        keyboardType: isNum ? const TextInputType.numberWithOptions(decimal: true) : TextInputType.text, 
-        style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: color),
-        decoration: InputDecoration(isDense: true, contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10), border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
+        controller: ctrl, readOnly: isReadOnly, onChanged: onChanged,
+        keyboardType: isNum ? const TextInputType.numberWithOptions(decimal: true) : TextInputType.text,
+        style: TextStyle(fontSize: 14, fontWeight: isBold || hasFocus ? FontWeight.w900 : FontWeight.w700, color: const Color(0xFF1E293B)),
+        decoration: InputDecoration(
+          isDense: true, contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14), 
+          filled: true, fillColor: hasFocus ? accentColor.withOpacity(0.05) : const Color(0xFFF8FAFC),
+          enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFE2E8F0), width: 1.5)),
+          focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: accentColor, width: 2.5)),
+        ),
       ),
     ]);
   }
