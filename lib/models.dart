@@ -141,46 +141,67 @@ class Party {
 // ===========================================================================
 
 class BillItem {
-  String id, medicineID, name, packing, batch, exp, hsn, sourceChallanNo, sourceChallanId; int srNo; 
+  String id, medicineID, name, packing, batch, exp, hsn, sourceChallanNo, sourceChallanId; 
+  int srNo; 
   double mrp, qty, freeQty, rate, gstRate, cgst, sgst, igst, total, discountRupees, discountPer; 
+  bool isBreakage; // 🔥 NAYA FEATURE: Sellable vs Damage differentiator
 
   BillItem({
     required this.id, required this.srNo, required this.medicineID, required this.name, required this.packing, required this.batch, required this.exp, required this.hsn, required this.mrp, required this.qty, this.freeQty = 0, required this.rate, required this.gstRate, this.cgst = 0, this.sgst = 0, this.igst = 0, required this.total, this.discountRupees = 0, 
     this.discountPer = 0.0, 
+    this.isBreakage = false, // 🔥 Default Sellable rahega
     this.sourceChallanNo = "", this.sourceChallanId = ""
   });
 
-  BillItem copyWith({int? srNo, String? sourceChallanNo, String? sourceChallanId, double? discountPer, double? discountRupees}) => BillItem(id: id, srNo: srNo ?? this.srNo, medicineID: medicineID, name: name, packing: packing, batch: batch, exp: exp, hsn: hsn, mrp: mrp, qty: qty, freeQty: freeQty, rate: rate, gstRate: gstRate, cgst: cgst, sgst: sgst, igst: igst, total: total, discountRupees: discountRupees ?? this.discountRupees, discountPer: discountPer ?? this.discountPer, sourceChallanNo: sourceChallanNo ?? this.sourceChallanNo, sourceChallanId: sourceChallanId ?? this.sourceChallanId);
+  BillItem copyWith({int? srNo, String? sourceChallanNo, String? sourceChallanId, double? discountPer, double? discountRupees, bool? isBreakage}) => BillItem(
+    id: id, srNo: srNo ?? this.srNo, medicineID: medicineID, name: name, packing: packing, batch: batch, exp: exp, hsn: hsn, mrp: mrp, qty: qty, freeQty: freeQty, rate: rate, gstRate: gstRate, cgst: cgst, sgst: sgst, igst: igst, total: total, 
+    discountRupees: discountRupees ?? this.discountRupees, 
+    discountPer: discountPer ?? this.discountPer, 
+    isBreakage: isBreakage ?? this.isBreakage, // 🔥 Copy support
+    sourceChallanNo: sourceChallanNo ?? this.sourceChallanNo, 
+    sourceChallanId: sourceChallanId ?? this.sourceChallanId
+  );
   
-  Map<String, dynamic> toMap() => {'id': id, 'srNo': srNo, 'medicineID': medicineID, 'name': name, 'packing': packing, 'batch': batch, 'exp': exp, 'hsn': hsn, 'mrp': mrp, 'qty': qty, 'freeQty': freeQty, 'rate': rate, 'gstRate': gstRate, 'cgst': cgst, 'sgst': sgst, 'igst': igst, 'total': total, 'discountRupees': discountRupees, 'discountPer': discountPer, 'sourceChallanNo': sourceChallanNo, 'sourceChallanId': sourceChallanId};
+  Map<String, dynamic> toMap() => {'id': id, 'srNo': srNo, 'medicineID': medicineID, 'name': name, 'packing': packing, 'batch': batch, 'exp': exp, 'hsn': hsn, 'mrp': mrp, 'qty': qty, 'freeQty': freeQty, 'rate': rate, 'gstRate': gstRate, 'cgst': cgst, 'sgst': sgst, 'igst': igst, 'total': total, 'discountRupees': discountRupees, 'discountPer': discountPer, 'isBreakage': isBreakage, 'sourceChallanNo': sourceChallanNo, 'sourceChallanId': sourceChallanId};
   
   factory BillItem.fromMap(Map<String, dynamic> map) => BillItem(
     id: map['id'] ?? "", srNo: map['srNo'] ?? 0, medicineID: map['medicineID'] ?? "", name: map['name'] ?? "", packing: map['packing'] ?? "", batch: map['batch'] ?? "", exp: map['exp'] ?? "", hsn: map['hsn'] ?? "", mrp: (map['mrp'] ?? 0.0).toDouble(), qty: (map['qty'] ?? 0.0).toDouble(), freeQty: (map['freeQty'] ?? 0.0).toDouble(), rate: (map['rate'] ?? 0.0).toDouble(), gstRate: (map['gstRate'] ?? 0.0).toDouble(), cgst: (map['cgst'] ?? 0.0).toDouble(), sgst: (map['sgst'] ?? 0.0).toDouble(), igst: (map['igst'] ?? 0.0).toDouble(), total: (map['total'] ?? 0.0).toDouble(), 
     discountRupees: (map['discountRupees'] ?? 0.0).toDouble(), 
     discountPer: (map['discountPer'] ?? 0.0).toDouble(), 
+    isBreakage: map['isBreakage'] ?? false, // 🔥 Database se load karna
     sourceChallanNo: map['sourceChallanNo'] ?? "", sourceChallanId: map['sourceChallanId'] ?? ""
   );
 }
 
 class PurchaseItem {
-  String id, medicineID, name, packing, batch, exp, hsn, sourceChallanNo, sourceChallanId; int srNo; 
+  String id, medicineID, name, packing, batch, exp, hsn, sourceChallanNo, sourceChallanId; 
+  int srNo; 
   double mrp, qty, freeQty, purchaseRate, gstRate, total, rateA, rateB, rateC, discountPer, discountRupees;
+  bool isBreakage; // 🔥 NAYA FLAG
 
   PurchaseItem({
     required this.id, required this.srNo, required this.medicineID, required this.name, required this.packing, required this.batch, required this.exp, required this.hsn, required this.mrp, required this.qty, this.freeQty = 0, required this.purchaseRate, required this.gstRate, required this.total, this.rateA = 0, this.rateB = 0, this.rateC = 0, 
     this.discountPer = 0.0, this.discountRupees = 0.0,
-    this.sourceChallanNo = "", this.sourceChallanId = "" // 🔥 FIXED: Initialized
+    this.isBreakage = false, // 🔥 Default Sellable
+    this.sourceChallanNo = "", this.sourceChallanId = "" 
   });
 
-  // 🔥 FIXED: copyWith Added
-  PurchaseItem copyWith({int? srNo, String? sourceChallanNo, String? sourceChallanId, double? discountPer, double? discountRupees}) => PurchaseItem(id: id, srNo: srNo ?? this.srNo, medicineID: medicineID, name: name, packing: packing, batch: batch, exp: exp, hsn: hsn, mrp: mrp, qty: qty, freeQty: freeQty, purchaseRate: purchaseRate, gstRate: gstRate, total: total, rateA: rateA, rateB: rateB, rateC: rateC, discountPer: discountPer ?? this.discountPer, discountRupees: discountRupees ?? this.discountRupees, sourceChallanNo: sourceChallanNo ?? this.sourceChallanNo, sourceChallanId: sourceChallanId ?? this.sourceChallanId);
+  PurchaseItem copyWith({int? srNo, String? sourceChallanNo, String? sourceChallanId, double? discountPer, double? discountRupees, bool? isBreakage}) => PurchaseItem(
+    id: id, srNo: srNo ?? this.srNo, medicineID: medicineID, name: name, packing: packing, batch: batch, exp: exp, hsn: hsn, mrp: mrp, qty: qty, freeQty: freeQty, purchaseRate: purchaseRate, gstRate: gstRate, total: total, rateA: rateA, rateB: rateB, rateC: rateC, 
+    discountPer: discountPer ?? this.discountPer, 
+    discountRupees: discountRupees ?? this.discountRupees, 
+    isBreakage: isBreakage ?? this.isBreakage, // 🔥 Updated copyWith
+    sourceChallanNo: sourceChallanNo ?? this.sourceChallanNo, 
+    sourceChallanId: sourceChallanId ?? this.sourceChallanId
+  );
 
-  Map<String, dynamic> toMap() => {'id': id, 'srNo': srNo, 'medicineID': medicineID, 'name': name, 'packing': packing, 'batch': batch, 'exp': exp, 'hsn': hsn, 'mrp': mrp, 'qty': qty, 'freeQty': freeQty, 'purchaseRate': purchaseRate, 'gstRate': gstRate, 'total': total, 'rateA': rateA, 'rateB': rateB, 'rateC': rateC, 'discountPer': discountPer, 'discountRupees': discountRupees, 'sourceChallanNo': sourceChallanNo, 'sourceChallanId': sourceChallanId};
+  Map<String, dynamic> toMap() => {'id': id, 'srNo': srNo, 'medicineID': medicineID, 'name': name, 'packing': packing, 'batch': batch, 'exp': exp, 'hsn': hsn, 'mrp': mrp, 'qty': qty, 'freeQty': freeQty, 'purchaseRate': purchaseRate, 'gstRate': gstRate, 'total': total, 'rateA': rateA, 'rateB': rateB, 'rateC': rateC, 'discountPer': discountPer, 'discountRupees': discountRupees, 'isBreakage': isBreakage, 'sourceChallanNo': sourceChallanNo, 'sourceChallanId': sourceChallanId};
   
   factory PurchaseItem.fromMap(Map<String, dynamic> map) => PurchaseItem(
     id: map['id'] ?? "", srNo: map['srNo'] ?? 0, medicineID: map['medicineID'] ?? "", name: map['name'] ?? "", packing: map['packing'] ?? "", batch: map['batch'] ?? "", exp: map['exp'] ?? "", hsn: map['hsn'] ?? "", mrp: (map['mrp'] ?? 0.0).toDouble(), qty: (map['qty'] ?? 0.0).toDouble(), freeQty: (map['freeQty'] ?? 0.0).toDouble(), purchaseRate: (map['purchaseRate'] ?? 0.0).toDouble(), gstRate: (map['gstRate'] ?? 0.0).toDouble(), total: (map['total'] ?? 0.0).toDouble(), rateA: (map['rateA'] ?? 0.0).toDouble(), rateB: (map['rateB'] ?? 0.0).toDouble(), rateC: (map['rateC'] ?? 0.0).toDouble(), 
     discountPer: (map['discountPer'] ?? 0.0).toDouble(), 
     discountRupees: (map['discountRupees'] ?? 0.0).toDouble(),
+    isBreakage: map['isBreakage'] ?? false, // 🔥 Database se load karna
     sourceChallanNo: map['sourceChallanNo'] ?? "", sourceChallanId: map['sourceChallanId'] ?? ""
   );
 }
