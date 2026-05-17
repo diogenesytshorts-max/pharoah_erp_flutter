@@ -4,12 +4,12 @@ import 'dart:convert';
 
 class CompanyProfile {
   // --- Core Identity ---
-  final String id;           // Unique Locked ID (e.g. PH-C-821405)
-  final String name;         // Shop Name
-  final String businessType; // WHOLESALE or RETAIL
+  final String id;           
+  final String name;         
+  final String businessType; 
   final DateTime createdAt;
 
-  // --- Detailed Profile (Merged from SetupView) ---
+  // --- Detailed Profile ---
   final String address;
   final String state;
   final String gstin;
@@ -18,11 +18,16 @@ class CompanyProfile {
   final String email;
 
   // --- Security & Access ---
-  final String adminUser;    // Admin Username
-  final String password;     // Admin/Company Password
+  final String adminUser;    
+  final String password;     
   
+  // --- NEW SECURITY FIELDS ---
+  final bool isBiometricEnabled;  // Fingerprint choice
+  final String recoveryKey;       // 16-digit Reset Key
+  final int autoLockMinutes;      // 0, 5, 10 minutes
+
   // --- System Context ---
-  final List<String> fYears; // Financial Years List (e.g. ["2025-26"])
+  final List<String> fYears; 
 
   CompanyProfile({
     required this.id,
@@ -37,10 +42,12 @@ class CompanyProfile {
     this.email = "",
     this.adminUser = "admin",
     required this.password,
+    this.isBiometricEnabled = false,
+    this.recoveryKey = "",
+    this.autoLockMinutes = 5,
     this.fYears = const [],
   });
 
-  // Data ko JSON file mein save karne ke liye (Map mein badalna)
   Map<String, dynamic> toMap() {
     return {
       'id': id,
@@ -55,11 +62,13 @@ class CompanyProfile {
       'email': email,
       'adminUser': adminUser,
       'password': password,
+      'isBiometricEnabled': isBiometricEnabled,
+      'recoveryKey': recoveryKey,
+      'autoLockMinutes': autoLockMinutes,
       'fYears': fYears,
     };
   }
 
-  // Saved JSON file se data wapas nikalne ke liye
   factory CompanyProfile.fromMap(Map<String, dynamic> map) {
     return CompanyProfile(
       id: map['id'] ?? '',
@@ -74,6 +83,9 @@ class CompanyProfile {
       email: map['email'] ?? '',
       adminUser: map['adminUser'] ?? 'admin',
       password: map['password'] ?? '',
+      isBiometricEnabled: map['isBiometricEnabled'] ?? false,
+      recoveryKey: map['recoveryKey'] ?? '',
+      autoLockMinutes: map['autoLockMinutes'] ?? 5,
       fYears: List<String>.from(map['fYears'] ?? []),
     );
   }
