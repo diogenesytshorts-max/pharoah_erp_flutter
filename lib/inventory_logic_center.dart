@@ -65,6 +65,8 @@ class InventoryLogicCenter {
     required Map<String, List<BatchInfo>> batchHistory,
     required List<Purchase> purchases,
     required List<Sale> sales,
+    List<SaleReturn>? saleReturns,      // 👈 Ye line honi chahiye
+    List<PurchaseReturn>? purchaseReturns // 👈 Ye line honi chahiye
   }) {
     // --- STEP A: THE FIX ---
     // Pehle hum quantity ko 0 karte the. 
