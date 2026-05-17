@@ -189,6 +189,7 @@ class _PurchaseReturnViewState extends State<PurchaseReturnView> {
         med: med,
         srNo: items.length + 1,
         existingItem: preFilled,
+        allowExpired: true,
         onAdd: (newItem) {
           setState(() { items.add(newItem.copyWith(isBreakage: isBreakageMode)); });
           Navigator.pop(context);
