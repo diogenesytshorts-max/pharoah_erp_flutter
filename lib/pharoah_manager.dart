@@ -325,6 +325,13 @@ class PharoahManager with ChangeNotifier {
     if (sourceTag.isEmpty && activeCompany != null) { PharoahNumberingEngine.updateSeriesCounter(type: "PURCHASE", companyID: activeCompany!.id, usedNumber: internalNo, prefix: "PUR-"); }
     save().then((_) => loadAllData()); 
   }
+  void updatePurchase({required String id, required String internalNo, required String billNo, required DateTime date, DateTime? entryDate, required Party party, required List<PurchaseItem> items, required double total, required String mode, required List<String> linkedChallanIds}) { 
+    int i = purchases.indexWhere((p) => p.id == id); 
+    if (i == -1) return; 
+    String t = purchases[i].sourceTag; 
+    purchases[i] = Purchase(id: id, internalNo: internalNo, billNo: billNo, partyId: party.id, date: date, entryDate: entryDate ?? DateTime.now(), distributorName: party.name, items: items, totalAmount: total, paymentMode: mode, linkedChallanIds: linkedChallanIds, sourceTag: t); 
+    save().then((_) => loadAllData()); 
+  }
 
   Future<void> finalizeBatchSales(List<Sale> batch) async { 
     sales.addAll(batch); 
