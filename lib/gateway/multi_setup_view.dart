@@ -1,10 +1,13 @@
 // FILE: lib/gateway/multi_setup_view.dart
 
+import 'dart:math';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../pharoah_manager.dart';
 import '../app_date_logic.dart';
 import 'company_registry_model.dart';
+import 'package:local_auth/local_auth.dart'; // NAYA
 
 class MultiSetupView extends StatefulWidget {
   final bool isFirstRun; 
@@ -15,7 +18,7 @@ class MultiSetupView extends StatefulWidget {
 }
 
 class _MultiSetupViewState extends State<MultiSetupView> {
-  // --- FORM CONTROLLERS ---
+  // --- OLD FORM CONTROLLERS (RESTORED) ---
   final nameC = TextEditingController();
   final addressC = TextEditingController();
   final phoneC = TextEditingController();
@@ -25,12 +28,17 @@ class _MultiSetupViewState extends State<MultiSetupView> {
   final usernameC = TextEditingController();
   final passwordC = TextEditingController();
 
-  // --- STATE VARIABLES ---
+  // --- OLD STATE VARIABLES (RESTORED) ---
   String selectedType = "WHOLESALE";
   String selectedState = "Rajasthan";
   String selectedFY = "";
   String generatedID = "";
-  bool isLoading = false; // NAYA: Spam control ke liye
+  bool isLoading = false;
+
+  // --- NEW SECURITY STATE ---
+  bool useFingerprint = false;
+  int lockMinutes = 5;
+  bool canDeviceDoBiometrics = false;
 
   final List<String> states = [
     "Andhra Pradesh", "Arunachal Pradesh", "Assam", "Bihar", "Chhattisgarh", 
@@ -43,18 +51,30 @@ class _MultiSetupViewState extends State<MultiSetupView> {
   @override
   void initState() {
     super.initState();
-    // 1. Generate Unique ID once on screen load
     generatedID = "PH-C-${DateTime.now().millisecondsSinceEpoch.toString().substring(7)}";
-    
-    // 2. Smart Detect Current Financial Year
     selectedFY = AppDateLogic.getCurrentFYString();
+    _checkHardware(); // Check fingerprint sensor on load
+  }
+
+  // --- BIOMETRIC CHECK ---
+  Future<void> _checkHardware() async {
+    final auth = LocalAuthentication();
+    bool canCheck = await auth.canCheckBiometrics || await auth.isDeviceSupported();
+    setState(() => canDeviceDoBiometrics = canCheck);
+  }
+
+  // --- RECOVERY KEY GENERATOR (16 Digits) ---
+  String _generateRecoveryKey() {
+    const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+    Random rnd = Random();
+    String parts(int len) => String.fromCharCodes(Iterable.generate(len, (_) => chars.codeUnitAt(rnd.nextInt(chars.length))));
+    return "${parts(4)}-${parts(4)}-${parts(4)}-${parts(4)}";
   }
 
   // ===========================================================================
-  // MAIN LOGIC: CREATE & REGISTER
+  // MAIN LOGIC: CREATE & REGISTER (WITH NEW SECURITY FIELDS)
   // ===========================================================================
   void _handleCreateCompany() async {
-    // A. Validation Check
     if (nameC.text.trim().isEmpty || usernameC.text.trim().isEmpty || passwordC.text.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("Firm Name, Username and Password are mandatory!"), backgroundColor: Colors.red),
@@ -63,18 +83,11 @@ class _MultiSetupViewState extends State<MultiSetupView> {
     }
 
     final ph = Provider.of<PharoahManager>(context, listen: false);
-
-    // B. Loading Start (Freeze UI)
     setState(() => isLoading = true);
 
-    // C. Duplicate Check (Safety)
-    if (ph.companiesRegistry.any((c) => c.id == generatedID)) {
-      setState(() => isLoading = false);
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Error: ID Collision. Please reload screen.")));
-      return;
-    }
+    // Generate Key for this company
+    String finalRecoveryKey = _generateRecoveryKey();
 
-    // D. Profile Object Preparation
     final newComp = CompanyProfile(
       id: generatedID,
       name: nameC.text.trim().toUpperCase(),
@@ -88,24 +101,54 @@ class _MultiSetupViewState extends State<MultiSetupView> {
       email: emailC.text.trim().toLowerCase(),
       adminUser: usernameC.text.trim().toLowerCase(),
       password: passwordC.text.trim(),
+      // --- Naya Data ---
+      isBiometricEnabled: useFingerprint,
+      recoveryKey: finalRecoveryKey,
+      autoLockMinutes: lockMinutes,
       fYears: [selectedFY], 
     );
 
-    // E. Setup Environment (Clean Memory + Fresh Files + Register)
     await ph.setupNewCompanyEnvironment(newComp, selectedFY);
 
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("✅ Company Registered & Fresh Data Loaded!"), backgroundColor: Colors.green),
-      );
-
-      // F. SMART NAVIGATION
-      // Agar ye manual add hai (List screen se aaya hai), toh pop karke piche jao.
-      // Agar ye first run hai, toh AppGateway automatically UI change kar dega.
-      if (!widget.isFirstRun) {
-        Navigator.pop(context); 
-      }
+      setState(() => isLoading = false);
+      _showRecoveryKeyDialog(finalRecoveryKey); // Key dikhana setup ke baad
     }
+  }
+
+  void _showRecoveryKeyDialog(String key) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (c) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(25)),
+        title: const Row(children: [Icon(Icons.vpn_key, color: Colors.orange), SizedBox(width: 10), Text("SAVE RECOVERY KEY")]),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text("Ye 16-digit key aapke password recovery ke liye hai. Ise kahin safe likh lein.", style: TextStyle(fontSize: 12)),
+            const SizedBox(height: 20),
+            Container(
+              padding: const EdgeInsets.all(15),
+              decoration: BoxDecoration(color: Colors.grey.shade100, borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.blueGrey.shade200)),
+              child: SelectableText(key, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900, letterSpacing: 2, color: Colors.indigo)),
+            ),
+            const SizedBox(height: 15),
+            TextButton.icon(onPressed: () { Clipboard.setData(ClipboardData(text: key)); }, icon: const Icon(Icons.copy), label: const Text("Copy to Clipboard")),
+          ],
+        ),
+        actions: [
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.green, foregroundColor: Colors.white),
+            onPressed: () { 
+              Navigator.pop(c); 
+              if (!widget.isFirstRun) Navigator.pop(context); 
+            }, 
+            child: const Text("I HAVE SAVED THE KEY")
+          )
+        ],
+      ),
+    );
   }
 
   @override
@@ -123,11 +166,10 @@ class _MultiSetupViewState extends State<MultiSetupView> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // --- HEADER IDENTITY ---
             _buildIdentityHeader(),
             const SizedBox(height: 25),
 
-            // --- SECTION 1: BUSINESS TYPE & FY ---
+            // --- SECTION 1: BUSINESS TYPE & FY (RESTORED) ---
             _buildSectionCard(
               title: "NATURE OF BUSINESS",
               icon: Icons.category_rounded,
@@ -152,7 +194,7 @@ class _MultiSetupViewState extends State<MultiSetupView> {
               ),
             ),
 
-            // --- SECTION 2: SHOP DETAILS ---
+            // --- SECTION 2: SHOP DETAILS (RESTORED ALL FIELDS) ---
             _buildSectionCard(
               title: "COMPANY PROFILE",
               icon: Icons.business_rounded,
@@ -179,7 +221,7 @@ class _MultiSetupViewState extends State<MultiSetupView> {
               ),
             ),
 
-            // --- SECTION 3: STATUTORY ---
+            // --- SECTION 3: STATUTORY (RESTORED) ---
             _buildSectionCard(
               title: "STATUTORY & TAX",
               icon: Icons.receipt_long_rounded,
@@ -191,7 +233,37 @@ class _MultiSetupViewState extends State<MultiSetupView> {
               ),
             ),
 
-            // --- SECTION 4: SECURITY ---
+            // --- NEW SECTION: SECURITY (ADVANCED) ---
+            _buildSectionCard(
+              title: "SECURITY PREFERENCES",
+              icon: Icons.security_rounded,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  SwitchListTile(
+                    title: const Text("Fingerprint Login", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                    subtitle: Text(canDeviceDoBiometrics ? "Fast login enabled" : "Sensor not found on this phone"),
+                    value: useFingerprint,
+                    activeColor: Colors.indigo,
+                    onChanged: canDeviceDoBiometrics ? (v) => setState(() => useFingerprint = v) : null,
+                  ),
+                  const Divider(),
+                  const Text("Auto-Lock App (Inactivity)", style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.blueGrey)),
+                  const SizedBox(height: 10),
+                  SegmentedButton<int>(
+                    segments: const [
+                      ButtonSegment(value: 0, label: Text("OFF")),
+                      ButtonSegment(value: 5, label: Text("5 Min")),
+                      ButtonSegment(value: 10, label: Text("10 Min")),
+                    ],
+                    selected: {lockMinutes},
+                    onSelectionChanged: (v) => setState(() => lockMinutes = v.first),
+                  ),
+                ],
+              ),
+            ),
+
+            // --- SECTION 4: ADMIN ACCESS (RESTORED) ---
             _buildSectionCard(
               title: "ADMIN ACCESS",
               icon: Icons.admin_panel_settings_rounded,
@@ -205,17 +277,11 @@ class _MultiSetupViewState extends State<MultiSetupView> {
 
             const SizedBox(height: 30),
             
-            // --- ACTION BUTTON ---
             SizedBox(
               width: double.infinity,
               height: 60,
               child: ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF0D47A1),
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
-                  elevation: 5,
-                ),
+                style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF0D47A1), foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)), elevation: 5),
                 onPressed: isLoading ? null : _handleCreateCompany,
                 child: isLoading 
                   ? const CircularProgressIndicator(color: Colors.white) 
@@ -229,76 +295,32 @@ class _MultiSetupViewState extends State<MultiSetupView> {
     );
   }
 
-  // --- UI HELPERS ---
-
+  // --- UI HELPERS (SAME AS OLD) ---
   Widget _buildIdentityHeader() {
     return Container(
       padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: const Color(0xFF0D47A1).withOpacity(0.1)),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 10)]
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          const Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text("SYSTEM ID", style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.blueGrey, letterSpacing: 1)),
-              Text("(LOCKED FOR FILES)", style: TextStyle(fontSize: 8, color: Colors.red, fontWeight: FontWeight.bold)),
-            ],
-          ),
+      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20), border: Border.all(color: const Color(0xFF0D47A1).withOpacity(0.1)), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 10)]),
+      child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+          const Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text("SYSTEM ID", style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.blueGrey, letterSpacing: 1)), Text("(LOCKED FOR FILES)", style: TextStyle(fontSize: 8, color: Colors.red, fontWeight: FontWeight.bold))]),
           Text(generatedID, style: const TextStyle(fontWeight: FontWeight.w900, color: Color(0xFF0D47A1), fontSize: 18)),
-        ],
-      ),
+      ]),
     );
   }
 
   Widget _buildSectionCard({required String title, required IconData icon, required Widget child}) {
-    return Card(
-      elevation: 0,
-      margin: const EdgeInsets.only(bottom: 20),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20), side: BorderSide(color: Colors.grey.shade200)),
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(children: [
-              Icon(icon, size: 18, color: const Color(0xFF0D47A1)),
-              const SizedBox(width: 10),
-              Text(title, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF0D47A1), letterSpacing: 1)),
-            ]),
-            const Divider(height: 30),
-            child,
-          ],
-        ),
-      ),
-    );
+    return Card(elevation: 0, margin: const EdgeInsets.only(bottom: 20), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20), side: BorderSide(color: Colors.grey.shade200)), child: Padding(padding: const EdgeInsets.all(20), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Row(children: [Icon(icon, size: 18, color: const Color(0xFF0D47A1)), const SizedBox(width: 10), Text(title, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF0D47A1), letterSpacing: 1))]), const Divider(height: 30), child])));
   }
 
-  Widget _dropdownLabel(String t) => Padding(
-    padding: const EdgeInsets.only(bottom: 8, left: 4),
-    child: Text(t, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.grey)),
-  );
+  Widget _dropdownLabel(String t) => Padding(padding: const EdgeInsets.only(bottom: 8, left: 4), child: Text(t, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.grey)));
 
   Widget _inputField(TextEditingController ctrl, String label, IconData icon, {bool isNum = false, bool isPass = false, bool isCaps = false}) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 15),
       child: TextField(
-        controller: ctrl,
-        obscureText: isPass,
-        enabled: !isLoading,
+        controller: ctrl, obscureText: isPass, enabled: !isLoading,
         keyboardType: isNum ? TextInputType.number : TextInputType.text,
         textCapitalization: isCaps ? TextCapitalization.characters : (isPass ? TextCapitalization.none : TextCapitalization.words),
-        decoration: InputDecoration(
-          labelText: label,
-          prefixIcon: Icon(icon, size: 20),
-          border: const OutlineInputBorder(),
-          contentPadding: const EdgeInsets.symmetric(horizontal: 15, vertical: 15),
-        ),
+        decoration: InputDecoration(labelText: label, prefixIcon: Icon(icon, size: 20), border: const OutlineInputBorder(), contentPadding: const EdgeInsets.symmetric(horizontal: 15, vertical: 15)),
       ),
     );
   }
