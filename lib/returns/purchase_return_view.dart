@@ -6,8 +6,11 @@ import 'package:intl/intl.dart';
 import '../pharoah_manager.dart';
 import '../models.dart';
 import '../logic/pharoah_numbering_engine.dart';
+import '../purchase/purchase_billing_view.dart'; // 🔥 Entry Card ke liye
+import '../product_master.dart';
 import '../pharoah_date_controller.dart';
 import '../app_date_logic.dart';
+import '../pdf/pdf_router_service.dart';
 
 class PurchaseReturnView extends StatefulWidget {
   final PurchaseReturn? existingRecord; 
@@ -22,8 +25,8 @@ class _PurchaseReturnViewState extends State<PurchaseReturnView> {
   DateTime selectedDate = DateTime.now();
   Party? selectedSupplier;
   
-  List<PurchaseItem> items = []; // Saare items yahan honge
-  bool isBreakageMode = false; // Toggle
+  List<PurchaseItem> items = []; 
+  bool isBreakageMode = false; // 🔥 Toggle: Sellable vs Breakage
   String searchQuery = "";
   bool isLoading = true;
 
@@ -35,7 +38,6 @@ class _PurchaseReturnViewState extends State<PurchaseReturnView> {
 
   void _initReturnFlow() async {
     final ph = Provider.of<PharoahManager>(context, listen: false);
-    
     if (widget.existingRecord != null) {
       final ex = widget.existingRecord!;
       returnNoC.text = ex.billNo;
@@ -49,12 +51,10 @@ class _PurchaseReturnViewState extends State<PurchaseReturnView> {
       setState(() => isLoading = false);
     } else {
       if (ph.activeCompany != null) {
-        // Fetching next Debit Note Number
-        var series = ph.getDefaultSeries("RETURN");
         String nextNo = await PharoahNumberingEngine.getNextNumber(
-          type: "RETURN",
+          type: "RETURN", 
           companyID: ph.activeCompany!.id,
-          prefix: "DN-", 
+          prefix: "DN-", // Debit Note Prefix
           startFrom: 1,
           currentList: ph.purchaseReturns,
         );
@@ -67,22 +67,30 @@ class _PurchaseReturnViewState extends State<PurchaseReturnView> {
     }
   }
 
-  // --- LOGIC: SPLIT LISTS FOR UI ---
-  List<PurchaseItem> get sellableList => items.where((i) => !i.isBreakage).toList();
-  List<PurchaseItem> get breakageList => items.where((i) => i.isBreakage).toList();
   double get totalAmt => items.fold(0, (sum, it) => sum + it.total);
 
-  // ===========================================================================
-  // 🪄 THE MAGIC HISTORY BOX (PURCHASE LOOKUP)
-  // ===========================================================================
-  void _showMagicHistory(Medicine med, PharoahManager ph) {
-    if (selectedSupplier == null) return;
+  void _recalculateSR() {
+    setState(() {
+      for (int i = 0; i < items.length; i++) {
+        items[i] = items[i].copyWith(srNo: i + 1);
+      }
+    });
+  }
 
-    // Fetch history from PharoahManager (isSale: false means Purchase history)
+  // ===========================================================================
+  // 🪄 THE MAGIC HISTORY BOX (PURCHASE REFERENCE)
+  // ===========================================================================
+  void _showPurchaseHistoryBox(Medicine med, PharoahManager ph) {
+    if (selectedSupplier == null) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Pehle Supplier select karein!")));
+      return;
+    }
+
+    // Manager ka scanner function (isSale: false means Purchase history)
     final history = ph.getMedicineHistory(
       partyId: selectedSupplier!.id, 
       medicineId: med.id, 
-      isSale: false
+      isSale: false 
     );
 
     showModalBottomSheet(
@@ -91,39 +99,32 @@ class _PurchaseReturnViewState extends State<PurchaseReturnView> {
       backgroundColor: Colors.transparent,
       builder: (c) => Container(
         height: MediaQuery.of(context).size.height * 0.75,
-        decoration: const BoxDecoration(
-          color: Colors.white, 
-          borderRadius: BorderRadius.vertical(top: Radius.circular(30))
-        ),
+        decoration: const BoxDecoration(color: Colors.white, borderRadius: BorderRadius.vertical(top: Radius.circular(30))),
         child: Column(children: [
           Container(margin: const EdgeInsets.all(15), height: 5, width: 50, decoration: BoxDecoration(color: Colors.grey[300], borderRadius: BorderRadius.circular(10))),
-          Text("CHOOSE FROM PREVIOUS PURCHASES", style: TextStyle(fontSize: 11, fontWeight: FontWeight.w900, color: Colors.brown.shade800, letterSpacing: 1)),
-          Padding(
-            padding: const EdgeInsets.all(10),
-            child: Text(med.name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-          ),
+          const Text("PURCHASE HISTORY (Current FY)", style: TextStyle(fontSize: 12, fontWeight: FontWeight.w900, color: Colors.brown, letterSpacing: 1)),
+          Padding(padding: const EdgeInsets.all(10), child: Text(med.name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16))),
           const Divider(),
           if (history.isEmpty)
-             const Expanded(child: Center(child: Text("No records found for this medicine from this supplier in current FY.")))
+             const Expanded(child: Center(child: Text("Is Supplier se is saal ye item nahi kharida gaya.")))
           else
             Expanded(
               child: ListView.builder(
                 itemCount: history.length,
                 itemBuilder: (c, i) {
                   final h = history[i];
-                  return Container(
+                  return Card(
                     margin: const EdgeInsets.symmetric(horizontal: 15, vertical: 5),
-                    decoration: BoxDecoration(border: Border.all(color: Colors.brown.withOpacity(0.1)), borderRadius: BorderRadius.circular(12)),
                     child: ListTile(
                       title: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
                         Text("Bill: ${h['billNo']}", style: const TextStyle(fontWeight: FontWeight.bold)),
                         Text("Batch: ${h['batch']}", style: const TextStyle(color: Colors.brown, fontWeight: FontWeight.bold)),
                       ]),
-                      subtitle: Text("Date: ${DateFormat('dd-MMM').format(h['date'])} | Qty: ${h['qty']} | Pur.Rate: ₹${h['rate']} | MRP: ₹${h['mrp']}"),
-                      trailing: const Icon(Icons.keyboard_arrow_right_rounded, color: Colors.brown),
+                      subtitle: Text("Date: ${DateFormat('dd-MMM').format(h['date'])} | Pur.Rate: ₹${h['rate']} | MRP: ₹${h['mrp']}"),
+                      trailing: const Icon(Icons.download_done_rounded, color: Colors.brown),
                       onTap: () {
                         Navigator.pop(c);
-                        _showQuantityDialog(med, preFill: h);
+                        _showPurchaseEntryCard(med, historyData: h); // 🔥 AUTOFILL
                       },
                     ),
                   );
@@ -133,8 +134,8 @@ class _PurchaseReturnViewState extends State<PurchaseReturnView> {
           Padding(
             padding: const EdgeInsets.all(20),
             child: TextButton.icon(
-              onPressed: () { Navigator.pop(c); _showQuantityDialog(med); },
-              icon: const Icon(Icons.edit_note), label: const Text("NOT IN LIST? ENTER MANUALLY")
+              onPressed: () { Navigator.pop(c); _showPurchaseEntryCard(med); },
+              icon: const Icon(Icons.edit_note), label: const Text("MANUAL ENTRY (NOT IN HISTORY)")
             ),
           )
         ]),
@@ -143,110 +144,77 @@ class _PurchaseReturnViewState extends State<PurchaseReturnView> {
   }
 
   // ===========================================================================
-  // 📝 QUANTITY & RATE ENTRY (AUTO-FILL SUPPORT)
+  // 📝 PURCHASE ENTRY CARD BRIDGE (AUTO-FILL SUPPORT)
   // ===========================================================================
-  void _showQuantityDialog(Medicine med, {Map<String, dynamic>? preFill}) {
-    final qtyC = TextEditingController();
-    final rateC = TextEditingController(text: preFill != null ? preFill['rate'].toString() : med.purRate.toString());
-    final mrpC = TextEditingController(text: preFill != null ? preFill['mrp'].toString() : med.mrp.toString());
-    final batchC = TextEditingController(text: preFill != null ? preFill['batch'].toString() : "");
-    final gstC = TextEditingController(text: preFill != null ? preFill['gst'].toString() : med.gst.toString());
+  void _showPurchaseEntryCard(Medicine med, {Map<String, dynamic>? historyData}) {
+    PurchaseItem? preFilled;
+    if (historyData != null) {
+      preFilled = PurchaseItem(
+        id: "temp",
+        srNo: items.length + 1,
+        medicineID: med.id,
+        name: med.name,
+        packing: med.packing,
+        batch: historyData['batch'],
+        exp: "12/26", 
+        hsn: med.hsnCode,
+        mrp: historyData['mrp'],
+        purchaseRate: historyData['rate'],
+        gstRate: historyData['gst'],
+        qty: 0, 
+        total: 0,
+      );
+    }
 
     showDialog(
       context: context,
-      builder: (c) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Text("Debit Item Details (${isBreakageMode ? 'Breakage' : 'Sellable'})", style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
-        content: Column(mainAxisSize: MainAxisSize.min, children: [
-            Text(med.name, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.brown)),
-            const SizedBox(height: 15),
-            TextField(controller: batchC, decoration: const InputDecoration(labelText: "Batch Number", border: OutlineInputBorder(), isDense: true)),
-            const SizedBox(height: 10),
-            Row(children: [
-              Expanded(child: TextField(controller: rateC, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: "Pur. Rate", border: OutlineInputBorder(), isDense: true))),
-              const SizedBox(width: 10),
-              Expanded(child: TextField(controller: mrpC, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: "MRP", border: OutlineInputBorder(), isDense: true))),
-            ]),
-            const SizedBox(height: 10),
-            Row(children: [
-              Expanded(child: TextField(controller: qtyC, autofocus: true, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: "Return Qty", border: OutlineInputBorder(), isDense: true))),
-              const SizedBox(width: 10),
-              Expanded(child: TextField(controller: gstC, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: "GST %", border: OutlineInputBorder(), isDense: true))),
-            ]),
-        ]),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(c), child: const Text("CANCEL")),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.brown.shade800),
-            onPressed: () {
-              double q = double.tryParse(qtyC.text) ?? 0;
-              if (q <= 0) return;
-              double r = double.tryParse(rateC.text) ?? 0;
-              double g = double.tryParse(gstC.text) ?? 0;
-
-              setState(() {
-                items.add(PurchaseItem(
-                  id: DateTime.now().toString(),
-                  srNo: items.length + 1,
-                  medicineID: med.id,
-                  name: med.name,
-                  packing: med.packing,
-                  batch: batchC.text.toUpperCase(),
-                  exp: "12/26",
-                  hsn: med.hsnCode,
-                  mrp: double.tryParse(mrpC.text) ?? 0,
-                  qty: q,
-                  purchaseRate: r,
-                  gstRate: g,
-                  total: (q * r) * (1 + g/100),
-                  isBreakage: isBreakageMode, // 🔥 SAVE TO SECTION
-                ));
-              });
-              Navigator.pop(c);
-            }, 
-            child: const Text("ADD TO LIST", style: TextStyle(color: Colors.white))
-          )
-        ],
+      builder: (c) => PurchaseItemEntryCard(
+        med: med,
+        srNo: items.length + 1,
+        existingItem: preFilled, // 🔥 Autofill Logic
+        onAdd: (newItem) {
+          setState(() {
+            // Debit Note always reduces stock
+            items.add(newItem.copyWith(isBreakage: isBreakageMode)); 
+          });
+          Navigator.pop(context);
+        },
+        onCancel: () => Navigator.pop(context),
       ),
     );
   }
 
+  // ===========================================================================
+  // 🖥️ UI BUILDER
+  // ===========================================================================
   @override
   Widget build(BuildContext context) {
     final ph = Provider.of<PharoahManager>(context);
-
     if (isLoading) return const Scaffold(body: Center(child: CircularProgressIndicator()));
 
     return Scaffold(
       backgroundColor: const Color(0xFFFBF7F3),
       appBar: AppBar(
-        title: const Text("Advanced Debit Note (Pur. Return)", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-        backgroundColor: Colors.brown.shade900,
+        title: Text("Debit Note: ${returnNoC.text}"),
+        backgroundColor: Colors.brown.shade800,
         foregroundColor: Colors.white,
         actions: [
-          if (items.isNotEmpty)
-             IconButton(icon: const Icon(Icons.check_circle_rounded, size: 28), onPressed: () => _handleSave(ph)),
+          IconButton(icon: const Icon(Icons.print_rounded), onPressed: items.isEmpty ? null : () => _handlePrint(ph)),
+          if (items.isNotEmpty) IconButton(icon: const Icon(Icons.check_circle, size: 28), onPressed: () => _handleSave(ph)),
         ],
       ),
       body: Column(
         children: [
           _buildHeader(ph),
-          _buildModeToggle(),
+          _buildModeSwitcher(),
           _buildProductSearch(ph),
           Expanded(
             child: items.isEmpty
-                ? const Center(child: Text("No items in Debit Note. Search products to add."))
-                : ListView(
-                    children: [
-                      if (sellableList.isNotEmpty) ...[
-                        _listHeader("SECTION 1: INWARD RETURNS (SELLABLE)", Icons.assignment_return_rounded, Colors.blue.shade900),
-                        ...sellableList.map((it) => _itemCard(it)),
-                      ],
-                      if (breakageList.isNotEmpty) ...[
-                        _listHeader("SECTION 2: DAMAGE / BREAKAGE RETURNS", Icons.delete_sweep_rounded, Colors.brown.shade700),
-                        ...breakageList.map((it) => _itemCard(it)),
-                      ],
-                    ],
+                ? const Center(child: Text("Debit Note is empty. Search products to add."))
+                : ListView.builder(
+                    padding: const EdgeInsets.all(10),
+                    itemCount: items.length,
+                    itemBuilder: (c, i) => _buildItemCard(items[i], i),
                   ),
           ),
           _buildFooter(),
@@ -256,81 +224,83 @@ class _PurchaseReturnViewState extends State<PurchaseReturnView> {
   }
 
   Widget _buildHeader(PharoahManager ph) => Container(
-    padding: const EdgeInsets.all(15), color: Colors.white,
+    padding: const EdgeInsets.all(15), margin: const EdgeInsets.all(10),
+    decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 5)]),
     child: Column(children: [
-        Row(children: [
-          Expanded(child: TextField(controller: returnNoC, readOnly: true, decoration: const InputDecoration(labelText: "DEBIT NOTE NO", border: OutlineInputBorder(), isDense: true, filled: true, fillColor: Color(0xFFF5F5F5)))),
-          const SizedBox(width: 10),
-          Expanded(child: InkWell(onTap: () async {
-            DateTime? p = await PharoahDateController.pickDate(context: context, currentFY: ph.currentFY, initialDate: selectedDate);
-            if(p!=null) setState(()=>selectedDate = p);
-          }, child: Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(border: Border.all(color: Colors.grey.shade400), borderRadius: BorderRadius.circular(5)), child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [Text(DateFormat('dd/MM/yyyy').format(selectedDate)), const Icon(Icons.calendar_month, size: 16, color: Colors.brown)])))),
+        Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+            if (selectedSupplier == null)
+               const Text("Select Supplier...", style: TextStyle(color: Colors.brown, fontWeight: FontWeight.bold))
+            else
+               Text(selectedSupplier!.name, style: TextStyle(fontWeight: FontWeight.bold, color: Colors.brown.shade900)),
+            Text(DateFormat('dd/MM/yyyy').format(selectedDate), style: const TextStyle(fontWeight: FontWeight.bold)),
         ]),
         const SizedBox(height: 10),
-        if (selectedSupplier == null)
-           _buildSupplierSearch(ph)
+        if (selectedSupplier == null) 
+          TextField(decoration: const InputDecoration(hintText: "Search Distributor...", prefixIcon: Icon(Icons.business_rounded), isDense: true, border: OutlineInputBorder()), onSubmitted: (v) {
+            try { setState(() => selectedSupplier = ph.parties.firstWhere((p) => p.group == "Sundry Creditors" && p.name.toLowerCase().contains(v.toLowerCase()))); } catch(e) {}
+          })
         else
-           ListTile(tileColor: Colors.brown.shade50, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)), leading: const Icon(Icons.business_rounded, color: Colors.brown), title: Text(selectedSupplier!.name, style: const TextStyle(fontWeight: FontWeight.bold)), trailing: IconButton(icon: const Icon(Icons.close, color: Colors.red), onPressed: () => setState(() => selectedSupplier = null))),
+          Row(children: [
+            const Icon(Icons.location_on, size: 12, color: Colors.grey),
+            Text(" ${selectedSupplier!.city}", style: const TextStyle(fontSize: 11, color: Colors.grey)),
+            const Spacer(),
+            TextButton(onPressed: () => setState(() => selectedSupplier = null), child: const Text("CHANGE SUPPLIER", style: TextStyle(fontSize: 10, color: Colors.brown))),
+          ]),
     ]),
   );
 
-  Widget _buildSupplierSearch(PharoahManager ph) => TextField(
-    decoration: const InputDecoration(hintText: "Search Distributor for Debit Note...", prefixIcon: Icon(Icons.search), border: OutlineInputBorder()),
-    onChanged: (v) => setState(() => searchQuery = v),
-    onSubmitted: (v) {
-      try {
-        final p = ph.parties.firstWhere((p) => p.group == "Sundry Creditors" && p.name.toLowerCase().contains(v.toLowerCase()));
-        setState(() => selectedSupplier = p);
-      } catch (e) {}
-    },
-  );
-
-  Widget _buildModeToggle() => Padding(
-    padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 10),
+  Widget _buildModeSwitcher() => Padding(
+    padding: const EdgeInsets.symmetric(horizontal: 10),
     child: SegmentedButton<bool>(
       segments: const [
-        ButtonSegment(value: false, label: Text("SELLABLE"), icon: Icon(Icons.inventory_2_rounded)),
-        ButtonSegment(value: true, label: Text("BREAKAGE"), icon: Icon(Icons.delete_sweep_outlined)),
+        ButtonSegment(value: false, label: Text("SELLABLE RETURN"), icon: Icon(Icons.inventory_2_rounded)),
+        ButtonSegment(value: true, label: Text("DAMAGE / BREAKAGE"), icon: Icon(Icons.delete_sweep_rounded)),
       ],
       selected: {isBreakageMode},
+      style: SegmentedButton.styleFrom(
+        selectedBackgroundColor: isBreakageMode ? Colors.deepOrange.shade900 : Colors.blue.shade900,
+        selectedForegroundColor: Colors.white,
+      ),
       onSelectionChanged: (v) => setState(() => isBreakageMode = v.first),
     ),
   );
 
   Widget _buildProductSearch(PharoahManager ph) => Padding(
-    padding: const EdgeInsets.symmetric(horizontal: 15),
-    child: TextField(
-      decoration: InputDecoration(
-        hintText: "Search Product for ${isBreakageMode ? 'Breakage' : 'Return'}...", 
-        prefixIcon: const Icon(Icons.search), 
-        filled: true, fillColor: isBreakageMode ? Colors.orange.shade50 : Colors.blue.shade50,
-        border: const OutlineInputBorder()
-      ),
-      onSubmitted: (v) {
-        if(selectedSupplier == null) { ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Pehle Supplier select karein!"))); return; }
-        try {
-          final med = ph.medicines.firstWhere((m) => m.name.toLowerCase().contains(v.toLowerCase()));
-          _showMagicHistory(med, ph);
-        } catch(e) {}
+    padding: const EdgeInsets.all(10),
+    child: InkWell(
+      onTap: () {
+        showModalBottomSheet(context: context, isScrollControlled: true, builder: (c) => Container(
+          height: MediaQuery.of(context).size.height * 0.8,
+          child: Column(children: [
+            Padding(padding: const EdgeInsets.all(15), child: TextField(autofocus: true, decoration: const InputDecoration(hintText: "Search Product for Debit Note...", border: OutlineInputBorder()), onChanged: (v) => setState(() => searchQuery = v))),
+            Expanded(child: ListView(children: ph.medicines.where((m) => m.name.toLowerCase().contains(searchQuery.toLowerCase())).map((m) => ListTile(title: Text(m.name), subtitle: Text(m.packing), onTap: () { Navigator.pop(context); _showPurchaseHistoryBox(m, ph); })).toList())),
+          ]),
+        ));
       },
+      child: Container(padding: const EdgeInsets.all(15), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.brown.shade200)), child: Row(children: [const Icon(Icons.search, color: Colors.brown), const SizedBox(width: 10), Text("Search Product for ${isBreakageMode ? 'Breakage' : 'Return'}...", style: const TextStyle(color: Colors.grey))])),
     ),
   );
 
-  Widget _listHeader(String title, IconData icon, Color color) => Padding(
-    padding: const EdgeInsets.fromLTRB(15, 15, 15, 5),
-    child: Row(children: [Icon(icon, size: 16, color: color), const SizedBox(width: 8), Text(title, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11, color: color, letterSpacing: 1))]),
-  );
+  Widget _buildItemCard(PurchaseItem it, int index) {
+    Color textColor = it.isBreakage ? Colors.deepOrange.shade900 : Colors.blue.shade900;
+    Color bgColor = it.isBreakage ? Colors.deepOrange.shade50 : Colors.blue.shade50;
 
-  Widget _itemCard(PurchaseItem it) => Card(
-    margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-    child: ListTile(
-      dense: true,
-      title: Text(it.name, style: const TextStyle(fontWeight: FontWeight.bold)),
-      subtitle: Text("Batch: ${it.batch} | Qty: ${it.qty.toInt()} | Rate: ₹${it.purchaseRate} | MRP: ₹${it.mrp}"),
-      trailing: Text("₹${it.total.toStringAsFixed(2)}", style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.brown)),
-      onLongPress: () => setState(() => items.removeWhere((i) => i.id == it.id)),
-    ),
-  );
+    return Card(
+      elevation: 2, margin: const EdgeInsets.symmetric(vertical: 5),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      child: ListTile(
+        tileColor: bgColor,
+        title: Row(children: [
+          Container(padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2), decoration: BoxDecoration(color: textColor, borderRadius: BorderRadius.circular(4)), child: Text(it.isBreakage ? "EXP" : "RET", style: const TextStyle(color: Colors.white, fontSize: 8, fontWeight: FontWeight.bold))),
+          const SizedBox(width: 8),
+          Text(it.name, style: TextStyle(fontWeight: FontWeight.bold, color: textColor)),
+        ]),
+        subtitle: Text("Batch: ${it.batch} | Qty: ${it.qty.toInt()} | Pur.Rate: ₹${it.purchaseRate} | MRP: ₹${it.mrp}"),
+        trailing: Text("₹${it.total.toStringAsFixed(2)}", style: TextStyle(fontWeight: FontWeight.bold, color: textColor)),
+        onLongPress: () => setState(() { items.removeAt(index); _recalculateSR(); }),
+      ),
+    );
+  }
 
   Widget _buildFooter() => Container(
     padding: const EdgeInsets.all(20), color: Colors.white,
@@ -344,6 +314,12 @@ class _PurchaseReturnViewState extends State<PurchaseReturnView> {
     if (selectedSupplier == null) return;
     ph.finalizePurchaseReturn(billNo: returnNoC.text, date: selectedDate, party: selectedSupplier!, items: items, total: totalAmt);
     Navigator.pop(context);
-    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("✅ Debit Note Saved & Supplier Account Adjusted!"), backgroundColor: Colors.green));
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("✅ Debit Note Generated! Supplier ledger adjusted."), backgroundColor: Colors.green));
+  }
+
+  void _handlePrint(PharoahManager ph) async {
+    if (selectedSupplier == null) return;
+    final returnObj = PurchaseReturn(id: "temp", billNo: returnNoC.text, date: selectedDate, distributorName: selectedSupplier!.name, items: items, totalAmount: totalAmt);
+    await PdfRouterService.printDebitNote(returnObj: returnObj, supplier: selectedSupplier!, ph: ph);
   }
 }
