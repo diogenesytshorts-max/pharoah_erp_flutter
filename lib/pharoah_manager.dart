@@ -369,14 +369,13 @@ class PharoahManager with ChangeNotifier {
   // --- CHALLANS & RETURNS ---
   void finalizeSaleChallan({required String billNo, required DateTime date, required Party party, required List<BillItem> items, required double total, String remarks = "", required String partyId}) { saleChallans.add(SaleChallan(id: DateTime.now().toString(), billNo: billNo, partyId: partyId, date: date, partyName: party.name, partyGstin: party.gst, partyState: party.state, items: items, totalAmount: total, remarks: remarks)); save(); }
   void finalizePurchaseChallan({required String billNo, required String internalNo, required DateTime date, required Party party, required List<PurchaseItem> items, required double total, String remarks = "", required String partyId}) { purchaseChallans.add(PurchaseChallan(id: DateTime.now().toString(), internalNo: internalNo, billNo: billNo, partyId: partyId, date: date, distributorName: party.name, items: items, totalAmount: total, remarks: remarks)); save(); }
-  void finalizeSaleReturn({required String billNo, required DateTime date, required Party party, required List<BillItem> items, required double total}) { 
-    // Hum returnType ko automatic "Mixed" rakh rahe hain kyunki items ke andar isBreakage flag hai
-    saleReturns.add(SaleReturn(id: DateTime.now().toString(), billNo: billNo, date: date, partyName: party.name, items: items, totalAmount: total, returnType: "Mixed")); 
+  void finalizeSaleReturn({required String billNo, required DateTime date, required Party party, required List<BillItem> items, required double total, String type = "Mixed"}) { 
+    saleReturns.add(SaleReturn(id: DateTime.now().toString(), billNo: billNo, date: date, partyName: party.name, items: items, totalAmount: total, returnType: type)); 
     save().then((_) => loadAllData()); 
   }
 
-  void finalizePurchaseReturn({required String billNo, required DateTime date, required Party party, required List<PurchaseItem> items, required double total}) { 
-    purchaseReturns.add(PurchaseReturn(id: DateTime.now().toString(), billNo: billNo, distributorName: party.name, date: date, items: items, totalAmount: total, status: "Active", returnType: "Mixed")); 
+  void finalizePurchaseReturn({required String billNo, required DateTime date, required Party party, required List<PurchaseItem> items, required double total, String type = "Mixed"}) { 
+    purchaseReturns.add(PurchaseReturn(id: DateTime.now().toString(), billNo: billNo, distributorName: party.name, date: date, items: items, totalAmount: total, status: "Active", returnType: type)); 
     save().then((_) => loadAllData()); 
   }
   // ===========================================================================
