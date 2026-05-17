@@ -68,29 +68,34 @@ class _PurchaseBillingViewState extends State<PurchaseBillingView> {
     return Scaffold(
       backgroundColor: const Color(0xFFF5F6F9),
       appBar: AppBar(
-        backgroundColor: widget.isReadOnly ? Colors.purple.shade700 : Colors.orange.shade800,
+        backgroundColor: widget.isReadOnly ? Colors.purple.shade700 : const Color(0xFFB45309),
         foregroundColor: Colors.white,
+        elevation: 0,
         title: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text(widget.distributor.name, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
-          Text(widget.isReadOnly ? "PURCHASE VIEW" : (widget.distBillNo.isEmpty ? "CONVERTING: ${widget.internalNo}" : "Bill: ${widget.distBillNo}"), style: const TextStyle(fontSize: 10))
+          Text(widget.isReadOnly ? "VIEWING INWARD" : "ID: ${widget.internalNo} | Bill: ${widget.distBillNo}", style: const TextStyle(fontSize: 10))
         ]),
         actions: [
           IconButton(
             icon: const Icon(Icons.print_rounded),
             onPressed: items.isEmpty ? null : () async {
-              if (ph.activeCompany != null) {
-                final tempPurchase = Purchase(
-                  id: "temp", internalNo: internalNoC.text, billNo: distBillNoC.text.trim(), 
-                  partyId: widget.distributor.id, date: selectedBillDate, entryDate: widget.entryDate, 
-                  distributorName: widget.distributor.name, items: items, totalAmount: totalAmt, 
-                  paymentMode: widget.mode, linkedChallanIds: widget.linkedChallanIds ?? [],
-                );
-                await PdfRouterService.printPurchase(purchase: tempPurchase, supplier: widget.distributor, ph: ph);
-              }
+              final tempPurchase = Purchase(
+                id: "temp", internalNo: internalNoC.text, billNo: distBillNoC.text.trim(), 
+                partyId: widget.distributor.id, date: selectedBillDate, entryDate: widget.entryDate, 
+                distributorName: widget.distributor.name, items: items, totalAmount: totalAmt, 
+                paymentMode: widget.mode, linkedChallanIds: widget.linkedChallanIds ?? [],
+              );
+              await PdfRouterService.printPurchase(purchase: tempPurchase, supplier: widget.distributor, ph: ph);
             },
           ),
           if (!widget.isReadOnly) 
-            TextButton(onPressed: items.isEmpty ? null : () => _handleSave(ph), child: const Text("FINISH", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)))
+            Padding(
+              padding: const EdgeInsets.only(right: 10),
+              child: TextButton(
+                onPressed: items.isEmpty ? null : () => _handleSave(ph), 
+                child: const Text("FINISH", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold))
+              ),
+            )
         ],
       ),
       body: Column(children: [
@@ -103,17 +108,17 @@ class _PurchaseBillingViewState extends State<PurchaseBillingView> {
   }
 
   Widget _buildHeader() => Container(
-    padding: const EdgeInsets.all(15), margin: const EdgeInsets.fromLTRB(10, 10, 10, 5),
-    decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12)),
+    padding: const EdgeInsets.all(15), 
+    decoration: const BoxDecoration(color: Colors.white, borderRadius: BorderRadius.vertical(bottom: Radius.circular(20))),
     child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-      Text(widget.distributor.name, style: TextStyle(fontWeight: FontWeight.bold, color: Colors.orange.shade900)),
+      Expanded(child: Text(widget.distributor.name, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.blueGrey, overflow: TextOverflow.ellipsis))),
       InkWell(
         onTap: widget.isReadOnly ? null : () async {
           final phManager = Provider.of<PharoahManager>(context, listen: false);
           DateTime? p = await PharoahDateController.pickDate(context: context, currentFY: phManager.currentFY, initialDate: selectedBillDate);
           if (p != null) setState(() => selectedBillDate = p);
         },
-        child: Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), decoration: BoxDecoration(border: Border.all(color: Colors.grey.shade300), borderRadius: BorderRadius.circular(5)), child: Text(DateFormat('dd/MM/yy').format(selectedBillDate), style: const TextStyle(fontWeight: FontWeight.bold))),
+        child: Container(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6), decoration: BoxDecoration(border: Border.all(color: Colors.grey.shade300), borderRadius: BorderRadius.circular(8), color: Colors.grey.shade50), child: Row(children: [const Icon(Icons.calendar_month, size: 14, color: Color(0xFFB45309)), const SizedBox(width: 5), Text(DateFormat('dd/MM/yy').format(selectedBillDate), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13))])),
       ),
     ]),
   );
@@ -121,21 +126,22 @@ class _PurchaseBillingViewState extends State<PurchaseBillingView> {
   Widget _buildSearchBarTrigger(PharoahManager ph) {
     if (widget.isReadOnly) return const SizedBox.shrink();
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
       child: InkWell(
         onTap: () => _showItemSearchSheet(ph),
-        child: Container(padding: const EdgeInsets.all(15), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.orange.shade300, width: 1.5)), child: Row(children: [const Icon(Icons.search, color: Colors.orange), const SizedBox(width: 10), Text("Tap here to add items...", style: TextStyle(color: Colors.grey.shade600))])),
+        child: Container(padding: const EdgeInsets.all(15), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(15), border: Border.all(color: Colors.orange.shade300, width: 1)), child: Row(children: [const Icon(Icons.search, color: Color(0xFFB45309)), const SizedBox(width: 10), Text("Tap here to add items...", style: TextStyle(color: Colors.grey.shade600))])),
       ),
     );
   }
 
   Widget _buildItemCard(PurchaseItem it, int index, PharoahManager ph) {
     final card = Card(
-      elevation: 2, margin: const EdgeInsets.symmetric(vertical: 4),
+      elevation: 1, margin: const EdgeInsets.symmetric(vertical: 4),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: ListTile(
-        title: Text(it.name, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.deepOrange)),
-        subtitle: Text("BT: ${it.batch} | Qty: ${it.qty.toInt()} | Disc: ${it.discountPer}%"),
-        trailing: Text("₹${it.total.toStringAsFixed(2)}", style: const TextStyle(fontWeight: FontWeight.bold)),
+        title: Text(it.name, style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF92400E))),
+        subtitle: Text("Batch: ${it.batch} | Exp: ${it.exp} | Qty: ${it.qty.toInt()} + ${it.freeQty.toInt()}"),
+        trailing: Text("₹${it.total.toStringAsFixed(2)}", style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.black87)),
         onTap: widget.isReadOnly ? null : () => _showItemSearchSheet(ph, itemToEdit: it),
       ),
     );
@@ -147,27 +153,37 @@ class _PurchaseBillingViewState extends State<PurchaseBillingView> {
     if (widget.isReadOnly) return; 
     String localSearch = "";
     Medicine? selectedMed;
-    if (itemToEdit != null) selectedMed = ph.medicines.firstWhere((m) => m.id == itemToEdit.medicineID);
+    if (itemToEdit != null) {
+      try { selectedMed = ph.medicines.firstWhere((m) => m.id == itemToEdit.medicineID); } catch(e) {}
+    }
 
-    showModalBottomSheet(context: context, isScrollControlled: true, backgroundColor: Colors.transparent, builder: (context) => StatefulBuilder(builder: (context, setSheetState) {
-          final filteredMeds = ph.medicines.where((m) => m.name.toLowerCase().contains(localSearch.toLowerCase())).toList();
-          return Padding(padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom), child: Container(height: MediaQuery.of(context).size.height * 0.85, decoration: const BoxDecoration(color: Color(0xFFFFF8E1), borderRadius: BorderRadius.vertical(top: Radius.circular(20))), child: Column(children: [
-                Container(margin: const EdgeInsets.only(top: 10, bottom: 10), height: 5, width: 50, decoration: BoxDecoration(color: Colors.grey.shade400, borderRadius: BorderRadius.circular(10))),
-                if (selectedMed == null) ...[
-                  Padding(padding: const EdgeInsets.all(15), child: Row(children: [Expanded(child: TextField(autofocus: true, decoration: InputDecoration(hintText: "Search Product...", prefixIcon: const Icon(Icons.search, color: Colors.orange), filled: true, fillColor: Colors.white, border: OutlineInputBorder(borderRadius: BorderRadius.circular(10))), onChanged: (v) => setSheetState(() => localSearch = v))), const SizedBox(width: 10), IconButton.filled(onPressed: () async { final result = await Navigator.push(context, MaterialPageRoute(builder: (c) => const ProductMasterView(isSelectionMode: true))); if (result != null && result is Medicine) { setSheetState(() => selectedMed = result); } }, icon: const Icon(Icons.library_add_rounded), style: IconButton.styleFrom(backgroundColor: Colors.orange.shade900))])),
-                  Expanded(child: ListView.builder(itemCount: filteredMeds.length, itemBuilder: (c, i) => ListTile(leading: const Icon(Icons.inventory_2, color: Colors.orange), title: Text(filteredMeds[i].name, style: const TextStyle(fontWeight: FontWeight.bold)), subtitle: Text("Pack: ${filteredMeds[i].packing} | Stock: ${filteredMeds[i].stock}"), onTap: () => setSheetState(() => selectedMed = filteredMeds[i]))))
-                ] else ...[
-                  Expanded(child: SingleChildScrollView(child: PurchaseItemEntryCard(med: selectedMed!, srNo: itemToEdit != null ? itemToEdit.srNo : items.length + 1, existingItem: itemToEdit, onAdd: (newItem) { setState(() { if (itemToEdit != null) { int idx = items.indexWhere((it) => it.id == itemToEdit.id); items[idx] = newItem; } else { items.add(newItem); } }); Navigator.pop(context); }, onCancel: () => itemToEdit != null ? Navigator.pop(context) : setSheetState(() => selectedMed = null))))
-                ]
-              ])));
-        }));
+    showModalBottomSheet(
+      context: context, 
+      isScrollControlled: true, 
+      backgroundColor: Colors.transparent, 
+      builder: (context) => StatefulBuilder(builder: (context, setSheetState) {
+        final filteredMeds = ph.medicines.where((m) => m.name.toLowerCase().contains(localSearch.toLowerCase())).toList();
+        return Padding(
+          padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom), 
+          child: Container(height: MediaQuery.of(context).size.height * 0.85, decoration: const BoxDecoration(color: Color(0xFFFDF8F6), borderRadius: BorderRadius.vertical(top: Radius.circular(30))), child: Column(children: [
+            Container(margin: const EdgeInsets.only(top: 15, bottom: 10), height: 5, width: 50, decoration: BoxDecoration(color: Colors.grey.shade300, borderRadius: BorderRadius.circular(10))),
+            if (selectedMed == null) ...[
+              Padding(padding: const EdgeInsets.all(20), child: TextField(autofocus: true, decoration: InputDecoration(hintText: "Search Product for Inward...", prefixIcon: const Icon(Icons.search, color: Color(0xFFB45309)), filled: true, fillColor: Colors.white, border: OutlineInputBorder(borderRadius: BorderRadius.circular(15), borderSide: BorderSide.none)), onChanged: (v) => setSheetState(() => localSearch = v))),
+              Expanded(child: ListView.builder(itemCount: filteredMeds.length, itemBuilder: (c, i) => ListTile(leading: const CircleAvatar(backgroundColor: Color(0xFFFFF7ED), child: Icon(Icons.inventory_2_rounded, size: 20, color: Color(0xFFB45309))), title: Text(filteredMeds[i].name, style: const TextStyle(fontWeight: FontWeight.bold)), subtitle: Text("Packing: ${filteredMeds[i].packing}"), onTap: () => setSheetState(() => selectedMed = filteredMeds[i]))))
+            ] else ...[
+              Expanded(child: SingleChildScrollView(child: PurchaseItemEntryCard(med: selectedMed!, srNo: itemToEdit != null ? itemToEdit.srNo : items.length + 1, existingItem: itemToEdit, onAdd: (newItem) { setState(() { if (itemToEdit != null) { int idx = items.indexWhere((it) => it.id == itemToEdit.id); items[idx] = newItem; } else { items.add(newItem); } }); Navigator.pop(context); }, onCancel: () => itemToEdit != null ? Navigator.pop(context) : setSheetState(() => selectedMed = null))))
+            ]
+          ])),
+        );
+      }),
+    );
   }
 
   Widget _buildFooter() => Container(
-    padding: const EdgeInsets.all(15), color: Colors.white,
+    padding: const EdgeInsets.all(20), color: Colors.white,
     child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-      const Text("NET TOTAL", style: TextStyle(fontWeight: FontWeight.bold)),
-      Text("₹${totalAmt.toStringAsFixed(2)}", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.deepOrange.shade900))
+      const Text("INWARD TOTAL", style: TextStyle(fontWeight: FontWeight.bold, letterSpacing: 1, fontSize: 12, color: Colors.grey)),
+      Text("₹${totalAmt.toStringAsFixed(2)}", style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: Color(0xFFB45309)))
     ]),
   );
 
@@ -183,29 +199,29 @@ class _PurchaseBillingViewState extends State<PurchaseBillingView> {
 }
 
 // =============================================================================
-// 🛒 PURCHASE ITEM ENTRY CARD (RESTORED BATCH CHIPS, DUAL DISC & RATE C)
+// 🛒 REFINED ITEM ENTRY CARD (Enterprise UI + Rate C + Two Way Sync)
 // =============================================================================
-// REPLACE FROM HERE TO THE END OF FILE: lib/purchase/purchase_billing_view.dart
 
 class PurchaseItemEntryCard extends StatefulWidget {
   final Medicine med; final int srNo; final PurchaseItem? existingItem; 
   final Function(PurchaseItem) onAdd; final VoidCallback onCancel;
-  final bool allowExpired; // 🔥 NAYA
+  final bool allowExpired; 
 
   const PurchaseItemEntryCard({
     super.key, required this.med, required this.srNo, 
     this.existingItem, required this.onAdd, required this.onCancel,
-    this.allowExpired = false, // 🔥 Default False
+    this.allowExpired = false,
   });
   @override State<PurchaseItemEntryCard> createState() => _PurchaseItemEntryCardState();
 }
 
 class _PurchaseItemEntryCardState extends State<PurchaseItemEntryCard> {
+  // Logic Controllers
   final batchC = TextEditingController(); final expC = TextEditingController(); final gstC = TextEditingController();
   final mrpC = TextEditingController(); final purRateC = TextEditingController(); final qtyC = TextEditingController(text: "1");
   final freeC = TextEditingController(text: "0"); final rateAC = TextEditingController(); final rateBC = TextEditingController();
-  final rateCC = TextEditingController(); final discPerC = TextEditingController(text: "0.0"); final discAmtC = TextEditingController(text: "0.0");
-  final rateCDiscC = TextEditingController(text: "0.0"); bool showDisc = false;
+  final rateCC = TextEditingController(); final rateCDiscC = TextEditingController(text: "0.0");
+  final discPerC = TextEditingController(text: "0.0"); final discAmtC = TextEditingController(text: "0.0");
 
   @override void initState() {
     super.initState();
@@ -227,19 +243,26 @@ class _PurchaseItemEntryCardState extends State<PurchaseItemEntryCard> {
     }
   }
 
+  // --- REFINED RATE C CALCULATION ---
   void _calcRateC() {
-    double mrp = double.tryParse(mrpC.text) ?? 0.0; double gst = double.tryParse(gstC.text) ?? 0.0;
+    double mrp = double.tryParse(mrpC.text) ?? 0.0; 
+    double gst = double.tryParse(gstC.text) ?? 0.0;
     double formulaDisc = double.tryParse(rateCDiscC.text) ?? 0.0;
+    
+    // Tax nikaalna: Base Value
     double baseTaxable = (mrp / (1 + (gst / 100)));
+    // Formula discount lagana: Selling Rate Tax Free
     rateCC.text = (baseTaxable - (baseTaxable * (formulaDisc / 100))).toStringAsFixed(2);
     setState(() {});
   }
 
+  // --- REFINED TWO-WAY SYNC ---
   void _syncDiscount(bool isPercentSource) {
     double q = double.tryParse(qtyC.text) ?? 0;
     double r = double.tryParse(purRateC.text) ?? 0;
     double gross = q * r;
     if (gross <= 0) return;
+
     if (isPercentSource) {
       double p = double.tryParse(discPerC.text) ?? 0;
       discAmtC.text = (gross * (p / 100)).toStringAsFixed(2);
@@ -252,94 +275,115 @@ class _PurchaseItemEntryCardState extends State<PurchaseItemEntryCard> {
 
   void _formatExpiry(String val) {
     String clean = val.replaceAll(RegExp(r'[^0-9]'), '');
-    String formatted = clean;
-    if (clean.length >= 2) formatted = '${clean.substring(0, 2)}/${clean.substring(2)}';
-    if (formatted.length > 5) formatted = formatted.substring(0, 5);
-    if (expC.text != formatted) {
-      expC.value = TextEditingValue(text: formatted, selection: TextSelection.collapsed(offset: formatted.length));
+    if (clean.length >= 2) clean = '${clean.substring(0, 2)}/${clean.substring(2)}';
+    if (clean.length > 5) clean = clean.substring(0, 5);
+    if (expC.text != clean) {
+      expC.value = TextEditingValue(text: clean, selection: TextSelection.collapsed(offset: clean.length));
     }
     setState(() {});
   }
 
   @override Widget build(BuildContext context) {
     final ph = Provider.of<PharoahManager>(context);
-    // 🔥 Returns ke waqt saare batches dikhao, sale mein sirf valid
     final matchingBatches = BatchSyncEngine.getFilteredBatches(ph: ph, productKey: widget.med.identityKey, hideExpired: !widget.allowExpired);
-
-    double q = double.tryParse(qtyC.text) ?? 0; double r = double.tryParse(purRateC.text) ?? 0;
-    double dAmt = double.tryParse(discAmtC.text) ?? 0; double g = double.tryParse(gstC.text) ?? 0;
-    double netItemTotal = ((q * r) - dAmt) * (1 + g/100);
+    
+    double q = double.tryParse(qtyC.text) ?? 0; 
+    double r = double.tryParse(purRateC.text) ?? 0;
+    double dA = double.tryParse(discAmtC.text) ?? 0; 
+    double g = double.tryParse(gstC.text) ?? 0;
+    double netTotal = ((q * r) - dA) * (1 + g/100);
 
     return Dialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      backgroundColor: Colors.transparent,
       child: Container(
-        padding: const EdgeInsets.all(15),
-        child: SingleChildScrollView( // 🔥 ANTI-OVERFLOW SCROLL
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-                Expanded(child: Text("${widget.srNo}. ${widget.med.name}", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.brown))),
-                IconButton(icon: const Icon(Icons.cancel, size: 20), onPressed: widget.onCancel)
-              ]),
-              const Divider(),
-              
-              // ROW 1
+        width: 500, decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(28)),
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          Container(
+            padding: const EdgeInsets.all(20), width: double.infinity, color: const Color(0xFFFFF7ED),
+            child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                const Text("STOCK ENTRY PANEL", style: TextStyle(color: Color(0xFF9A3412), fontWeight: FontWeight.w900, fontSize: 9, letterSpacing: 2)),
+                Text("${widget.srNo}. ${widget.med.name}", style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: Color(0xFF1E293B)), overflow: TextOverflow.ellipsis),
+              ])),
+              IconButton(icon: const Icon(Icons.close_rounded), onPressed: widget.onCancel)
+            ]),
+          ),
+          
+          Padding(
+            padding: const EdgeInsets.all(25.0),
+            child: Column(children: [
               Row(children: [
-                Expanded(child: _buildInput("BATCH", batchC)), const SizedBox(width: 8), 
-                Expanded(child: _buildInput("EXP (MM/YY)", expC, isNum: true, onChanged: _formatExpiry)),
+                Expanded(child: _modernInput("BATCH", batchC, const Color(0xFF475569))),
+                const SizedBox(width: 12),
+                Expanded(child: _modernInput("EXPIRY", expC, const Color(0xFF0891B2), isNum: true, onChanged: _formatExpiry)),
               ]),
-              const SizedBox(height: 10),
 
               if (matchingBatches.isNotEmpty && widget.existingItem == null)
-                SizedBox(height: 45, child: ListView(scrollDirection: Axis.horizontal, children: matchingBatches.map((b) => Padding(padding: const EdgeInsets.only(right: 8), child: ActionChip(label: Text(b.batch), onPressed: () {
-                  setState(() { batchC.text = b.batch; expC.text = b.exp; mrpC.text = b.mrp.toString(); purRateC.text = b.rate.toString(); _calcRateC(); _syncDiscount(true); });
+                Container(height: 45, margin: const EdgeInsets.only(top: 15), child: ListView(scrollDirection: Axis.horizontal, children: matchingBatches.map((b) => Padding(padding: const EdgeInsets.only(right: 8), child: ActionChip(label: Text(b.batch), onPressed: () {
+                        setState(() { 
+                          batchC.text = b.batch; expC.text = b.exp; 
+                          mrpC.text = b.mrp.toString(); purRateC.text = b.rate.toString(); 
+                          _calcRateC(); _syncDiscount(true); 
+                        });
                 }))).toList())),
-              
-              // ROW 2
+
+              const SizedBox(height: 25),
               Row(children: [
-                Expanded(child: _buildInput("MRP", mrpC, isNum: true, onChanged: (v)=>_calcRateC())), const SizedBox(width: 8), 
-                Expanded(child: _buildInput("PUR. RATE", purRateC, isNum: true, onChanged: (v)=>_syncDiscount(true))),
+                Expanded(child: _modernInput("MRP", mrpC, const Color(0xFFBE185D), isNum: true, isBold: true, onChanged: (v)=>_calcRateC())),
+                const SizedBox(width: 12),
+                Expanded(child: _modernInput("PUR. RATE", purRateC, const Color(0xFFB45309), isNum: true, onChanged: (v)=>_syncDiscount(true))),
               ]),
-              const SizedBox(height: 10),
 
-              // ROW 3
+              const SizedBox(height: 20),
               Row(children: [
-                Expanded(child: _buildInput("QTY", qtyC, isNum: true, onChanged: (v)=>_syncDiscount(true))), const SizedBox(width: 8), 
-                Expanded(child: _buildInput("FREE", freeC, isNum: true)),
+                Expanded(child: _modernInput("QUANTITY", qtyC, const Color(0xFF059669), isNum: true, hasFocus: true, onChanged: (v)=>_syncDiscount(true))),
+                const SizedBox(width: 12),
+                Expanded(child: _modernInput("FREE QTY", freeC, const Color(0xFF059669), isNum: true)),
               ]),
-              const SizedBox(height: 10),
 
-              // ROW 4
+              const SizedBox(height: 20),
               Row(children: [
-                Expanded(child: _buildInput("DISC %", discPerC, isNum: true, color: Colors.orange.shade900, onChanged: (v)=>_syncDiscount(true))), const SizedBox(width: 8), 
-                Expanded(child: _buildInput("GST %", gstC, isNum: true, onChanged: (v)=>_calcRateC())),
+                Expanded(child: _modernInput("GST %", gstC, const Color(0xFF6366F1), isNum: true, onChanged: (v)=>_calcRateC())),
+                const SizedBox(width: 12),
+                Expanded(child: _modernInput("DISC %", discPerC, const Color(0xFFEA580C), isNum: true, onChanged: (v)=>_syncDiscount(true))),
               ]),
-              const SizedBox(height: 10),
 
-              _buildInput("RATE A (AUTO-SET)", rateAC, isNum: true, color: Colors.blue),
-              const SizedBox(height: 15),
+              const SizedBox(height: 35),
+              Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+                _sellingBox("RATE A", rateAC, Colors.blue),
+                const SizedBox(width: 10),
+                _sellingBox("RATE B", rateBC, Colors.orange),
+                const SizedBox(width: 10),
+                _sellingBox("RATE C (AUTO)", rateCC, Colors.purple, readOnly: true),
+                const SizedBox(width: 10),
+                _sellingBox("C DISC %", rateCDiscC, Colors.purple, onChanged: (v)=>_calcRateC()),
+              ]),
 
-              Container(width: double.infinity, padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: Colors.brown.shade50, borderRadius: BorderRadius.circular(10)), child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-                const Text("Item Net:", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
-                Text("₹${netItemTotal.toStringAsFixed(2)}", style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 18, color: Colors.brown))
+              const SizedBox(height: 35),
+              Container(padding: const EdgeInsets.all(20), decoration: BoxDecoration(color: const Color(0xFF0F172A), borderRadius: BorderRadius.circular(20)), child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+                const Text("TOTAL INWARD NET", style: TextStyle(color: Colors.white60, fontSize: 10, fontWeight: FontWeight.bold)),
+                Text("₹${netTotal.toStringAsFixed(2)}", style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w900, color: Colors.white)),
               ])),
-              const SizedBox(height: 15),
 
-              SizedBox(width: double.infinity, height: 50, child: ElevatedButton(
-                style: ElevatedButton.styleFrom(backgroundColor: Colors.brown.shade800, foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))), 
-                onPressed: () {
-                  BatchSyncEngine.registerBatchActivity(ph: ph, productKey: widget.med.identityKey, batchNo: batchC.text, exp: expC.text, packing: widget.med.packing, mrp: double.tryParse(mrpC.text) ?? 0, rate: double.tryParse(purRateC.text) ?? 0);
-                  widget.onAdd(PurchaseItem(
-                    id: widget.existingItem?.id ?? DateTime.now().toString(), srNo: widget.srNo, medicineID: widget.med.id, name: widget.med.name, packing: widget.med.packing, batch: batchC.text.toUpperCase(), exp: expC.text, hsn: widget.med.hsnCode, mrp: double.tryParse(mrpC.text) ?? 0, qty: double.tryParse(qtyC.text) ?? 0, freeQty: double.tryParse(freeC.text) ?? 0, purchaseRate: double.tryParse(purRateC.text) ?? 0, gstRate: double.tryParse(gstC.text) ?? 0, total: netItemTotal, discountPer: double.tryParse(discPerC.text) ?? 0, discountRupees: dAmt, rateA: double.tryParse(rateAC.text) ?? 0, rateB: double.tryParse(rateBC.text) ?? 0, rateC: double.tryParse(rateCC.text) ?? 0,
-                    isBreakage: widget.allowExpired // 🔥 SAVE TAG
-                  ));
-                }, 
-                child: const Text("ADD TO LIST", style: TextStyle(fontWeight: FontWeight.bold))
-              ))
-          ]),
-        ),
+              const SizedBox(height: 25),
+              SizedBox(width: double.infinity, height: 60, child: ElevatedButton(style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFB45309), foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15))), 
+              onPressed: () {
+                 BatchSyncEngine.registerBatchActivity(ph: ph, productKey: widget.med.identityKey, batchNo: batchC.text.trim(), exp: expC.text, packing: widget.med.packing, mrp: double.tryParse(mrpC.text) ?? 0, rate: double.tryParse(purRateC.text) ?? 0);
+                 widget.onAdd(PurchaseItem(id: widget.existingItem?.id ?? DateTime.now().toString(), srNo: widget.srNo, medicineID: widget.med.id, name: widget.med.name, packing: widget.med.packing, batch: batchC.text.toUpperCase(), exp: expC.text, hsn: widget.med.hsnCode, mrp: double.tryParse(mrpC.text) ?? 0, qty: double.tryParse(qtyC.text) ?? 0, freeQty: double.tryParse(freeC.text) ?? 0, purchaseRate: double.tryParse(purRateC.text) ?? 0, gstRate: double.tryParse(gstC.text) ?? 0, total: netTotal, discountPer: double.tryParse(discPerC.text) ?? 0, discountRupees: dA, rateA: double.tryParse(rateAC.text) ?? 0, rateB: double.tryParse(rateBC.text) ?? 0, rateC: double.tryParse(rateCC.text) ?? 0, isBreakage: widget.allowExpired));
+              }, 
+              child: const Text("FINALIZE ITEM", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, letterSpacing: 1.5))))
+            ]),
+          )
+        ]),
       ),
     );
   }
 
-  Widget _buildInput(String l, TextEditingController c, {bool isNum = false, Function(String)? onChanged, bool isReadOnly = false, Color? color}) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(l, style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: color)), TextField(controller: c, keyboardType: isNum ? const TextInputType.numberWithOptions(decimal: true) : TextInputType.text, onChanged: onChanged, readOnly: isReadOnly, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: color), decoration: InputDecoration(isDense: true, border: const OutlineInputBorder(), fillColor: isReadOnly ? Colors.grey.shade100 : Colors.white, filled: isReadOnly))]);
+  Widget _modernInput(String label, TextEditingController ctrl, Color color, {bool isBold = false, bool hasFocus = false, bool isNum = false, Function(String)? onChanged}) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Text(label, style: TextStyle(fontSize: 9, fontWeight: FontWeight.w900, color: color.withOpacity(0.8), letterSpacing: 1)),
+      const SizedBox(height: 5),
+      TextField(controller: ctrl, keyboardType: isNum ? const TextInputType.numberWithOptions(decimal: true) : TextInputType.text, onChanged: onChanged, style: TextStyle(fontSize: 14, fontWeight: isBold || hasFocus ? FontWeight.w900 : FontWeight.bold, color: const Color(0xFF1E293B)), decoration: InputDecoration(isDense: true, contentPadding: const EdgeInsets.all(12), filled: true, fillColor: hasFocus ? color.withOpacity(0.05) : const Color(0xFFF8FAFC), enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFFE2E8F0))), focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide(color: color, width: 2)))),
+    ]);
+
+  Widget _sellingBox(String l, TextEditingController c, Color col, {bool readOnly = false, Function(String)? onChanged}) => Expanded(child: Column(children: [Text(l, style: TextStyle(fontSize: 8, fontWeight: FontWeight.bold, color: col)), const SizedBox(height: 3), TextField(controller: c, readOnly: readOnly, onChanged: onChanged, keyboardType: TextInputType.number, textAlign: TextAlign.center, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: col), decoration: InputDecoration(isDense: true, contentPadding: const EdgeInsets.symmetric(vertical: 8), border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)), filled: readOnly, fillColor: Colors.grey.shade50))]));
 }
