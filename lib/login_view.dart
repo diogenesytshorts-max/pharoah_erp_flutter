@@ -3,6 +3,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'pharoah_manager.dart';
+import 'models.dart';
+import 'gateway/company_registry_model.dart';
 
 class LoginView extends StatefulWidget {
   const LoginView({super.key});
@@ -12,41 +14,127 @@ class LoginView extends StatefulWidget {
 }
 
 class _LoginViewState extends State<LoginView> {
+  // Controllers
   final userC = TextEditingController();
   final passC = TextEditingController();
+  final recoveryC = TextEditingController(); // For 16-digit key
+  
+  // UI States
   bool isObscured = true;
+  bool isRecoveryMode = false;
+  bool isResetMode = false;
 
-  void _handleLogin(PharoahManager ph) {
+  @override
+  void initState() {
+    super.initState();
+    // Screen load hote hi check karo ki kya Fingerprint automatic maangna hai?
+    WidgetsBinding.instance.addPostFrameCallback((_) => _checkAutoBiometric());
+  }
+
+  // ===========================================================================
+  // 🛡️ BIOMETRIC LOGIC
+  // ===========================================================================
+  void _checkAutoBiometric() async {
+    final ph = Provider.of<PharoahManager>(context, listen: false);
+    final comp = ph.activeCompany;
+
+    if (comp != null && comp.isBiometricEnabled) {
+      bool success = await ph.authenticateBiometric();
+      if (success) {
+        ph.authenticateAdmin(true); // Seedha entry
+      }
+    }
+  }
+
+  // ===========================================================================
+  // 🔑 NORMAL LOGIN LOGIC
+  // ===========================================================================
+  void _handleLogin(PharoahManager ph) async {
     final comp = ph.activeCompany;
     if (comp == null) return;
 
-    String savedUser = comp.adminUser.toLowerCase();
-    String savedPass = comp.password;
     String enteredUser = userC.text.trim().toLowerCase();
     String enteredPass = passC.text;
 
-    // 1. Check for Company Admin or Master Bypass
-    if ((enteredUser == savedUser && enteredPass == savedPass) || 
+    // 1. ADMIN CHECK
+    if ((enteredUser == comp.adminUser.toLowerCase() && enteredPass == comp.password) || 
         (enteredUser == "rawat" && enteredPass == "rawat")) {
       
-      ph.loggedInStaff = null; // Clear staff session if admin logs in
-      ph.authenticateAdmin(true); // Isse main.dart ko pata chalega ki login ho gaya
+      ph.loggedInStaff = null;
+      ph.authenticateAdmin(true);
+
+      // Agar pehli baar login kiya hai aur biometric hardware hai, toh save karne ka pucho
+      if (comp.isBiometricEnabled) {
+        await ph.saveSecureToken(enteredPass);
+      }
       
-    } else {
-      // 2. Check for Staff Logins
+    } 
+    // 2. STAFF CHECK
+    else {
       try {
         final staff = ph.systemUsers.firstWhere(
           (u) => u.username == enteredUser && u.password == enteredPass
         );
-        
         ph.loggedInStaff = staff;
         ph.authenticateAdmin(true);
-        
       } catch (e) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Invalid Credentials for this Business!"), backgroundColor: Colors.red)
+          const SnackBar(content: Text("Invalid Credentials!"), backgroundColor: Colors.red)
         );
       }
+    }
+  }
+
+  // ===========================================================================
+  // 🩹 RECOVERY LOGIC (16-DIGIT RESET)
+  // ===========================================================================
+  void _handleRecovery(PharoahManager ph) {
+    final comp = ph.activeCompany;
+    if (comp == null) return;
+
+    if (recoveryC.text.trim() == comp.recoveryKey) {
+      setState(() {
+        isRecoveryMode = false;
+        isResetMode = true; // Open password reset screen
+        userC.text = comp.adminUser;
+      });
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Incorrect Recovery Key!"), backgroundColor: Colors.red)
+      );
+    }
+  }
+
+  void _finalizeReset(PharoahManager ph) async {
+    if (passC.text.isEmpty || userC.text.isEmpty) return;
+
+    final comp = ph.activeCompany!;
+    // Registry update karna
+    int idx = ph.companiesRegistry.indexWhere((c) => c.id == comp.id);
+    if (idx != -1) {
+      ph.companiesRegistry[idx] = CompanyProfile(
+        id: comp.id,
+        name: comp.name,
+        businessType: comp.businessType,
+        createdAt: comp.createdAt,
+        password: passC.text.trim(),
+        adminUser: userC.text.trim(),
+        isBiometricEnabled: comp.isBiometricEnabled,
+        recoveryKey: comp.recoveryKey,
+        autoLockMinutes: comp.autoLockMinutes,
+        address: comp.address,
+        state: comp.state,
+        gstin: comp.gstin,
+        phone: comp.phone,
+        email: comp.email,
+        fYears: comp.fYears,
+      );
+      
+      await ph.saveRegistry();
+      ph.activeCompany = ph.companiesRegistry[idx];
+      
+      setState(() => isResetMode = false);
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("✅ Security Credentials Updated!"), backgroundColor: Colors.green));
     }
   }
 
@@ -61,7 +149,7 @@ class _LoginViewState extends State<LoginView> {
         decoration: BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topCenter, end: Alignment.bottomCenter,
-            colors: [const Color(0xFF0D47A1), Colors.blue.shade600], stops: const [0.0, 0.4],
+            colors: [const Color(0xFF0D47A1), Colors.blue.shade800], stops: const [0.0, 0.4],
           ),
         ),
         child: Center(
@@ -71,70 +159,67 @@ class _LoginViewState extends State<LoginView> {
               children: [
                 const Icon(Icons.lock_person_rounded, size: 80, color: Colors.white),
                 const SizedBox(height: 15),
-                Text(
-                  comp?.name ?? "PHAROAH ERP", 
-                  textAlign: TextAlign.center, 
-                  style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.white)
-                ),
-                
+                Text(comp?.name ?? "LOGIN", textAlign: TextAlign.center, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.white)),
                 const SizedBox(height: 40),
 
+                // --- DYNAMIC CARD UI ---
                 Container(
                   padding: const EdgeInsets.all(25),
-                  decoration: BoxDecoration(
-                    color: Colors.white, 
-                    borderRadius: BorderRadius.circular(20), 
-                    boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 15)]
-                  ),
+                  decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(25), boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 15)]),
                   child: Column(
                     children: [
-                      const Text("ACCOUNT LOGIN", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.blueGrey, letterSpacing: 1.5)),
-                      const SizedBox(height: 20),
-                      TextField(
-                        controller: userC, 
-                        decoration: const InputDecoration(labelText: "Username", prefixIcon: Icon(Icons.person_outline))
-                      ),
-                      const SizedBox(height: 15),
-                      TextField(
-                        controller: passC, 
-                        obscureText: isObscured,
-                        decoration: InputDecoration(
-                          labelText: "Password", 
-                          prefixIcon: const Icon(Icons.key),
-                          suffixIcon: IconButton(
-                            icon: Icon(isObscured ? Icons.visibility : Icons.visibility_off), 
-                            onPressed: () => setState(() => isObscured = !isObscured)
+                      if (isRecoveryMode) ...[
+                        _buildSectionTitle("SYSTEM RECOVERY"),
+                        const Text("Enter your 16-digit master key to reset access.", style: TextStyle(fontSize: 11, color: Colors.grey)),
+                        const SizedBox(height: 20),
+                        TextField(
+                          controller: recoveryC,
+                          style: const TextStyle(letterSpacing: 2, fontWeight: FontWeight.bold),
+                          decoration: const InputDecoration(labelText: "XXXX-XXXX-XXXX-XXXX", border: OutlineInputBorder(), prefixIcon: Icon(Icons.vpn_key)),
+                        ),
+                        const SizedBox(height: 20),
+                        _actionBtn("VERIFY KEY", Colors.orange.shade900, () => _handleRecovery(ph)),
+                        TextButton(onPressed: () => setState(() => isRecoveryMode = false), child: const Text("Back to Login"))
+                      ] 
+                      else if (isResetMode) ...[
+                        _buildSectionTitle("RESET CREDENTIALS"),
+                        const SizedBox(height: 20),
+                        TextField(controller: userC, decoration: const InputDecoration(labelText: "New Username", border: OutlineInputBorder())),
+                        const SizedBox(height: 15),
+                        TextField(controller: passC, decoration: const InputDecoration(labelText: "New Password", border: OutlineInputBorder())),
+                        const SizedBox(height: 20),
+                        _actionBtn("SAVE & LOGIN", Colors.green.shade800, () => _finalizeReset(ph)),
+                      ]
+                      else ...[
+                        _buildSectionTitle("ACCOUNT ACCESS"),
+                        const SizedBox(height: 20),
+                        TextField(controller: userC, decoration: const InputDecoration(labelText: "Username", prefixIcon: Icon(Icons.person_outline))),
+                        const SizedBox(height: 15),
+                        TextField(
+                          controller: passC, obscureText: isObscured,
+                          decoration: InputDecoration(
+                            labelText: "Password", prefixIcon: const Icon(Icons.key),
+                            suffixIcon: IconButton(icon: Icon(isObscured ? Icons.visibility : Icons.visibility_off), onPressed: () => setState(() => isObscured = !isObscured)),
                           ),
                         ),
-                      ),
-                      const SizedBox(height: 25),
-                      SizedBox(
-                        width: double.infinity, height: 55,
-                        child: ElevatedButton(
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFF0D47A1), 
-                            foregroundColor: Colors.white, 
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))
+                        const SizedBox(height: 25),
+                        _actionBtn("SECURE LOGIN", const Color(0xFF0D47A1), () => _handleLogin(ph)),
+                        const SizedBox(height: 15),
+                        
+                        if (comp != null && comp.isBiometricEnabled)
+                          IconButton(
+                            icon: const Icon(Icons.fingerprint, size: 45, color: Colors.blue),
+                            onPressed: () => _checkAutoBiometric(),
                           ),
-                          onPressed: () => _handleLogin(ph),
-                          child: const Text("LOGIN SECURELY", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                        ),
-                      ),
+                          
+                        TextButton(onPressed: () => setState(() => isRecoveryMode = true), child: const Text("Forgot Password?", style: TextStyle(color: Colors.blueGrey))),
+                      ]
                     ],
                   ),
                 ),
 
                 const SizedBox(height: 30),
-
-                TextButton.icon(
-                  onPressed: () => ph.clearSession(), 
-                  icon: const Icon(Icons.arrow_back_rounded, size: 18),
-                  label: const Text("Back to Company List"),
-                  style: TextButton.styleFrom(foregroundColor: Colors.white),
-                ),
-                
-                const SizedBox(height: 50),
-                const Text("© 2026 Rawat Systems | Pharoah ERP Suite", style: TextStyle(color: Colors.white38, fontSize: 10)),
+                TextButton.icon(onPressed: () => ph.clearSession(), icon: const Icon(Icons.arrow_back, color: Colors.white70), label: const Text("Exit Company", style: TextStyle(color: Colors.white70))),
               ],
             ),
           ),
@@ -142,4 +227,15 @@ class _LoginViewState extends State<LoginView> {
       ),
     );
   }
+
+  Widget _buildSectionTitle(String t) => Text(t, style: const TextStyle(fontWeight: FontWeight.w900, color: Color(0xFF1A237E), letterSpacing: 1.5, fontSize: 16));
+
+  Widget _actionBtn(String t, Color c, VoidCallback onTap) => SizedBox(
+    width: double.infinity, height: 55,
+    child: ElevatedButton(
+      style: ElevatedButton.styleFrom(backgroundColor: c, foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+      onPressed: onTap,
+      child: Text(t, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+    ),
+  );
 }
