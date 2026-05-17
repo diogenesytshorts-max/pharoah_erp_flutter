@@ -343,7 +343,16 @@ class _SaleReturnViewState extends State<SaleReturnView> {
     child: Column(children: [
         Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
           const Text("Extra Discount (-)", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.red)),
-          SizedBox(width: 100, child: TextField(controller: discountC, keyboardType: TextInputType.number, textAlign: TextAlign.right, decoration: const InputDecoration(isDense: true, border: OutlineInputBorder()), onSelectionChanged: (v,e)=>setState((){}), onChanged: (v)=>setState((){}))),
+          SizedBox(
+  width: 100, 
+  child: TextField(
+    controller: discountC, 
+    keyboardType: TextInputType.number, 
+    textAlign: TextAlign.right, 
+    decoration: const InputDecoration(isDense: true, border: OutlineInputBorder()), 
+    onChanged: (v) => setState(() {}), // 🔥 Sirf onChanged rahega
+  ),
+),
         ]),
         const SizedBox(height: 10),
         Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
