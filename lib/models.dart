@@ -261,10 +261,37 @@ class PurchaseChallan {
 }
 
 class SaleReturn { 
-  String id, billNo, partyName, status, returnType; DateTime date; List<BillItem> items; double totalAmount; 
-  SaleReturn({required this.id, required this.billNo, required this.date, required this.partyName, required this.items, required this.totalAmount, this.status = "Active", this.returnType = "Sellable"}); 
-  Map<String, dynamic> toMap() => {'id': id, 'billNo': billNo, 'date': date.toIso8601String(), 'partyName': partyName, 'totalAmount': totalAmount, 'status': status, 'returnType': returnType, 'items': items.map((i) => i.toMap()).toList()}; 
-  factory SaleReturn.fromMap(Map<String, dynamic> map) => SaleReturn(id: map['id'] ?? "", billNo: map['billNo'] ?? "", date: DateTime.parse(map['date'] ?? DateTime.now().toIso8601String()), partyName: map['partyName'] ?? "", totalAmount: (map['totalAmount'] ?? 0.0).toDouble(), status: map['status'] ?? "Active", returnType: map['returnType'] ?? "Sellable", items: (map['items'] as List?)?.map((i) => BillItem.fromMap(i)).toList() ?? []); 
+  String id, billNo, partyName, status, returnType; 
+  DateTime date; 
+  List<BillItem> items; 
+  double totalAmount, extraDiscount, roundOff; // Naya Fields jode gaye
+
+  SaleReturn({
+    required this.id, required this.billNo, required this.date, 
+    required this.partyName, required this.items, required this.totalAmount, 
+    this.status = "Active", this.returnType = "Sellable",
+    this.extraDiscount = 0.0, this.roundOff = 0.0
+  }); 
+
+  Map<String, dynamic> toMap() => {
+    'id': id, 'billNo': billNo, 'date': date.toIso8601String(), 
+    'partyName': partyName, 'totalAmount': totalAmount, 
+    'status': status, 'returnType': returnType, 
+    'extraDiscount': extraDiscount, 'roundOff': roundOff,
+    'items': items.map((i) => i.toMap()).toList()
+  }; 
+
+  factory SaleReturn.fromMap(Map<String, dynamic> map) => SaleReturn(
+    id: map['id'] ?? "", billNo: map['billNo'] ?? "", 
+    date: DateTime.parse(map['date'] ?? DateTime.now().toIso8601String()), 
+    partyName: map['partyName'] ?? "", 
+    totalAmount: (map['totalAmount'] ?? 0.0).toDouble(), 
+    extraDiscount: (map['extraDiscount'] ?? 0.0).toDouble(),
+    roundOff: (map['roundOff'] ?? 0.0).toDouble(),
+    status: map['status'] ?? "Active", 
+    returnType: map['returnType'] ?? "Sellable", 
+    items: (map['items'] as List?)?.map((i) => BillItem.fromMap(i)).toList() ?? []
+  ); 
 }
 
 class PurchaseReturn { 
