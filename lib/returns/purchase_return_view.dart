@@ -25,12 +25,13 @@ class PurchaseReturnView extends StatefulWidget {
 class _PurchaseReturnViewState extends State<PurchaseReturnView> {
   final returnNoC = TextEditingController();
   final discountC = TextEditingController(text: "0"); 
+  final medSearchC = TextEditingController(); // 🔥 FIX: Search UI Control (Point 1)
+  
   DateTime selectedDate = DateTime.now();
   Party? selectedSupplier;
   
   List<PurchaseItem> items = []; 
   bool isBreakageMode = false; 
-  String partySearch = "";
   String medSearch = "";
   bool isLoading = true;
 
@@ -38,6 +39,12 @@ class _PurchaseReturnViewState extends State<PurchaseReturnView> {
   void initState() {
     super.initState();
     _initReturnFlow();
+  }
+
+  @override
+  void dispose() {
+    medSearchC.dispose(); // Cleanup
+    super.dispose();
   }
 
   void _initReturnFlow() async {
@@ -77,12 +84,10 @@ class _PurchaseReturnViewState extends State<PurchaseReturnView> {
   double get roundOff => double.parse((grandTotal - (subTotal - extraDiscount)).toStringAsFixed(2));
 
   // ===========================================================================
-  // 🪄 THE PURCHASE MAGIC BOX (ALWAYS-ON MANUAL OPTION)
+  // 🪄 THE PURCHASE MAGIC BOX (QTY+FREE & ALWAYS-ON MANUAL ENTRY)
   // ===========================================================================
   void _showMagicHistoryBox(Medicine med, PharoahManager ph) {
     if (selectedSupplier == null) return;
-    
-    // Fetch Inward History
     final history = ph.getMedicineHistory(partyId: selectedSupplier!.id, medicineId: med.id, isSale: false);
 
     showModalBottomSheet(
@@ -105,7 +110,7 @@ class _PurchaseReturnViewState extends State<PurchaseReturnView> {
             child: history.isEmpty
               ? Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
                   Icon(Icons.manage_search_rounded, size: 40, color: Colors.brown.shade200),
-                  const Text("No previous purchases found from this supplier.", style: TextStyle(color: Colors.grey, fontSize: 12)),
+                  const Text("No inward records from this supplier.", style: TextStyle(color: Colors.grey, fontSize: 12)),
                 ]))
               : ListView.builder(
                   padding: const EdgeInsets.all(15),
@@ -113,16 +118,16 @@ class _PurchaseReturnViewState extends State<PurchaseReturnView> {
                   itemBuilder: (c, i) {
                     final h = history[i];
                     return Card(
-                      elevation: 1,
                       margin: const EdgeInsets.only(bottom: 10),
+                      elevation: 1,
                       child: ListTile(
                         onTap: widget.isReadOnly ? null : () { Navigator.pop(c); _showEntryCard(med, historyData: h); },
-                        title: Text("Bill: ${h['billNo']} | ${DateFormat('dd MMM yy').format(h['date'])}"),
+                        title: Text("Bill: ${h['billNo']} | ${DateFormat('dd MMM').format(h['date'])}"),
                         subtitle: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
                           _miniInfo("BATCH", h['batch']),
-                          // 🔥 Qty + Free Visual
+                          // 🔥 Qty + Free History View
                           _miniInfo("LAST INWARD", "${h['qty'].toInt()} + ${h['free'].toInt()}", isBold: true),
-                          _miniInfo("PUR. RATE", "₹${h['rate']}"),
+                          _miniInfo("RATE", "₹${h['rate']}"),
                           _miniInfo("MRP", "₹${h['mrp']}"),
                         ]),
                       ),
@@ -227,9 +232,9 @@ class _PurchaseReturnViewState extends State<PurchaseReturnView> {
     );
   }
 
-  // --- ITEM CARD (POINT 1 & 3 FIX) ---
+  // --- ITEM CARD (MODIFY & COLOUR FIX) ---
   Widget _buildItemCard(PurchaseItem it, int index, PharoahManager ph) {
-    // 🔥 Color Logic: Breakage vs Return (Point 1 Fix)
+    // 🔥 Colour Logic (Point 1 Fix)
     Color themeColor = it.isBreakage ? Colors.deepOrange.shade900 : Colors.blue.shade900;
     Color bgColor = it.isBreakage ? Colors.deepOrange.shade50 : Colors.blue.shade50;
 
@@ -238,7 +243,7 @@ class _PurchaseReturnViewState extends State<PurchaseReturnView> {
       margin: const EdgeInsets.only(bottom: 10),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: BorderSide(color: themeColor.withOpacity(0.2))),
       child: ListTile(
-        // 🔥 Tapping Logic: Re-edit existing item (Point 3 Fix)
+        // 🔥 Tapping Logic: Edit (Point 3 Fix)
         onTap: () {
           final med = ph.medicines.firstWhere((m) => m.id == it.medicineID);
           _showEntryCard(med, existingItem: it);
@@ -262,15 +267,15 @@ class _PurchaseReturnViewState extends State<PurchaseReturnView> {
     child: Column(children: [
         if (selectedSupplier == null) ...[
           TextField(
-            decoration: const InputDecoration(hintText: "Search Distributor for Debit Note...", prefixIcon: Icon(Icons.business_rounded), border: OutlineInputBorder()),
-            onChanged: (v) => setState(() => partySearch = v),
+            decoration: const InputDecoration(hintText: "Search Supplier for Debit Note...", prefixIcon: Icon(Icons.business_rounded), border: OutlineInputBorder()),
+            onChanged: (v) => setState(() => medSearch = v), // Temp reuse
           ),
           Container(
             height: 150, margin: const EdgeInsets.only(top: 5),
             decoration: BoxDecoration(color: Colors.white, border: Border.all(color: Colors.grey.shade200), borderRadius: BorderRadius.circular(10)),
-            child: ListView(children: ph.parties.where((p) => p.group == "Sundry Creditors" && p.name.toLowerCase().contains(partySearch.toLowerCase())).map((p) => ListTile(
+            child: ListView(children: ph.parties.where((p) => p.group == "Sundry Creditors" && p.name.toLowerCase().contains(medSearch.toLowerCase())).map((p) => ListTile(
               title: Text(p.name, style: const TextStyle(fontWeight: FontWeight.bold)),
-              onTap: () => setState(() => selectedSupplier = p),
+              onTap: () { setState(() { selectedSupplier = p; medSearch = ""; }); }
             )).toList()),
           )
         ] else
@@ -287,7 +292,7 @@ class _PurchaseReturnViewState extends State<PurchaseReturnView> {
   Widget _buildQuickModeToggle() => Padding(
     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
     child: Row(children: [
-        _modeBtn("SELLABLE STOCK", !isBreakageMode, Colors.blue.shade800, () => setState(() => isBreakageMode = false)),
+        _modeBtn("SELLABLE RETURN", !isBreakageMode, Colors.blue.shade800, () => setState(() => isBreakageMode = false)),
         const SizedBox(width: 10),
         _modeBtn("BREAKAGE / EXPIRY", isBreakageMode, Colors.deepOrange.shade900, () => setState(() => isBreakageMode = true)),
     ]),
@@ -299,9 +304,11 @@ class _PurchaseReturnViewState extends State<PurchaseReturnView> {
     padding: const EdgeInsets.all(10),
     child: Column(children: [
         TextField(
+          controller: medSearchC, // 🔥 FIX: Controller (Point 1)
           decoration: InputDecoration(
-            hintText: "Type product to return...",
-            prefixIcon: Icon(Icons.search, color: isBreakageMode ? Colors.deepOrange : Colors.blue),
+            hintText: "Search product to return...",
+            prefixIcon: const Icon(Icons.search),
+            suffixIcon: medSearch.isNotEmpty ? IconButton(icon: const Icon(Icons.clear), onPressed: () => setState(() { medSearchC.clear(); medSearch = ""; })) : null,
             border: const OutlineInputBorder(), filled: true, fillColor: Colors.white
           ),
           onChanged: (v) => setState(() => medSearch = v),
@@ -311,7 +318,10 @@ class _PurchaseReturnViewState extends State<PurchaseReturnView> {
             height: 200, decoration: BoxDecoration(color: Colors.white, boxShadow: [const BoxShadow(color: Colors.black12, blurRadius: 10)]),
             child: ListView(children: ph.medicines.where((m) => m.name.toLowerCase().contains(medSearch.toLowerCase())).map((m) => ListTile(
               title: Text(m.name, style: const TextStyle(fontWeight: FontWeight.bold)),
-              onTap: () { setState(() => medSearch = ""); _showMagicHistoryBox(m, ph); },
+              onTap: () { 
+                setState(() { medSearch = ""; medSearchC.clear(); }); // 🔥 UI Clear
+                _showMagicHistoryBox(m, ph); 
+              },
             )).toList()),
           )
     ]),
@@ -327,7 +337,7 @@ class _PurchaseReturnViewState extends State<PurchaseReturnView> {
         const Divider(),
         Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
           Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            const Text("NET DEBIT VALUE", style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.grey)),
+            const Text("NET DEBIT TOTAL", style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.grey)),
             Text("₹${grandTotal.toStringAsFixed(2)}", style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: Colors.brown.shade900)),
           ]),
           Text("R/O: ${roundOff.toStringAsFixed(2)}", style: const TextStyle(fontSize: 10, color: Colors.grey)),
