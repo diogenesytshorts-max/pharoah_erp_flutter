@@ -13,7 +13,7 @@ import '../pdf/pdf_router_service.dart';
 
 class SaleReturnView extends StatefulWidget {
   final SaleReturn? existingRecord; 
-  final bool isReadOnly; // NAYA: Audit mode ke liye
+  final bool isReadOnly; 
 
   const SaleReturnView({super.key, this.existingRecord, this.isReadOnly = false});
 
@@ -69,13 +69,14 @@ class _SaleReturnViewState extends State<SaleReturnView> {
     }
   }
 
+  // --- CALCULATIONS ---
   double get subTotal => items.fold(0, (sum, it) => sum + it.total);
   double get extraDiscount => double.tryParse(discountC.text) ?? 0.0;
   double get grandTotal => (subTotal - extraDiscount).roundToDouble();
   double get roundOff => double.parse((grandTotal - (subTotal - extraDiscount)).toStringAsFixed(2));
 
   // ===========================================================================
-  // ✨ THE MAGIC HISTORY BOX (QTY + FREE UPGRADED)
+  // ✨ MAGIC HISTORY BOX (QTY+FREE & ALWAYS-ON MANUAL ENTRY)
   // ===========================================================================
   void _showMagicHistoryBox(Medicine med, PharoahManager ph) {
     if (selectedParty == null) return;
@@ -90,36 +91,55 @@ class _SaleReturnViewState extends State<SaleReturnView> {
         decoration: const BoxDecoration(color: Color(0xFFF8F9FA), borderRadius: BorderRadius.vertical(top: Radius.circular(30))),
         child: Column(children: [
           Container(margin: const EdgeInsets.all(15), height: 5, width: 60, decoration: BoxDecoration(color: Colors.grey.shade400, borderRadius: BorderRadius.circular(10))),
+          
           Text("TRANSACTION HISTORY", style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: Colors.blue.shade900, letterSpacing: 2)),
           const SizedBox(height: 5),
           Text(med.name, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
           const Divider(),
-          if (history.isEmpty)
-             const Expanded(child: Center(child: Text("No previous sales found for this party.")))
-          else
-            Expanded(
-              child: ListView.builder(
-                padding: const EdgeInsets.all(15),
-                itemCount: history.length,
-                itemBuilder: (c, i) {
-                  final h = history[i];
-                  return Card(
-                    margin: const EdgeInsets.only(bottom: 10),
-                    child: ListTile(
-                      onTap: widget.isReadOnly ? null : () { Navigator.pop(c); _showEntryCard(med, historyData: h); },
-                      title: Text("Bill: ${h['billNo']} | ${DateFormat('dd/MM/yy').format(h['date'])}"),
-                      subtitle: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-                        _miniInfo("BATCH", h['batch']),
-                        // 🔥 LOGIC: Qty + Free displayed together
-                        _miniInfo("QTY+FREE", "${h['qty'].toInt()} + ${h['free'].toInt()}", isBold: true),
-                        _miniInfo("RATE", "₹${h['rate']}"),
-                        _miniInfo("MRP", "₹${h['mrp']}"),
-                      ]),
-                    ),
-                  );
-                },
+
+          // HISTORY LIST (Agar khali hai toh message dikhao, lekin exit mat karo)
+          Expanded(
+            child: history.isEmpty 
+              ? Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+                  Icon(Icons.history_toggle_off, size: 40, color: Colors.grey.shade300),
+                  const Text("No previous sales history for this party.", style: TextStyle(color: Colors.grey, fontSize: 12)),
+                ]))
+              : ListView.builder(
+                  padding: const EdgeInsets.all(15),
+                  itemCount: history.length,
+                  itemBuilder: (c, i) {
+                    final h = history[i];
+                    return Card(
+                      margin: const EdgeInsets.only(bottom: 10),
+                      elevation: 1,
+                      child: ListTile(
+                        onTap: widget.isReadOnly ? null : () { Navigator.pop(c); _showEntryCard(med, historyData: h); },
+                        title: Text("Bill: ${h['billNo']} | ${DateFormat('dd/MM/yy').format(h['date'])}"),
+                        subtitle: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+                          _miniInfo("BATCH", h['batch']),
+                          // 🔥 Qty + Free Visual Logic
+                          _miniInfo("LAST QTY", "${h['qty'].toInt()} + ${h['free'].toInt()}", isBold: true),
+                          _miniInfo("RATE", "₹${h['rate']}"),
+                          _miniInfo("MRP", "₹${h['mrp']}"),
+                        ]),
+                      ),
+                    );
+                  },
+                ),
+          ),
+
+          // 🔥 FIXED: Manual Entry Button Hamesha dikhega (Point 2 Fix)
+          Padding(
+            padding: const EdgeInsets.all(20),
+            child: SizedBox(
+              width: double.infinity, height: 50,
+              child: OutlinedButton.icon(
+                onPressed: () { Navigator.pop(c); _showEntryCard(med); },
+                style: OutlinedButton.styleFrom(side: const BorderSide(color: Colors.blue), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+                icon: const Icon(Icons.edit_document), label: const Text("NOT IN HISTORY? ENTER MANUALLY"),
               ),
             ),
+          )
         ]),
       ),
     );
@@ -127,12 +147,13 @@ class _SaleReturnViewState extends State<SaleReturnView> {
 
   Widget _miniInfo(String l, String v, {bool isBold = false}) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
     Text(l, style: const TextStyle(fontSize: 8, color: Colors.grey, fontWeight: FontWeight.bold)),
-    Text(v, style: TextStyle(fontSize: 11, fontWeight: isBold ? FontWeight.w900 : FontWeight.bold)),
+    Text(v, style: TextStyle(fontSize: 11, fontWeight: isBold ? FontWeight.w900 : FontWeight.bold, color: isBold ? Colors.indigo : Colors.black87)),
   ]);
 
-  void _showEntryCard(Medicine med, {Map<String, dynamic>? historyData}) {
-    BillItem? preFilled;
-    if (historyData != null) {
+  void _showEntryCard(Medicine med, {BillItem? existingItem, Map<String, dynamic>? historyData}) {
+    BillItem? preFilled = existingItem;
+    
+    if (historyData != null && existingItem == null) {
       preFilled = BillItem(
         id: "temp", srNo: items.length + 1, medicineID: med.id, name: med.name, packing: med.packing,
         batch: historyData['batch'], exp: "12/26", hsn: med.hsnCode, mrp: (historyData['mrp'] as num).toDouble(),
@@ -144,12 +165,19 @@ class _SaleReturnViewState extends State<SaleReturnView> {
       context: context,
       builder: (c) => ItemEntryCard(
         med: med,
-        srNo: items.length + 1,
+        srNo: existingItem?.srNo ?? items.length + 1,
         partyState: selectedParty?.state ?? "Rajasthan",
         existingItem: preFilled,
         allowExpired: true, 
         onAdd: (newItem) {
-          setState(() { items.add(newItem.copyWith(isBreakage: isBreakageMode)); });
+          setState(() {
+            if (existingItem != null) {
+              int idx = items.indexWhere((it) => it.id == existingItem.id);
+              items[idx] = newItem.copyWith(isBreakage: existingItem.isBreakage);
+            } else {
+              items.add(newItem.copyWith(isBreakage: isBreakageMode));
+            }
+          });
           Navigator.pop(context);
         },
         onCancel: () => Navigator.pop(context),
@@ -165,7 +193,7 @@ class _SaleReturnViewState extends State<SaleReturnView> {
     return Scaffold(
       backgroundColor: const Color(0xFFF4F6F9),
       appBar: AppBar(
-        title: Text(widget.isReadOnly ? "Audit Credit Note" : "Credit Note Entry"),
+        title: Text(widget.isReadOnly ? "Audit Credit Note" : (widget.existingRecord != null ? "Modify Credit Note" : "New Credit Note")),
         backgroundColor: const Color(0xFFB71C1C),
         foregroundColor: Colors.white,
         actions: [
@@ -184,15 +212,44 @@ class _SaleReturnViewState extends State<SaleReturnView> {
           ],
           Expanded(
             child: items.isEmpty
-                ? const Center(child: Text("No items added"))
+                ? const Center(child: Text("No items added for return"))
                 : ListView.builder(
                     padding: const EdgeInsets.all(10),
                     itemCount: items.length,
-                    itemBuilder: (c, i) => _buildItemCard(items[i], i),
+                    itemBuilder: (c, i) => _buildItemCard(items[i], i, ph),
                   ),
           ),
           _buildAdvancedFooter(),
         ]),
+      ),
+    );
+  }
+
+  // --- ITEM CARD (POINT 1 & 3 FIX) ---
+  Widget _buildItemCard(BillItem it, int index, PharoahManager ph) {
+    // 🔥 Color Logic: Breakage vs Return (Point 1 Fix)
+    Color themeColor = it.isBreakage ? Colors.orange.shade900 : Colors.green.shade800;
+    Color bgColor = it.isBreakage ? Colors.orange.shade50 : Colors.green.shade50;
+
+    return Card(
+      elevation: 1,
+      margin: const EdgeInsets.only(bottom: 10),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: BorderSide(color: themeColor.withOpacity(0.2))),
+      child: ListTile(
+        // 🔥 Tapping Logic: Re-edit existing item (Point 3 Fix)
+        onTap: () {
+          final med = ph.medicines.firstWhere((m) => m.id == it.medicineID);
+          _showEntryCard(med, existingItem: it);
+        },
+        tileColor: bgColor,
+        title: Row(children: [
+          Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2), decoration: BoxDecoration(color: themeColor, borderRadius: BorderRadius.circular(5)), child: Text(it.isBreakage ? "EXP" : "RET", style: const TextStyle(color: Colors.white, fontSize: 8, fontWeight: FontWeight.bold))),
+          const SizedBox(width: 8),
+          Text(it.name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+        ]),
+        subtitle: Text("Batch: ${it.batch} | Exp: ${it.exp} | Qty: ${it.qty.toInt()} + ${it.freeQty.toInt()}"),
+        trailing: Text("₹${it.total.toStringAsFixed(2)}", style: TextStyle(fontWeight: FontWeight.w900, color: themeColor)),
+        onLongPress: () => setState(() => items.removeAt(index)),
       ),
     );
   }
@@ -203,7 +260,7 @@ class _SaleReturnViewState extends State<SaleReturnView> {
     child: Column(children: [
         if (selectedParty == null) ...[
           TextField(
-            decoration: const InputDecoration(hintText: "Search Customer...", prefixIcon: Icon(Icons.person_search), border: OutlineInputBorder()),
+            decoration: const InputDecoration(hintText: "Search Customer for Credit Note...", prefixIcon: Icon(Icons.person_search), border: OutlineInputBorder()),
             onChanged: (v) => setState(() => partySearch = v),
           ),
           Container(
@@ -228,7 +285,7 @@ class _SaleReturnViewState extends State<SaleReturnView> {
   Widget _buildQuickModeToggle() => Padding(
     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
     child: Row(children: [
-        _modeBtn("SELLABLE STOCK", !isBreakageMode, Colors.green.shade700, () => setState(() => isBreakageMode = false)),
+        _modeBtn("SELLABLE RETURN", !isBreakageMode, Colors.green.shade700, () => setState(() => isBreakageMode = false)),
         const SizedBox(width: 10),
         _modeBtn("EXPIRY / BREAKAGE", isBreakageMode, Colors.orange.shade900, () => setState(() => isBreakageMode = true)),
     ]),
@@ -254,15 +311,6 @@ class _SaleReturnViewState extends State<SaleReturnView> {
     ]),
   );
 
-  Widget _buildItemCard(BillItem it, int index) => Card(
-    child: ListTile(
-      title: Text(it.name, style: const TextStyle(fontWeight: FontWeight.bold)),
-      subtitle: Text("BT: ${it.batch} | Qty: ${it.qty.toInt()} | Rate: ${it.rate}"),
-      trailing: Text("₹${it.total.toStringAsFixed(2)}", style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.red)),
-      onLongPress: widget.isReadOnly ? null : () => setState(() => items.removeAt(index)),
-    ),
-  );
-
   Widget _buildAdvancedFooter() => Container(
     padding: const EdgeInsets.all(15), color: Colors.white,
     child: Column(children: [
@@ -283,7 +331,6 @@ class _SaleReturnViewState extends State<SaleReturnView> {
 
   void _handleSave(PharoahManager ph) {
     if (selectedParty == null) return;
-    
     if (widget.existingRecord != null) {
       ph.updateSaleReturn(id: widget.existingRecord!.id, billNo: returnNoC.text, date: selectedDate, party: selectedParty!, items: items, total: grandTotal, extraDiscount: extraDiscount, roundOff: roundOff);
     } else {
