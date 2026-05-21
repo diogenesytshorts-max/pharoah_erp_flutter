@@ -135,8 +135,11 @@ class _PurchaseReturnViewState extends State<PurchaseReturnView> {
                             Text(DateFormat('dd MMM yy').format(h['date'] as DateTime), style: const TextStyle(fontSize: 11, color: Colors.grey)),
                           ]),
                           const Divider(height: 20),
+                          // --- NEW CODE ---
                           Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
                             _miniInfo("BATCH", h['batch']),
+                            // NAYA: QTY + FREE DISPLAY
+                            _miniInfo("LAST QTY", "${h['qty'].toInt()} + ${h['free'].toInt()}"),
                             _miniInfo("PUR. RATE", "₹${h['rate']}"),
                             _miniInfo("MRP", "₹${h['mrp']}", isBold: true),
                             const Icon(Icons.keyboard_arrow_right, color: Colors.brown),
