@@ -24,12 +24,13 @@ class SaleReturnView extends StatefulWidget {
 class _SaleReturnViewState extends State<SaleReturnView> {
   final returnNoC = TextEditingController();
   final discountC = TextEditingController(text: "0"); 
+  final medSearchC = TextEditingController(); // 🔥 FIX: Search bar control karne ke liye
+  
   DateTime selectedDate = DateTime.now();
   Party? selectedParty;
   
   List<BillItem> items = []; 
   bool isBreakageMode = false; 
-  String partySearch = "";
   String medSearch = "";
   bool isLoading = true;
 
@@ -37,6 +38,12 @@ class _SaleReturnViewState extends State<SaleReturnView> {
   void initState() {
     super.initState();
     _initReturnFlow();
+  }
+
+  @override
+  void dispose() {
+    medSearchC.dispose(); // Controller cleanup
+    super.dispose();
   }
 
   void _initReturnFlow() async {
@@ -97,12 +104,11 @@ class _SaleReturnViewState extends State<SaleReturnView> {
           Text(med.name, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
           const Divider(),
 
-          // HISTORY LIST (Agar khali hai toh message dikhao, lekin exit mat karo)
           Expanded(
             child: history.isEmpty 
               ? Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
                   Icon(Icons.history_toggle_off, size: 40, color: Colors.grey.shade300),
-                  const Text("No previous sales history for this party.", style: TextStyle(color: Colors.grey, fontSize: 12)),
+                  const Text("No history for this party.", style: TextStyle(color: Colors.grey, fontSize: 12)),
                 ]))
               : ListView.builder(
                   padding: const EdgeInsets.all(15),
@@ -117,8 +123,7 @@ class _SaleReturnViewState extends State<SaleReturnView> {
                         title: Text("Bill: ${h['billNo']} | ${DateFormat('dd/MM/yy').format(h['date'])}"),
                         subtitle: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
                           _miniInfo("BATCH", h['batch']),
-                          // 🔥 Qty + Free Visual Logic
-                          _miniInfo("LAST QTY", "${h['qty'].toInt()} + ${h['free'].toInt()}", isBold: true),
+                          _miniInfo("QTY+FREE", "${h['qty'].toInt()} + ${h['free'].toInt()}", isBold: true),
                           _miniInfo("RATE", "₹${h['rate']}"),
                           _miniInfo("MRP", "₹${h['mrp']}"),
                         ]),
@@ -128,7 +133,7 @@ class _SaleReturnViewState extends State<SaleReturnView> {
                 ),
           ),
 
-          // 🔥 FIXED: Manual Entry Button Hamesha dikhega (Point 2 Fix)
+          // 🔥 FIXED: Manual Add option hamesha rahega (Point 2 Fix)
           Padding(
             padding: const EdgeInsets.all(20),
             child: SizedBox(
@@ -153,6 +158,7 @@ class _SaleReturnViewState extends State<SaleReturnView> {
   void _showEntryCard(Medicine med, {BillItem? existingItem, Map<String, dynamic>? historyData}) {
     BillItem? preFilled = existingItem;
     
+    // Naya item hai aur history se data aaya hai
     if (historyData != null && existingItem == null) {
       preFilled = BillItem(
         id: "temp", srNo: items.length + 1, medicineID: med.id, name: med.name, packing: med.packing,
@@ -225,9 +231,8 @@ class _SaleReturnViewState extends State<SaleReturnView> {
     );
   }
 
-  // --- ITEM CARD (POINT 1 & 3 FIX) ---
+  // --- ITEM CARD (MODIFY & COLOUR FIX) ---
   Widget _buildItemCard(BillItem it, int index, PharoahManager ph) {
-    // 🔥 Color Logic: Breakage vs Return (Point 1 Fix)
     Color themeColor = it.isBreakage ? Colors.orange.shade900 : Colors.green.shade800;
     Color bgColor = it.isBreakage ? Colors.orange.shade50 : Colors.green.shade50;
 
@@ -236,7 +241,6 @@ class _SaleReturnViewState extends State<SaleReturnView> {
       margin: const EdgeInsets.only(bottom: 10),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: BorderSide(color: themeColor.withOpacity(0.2))),
       child: ListTile(
-        // 🔥 Tapping Logic: Re-edit existing item (Point 3 Fix)
         onTap: () {
           final med = ph.medicines.firstWhere((m) => m.id == it.medicineID);
           _showEntryCard(med, existingItem: it);
@@ -261,7 +265,7 @@ class _SaleReturnViewState extends State<SaleReturnView> {
         if (selectedParty == null) ...[
           TextField(
             decoration: const InputDecoration(hintText: "Search Customer for Credit Note...", prefixIcon: Icon(Icons.person_search), border: OutlineInputBorder()),
-            onChanged: (v) => setState(() => partySearch = v),
+            onChanged: (v) => setState(() { partySearch = v; }),
           ),
           Container(
             height: 150, margin: const EdgeInsets.only(top: 5),
@@ -297,7 +301,13 @@ class _SaleReturnViewState extends State<SaleReturnView> {
     padding: const EdgeInsets.all(10),
     child: Column(children: [
         TextField(
-          decoration: const InputDecoration(hintText: "Type product to return...", prefixIcon: Icon(Icons.search), border: OutlineInputBorder(), filled: true, fillColor: Colors.white),
+          controller: medSearchC, // 🔥 FIX: Link Controller (Point 1 Fix)
+          decoration: InputDecoration(
+            hintText: "Type product to return...",
+            prefixIcon: const Icon(Icons.search),
+            suffixIcon: medSearch.isNotEmpty ? IconButton(icon: const Icon(Icons.clear), onPressed: () => setState(() { medSearchC.clear(); medSearch = ""; })) : null,
+            border: const OutlineInputBorder(), filled: true, fillColor: Colors.white
+          ),
           onChanged: (v) => setState(() => medSearch = v),
         ),
         if (medSearch.isNotEmpty)
@@ -305,7 +315,10 @@ class _SaleReturnViewState extends State<SaleReturnView> {
             height: 200, decoration: BoxDecoration(color: Colors.white, boxShadow: [const BoxShadow(color: Colors.black12, blurRadius: 10)]),
             child: ListView(children: ph.medicines.where((m) => m.name.toLowerCase().contains(medSearch.toLowerCase())).map((m) => ListTile(
               title: Text(m.name, style: const TextStyle(fontWeight: FontWeight.bold)),
-              onTap: () { setState(() => medSearch = ""); _showMagicHistoryBox(m, ph); },
+              onTap: () { 
+                setState(() { medSearch = ""; medSearchC.clear(); }); // 🔥 FIX: Selection par UI clear
+                _showMagicHistoryBox(m, ph); 
+              },
             )).toList()),
           )
     ]),
