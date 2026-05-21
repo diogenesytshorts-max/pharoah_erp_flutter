@@ -24,7 +24,7 @@ class SaleReturnView extends StatefulWidget {
 class _SaleReturnViewState extends State<SaleReturnView> {
   final returnNoC = TextEditingController();
   final discountC = TextEditingController(text: "0"); 
-  final medSearchC = TextEditingController(); // 🔥 FIX: Search bar control karne ke liye
+  final medSearchC = TextEditingController(); 
   
   DateTime selectedDate = DateTime.now();
   Party? selectedParty;
@@ -32,6 +32,7 @@ class _SaleReturnViewState extends State<SaleReturnView> {
   List<BillItem> items = []; 
   bool isBreakageMode = false; 
   String medSearch = "";
+  String partySearch = ""; // 🔥 FIXED: Added missing variable
   bool isLoading = true;
 
   @override
@@ -42,7 +43,9 @@ class _SaleReturnViewState extends State<SaleReturnView> {
 
   @override
   void dispose() {
-    medSearchC.dispose(); // Controller cleanup
+    medSearchC.dispose();
+    returnNoC.dispose();
+    discountC.dispose();
     super.dispose();
   }
 
@@ -76,15 +79,11 @@ class _SaleReturnViewState extends State<SaleReturnView> {
     }
   }
 
-  // --- CALCULATIONS ---
   double get subTotal => items.fold(0, (sum, it) => sum + it.total);
   double get extraDiscount => double.tryParse(discountC.text) ?? 0.0;
   double get grandTotal => (subTotal - extraDiscount).roundToDouble();
   double get roundOff => double.parse((grandTotal - (subTotal - extraDiscount)).toStringAsFixed(2));
 
-  // ===========================================================================
-  // ✨ MAGIC HISTORY BOX (QTY+FREE & ALWAYS-ON MANUAL ENTRY)
-  // ===========================================================================
   void _showMagicHistoryBox(Medicine med, PharoahManager ph) {
     if (selectedParty == null) return;
     final history = ph.getMedicineHistory(partyId: selectedParty!.id, medicineId: med.id, isSale: true);
@@ -98,12 +97,10 @@ class _SaleReturnViewState extends State<SaleReturnView> {
         decoration: const BoxDecoration(color: Color(0xFFF8F9FA), borderRadius: BorderRadius.vertical(top: Radius.circular(30))),
         child: Column(children: [
           Container(margin: const EdgeInsets.all(15), height: 5, width: 60, decoration: BoxDecoration(color: Colors.grey.shade400, borderRadius: BorderRadius.circular(10))),
-          
           Text("TRANSACTION HISTORY", style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: Colors.blue.shade900, letterSpacing: 2)),
           const SizedBox(height: 5),
           Text(med.name, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
           const Divider(),
-
           Expanded(
             child: history.isEmpty 
               ? Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
@@ -119,21 +116,18 @@ class _SaleReturnViewState extends State<SaleReturnView> {
                       margin: const EdgeInsets.only(bottom: 10),
                       elevation: 1,
                       child: ListTile(
-                        onTap: widget.isReadOnly ? null : () { Navigator.pop(c); _showEntryCard(med, historyData: h); },
+                        onTap: widget.isReadOnly ? null : () { Navigator.pop(c); _showEntryCard(med, existingItem: null, historyData: h); },
                         title: Text("Bill: ${h['billNo']} | ${DateFormat('dd/MM/yy').format(h['date'])}"),
                         subtitle: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
                           _miniInfo("BATCH", h['batch']),
-                          _miniInfo("QTY+FREE", "${h['qty'].toInt()} + ${h['free'].toInt()}", isBold: true),
+                          _miniInfo("LAST QTY", "${h['qty'].toInt()} + ${h['free'].toInt()}", isBold: true),
                           _miniInfo("RATE", "₹${h['rate']}"),
-                          _miniInfo("MRP", "₹${h['mrp']}"),
                         ]),
                       ),
                     );
                   },
                 ),
           ),
-
-          // 🔥 FIXED: Manual Add option hamesha rahega (Point 2 Fix)
           Padding(
             padding: const EdgeInsets.all(20),
             child: SizedBox(
@@ -157,8 +151,6 @@ class _SaleReturnViewState extends State<SaleReturnView> {
 
   void _showEntryCard(Medicine med, {BillItem? existingItem, Map<String, dynamic>? historyData}) {
     BillItem? preFilled = existingItem;
-    
-    // Naya item hai aur history se data aaya hai
     if (historyData != null && existingItem == null) {
       preFilled = BillItem(
         id: "temp", srNo: items.length + 1, medicineID: med.id, name: med.name, packing: med.packing,
@@ -166,7 +158,6 @@ class _SaleReturnViewState extends State<SaleReturnView> {
         rate: (historyData['rate'] as num).toDouble(), gstRate: (historyData['gst'] as num).toDouble(), qty: 0, total: 0,
       );
     }
-
     showDialog(
       context: context,
       builder: (c) => ItemEntryCard(
@@ -231,14 +222,11 @@ class _SaleReturnViewState extends State<SaleReturnView> {
     );
   }
 
-  // --- ITEM CARD (MODIFY & COLOUR FIX) ---
   Widget _buildItemCard(BillItem it, int index, PharoahManager ph) {
     Color themeColor = it.isBreakage ? Colors.orange.shade900 : Colors.green.shade800;
     Color bgColor = it.isBreakage ? Colors.orange.shade50 : Colors.green.shade50;
-
     return Card(
-      elevation: 1,
-      margin: const EdgeInsets.only(bottom: 10),
+      elevation: 1, margin: const EdgeInsets.only(bottom: 10),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: BorderSide(color: themeColor.withOpacity(0.2))),
       child: ListTile(
         onTap: () {
@@ -251,26 +239,25 @@ class _SaleReturnViewState extends State<SaleReturnView> {
           const SizedBox(width: 8),
           Text(it.name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
         ]),
-        subtitle: Text("Batch: ${it.batch} | Exp: ${it.exp} | Qty: ${it.qty.toInt()} + ${it.freeQty.toInt()}"),
+        subtitle: Text("Batch: ${it.batch} | Qty: ${it.qty.toInt()} + ${it.freeQty.toInt()}"),
         trailing: Text("₹${it.total.toStringAsFixed(2)}", style: TextStyle(fontWeight: FontWeight.w900, color: themeColor)),
         onLongPress: () => setState(() => items.removeAt(index)),
       ),
     );
   }
 
-  // --- UI BUILDING BLOCKS ---
   Widget _buildHeader(PharoahManager ph) => Container(
     padding: const EdgeInsets.all(15), color: Colors.white,
     child: Column(children: [
         if (selectedParty == null) ...[
           TextField(
             decoration: const InputDecoration(hintText: "Search Customer for Credit Note...", prefixIcon: Icon(Icons.person_search), border: OutlineInputBorder()),
-            onChanged: (v) => setState(() { partySearch = v; }),
+            onChanged: (v) => setState(() { partySearch = v; }), // FIXED SETTER
           ),
           Container(
             height: 150, margin: const EdgeInsets.only(top: 5),
             decoration: BoxDecoration(color: Colors.white, border: Border.all(color: Colors.grey.shade200), borderRadius: BorderRadius.circular(10)),
-            child: ListView(children: ph.parties.where((p) => p.name.toLowerCase().contains(partySearch.toLowerCase())).map((p) => ListTile(
+            child: ListView(children: ph.parties.where((p) => p.name.toLowerCase().contains(partySearch.toLowerCase())).toList().map((p) => ListTile(
               title: Text(p.name, style: const TextStyle(fontWeight: FontWeight.bold)),
               onTap: () => setState(() => selectedParty = p),
             )).toList()),
@@ -301,22 +288,21 @@ class _SaleReturnViewState extends State<SaleReturnView> {
     padding: const EdgeInsets.all(10),
     child: Column(children: [
         TextField(
-          controller: medSearchC, // 🔥 FIX: Link Controller (Point 1 Fix)
+          controller: medSearchC, 
           decoration: InputDecoration(
             hintText: "Type product to return...",
             prefixIcon: const Icon(Icons.search),
-            suffixIcon: medSearch.isNotEmpty ? IconButton(icon: const Icon(Icons.clear), onPressed: () => setState(() { medSearchC.clear(); medSearch = ""; })) : null,
             border: const OutlineInputBorder(), filled: true, fillColor: Colors.white
           ),
           onChanged: (v) => setState(() => medSearch = v),
         ),
         if (medSearch.isNotEmpty)
           Container(
-            height: 200, decoration: BoxDecoration(color: Colors.white, boxShadow: [const BoxShadow(color: Colors.black12, blurRadius: 10)]),
+            height: 200, decoration: const BoxDecoration(color: Colors.white, boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 10)]),
             child: ListView(children: ph.medicines.where((m) => m.name.toLowerCase().contains(medSearch.toLowerCase())).map((m) => ListTile(
               title: Text(m.name, style: const TextStyle(fontWeight: FontWeight.bold)),
               onTap: () { 
-                setState(() { medSearch = ""; medSearchC.clear(); }); // 🔥 FIX: Selection par UI clear
+                setState(() { medSearch = ""; medSearchC.clear(); }); 
                 _showMagicHistoryBox(m, ph); 
               },
             )).toList()),
