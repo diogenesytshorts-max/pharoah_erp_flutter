@@ -135,6 +135,9 @@ class DebitNotePdf {
       ])),
       pw.Container(width: 250, padding: const pw.EdgeInsets.all(5), decoration: const pw.BoxDecoration(border: pw.Border(right: pw.BorderSide(width: 0.5))), child: pw.Column(children: [
         _fRow("PUR. TAXABLE", taxable),
+        // Footer ke andar _fRow lines ke bich mein ye condition jorein:
+if (ret.extraDiscount > 0) _fRow("EXTRA DISCOUNT (-)", ret.extraDiscount),
+if (ret.roundOff != 0) _fRow("ROUND OFF", ret.roundOff),
         if (local) ...[_fRow("CGST REVERSE", tax / 2), _fRow("SGST REVERSE", tax / 2)] else _fRow("IGST REVERSE", tax),
         pw.Divider(thickness: 0.5),
         pw.Row(mainAxisAlignment: pw.MainAxisAlignment.spaceBetween, children: [
