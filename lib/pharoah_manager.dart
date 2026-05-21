@@ -422,18 +422,52 @@ class PharoahManager with ChangeNotifier {
   void addCheque(ChequeEntry c) { cheques.add(c); save(); }
   void addLog(String a, String d) { logs.add(LogEntry(id: DateTime.now().toString(), action: a, details: d, time: DateTime.now())); save(); }
   void addManualShortage({required Medicine med, required double qty, String cust = ""}) { shortages.add(ShortageItem(id: DateTime.now().toString(), medicineId: med.id, medicineName: med.name, companyName: med.companyId, qtyRequired: qty, currentStock: med.stock, date: DateTime.now(), customerName: cust)); save(); }
-void updateSaleReturn({required String id, required String billNo, required DateTime date, required Party party, required List<BillItem> items, required double total, double extraDiscount = 0.0, double roundOff = 0.0}) {
+// ===========================================================================
+  // ⚡ ADVANCED STOCK-SAFE MODIFICATION ENGINE
+  // ===========================================================================
+
+  // 1. Sale Return Update (Credit Note)
+  Future<void> updateSaleReturn({required String id, required String billNo, required DateTime date, required Party party, required List<BillItem> items, required double total, double extraDiscount = 0.0, double roundOff = 0.0}) async {
     int i = saleReturns.indexWhere((r) => r.id == id);
     if (i != -1) {
-      saleReturns[i] = SaleReturn(id: id, billNo: billNo, date: date, partyName: party.name, items: items, totalAmount: total, extraDiscount: extraDiscount, roundOff: roundOff, status: "Active");
-      save().then((_) => loadAllData());
+      // Step A: Replace old object with new values in memory
+      saleReturns[i] = SaleReturn(
+        id: id, billNo: billNo, date: date, partyName: party.name, 
+        items: items, totalAmount: total, extraDiscount: extraDiscount, 
+        roundOff: roundOff, status: "Active"
+      );
+      
+      // Step B: Atomic Save & Deep Rebuild
+      // Ye function automatic purane stock effect ko hata kar naya add karega
+      await save(); 
+      InventoryLogicCenter.rebuildAllInventory(
+        medicines: medicines, batchHistory: batchHistory, 
+        purchases: purchases, sales: sales, 
+        saleReturns: saleReturns, purchaseReturns: purchaseReturns
+      );
+      notifyListeners();
     }
   }
-  void updatePurchaseReturn({required String id, required String billNo, required DateTime date, required Party party, required List<PurchaseItem> items, required double total, double extraDiscount = 0.0, double roundOff = 0.0}) {
+
+  // 2. Purchase Return Update (Debit Note)
+  Future<void> updatePurchaseReturn({required String id, required String billNo, required DateTime date, required Party party, required List<PurchaseItem> items, required double total, double extraDiscount = 0.0, double roundOff = 0.0}) async {
     int i = purchaseReturns.indexWhere((r) => r.id == id);
     if (i != -1) {
-      purchaseReturns[i] = PurchaseReturn(id: id, billNo: billNo, distributorName: party.name, date: date, items: items, totalAmount: total, extraDiscount: extraDiscount, roundOff: roundOff, status: "Active");
-      save().then((_) => loadAllData());
+      // Step A: Replace old object in memory
+      purchaseReturns[i] = PurchaseReturn(
+        id: id, billNo: billNo, distributorName: party.name, 
+        date: date, items: items, totalAmount: total, 
+        extraDiscount: extraDiscount, roundOff: roundOff, status: "Active"
+      );
+
+      // Step B: Atomic Save & Deep Rebuild
+      await save();
+      InventoryLogicCenter.rebuildAllInventory(
+        medicines: medicines, batchHistory: batchHistory, 
+        purchases: purchases, sales: sales, 
+        saleReturns: saleReturns, purchaseReturns: purchaseReturns
+      );
+      notifyListeners();
     }
   }
   void updateSystemUser(SystemUser u) { int i = systemUsers.indexWhere((x) => x.id == u.id); if(i != -1) { systemUsers[i] = u; save(); } }
