@@ -188,7 +188,7 @@ class _MainControlShellState extends State<MainControlShell> {
       Widget? target;
       switch (action.navModule) {
         case "GO_RETURN_PUR_REG": target = const PurchaseReturnRegister(); break;
-        case "GO_RETURN_SALE_REG": target = const SaleReturnRegister(); break;
+        case "GO_RETURN_SALE_REG": target = const UniversalReturnHub(); break;
         case "GO_CHALLAN_PUR_REG": target = const PurchaseChallanRegister(); break;
         case "GO_CHALLAN_SALE_REG": target = const SaleChallanRegister(); break;
         case "GO_SALE": target = const SaleEntryView(); break;
