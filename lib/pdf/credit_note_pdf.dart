@@ -127,6 +127,9 @@ class CreditNotePdf {
         pw.Text("Verified return account settlement.", style: const pw.TextStyle(fontSize: 7)),
       ])),
       pw.Container(width: 250, padding: const pw.EdgeInsets.all(5), decoration: const pw.BoxDecoration(border: pw.Border(right: pw.BorderSide(width: 0.5))), child: pw.Column(children: [
+        // Footer ke andar _fRow lines ke bich mein ye condition jorein:
+if (ret.extraDiscount > 0) _fRow("EXTRA DISCOUNT (-)", ret.extraDiscount),
+if (ret.roundOff != 0) _fRow("ROUND OFF", ret.roundOff),
         _fRow("TAXABLE VAL", taxable),
         if (local) ...[_fRow("CGST TOTAL", tax / 2), _fRow("SGST TOTAL", tax / 2)] else _fRow("IGST TOTAL", tax),
         pw.Divider(thickness: 0.5),
