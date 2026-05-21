@@ -32,18 +32,19 @@ class ItemEntryCard extends StatefulWidget {
 }
 
 class _ItemEntryCardState extends State<ItemEntryCard> {
+  // Logic Controllers
   final batchC = TextEditingController();
   final expC = TextEditingController();
   final mrpC = TextEditingController();
   final rateC = TextEditingController(); 
-  final rateCDiscC = TextEditingController(text: "0.0"); // Formula memory
+  final rateCDiscC = TextEditingController(text: "0.0"); // Memory for C Formula
   final qtyC = TextEditingController();
   final freeC = TextEditingController(text: "0"); 
   final gstC = TextEditingController();
-  final normDiscC = TextEditingController(text: "0.0"); // % memory
+  final normDiscC = TextEditingController(text: "0.0"); // Memory for Disc %
   final discAmtC = TextEditingController(text: "0.0"); 
 
-  String selectedRateType = "A";
+  String selectedRateType = "A"; // 🔥 Choices Load Variable
 
   @override
   void initState() {
@@ -62,12 +63,12 @@ class _ItemEntryCardState extends State<ItemEntryCard> {
       freeC.text = i.freeQty.toString();
       gstC.text = i.gstRate.toString();
       
-      // 🔥 MEMORY LOAD: Selection and Formula
-      selectedRateType = i.appliedRateType;
+      // 🔥 FIX: LOAD STORED CHOICES (Point 2 Fix)
+      selectedRateType = i.appliedRateType; 
       rateCDiscC.text = i.rateCFormula.toString();
       normDiscC.text = i.discountPer.toString();
       
-      // Load current Rs based on saved %
+      // Load current Amount (Rs) from Stored %
       _syncBillDiscount(true); 
     } else {
       mrpC.text = widget.med.mrp.toString();
@@ -76,16 +77,22 @@ class _ItemEntryCardState extends State<ItemEntryCard> {
     }
   }
 
+  // ===========================================================================
+  // 🔥 RATE C SPECIAL FORMULA: MRP -> Tax Free -> Formula % = Rate
+  // ===========================================================================
   void _calculateRateC() {
     double mrp = double.tryParse(mrpC.text) ?? 0.0;
     double gst = double.tryParse(gstC.text) ?? 0.0;
     double formulaDisc = double.tryParse(rateCDiscC.text) ?? 0.0;
     double baseTaxable = (mrp / (1 + (gst / 100)));
-    double finalRate = baseTaxable - (baseTaxable * (formulaDisc / 100));
-    rateC.text = finalRate.toStringAsFixed(2);
+    double finalDerivedRate = baseTaxable - (baseTaxable * (formulaDisc / 100));
+    rateC.text = finalDerivedRate.toStringAsFixed(2);
     _syncBillDiscount(true);
   }
 
+  // ===========================================================================
+  // 🔥 TWO-WAY DISCOUNT SYNC: % <-> ₹ (Persistence Fixed)
+  // ===========================================================================
   void _syncBillDiscount(bool isPercentSource) {
     double q = double.tryParse(qtyC.text) ?? 0;
     double r = double.tryParse(rateC.text) ?? 0;
@@ -147,78 +154,117 @@ class _ItemEntryCardState extends State<ItemEntryCard> {
     return Dialog(
       backgroundColor: Colors.transparent,
       child: Container(
-        width: 500, decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(25)),
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(20),
-          child: Column(mainAxisSize: MainAxisSize.min, children: [
-            Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-              Text("${widget.srNo}. ${widget.med.name}", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-              IconButton(icon: const Icon(Icons.close), onPressed: widget.onCancel)
+        width: 500, decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(28)),
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          // Elegant Header
+          Container(
+            padding: const EdgeInsets.all(20), width: double.infinity, color: const Color(0xFFF8FAFC),
+            child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                const Text("ITEM MASTER CONFIG", style: TextStyle(color: Color(0xFF64748B), fontWeight: FontWeight.w900, fontSize: 9, letterSpacing: 2)),
+                Text("${widget.srNo}. ${widget.med.name}", style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: Color(0xFF0F172A)), overflow: TextOverflow.ellipsis),
+              ])),
+              IconButton(icon: const Icon(Icons.close_rounded), onPressed: widget.onCancel)
             ]),
-            const Divider(),
-            Row(children: [
-              Expanded(child: _modernInput("BATCH", batchC, onChanged: (v)=>setState((){}))),
-              const SizedBox(width: 8),
-              Expanded(child: _modernInput("EXPIRY", expC, isNum: true, onChanged: _formatExpiry)),
-            ]),
-            const SizedBox(height: 15),
-            SegmentedButton<String>(
-              segments: const [
-                ButtonSegment(value: "A", label: Text("Rate A")),
-                ButtonSegment(value: "B", label: Text("Rate B")),
-                ButtonSegment(value: "C", label: Text("Rate C")),
-              ],
-              selected: {selectedRateType},
-              onSelectionChanged: (v) { setState(() { selectedRateType = v.first; _updateRateLogic(); }); },
+          ),
+
+          Flexible(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(25.0),
+              child: Column(children: [
+                Row(children: [
+                  Expanded(child: _modernInput("BATCH", batchC, onChanged: (v)=>setState((){}))),
+                  const SizedBox(width: 12),
+                  Expanded(child: _modernInput("EXPIRY (MM/YY)", expC, isNum: true, onChanged: _formatExpiry)),
+                ]),
+
+                if (matchingBatches.isNotEmpty && widget.existingItem == null)
+                  Container(height: 45, margin: const EdgeInsets.only(top: 15), child: ListView(scrollDirection: Axis.horizontal, children: matchingBatches.map((b) => Padding(padding: const EdgeInsets.only(right: 8), child: ActionChip(label: Text(b.batch), onPressed: () {
+                          setState(() { 
+                            batchC.text = b.batch; expC.text = b.exp; 
+                            mrpC.text = b.mrp.toString(); rateC.text = b.rate.toString(); 
+                            _updateRateLogic();
+                          });
+                  }))).toList())),
+
+                const SizedBox(height: 25),
+                SegmentedButton<String>(
+                  segments: const [
+                    ButtonSegment(value: "A", label: Text("Rate A")),
+                    ButtonSegment(value: "B", label: Text("Rate B")),
+                    ButtonSegment(value: "C", label: Text("Rate C")),
+                  ],
+                  selected: {selectedRateType},
+                  onSelectionChanged: (v) { setState(() { selectedRateType = v.first; _updateRateLogic(); }); },
+                ),
+
+                const SizedBox(height: 25),
+                Row(children: [
+                  if (selectedRateType == "C") ...[
+                    Expanded(child: _modernInput("C FORMULA %", rateCDiscC, isNum: true, onChanged: (v) => _calculateRateC())),
+                    const SizedBox(width: 12),
+                  ],
+                  Expanded(child: _modernInput("MRP", mrpC, isNum: true, onChanged: (v) { if(selectedRateType=="C") _calculateRateC(); })),
+                  const SizedBox(width: 12),
+                  Expanded(child: _modernInput("UNIT RATE", rateC, isNum: true, isReadOnly: selectedRateType == "C", onChanged: (v) => _syncBillDiscount(true))),
+                ]),
+
+                const SizedBox(height: 20),
+                Row(children: [
+                  Expanded(child: _modernInput("QUANTITY", qtyC, isNum: true, onChanged: (v) => _syncBillDiscount(true))),
+                  const SizedBox(width: 12),
+                  Expanded(child: _modernInput("FREE QTY", freeC, isNum: true)),
+                ]),
+
+                const SizedBox(height: 20),
+                Row(children: [
+                  Expanded(child: _modernInput("DISCOUNT %", normDiscC, isNum: true, onChanged: (v) => _syncBillDiscount(true))),
+                  const SizedBox(width: 12),
+                  Expanded(child: _modernInput("DISCOUNT ₹", discAmtC, isNum: true, onChanged: (v) => _syncBillDiscount(false))),
+                ]),
+
+                const SizedBox(height: 35),
+                Container(padding: const EdgeInsets.all(20), decoration: BoxDecoration(color: const Color(0xFF0F172A), borderRadius: BorderRadius.circular(20)), child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+                  const Text("NET ITEM TOTAL", style: TextStyle(color: Colors.white70, fontSize: 10, fontWeight: FontWeight.bold)),
+                  Text("₹${totals['total']!.toStringAsFixed(2)}", style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w900, color: Colors.white)),
+                ])),
+
+                const SizedBox(height: 25),
+                SizedBox(width: double.infinity, height: 60, child: ElevatedButton(style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF2563EB), foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15))), 
+                onPressed: () {
+                   // 🔥 FINAL STEP: SAVE CHOICES TO MODEL
+                   widget.onAdd(BillItem(
+                      id: widget.existingItem?.id ?? DateTime.now().toString(),
+                      srNo: widget.srNo, medicineID: widget.med.id, name: widget.med.name, packing: widget.med.packing,
+                      batch: batchC.text.trim(), exp: expC.text, hsn: widget.med.hsnCode, mrp: double.tryParse(mrpC.text) ?? 0,
+                      qty: double.tryParse(qtyC.text) ?? 0, freeQty: double.tryParse(freeC.text) ?? 0,
+                      rate: double.tryParse(rateC.text) ?? 0, gstRate: double.tryParse(gstC.text) ?? 0,
+                      cgst: totals['cgst']!, sgst: totals['sgst']!, igst: totals['igst']!, total: totals['total']!,
+                      discountRupees: totals['discountAmt']!, 
+                      discountPer: double.tryParse(normDiscC.text) ?? 0.0,
+                      appliedRateType: selectedRateType, // 🔥 Choices Persistent
+                      rateCFormula: double.tryParse(rateCDiscC.text) ?? 0.0, // 🔥 Formula Persistent
+                      isBreakage: widget.allowExpired
+                   ));
+                }, child: const Text("UPDATE ITEM", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, letterSpacing: 1))))
+              ]),
             ),
-            const SizedBox(height: 15),
-            Row(children: [
-              if (selectedRateType == "C") ...[
-                Expanded(child: _modernInput("C FORMULA %", rateCDiscC, isNum: true, onChanged: (v) => _calculateRateC())),
-                const SizedBox(width: 8),
-              ],
-              Expanded(child: _modernInput("MRP", mrpC, isNum: true)),
-              const SizedBox(width: 8),
-              Expanded(child: _modernInput("FINAL RATE", rateC, isNum: true, isReadOnly: selectedRateType == "C", onChanged: (v) => _syncBillDiscount(true))),
-            ]),
-            const SizedBox(height: 15),
-            Row(children: [
-              Expanded(child: _modernInput("QTY", qtyC, isNum: true, onChanged: (v) => _syncBillDiscount(true))),
-              const SizedBox(width: 8),
-              Expanded(child: _modernInput("FREE", freeC, isNum: true)),
-            ]),
-            const SizedBox(height: 15),
-            Row(children: [
-              Expanded(child: _modernInput("DISC %", normDiscC, isNum: true, onChanged: (v) => _syncBillDiscount(true))),
-              const SizedBox(width: 8),
-              Expanded(child: _modernInput("DISC ₹", discAmtC, isNum: true, onChanged: (v) => _syncBillDiscount(false))),
-            ]),
-            const SizedBox(height: 25),
-            Container(padding: const EdgeInsets.all(15), decoration: BoxDecoration(color: Colors.blueGrey.shade900, borderRadius: BorderRadius.circular(15)), child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-              const Text("ITEM TOTAL", style: TextStyle(color: Colors.white70, fontSize: 10, fontWeight: FontWeight.bold)),
-              Text("₹${totals['total']!.toStringAsFixed(2)}", style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: Colors.white)),
-            ])),
-            const SizedBox(height: 20),
-            SizedBox(width: double.infinity, height: 55, child: ElevatedButton(style: ElevatedButton.styleFrom(backgroundColor: Colors.blue.shade900, foregroundColor: Colors.white), 
-            onPressed: () {
-               // 🔥 MEMORY SAVE: Storing choices
-               widget.onAdd(BillItem(
-                  id: widget.existingItem?.id ?? DateTime.now().toString(),
-                  srNo: widget.srNo, medicineID: widget.med.id, name: widget.med.name, packing: widget.med.packing,
-                  batch: batchC.text.trim(), exp: expC.text, hsn: widget.med.hsnCode, mrp: double.tryParse(mrpC.text) ?? 0,
-                  qty: double.tryParse(qtyC.text) ?? 0, freeQty: double.tryParse(freeC.text) ?? 0,
-                  rate: double.tryParse(rateC.text) ?? 0, gstRate: double.tryParse(gstC.text) ?? 0,
-                  cgst: totals['cgst']!, sgst: totals['sgst']!, igst: totals['igst']!, total: totals['total']!,
-                  discountRupees: totals['discountAmt']!, discountPer: double.tryParse(normDiscC.text) ?? 0.0,
-                  appliedRateType: selectedRateType, // Memory
-                  rateCFormula: double.tryParse(rateCDiscC.text) ?? 0.0, // Memory
-               ));
-            }, child: const Text("UPDATE ITEM", style: TextStyle(fontWeight: FontWeight.bold))))
-          ]),
-        ),
+          )
+        ]),
       ),
     );
   }
 
-  Widget _modernInput(String l, TextEditingController c, {bool isNum = false, Function(String)? onChanged, bool isReadOnly = false}) => TextField(controller: c, readOnly: isReadOnly, onChanged: onChanged, keyboardType: isNum ? const TextInputType.numberWithOptions(decimal: true) : TextInputType.text, decoration: InputDecoration(labelText: l, border: const OutlineInputBorder(), isDense: true));
+  Widget _modernInput(String label, TextEditingController ctrl, {bool isNum = false, Function(String)? onChanged, bool isReadOnly = false}) {
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Text(label, style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w900, color: Color(0xFF64748B))),
+      const SizedBox(height: 5),
+      TextField(
+        controller: ctrl, readOnly: isReadOnly, onChanged: onChanged,
+        keyboardType: isNum ? const TextInputType.numberWithOptions(decimal: true) : TextInputType.text,
+        style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+        decoration: InputDecoration(isDense: true, contentPadding: const EdgeInsets.all(12), filled: true, fillColor: isReadOnly ? Colors.grey.shade100 : const Color(0xFFF8FAFC), border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFFE2E8F0)))),
+      ),
+    ]);
+  }
 }
