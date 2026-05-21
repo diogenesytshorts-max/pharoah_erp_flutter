@@ -142,8 +142,11 @@ class _SaleReturnViewState extends State<SaleReturnView> {
                             Text(DateFormat('dd MMM yyyy').format(h['date'] as DateTime), style: const TextStyle(fontSize: 11, color: Colors.grey)),
                           ]),
                           const Divider(height: 20),
+                          // --- NEW CODE ---
                           Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
                             _miniInfo("BATCH", h['batch']),
+                            // NAYA: QTY + FREE DISPLAY
+                            _miniInfo("LAST QTY", "${h['qty'].toInt()} + ${h['free'].toInt()}"), 
                             _miniInfo("RATE", "₹${h['rate']}"),
                             _miniInfo("MRP", "₹${h['mrp']}", isBold: true),
                             const Icon(Icons.arrow_forward_ios, size: 12, color: Colors.blue),
