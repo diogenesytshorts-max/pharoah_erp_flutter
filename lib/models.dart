@@ -268,10 +268,37 @@ class SaleReturn {
 }
 
 class PurchaseReturn { 
-  String id, billNo, distributorName, status, returnType; DateTime date; List<PurchaseItem> items; double totalAmount; 
-  PurchaseReturn({required this.id, required this.billNo, required this.distributorName, required this.items, required this.totalAmount, required this.date, this.status = "Active", this.returnType = "Sellable"}); 
-  Map<String, dynamic> toMap() => {'id': id, 'billNo': billNo, 'date': date.toIso8601String(), 'distributorName': distributorName, 'totalAmount': totalAmount, 'status': status, 'returnType': returnType, 'items': items.map((i) => i.toMap()).toList()}; 
-  factory PurchaseReturn.fromMap(Map<String, dynamic> map) => PurchaseReturn(id: map['id'] ?? "", billNo: map['billNo'] ?? "", date: DateTime.parse(map['date'] ?? DateTime.now().toIso8601String()), distributorName: map['distributorName'] ?? "", totalAmount: (map['totalAmount'] ?? 0.0).toDouble(), status: map['status'] ?? "Active", returnType: map['returnType'] ?? "Sellable", items: (map['items'] as List?)?.map((i) => PurchaseItem.fromMap(i)).toList() ?? []); 
+  String id, billNo, distributorName, status, returnType; 
+  DateTime date; 
+  List<PurchaseItem> items; 
+  double totalAmount, extraDiscount, roundOff; // Naya Fields
+
+  PurchaseReturn({
+    required this.id, required this.billNo, required this.distributorName, 
+    required this.items, required this.totalAmount, required this.date, 
+    this.status = "Active", this.returnType = "Sellable",
+    this.extraDiscount = 0.0, this.roundOff = 0.0
+  }); 
+
+  Map<String, dynamic> toMap() => {
+    'id': id, 'billNo': billNo, 'date': date.toIso8601String(), 
+    'distributorName': distributorName, 'totalAmount': totalAmount, 
+    'status': status, 'returnType': returnType, 
+    'items': items.map((i) => i.toMap()).toList(),
+    'extraDiscount': extraDiscount, 'roundOff': roundOff
+  }; 
+
+  factory PurchaseReturn.fromMap(Map<String, dynamic> map) => PurchaseReturn(
+    id: map['id'] ?? "", billNo: map['billNo'] ?? "", 
+    date: DateTime.parse(map['date'] ?? DateTime.now().toIso8601String()), 
+    distributorName: map['distributorName'] ?? "", 
+    totalAmount: (map['totalAmount'] ?? 0.0).toDouble(), 
+    status: map['status'] ?? "Active", 
+    returnType: map['returnType'] ?? "Sellable", 
+    extraDiscount: (map['extraDiscount'] ?? 0.0).toDouble(),
+    roundOff: (map['roundOff'] ?? 0.0).toDouble(),
+    items: (map['items'] as List?)?.map((i) => PurchaseItem.fromMap(i)).toList() ?? []
+  ); 
 }
 
 // 6. SYSTEM
