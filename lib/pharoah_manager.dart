@@ -432,9 +432,8 @@ class PharoahManager with ChangeNotifier {
     return netMonthlySale < 0 ? 0 : netMonthlySale;
   }
   void adjustBatchStock({required String medId, required String batchNo, required double adjQty, required String reason}) { if (batchHistory.containsKey(medId)) { try { var b = batchHistory[medId]!.firstWhere((x) => x.batch == batchNo); b.adjustmentQty += adjQty; b.adjReason = reason; save().then((_) => loadAllData()); } catch (e) {} } }
-  void updateBatchMetadata({required String medId, required String batchNo, required String newExp, required double newMrp, required double newRate}) { if (batchHistory.containsKey(medId)) { try { var b = batchHistory[medId]!.firstWhere((x) => x.batch == batchNo); b.exp = newExp; b.mrp = newMrp; b.rate = newRate; save().then((_) => loadAllData()); } catch (e) {} } }
-  // ===========================================================================
-  // 💹 ADVANCED ACCOUNTING & VOUCHER ENGINE
+  void updateBatchMetadata({required String medId, required String batchNo, required String newExp, required double newMrp, required double newRate}) { if (batchHistory.containsKey(medId)) { try { var b = batchHistory[medId]!.firstWhere((x) => x.batch == batchNo); b.exp = newExp; b.mrp = newMrp; b.rate = newRate; save().then((_) => loadAllData()); } catch (e) {} } }// ===========================================================================
+  // 💹 ADVANCED ACCOUNTING & VOUCHER ENGINE (MODIFIED)
   // ===========================================================================
 
   // 1. GET PENDING BILLS FOR ADJUSTMENT (Reference Mode Logic)
@@ -445,16 +444,10 @@ class PharoahManager with ChangeNotifier {
     if (isReceipt) {
       // Sundry Debtors: Sales scan karein
       for (var s in sales.where((s) => s.partyId == partyId && s.paymentMode == "CREDIT" && s.status == "Active")) {
-        // Basic Check: Kya ye bill pehle hi settle ho chuka hai?
         bool alreadySettle = vouchers.any((v) => v.linkedBillNumbers.contains(s.billNo));
         if (!alreadySettle) {
           int days = now.difference(s.date).inDays;
-          pending.add({
-            'date': s.date,
-            'billNo': s.billNo,
-            'amount': s.totalAmount,
-            'dueDays': days,
-          });
+          pending.add({'date': s.date, 'billNo': s.billNo, 'amount': s.totalAmount, 'dueDays': days});
         }
       }
     } else {
@@ -463,22 +456,22 @@ class PharoahManager with ChangeNotifier {
         bool alreadySettle = vouchers.any((v) => v.linkedBillNumbers.contains(p.billNo));
         if (!alreadySettle) {
           int days = now.difference(p.date).inDays;
-          pending.add({
-            'date': p.date,
-            'billNo': p.billNo,
-            'amount': p.totalAmount,
-            'dueDays': days,
-          });
+          pending.add({'date': p.date, 'billNo': p.billNo, 'amount': p.totalAmount, 'dueDays': days});
         }
       }
     }
-    // Purane bill pehle dikhao
     pending.sort((a, b) => a['date'].compareTo(b['date']));
     return pending;
   }
 
-  // 2. BANK & CHEQUE IDENTITY MEMORY
-  // Pata lagao ki is party ne pichli baar kaunse bank ka cheque diya tha
+  // 2. INTERNAL LEDGER FILTER (Point 4 Fix: Drodown logic)
+  List<Party> getInternalAccounts() {
+    return parties.where((p) => 
+      p.group == "Bank Accounts" || p.group == "Cash in Hand"
+    ).toList();
+  }
+
+  // 3. BANK & CHEQUE IDENTITY MEMORY
   String getLastUsedBank(String partyId) {
     try {
       final lastVoucher = vouchers.lastWhere((v) => v.partyId == partyId && v.bankName.isNotEmpty);
@@ -486,11 +479,9 @@ class PharoahManager with ChangeNotifier {
     } catch (e) { return ""; }
   }
 
-  // 3. SMART VOUCHER FINALIZATION
-  void finalizeVoucher(Voucher v) async {
+  // 4. SMART VOUCHER FINALIZATION (Returns ID for Post-Save Hub)
+  Future<String> finalizeVoucher(Voucher v) async {
     vouchers.add(v);
-    
-    // Series counter update karein (Architect logic)
     if (activeCompany != null) {
       String prefix = v.voucherNo.split(RegExp(r'\d')).first;
       await PharoahNumberingEngine.updateSeriesCounter(
@@ -500,20 +491,19 @@ class PharoahManager with ChangeNotifier {
         prefix: prefix
       );
     }
-    
-    save();
+    await save();
     notifyListeners();
+    return v.id; // 🔥 IMPORTANT: This ID is used for instant printing
   }
 
-  // 4. CASH LIMIT WATCHDOG (Rules check)
+  // 5. CASH LIMIT WATCHDOG
   bool isCashLimitExceeded(String partyId, double newAmount) {
     DateTime today = DateTime.now();
     double todayTotal = vouchers
         .where((v) => v.partyId == partyId && v.paymentMode == "Cash" && 
                 v.date.day == today.day && v.date.month == today.month)
         .fold(0, (sum, v) => sum + v.amount);
-    
-    return (todayTotal + newAmount) > 200000; // Income Tax Rule: 2 Lakh
+    return (todayTotal + newAmount) > 200000;
   }
 
   // ===========================================================================
