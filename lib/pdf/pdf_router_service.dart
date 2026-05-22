@@ -2,6 +2,7 @@
 
 import 'dart:io';
 import 'dart:typed_data';
+import 'package:flutter/foundation.dart'; // 🔥 FIXED: debugPrint ke liye zaroori import
 import 'package:archive/archive.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:pdf/widgets.dart' as pw; 
@@ -20,37 +21,52 @@ import 'sale_challan_pdf.dart';
 import 'purchase_challan_pdf.dart';
 import 'credit_note_pdf.dart'; 
 import 'debit_note_pdf.dart';
-import 'voucher_pdf.dart'; // 🔥 FIXED: Ab ye engine se connect ho gaya hai
+import 'voucher_pdf.dart'; 
 
 class PdfRouterService {
   
+  // ===========================================================================
+  // 1. UNIVERSAL PARTY FINDER (Live Data Fetcher)
+  // ===========================================================================
   static Party _getLatestParty(PharoahManager ph, String partyId, String partyName, {String gst = "", String state = "Rajasthan"}) {
     try {
       return ph.parties.firstWhere((p) => p.id == partyId || p.name == partyName);
     } catch (e) {
-      return Party(id: 'temp', name: partyName, gst: gst, state: state);
+      try {
+        return ph.parties.firstWhere((p) => p.name.toUpperCase() == partyName.toUpperCase());
+      } catch (e) {
+        return Party(id: 'temp', name: partyName, gst: gst, state: state);
+      }
     }
   }
 
-  // --- VOUCHER ROUTE (FIXED) ---
+  // ===========================================================================
+  // 2. VOUCHER PRINT (Receipt & Payment) - FIXED
+  // ===========================================================================
   static Future<void> printVoucher({required Voucher voucher, required Party party, required PharoahManager ph}) async {
     if (ph.activeCompany == null) return;
     try {
-      // Seedha naye horizontal engine ko data pass karein
       await VoucherPdf.generate(voucher, party, ph.activeCompany!, ph);
     } catch (e) {
-      debugPrint("PDF Generation Error: $e");
+      debugPrint("PDF Generation Error: $e"); // 🔥 Ab ye error nahi dega
     }
   }
 
-  // ... Baki saare purane functions (printSale, printPurchase, etc.) waise hi raheinge ...
+  // ===========================================================================
+  // 3. OTHER TRANSACTION PRINTS
+  // ===========================================================================
   static Future<void> printSale({required Sale sale, required Party party, required PharoahManager ph}) async {
     final config = ph.config;
     final shop = ph.activeCompany!;
     final latestParty = _getLatestParty(ph, sale.partyId, sale.partyName, gst: sale.partyGstin, state: sale.partyState);
-    if (config.printFormat == "Thermal") await ThermalInvoicePdf.generate(sale, latestParty, shop, config);
-    else if (config.isArchitectMode) await ArchitectSalePdf.generate(sale, latestParty, shop, config);
-    else await SaleInvoicePdf.generate(sale, latestParty, shop);
+
+    if (config.printFormat == "Thermal") {
+      await ThermalInvoicePdf.generate(sale, latestParty, shop, config);
+    } else if (config.isArchitectMode) {
+      await ArchitectSalePdf.generate(sale, latestParty, shop, config);
+    } else {
+      await SaleInvoicePdf.generate(sale, latestParty, shop);
+    }
   }
 
   static Future<void> printPurchase({required Purchase purchase, required Party supplier, required PharoahManager ph}) async {
@@ -82,14 +98,23 @@ class PdfRouterService {
     }
   }
 
-  static Future<String> createBulkZip({required List<Map<String, dynamic>> selectedDrafts, required PharoahManager ph, required Function(double progress, String filename) onProgress}) async {
+  // ===========================================================================
+  // 4. BULK EXPORT LOGIC
+  // ===========================================================================
+  static Future<String> createBulkZip({
+    required List<Map<String, dynamic>> selectedDrafts,
+    required PharoahManager ph,
+    required Function(double progress, String filename) onProgress,
+  }) async {
     final archive = Archive();
     final shop = ph.activeCompany!;
     final config = ph.config;
+
     for (int i = 0; i < selectedDrafts.length; i++) {
       var draft = selectedDrafts[i];
       dynamic billObj = draft['saleObj']; 
       Uint8List pdfBytes;
+
       if (billObj is Sale) {
         final latestParty = _getLatestParty(ph, billObj.partyId, billObj.partyName, gst: billObj.partyGstin, state: billObj.partyState);
         onProgress((i + 1) / selectedDrafts.length, latestParty.name);
@@ -100,8 +125,10 @@ class PdfRouterService {
         onProgress((i + 1) / selectedDrafts.length, latestSupplier.name);
         pdfBytes = await PurchasePdf.generateBytes(billObj, latestSupplier, shop);
       }
+
       archive.addFile(ArchiveFile("${billObj.billNo}.pdf", pdfBytes.length, pdfBytes));
     }
+
     final zipData = ZipEncoder().encode(archive);
     final tempDir = await getTemporaryDirectory();
     final zipPath = '${tempDir.path}/ERP_Batch_${DateFormat('ddMM_HHmm').format(DateTime.now())}.zip';
