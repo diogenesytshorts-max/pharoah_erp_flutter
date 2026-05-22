@@ -138,3 +138,9 @@ class PdfRouterService {
     return zipPath;
   }
 }
+// Router mein naya Receipt/Payment route:
+  static Future<void> printVoucher({required Voucher voucher, required Party party, required PharoahManager ph}) async {
+    final shop = ph.activeCompany!;
+    // Humne jo naya engine banaya hai usey call karein
+    await VoucherPdf.generate(voucher, party, shop, ph);
+  }
