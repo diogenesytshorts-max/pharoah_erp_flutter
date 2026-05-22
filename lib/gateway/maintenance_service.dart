@@ -59,11 +59,14 @@ class MaintenanceService {
       
       // Wholesale ka sabse critical kaam: Stock Match karna
       // Hum Zero se saare bills scan karenge aur stock sync karenge
+      // MaintenanceService ke andar ye block replace karein:
       InventoryLogicCenter.rebuildAllInventory(
         medicines: ph.medicines,
         batchHistory: ph.batchHistory,
         purchases: ph.purchases,
         sales: ph.sales,
+        saleReturns: ph.saleReturns,      // 🔥 ADDED
+        purchaseReturns: ph.purchaseReturns // 🔥 ADDED
       );
       
       // Party Ledger balances ka double-check yahan ho sakta hai
