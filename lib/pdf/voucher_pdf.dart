@@ -72,7 +72,7 @@ class VoucherPdf {
 
           // 2. PARTY INFO
           pw.Padding(
-            padding: const pw.EdgeInsets.all(10), // FIX: Added pw. prefix
+            padding: const pw.EdgeInsets.all(10), 
             child: pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
               pw.Text(isReceipt ? "RECEIVED FROM:" : "PAID TO:", style: pw.TextStyle(fontSize: 7, color: PdfColors.grey700)),
               pw.SizedBox(height: 2),
@@ -124,9 +124,11 @@ class VoucherPdf {
           pw.Padding(
             padding: const pw.EdgeInsets.all(10),
             child: pw.Column(children: [
-               pw.Row(mainAxisAlignment: pw.MainAxisAlignment.spaceBetween, crossAxisAlignment: pw.End, children: [
+               pw.Row(
+                mainAxisAlignment: pw.MainAxisAlignment.spaceBetween, 
+                crossAxisAlignment: pw.CrossAxisAlignment.end, // FIXED: pw.End se pw.CrossAxisAlignment.end kiya
+                children: [
                   pw.Column(children: [
-                    // FIX: border moved inside BoxDecoration
                     pw.Container(width: 60, decoration: const pw.BoxDecoration(border: pw.Border(bottom: pw.BorderSide(width: 0.5)))),
                     pw.SizedBox(height: 2),
                     pw.Text("Receiver's Sign", style: const pw.TextStyle(fontSize: 7)),
@@ -148,7 +150,7 @@ class VoucherPdf {
     await Printing.layoutPdf(
       onLayout: (format) async => pdf.save(), 
       name: 'Voucher_${v.voucherNo}',
-      format: a5Portrait, // System ko bataya ki paper A5 hai
+      format: a5Portrait, 
     );
   }
 }
