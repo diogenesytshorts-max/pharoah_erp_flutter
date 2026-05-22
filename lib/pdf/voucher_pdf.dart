@@ -12,10 +12,10 @@ import '../gateway/company_registry_model.dart';
 import 'pdf_master_service.dart';
 
 class VoucherPdf {
-  // Dimension: B5 Half Page Horizontal (Approx 250mm x 88mm)
+  // Dimension: B5 Half Page Horizontal (Approx 250mm x 110mm)
   static final PdfPageFormat b5HalfLandscape = PdfPageFormat(
     250 * PdfPageFormat.mm, 
-    110 * PdfPageFormat.mm, // Adjusted height for better spacing
+    110 * PdfPageFormat.mm, 
     marginAll: 8 * PdfPageFormat.mm
   );
 
@@ -27,7 +27,6 @@ class VoucherPdf {
     for (var bNo in v.linkedBillNumbers) {
       DateTime? originalDate;
       try {
-        // Receipt hai toh Sales dhoondo, Payment hai toh Purchase
         if (v.type == "Receipt") {
           originalDate = ph.sales.firstWhere((s) => s.billNo == bNo).date;
         } else {
@@ -60,7 +59,7 @@ class VoucherPdf {
             borderRadius: const pw.BorderRadius.all(pw.Radius.circular(8)),
           ),
           child: pw.Column(children: [
-            // --- SECTION 1: HEADER (IDENTITY) ---
+            // --- SECTION 1: HEADER ---
             pw.Container(
               padding: const pw.EdgeInsets.all(6),
               decoration: pw.BoxDecoration(color: lightTint, border: const pw.Border(bottom: pw.BorderSide(width: 0.5))),
@@ -87,14 +86,12 @@ class VoucherPdf {
             pw.Padding(
               padding: const pw.EdgeInsets.all(8),
               child: pw.Row(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
-                // Party Details
                 pw.Expanded(flex: 5, child: pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
                   pw.Text(isReceipt ? "RECEIVED FROM:" : "PAID TO:", style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold, color: PdfColors.grey700)),
                   pw.Text(party.name, style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold)),
                   pw.Text("${party.city}, ${party.state}", style: const pw.TextStyle(fontSize: 7)),
                   pw.Text("GST: ${party.gst} | DL: ${party.dl}", style: const pw.TextStyle(fontSize: 7)),
                 ])),
-                // Bank Details
                 pw.Expanded(flex: 4, child: pw.Container(
                   padding: const pw.EdgeInsets.all(5),
                   decoration: pw.BoxDecoration(border: pw.Border.all(width: 0.5, color: PdfColors.grey200), color: PdfColors.grey50),
@@ -112,7 +109,7 @@ class VoucherPdf {
               ]),
             ),
 
-            // --- SECTION 3: BILL REFERENCE TABLE (ADVANCED) ---
+            // --- SECTION 3: BILL REFERENCE TABLE ---
             if (refDetails.isNotEmpty)
               pw.Padding(
                 padding: const pw.EdgeInsets.symmetric(horizontal: 8),
@@ -157,7 +154,8 @@ class VoucherPdf {
                   pw.SizedBox(height: 10),
                   pw.Row(mainAxisAlignment: pw.MainAxisAlignment.spaceBetween, children: [
                     pw.Column(children: [
-                      pw.Container(width: 50, border: const pw.Border(bottom: pw.BorderSide(width: 0.5))),
+                      // 🔥 FIXED: Container border logic fixed for PDF package
+                      pw.Container(width: 50, decoration: const pw.BoxDecoration(border: pw.Border(bottom: pw.BorderSide(width: 0.5)))),
                       pw.Text("Receiver's Sign", style: const pw.TextStyle(fontSize: 6)),
                     ]),
                     pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.end, children: [
