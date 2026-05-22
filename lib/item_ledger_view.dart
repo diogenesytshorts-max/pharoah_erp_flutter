@@ -5,6 +5,8 @@ import 'package:pharoah_erp/pharoah_manager.dart';
 import 'package:pharoah_erp/models.dart';
 import 'package:pharoah_erp/bill_view_only.dart'; 
 import 'package:pharoah_erp/purchase/purchase_view_only.dart';
+import 'returns/sale_return_view.dart';
+import 'returns/purchase_return_view.dart';
 
 class ItemLedgerSearchView extends StatefulWidget {
   const ItemLedgerSearchView({super.key});
