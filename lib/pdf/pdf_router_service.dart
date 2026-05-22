@@ -40,15 +40,16 @@ class PdfRouterService {
     }
   }
 
-  // ===========================================================================
-  // 2. VOUCHER PRINT (Receipt & Payment) - FIXED
+// ===========================================================================
+  // 2. VOUCHER PRINT (Receipt & Payment) - CORRECTED
   // ===========================================================================
   static Future<void> printVoucher({required Voucher voucher, required Party party, required PharoahManager ph}) async {
     if (ph.activeCompany == null) return;
     try {
+      // Direct call to our new Portrait A5 Generator
       await VoucherPdf.generate(voucher, party, ph.activeCompany!, ph);
     } catch (e) {
-      debugPrint("PDF Generation Error: $e"); // 🔥 Ab ye error nahi dega
+      debugPrint("PDF Routing Error: $e");
     }
   }
 
