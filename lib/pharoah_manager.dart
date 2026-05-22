@@ -398,8 +398,31 @@ class PharoahManager with ChangeNotifier {
   }
 
   void runAutoShortageScan() { shortages.removeWhere((s) => s.source == "Auto"); for (var m in medicines) { double a = calculateAvgMonthlySale(m.id); double r = a * 1.5; if (m.stock < r && r > 0) { shortages.add(ShortageItem(id: "auto_${m.id}", medicineId: m.id, medicineName: m.name, companyName: m.companyId, qtyRequired: r - m.stock, currentStock: m.stock, date: DateTime.now(), source: "Auto")); } } save(); }
-  double calculateAvgMonthlySale(String mid) { DateTime d = DateTime.now().subtract(const Duration(days: 30)); double q = 0; for (var s in sales.where((x) => x.status == "Active" && x.date.isAfter(d))) { for (var it in s.items.where((it) => it.medicineID == mid)) { q += (it.qty + it.freeQty); } } return q; }
+ // ===========================================================================
+  // 📈 INTELLIGENT SHORTAGE ENGINE (NET-SALE FORMULA)
+  // ===========================================================================
+  double calculateAvgMonthlySale(String mid) {
+    DateTime thirtyDaysAgo = DateTime.now().subtract(const Duration(days: 30));
+    double grossSaleQty = 0;
+    double returnedQty = 0;
 
+    // 1. Asli Sale scan karein
+    for (var s in sales.where((s) => s.status == "Active" && s.date.isAfter(thirtyDaysAgo))) {
+      for (var item in s.items.where((it) => it.medicineID == mid)) {
+        grossSaleQty += (item.qty + item.freeQty);
+      }
+    }
+
+    // 2. Returns (CN) scan karein aur sirf SELLABLE wapas aaya maal minus karein
+    for (var r in saleReturns.where((r) => r.status == "Active" && r.date.isAfter(thirtyDaysAgo))) {
+      for (var item in r.items.where((it) => it.medicineID == mid && it.isBreakage == false)) {
+        returnedQty += (item.qty + item.freeQty);
+      }
+    }
+
+    double netMonthlySale = grossSaleQty - returnedQty;
+    return netMonthlySale < 0 ? 0 : netMonthlySale;
+  }
   void adjustBatchStock({required String medId, required String batchNo, required double adjQty, required String reason}) { if (batchHistory.containsKey(medId)) { try { var b = batchHistory[medId]!.firstWhere((x) => x.batch == batchNo); b.adjustmentQty += adjQty; b.adjReason = reason; save().then((_) => loadAllData()); } catch (e) {} } }
   void updateBatchMetadata({required String medId, required String batchNo, required String newExp, required double newMrp, required double newRate}) { if (batchHistory.containsKey(medId)) { try { var b = batchHistory[medId]!.firstWhere((x) => x.batch == batchNo); b.exp = newExp; b.mrp = newMrp; b.rate = newRate; save().then((_) => loadAllData()); } catch (e) {} } }
 
