@@ -79,22 +79,39 @@ class _ItemLedgerDetailViewState extends State<ItemLedgerDetailView> {
     List<Map<String, dynamic>> history = [];
     Map<String, double> batchStockMap = {};
 
+    // 1. Trace: Purchases (Stock IN +)
     for (var p in ph.purchases) {
-      for (var it in p.items) {
-        if (it.medicineID == widget.medicine.id) {
-          history.add({'date': p.date, 'type': 'IN', 'qty': it.qty + it.freeQty, 'party': p.distributorName, 'bill': p, 'batch': it.batch});
-          batchStockMap[it.batch] = (batchStockMap[it.batch] ?? 0) + (it.qty + it.freeQty);
-        }
+      for (var it in p.items.where((it) => it.medicineID == widget.medicine.id)) {
+        history.add({'date': p.date, 'type': 'PUR', 'qty': it.qty + it.freeQty, 'party': p.distributorName, 'bill': p, 'batch': it.batch, 'isIn': true});
+        batchStockMap[it.batch] = (batchStockMap[it.batch] ?? 0) + (it.qty + it.freeQty);
       }
     }
+
+    // 2. Trace: Sales (Stock OUT -)
     for (var s in ph.sales.where((s) => s.status == "Active")) {
-      for (var it in s.items) {
-        if (it.medicineID == widget.medicine.id) {
-          history.add({'date': s.date, 'type': 'OUT', 'qty': it.qty + it.freeQty, 'party': s.partyName, 'bill': s, 'batch': it.batch});
-          batchStockMap[it.batch] = (batchStockMap[it.batch] ?? 0) - (it.qty + it.freeQty);
-        }
+      for (var it in s.items.where((it) => it.medicineID == widget.medicine.id)) {
+        history.add({'date': s.date, 'type': 'SALE', 'qty': it.qty + it.freeQty, 'party': s.partyName, 'bill': s, 'batch': it.batch, 'isIn': false});
+        batchStockMap[it.batch] = (batchStockMap[it.batch] ?? 0) - (it.qty + it.freeQty);
       }
     }
+
+    // 3. 🔥 NAYA: Sale Returns (CN) -> Stock IN + (If Sellable)
+    for (var r in ph.saleReturns.where((r) => r.status == "Active")) {
+      for (var it in r.items.where((it) => it.medicineID == widget.medicine.id)) {
+        bool isSellable = it.isBreakage == false;
+        history.add({'date': r.date, 'type': isSellable ? 'SR-SELL' : 'SR-EXP', 'qty': it.qty + it.freeQty, 'party': r.partyName, 'bill': r, 'batch': it.batch, 'isIn': isSellable});
+        if (isSellable) batchStockMap[it.batch] = (batchStockMap[it.batch] ?? 0) + (it.qty + it.freeQty);
+      }
+    }
+
+    // 4. 🔥 NAYA: Purchase Returns (DN) -> Stock OUT -
+    for (var r in ph.purchaseReturns.where((r) => r.status == "Active")) {
+      for (var it in r.items.where((it) => it.medicineID == widget.medicine.id)) {
+        history.add({'date': r.date, 'type': 'PR-OUT', 'qty': it.qty + it.freeQty, 'party': r.distributorName, 'bill': r, 'batch': it.batch, 'isIn': false});
+        batchStockMap[it.batch] = (batchStockMap[it.batch] ?? 0) - (it.qty + it.freeQty);
+      }
+    }
+
     history.sort((a, b) => b['date'].compareTo(a['date']));
     var displayHistory = selectedBatch == "ALL" ? history : history.where((h) => h['batch'] == selectedBatch).toList();
 
@@ -102,18 +119,35 @@ class _ItemLedgerDetailViewState extends State<ItemLedgerDetailView> {
       backgroundColor: const Color(0xFFF5F6F9),
       appBar: AppBar(title: Text(widget.medicine.name), backgroundColor: Colors.teal.shade800, foregroundColor: Colors.white),
       body: Column(children: [
-        Container(padding: const EdgeInsets.all(20), decoration: const BoxDecoration(color: Colors.white, borderRadius: BorderRadius.only(bottomLeft: Radius.circular(20), bottomRight: Radius.circular(20))), child: Row(mainAxisAlignment: MainAxisAlignment.spaceAround, children: [_sumCol("TOTAL IN", history.where((h)=>h['type']=='IN').fold(0.0, (s, e)=>s+e['qty']), Colors.green), _sumCol("TOTAL OUT", history.where((h)=>h['type']=='OUT').fold(0.0, (s, e)=>s+e['qty']), Colors.red), _sumCol("ON HAND", widget.medicine.stock, Colors.blue.shade900)])),
+        Container(padding: const EdgeInsets.all(20), decoration: const BoxDecoration(color: Colors.white, borderRadius: BorderRadius.only(bottomLeft: Radius.circular(20), bottomRight: Radius.circular(20))), child: Row(mainAxisAlignment: MainAxisAlignment.spaceAround, children: [_sumCol("ON HAND", widget.medicine.stock, Colors.blue.shade900)])),
+        
         SizedBox(height: 65, child: ListView(scrollDirection: Axis.horizontal, padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10), children: [ChoiceChip(label: const Text("ALL BATCHES"), selected: selectedBatch == "ALL", onSelected: (v)=>setState(()=>selectedBatch="ALL")), ...batchStockMap.entries.map((e) => Padding(padding: const EdgeInsets.only(left: 8), child: ChoiceChip(label: Text("${e.key} (${e.value.toInt()})"), selected: selectedBatch == e.key, onSelected: (v) => setState(() => selectedBatch = e.key)))).toList()])),
+        
         Expanded(child: displayHistory.isEmpty ? const Center(child: Text("No transactions found")) : ListView.builder(padding: const EdgeInsets.all(10), itemCount: displayHistory.length, itemBuilder: (c, i) {
               final h = displayHistory[i];
-              bool isIn = h['type'] == 'IN';
-              return Card(child: ListTile(onTap: () {
-                    if (isIn) { Navigator.push(context, MaterialPageRoute(builder: (c) => PurchaseViewOnly(purchase: h['bill'] as Purchase))); } 
-                    else {
-                      final partyObj = ph.parties.firstWhere((p) => p.name == h['party'], orElse: () => Party(id: "", name: h['party']));
-                      Navigator.push(context, MaterialPageRoute(builder: (c) => BillViewOnly(sale: h['bill'] as Sale, party: partyObj)));
-                    }
-                  }, leading: Icon(isIn ? Icons.south_west : Icons.north_east, color: isIn ? Colors.green : Colors.red), title: Text(h['party']), subtitle: Text("${DateFormat('dd/MM/yy').format(h['date'])} | Batch: ${h['batch']}"), trailing: Text("${isIn ? '+' : '-'} ${h['qty'].toInt()}", style: TextStyle(fontWeight: FontWeight.bold, color: isIn ? Colors.green : Colors.red))));
+              bool isIn = h['isIn'];
+              return Card(child: ListTile(
+                onTap: () {
+                   // Deep Linking logic according to type
+                   if (h['type'] == 'SALE') {
+                     Navigator.push(context, MaterialPageRoute(builder: (c) => BillViewOnly(sale: h['bill'], party: ph.parties.firstWhere((p)=>p.name == h['party'], orElse: ()=>Party(id:'0', name:h['party'])))));
+                   } else if (h['type'] == 'PUR') {
+                     Navigator.push(context, MaterialPageRoute(builder: (c) => PurchaseViewOnly(purchase: h['bill'])));
+                   } else if (h['type'].startsWith('SR')) {
+                     Navigator.push(context, MaterialPageRoute(builder: (c) => SaleReturnView(existingRecord: h['bill'], isReadOnly: true)));
+                   } else if (h['type'].startsWith('PR')) {
+                     Navigator.push(context, MaterialPageRoute(builder: (c) => PurchaseReturnView(existingRecord: h['bill'], isReadOnly: true)));
+                   }
+                },
+                leading: CircleAvatar(backgroundColor: isIn ? Colors.green.shade50 : Colors.red.shade50, child: Icon(isIn ? Icons.south_west : Icons.north_east, color: isIn ? Colors.green : Colors.red, size: 16)),
+                title: Row(children: [
+                  Container(padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2), decoration: BoxDecoration(color: Colors.blueGrey.shade100, borderRadius: BorderRadius.circular(4)), child: Text(h['type'], style: const TextStyle(fontSize: 8, fontWeight: FontWeight.bold))),
+                  const SizedBox(width: 8),
+                  Expanded(child: Text(h['party'], style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13), overflow: TextOverflow.ellipsis)),
+                ]),
+                subtitle: Text("${DateFormat('dd/MM/yy').format(h['date'])} | Batch: ${h['batch']}"),
+                trailing: Text("${isIn ? '+' : '-'} ${h['qty'].toInt()}", style: TextStyle(fontWeight: FontWeight.bold, color: isIn ? Colors.green : Colors.red)),
+              ));
             }))
       ]),
     );
