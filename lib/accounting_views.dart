@@ -261,18 +261,23 @@ class _VoucherEntryViewState extends State<VoucherEntryView> {
       builder: (c) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: const Row(children: [Icon(Icons.check_circle, color: Colors.green), SizedBox(width: 10), Text("Entry Saved!")]),
-        content: Text("Voucher $voucherNo has been recorded successfully."),
+        content: Text("Voucher $voucherNo recorded successfully."),
         actions: [
-          TextButton(onPressed: () => Navigator.popUntil(context, (route) => route.isFirst), child: const Text("CLOSE")),
+          TextButton(onPressed: () => Navigator.popUntil(context, (route) => route.isFirst), child: const Text("GO TO HOME")),
           ElevatedButton.icon(
             style: ElevatedButton.styleFrom(backgroundColor: Colors.teal),
-            onPressed: () {
+            onPressed: () async {
+              // ✅ CORRECT CALL: Link proper Voucher object
               final vObj = ph.vouchers.firstWhere((v) => v.id == vId);
-              final pObj = ph.parties.firstWhere((p) => p.id == vObj.partyId);
-              // Router call to print
-              PdfRouterService.printCreditNote(returnObj: null as dynamic, party: pObj, ph: ph); // Replace with actual Receipt PDF call
+              final pObj = ph.parties.firstWhere((p) => p.id == vObj.partyId, orElse: () => Party(id: '0', name: vObj.partyName));
+              
+              await PdfRouterService.printVoucher(
+                voucher: vObj, 
+                party: pObj, 
+                ph: ph
+              );
             }, 
-            icon: const Icon(Icons.print), label: const Text("PRINT")
+            icon: const Icon(Icons.print), label: const Text("PRINT VOUCHER")
           )
         ],
       ),
