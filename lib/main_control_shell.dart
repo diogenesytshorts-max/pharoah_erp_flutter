@@ -43,6 +43,7 @@ import 'administration/series_master_view.dart';
 import 'administration/app_settings_view.dart'; 
 import 'sale_summary_view.dart'; // Corrected Import
 import 'purchase/purchase_summary_view.dart'; // Corrected Import
+import 'payment_receipt_history.dart';
 
 class MainControlShell extends StatefulWidget {
   const MainControlShell({super.key});
