@@ -184,26 +184,44 @@ class _PaymentReceiptHistoryState extends State<PaymentReceiptHistory> {
         padding: const EdgeInsets.all(25),
         child: Column(mainAxisSize: MainAxisSize.min, children: [
           Text(v.partyName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 17)),
-          Text("Voucher No: ${v.voucherNo} | Amount: ₹${v.amount}", style: const TextStyle(fontSize: 11, color: Colors.grey)),
           const Divider(height: 30),
           Row(mainAxisAlignment: MainAxisAlignment.spaceAround, children: [
-             _actionBtn(Icons.visibility, "VIEW", Colors.blue, () { Navigator.pop(c); /* View logic */ }),
-             _actionBtn(Icons.edit_note, "MODIFY", Colors.orange, () { Navigator.pop(c); /* Modify logic */ }),
+             // 1. PRINT (Now Fully Functional)
              _actionBtn(Icons.print_rounded, "PRINT", Colors.teal, () { 
                 Navigator.pop(c);
-                final party = ph.parties.firstWhere((p) => p.id == v.partyId, orElse: () => Party(id:'0', name: v.partyName));
-                PdfRouterService.printVoucher(voucher: v, party: party, ph: ph);
+                final partyObj = ph.parties.firstWhere((p) => p.id == v.partyId, 
+                    orElse: () => Party(id:'0', name: v.partyName, city: "N/A", gst: "N/A"));
+                
+                // Ye wahi function hai jo humne Step 2 mein banaya tha
+                PdfRouterService.printVoucher(voucher: v, party: partyObj, ph: ph);
              }),
-          ]),
-          const SizedBox(height: 20),
-          Row(mainAxisAlignment: MainAxisAlignment.spaceAround, children: [
-             _actionBtn(Icons.block, "CANCEL", Colors.deepOrange, () { Navigator.pop(c); /* Cancel logic */ }),
-             _actionBtn(Icons.delete_forever, "DELETE", Colors.red, () { Navigator.pop(c); /* Delete logic */ }),
+             // 2. CANCEL
+             _actionBtn(Icons.block, "CANCEL", Colors.deepOrange, () {
+                Navigator.pop(c);
+                _confirmAction("Cancel this entry?", () => ph.cancelVoucher(v.id));
+             }),
+             // 3. DELETE
+             _actionBtn(Icons.delete_forever, "DELETE", Colors.red, () {
+                Navigator.pop(c);
+                _confirmAction("Permanently delete record?", () => ph.deleteVoucher(v.id));
+             }),
           ]),
           const SizedBox(height: 20),
         ]),
       ),
     );
+  }
+
+  // Chota sa confirmation dialog taaki galti se delete na ho
+  void _confirmAction(String msg, VoidCallback onConfirm) {
+    showDialog(context: context, builder: (c) => AlertDialog(
+      title: const Text("Are you sure?"),
+      content: Text(msg),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(c), child: const Text("NO")),
+        ElevatedButton(onPressed: () { onConfirm(); Navigator.pop(c); }, child: const Text("YES")),
+      ],
+    ));
   }
 
   // ===========================================================================
