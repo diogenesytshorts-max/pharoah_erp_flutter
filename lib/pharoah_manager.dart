@@ -482,23 +482,23 @@ class PharoahManager with ChangeNotifier {
 
   // 4. SMART VOUCHER FINALIZATION (Returns ID for Post-Save Hub)
     Future<String> finalizeVoucher(Voucher v) async {
-  vouchers.add(v);
-  if (activeCompany != null) {
-    // Type ab "RECEIPT" ya "PAYMENT" hoga, "VOUCHER" nahi
-    String seriesType = v.type.toUpperCase(); 
-    String prefix = v.voucherNo.split(RegExp(r'\d')).first;
-    
-    await PharoahNumberingEngine.updateSeriesCounter(
-      type: seriesType, 
-      companyID: activeCompany!.id, 
-      usedNumber: v.voucherNo, 
-      prefix: prefix
-    );
+    vouchers.add(v);
+    if (activeCompany != null) {
+      // Type ko "VOUCHER" ki jagah v.type (RECEIPT/PAYMENT) bhejna zaroori hai
+      String seriesType = v.type.toUpperCase(); 
+      String prefix = v.voucherNo.split(RegExp(r'\d')).first;
+      
+      await PharoahNumberingEngine.updateSeriesCounter(
+        type: seriesType, 
+        companyID: activeCompany!.id, 
+        usedNumber: v.voucherNo, 
+        prefix: prefix
+      );
+    }
+    await save();
+    notifyListeners();
+    return v.id;
   }
-  await save();
-  notifyListeners();
-  return v.id;
-}
 
   // 5. CASH LIMIT WATCHDOG
   bool isCashLimitExceeded(String partyId, double newAmount) {
@@ -647,8 +647,25 @@ void cancelReturn(String id, bool isSaleReturn) {
   // 10. GETTERS & RECOVERY
   // ===========================================================================
 
-  NumberingSeries getDefaultSeries(String t) => numberingSeries.firstWhere((s) => s.type == t && s.isDefault, orElse: () => numberingSeries.firstWhere((s) => s.type == t, orElse: () => NumberingSeries(id: 'tmp', name: 'Default', type: t, prefix: 'TXN-', isDefault: true)));
-  List<NumberingSeries> getSeriesByType(String t) => numberingSeries.where((s) => s.type == t).toList();
+  NumberingSeries getDefaultSeries(String t) {
+    // 1. Pehle check karo agar user ne koi Default series banayi hai
+    try {
+      return numberingSeries.firstWhere((s) => s.type == t && s.isDefault);
+    } catch (e) {
+      // 2. Agar nahi, toh Transaction Type ke hisab se "Smart Default" do
+      String defaultPrefix = "TXN-";
+      if (t == "RECEIPT") defaultPrefix = "RCT-";
+      if (t == "PAYMENT") defaultPrefix = "PAY-";
+
+      return NumberingSeries(
+        id: 'tmp_${t}', 
+        name: 'System Default', 
+        type: t, 
+        prefix: defaultPrefix, 
+        isDefault: true
+      );
+    }
+  }  List<NumberingSeries> getSeriesByType(String t) => numberingSeries.where((s) => s.type == t).toList();
   List<String> getSortedStates() { final all = ["Andhra Pradesh", "Assam", "Bihar", "Chhattisgarh", "Goa", "Gujarat", "Haryana", "Himachal Pradesh", "Jharkhand", "Karnataka", "Kerala", "Madhya Pradesh", "Maharashtra", "Manipur", "Meghalaya", "Mizoram", "Nagaland", "Odisha", "Punjab", "Rajasthan", "Sikkim", "Tamil Nadu", "Telangana", "Tripura", "Uttar Pradesh", "Uttarakhand", "West Bengal", "Delhi", "Jammu and Kashmir", "Ladakh", "Puducherry", "Chandigarh"]; Map<String, int> counts = {}; for (var p in parties) { counts[p.state] = (counts[p.state] ?? 0) + 1; } List<String> sorted = List.from(all); sorted.sort((a, b) => (counts[b] ?? 0).compareTo(counts[a] ?? 0)); return sorted; }
 
   // --- SIGNATURES (RESTORED) ---
