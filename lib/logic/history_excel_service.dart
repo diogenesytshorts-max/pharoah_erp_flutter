@@ -1,6 +1,5 @@
 // FILE: lib/logic/history_excel_service.dart
 import 'dart:convert';
-import 'dart:io';
 import 'dart:typed_data';
 import 'package:csv/csv.dart';
 import 'package:file_saver/file_saver.dart';
@@ -11,32 +10,37 @@ class HistoryExcelService {
   static Future<void> export(List<Voucher> list, String shopName) async {
     List<List<dynamic>> rows = [];
 
-    // Header Row
+    // Header Structure
     rows.add([
-      "DATE", "VOUCHER NO", "PARTY NAME", "TYPE", "MODE", 
-      "CHQ/REF NO", "AMOUNT", "NARRATION", "STATUS"
+      "DATE", "VOUCHER NO", "ACCOUNT NAME", "INTERNAL LEDGER", 
+      "TYPE", "MODE", "CHQ/REF NO", "DEBIT (PAID)", "CREDIT (REC)", "NARRATION", "STATUS"
     ]);
 
     for (var v in list) {
-      bool isCan = v.narration.contains("CANCELLED");
+      bool isReceipt = v.type == "Receipt";
+      bool isCan = v.status == "Cancelled";
+
       rows.add([
         DateFormat('dd/MM/yyyy').format(v.date),
         v.voucherNo,
-        v.partyName,
-        v.type,
+        v.partyName.toUpperCase(),
+        v.depositedIn.toUpperCase(),
+        v.type.toUpperCase(),
         v.paymentMode,
         v.chequeNo,
-        v.amount,
+        isReceipt ? 0.00 : v.amount,
+        isReceipt ? v.amount : 0.00,
         v.narration,
-        isCan ? "CANCELLED" : "ACTIVE"
+        v.status.toUpperCase()
       ]);
     }
 
-    String csvData = const ListToCsvConverter().convert(rows);
-    Uint8List bytes = Uint8List.fromList(utf8.encode(csvData));
+    String csv = const ListToCsvConverter().convert(rows);
+    Uint8List bytes = Uint8List.fromList(utf8.encode(csv));
     
+    String dateTag = DateFormat('ddMMM').format(DateTime.now());
     await FileSaver.instance.saveAs(
-      name: "History_${shopName}_${DateFormat('ddMM').format(DateTime.now())}",
+      name: "TXN_History_${shopName}_$dateTag",
       bytes: bytes,
       ext: "csv",
       mimeType: MimeType.csv
