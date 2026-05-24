@@ -50,7 +50,7 @@ class VoucherPdf {
               child: pw.Transform.rotate(
                 angle: 0.5, 
                 child: pw.Text(shop.name.toUpperCase(), 
-                  style: pw.TextStyle(fontSize: 22, fontWeight: pw.FontWeight.bold),
+                  style: pw.TextStyle(fontSize: 20, fontWeight: pw.FontWeight.bold),
                   textAlign: pw.TextAlign.center,
                 )
               )
@@ -111,7 +111,7 @@ class VoucherPdf {
                 pw.Container(
                   padding: const pw.EdgeInsets.all(4),
                   child: pw.Column(children: [
-                    // Party Row
+                    // Row 1
                     pw.Row(children: [
                       pw.Expanded(flex: 5, child: pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
                         pw.Text(party.name.toUpperCase(), style: pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold)),
@@ -121,7 +121,7 @@ class VoucherPdf {
                       pw.Expanded(flex: 2, child: pw.Text(isReceipt ? v.amount.toStringAsFixed(2) : "", textAlign: pw.TextAlign.right, style: const pw.TextStyle(fontSize: 7.5))),
                     ]),
                     pw.SizedBox(height: 3),
-                    // Contra Account Row (Cash/Bank)
+                    // Row 2
                     pw.Row(children: [
                       pw.Expanded(flex: 5, child: pw.Text(v.depositedIn.toUpperCase(), style: const pw.TextStyle(fontSize: 7))),
                       pw.Expanded(flex: 2, child: pw.Text(isReceipt ? v.amount.toStringAsFixed(2) : "", textAlign: pw.TextAlign.right, style: const pw.TextStyle(fontSize: 7.5))),
@@ -130,16 +130,13 @@ class VoucherPdf {
                   ]),
                 ),
 
-                // BILL ADJUSTMENT STRIP (Bill No + Bill Date)
+                // BILL ADJUSTMENT STRIP
                 if (billRefs.isNotEmpty)
                   pw.Container(
                     padding: const pw.EdgeInsets.all(3),
                     width: double.infinity,
                     decoration: const pw.BoxDecoration(border: pw.Border(top: pw.BorderSide(width: 0.3, style: pw.BorderStyle.dashed))),
-                    child: pw.RichText(text: pw.TextSpan(children: [
-                      pw.TextSpan(text: "ADJ AGAINST: ", style: pw.TextStyle(fontSize: 5.5, fontWeight: pw.FontWeight.bold)),
-                      pw.TextSpan(text: billRefs.join(", "), style: const pw.TextStyle(fontSize: 5.5)),
-                    ])),
+                    child: pw.Text("ADJ AGAINST: ${billRefs.join(', ')}", style: const pw.TextStyle(fontSize: 5.5)),
                   ),
 
                 // TOTAL
@@ -164,15 +161,21 @@ class VoucherPdf {
 
             pw.Spacer(),
 
-            // CLEAN SIGNATURE FOOTER (A6 Safe)
+            // CLEAN SIGNATURE FOOTER - FIXED BORDER ISSUE
             pw.Container(
               width: double.infinity,
               child: pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.end, children: [
                 pw.Text("Authorised Signatory for", style: const pw.TextStyle(fontSize: 6)),
-                pw.SizedBox(height: 2),
+                pw.SizedBox(height: 1),
                 pw.Text(shop.name.toUpperCase(), style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold)),
-                pw.SizedBox(height: 20),
-                pw.Container(width: 80, border: const pw.Border(top: pw.BorderSide(width: 0.5))),
+                pw.SizedBox(height: 15),
+                // ✅ FIXED: border moved inside decoration
+                pw.Container(
+                  width: 80, 
+                  decoration: const pw.BoxDecoration(
+                    border: pw.Border(top: pw.BorderSide(width: 0.5))
+                  )
+                ),
               ]),
             ),
             pw.SizedBox(height: 2),
