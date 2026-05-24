@@ -482,29 +482,23 @@ class PharoahManager with ChangeNotifier {
 
   // 4. SMART VOUCHER FINALIZATION (Returns ID for Post-Save Hub)
     Future<String> finalizeVoucher(Voucher v) async {
-    // Duplicate check preventer
-    if (vouchers.any((existing) => existing.voucherNo == v.voucherNo && existing.status == "Active")) {
-       // Agar same number ka active voucher hai toh error prevent karein (Numbering sync fix)
-       return "ERROR_DUPLICATE";
-    }
-
-    vouchers.add(v);
+  vouchers.add(v);
+  if (activeCompany != null) {
+    // Type ab "RECEIPT" ya "PAYMENT" hoga, "VOUCHER" nahi
+    String seriesType = v.type.toUpperCase(); 
+    String prefix = v.voucherNo.split(RegExp(r'\d')).first;
     
-    if (activeCompany != null) {
-      String prefix = v.voucherNo.split(RegExp(r'\d')).first;
-      // Atomic Counter Update: Turant disk par agla number lock karein
-      await PharoahNumberingEngine.updateSeriesCounter(
-        type: "VOUCHER", 
-        companyID: activeCompany!.id, 
-        usedNumber: v.voucherNo, 
-        prefix: prefix
-      );
-    }
-    
-    await save();
-    notifyListeners();
-    return v.id;
+    await PharoahNumberingEngine.updateSeriesCounter(
+      type: seriesType, 
+      companyID: activeCompany!.id, 
+      usedNumber: v.voucherNo, 
+      prefix: prefix
+    );
   }
+  await save();
+  notifyListeners();
+  return v.id;
+}
 
   // 5. CASH LIMIT WATCHDOG
   bool isCashLimitExceeded(String partyId, double newAmount) {
