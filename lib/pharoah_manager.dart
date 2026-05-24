@@ -481,10 +481,18 @@ class PharoahManager with ChangeNotifier {
   }
 
   // 4. SMART VOUCHER FINALIZATION (Returns ID for Post-Save Hub)
-  Future<String> finalizeVoucher(Voucher v) async {
+    Future<String> finalizeVoucher(Voucher v) async {
+    // Duplicate check preventer
+    if (vouchers.any((existing) => existing.voucherNo == v.voucherNo && existing.status == "Active")) {
+       // Agar same number ka active voucher hai toh error prevent karein (Numbering sync fix)
+       return "ERROR_DUPLICATE";
+    }
+
     vouchers.add(v);
+    
     if (activeCompany != null) {
       String prefix = v.voucherNo.split(RegExp(r'\d')).first;
+      // Atomic Counter Update: Turant disk par agla number lock karein
       await PharoahNumberingEngine.updateSeriesCounter(
         type: "VOUCHER", 
         companyID: activeCompany!.id, 
@@ -492,9 +500,10 @@ class PharoahManager with ChangeNotifier {
         prefix: prefix
       );
     }
+    
     await save();
     notifyListeners();
-    return v.id; // 🔥 IMPORTANT: This ID is used for instant printing
+    return v.id;
   }
 
   // 5. CASH LIMIT WATCHDOG
@@ -526,22 +535,34 @@ class PharoahManager with ChangeNotifier {
   void addLog(String a, String d) { logs.add(LogEntry(id: DateTime.now().toString(), action: a, details: d, time: DateTime.now())); save(); }
   void addManualShortage({required Medicine med, required double qty, String cust = ""}) { shortages.add(ShortageItem(id: DateTime.now().toString(), medicineId: med.id, medicineName: med.name, companyName: med.companyId, qtyRequired: qty, currentStock: med.stock, date: DateTime.now(), customerName: cust)); save(); }
   // --- VOUCHER AUDIT ACTIONS ---
+  void _reverseVoucherImpact(Voucher v) {
+    // Note: Is ERP mein outstanding logic dynamically calculated hai (Ledger Reports mein).
+    // Isliye reversal ka matlab hai ki "Cancelled" status ko identify karna.
+    // Hum bas status 'Cancelled' mark karte hain aur logic Reports mein handle ho jayega.
+    addLog("ACCOUNTS", "Reversed Impact of ${v.voucherNo} for ${v.partyName}");
+  }
+
+  // 3. CANCEL ACTION (Audit-Friendly)
   void cancelVoucher(String id) {
     int i = vouchers.indexWhere((v) => v.id == id);
     if (i != -1) {
-      // Logic: Status field agar model mein nahi hai toh hum narration mein tag lagate hain
-      if (!vouchers[i].narration.contains("[CANCELLED]")) {
-        vouchers[i].narration = "[CANCELLED] " + vouchers[i].narration;
-        addLog("ACCOUNTS", "Cancelled Voucher: ${vouchers[i].voucherNo}");
-        save();
-      }
+      _reverseVoucherImpact(vouchers[i]);
+      vouchers[i].status = "Cancelled";
+      vouchers[i].narration = "[CANCELLED] " + vouchers[i].narration;
+      save();
+      notifyListeners();
     }
   }
 
+  // 4. DELETE ACTION (Hard Wipe)
   void deleteVoucher(String id) {
-    vouchers.removeWhere((v) => v.id == id);
-    addLog("ACCOUNTS", "Deleted Voucher Record ID: $id");
-    save();
+    int i = vouchers.indexWhere((v) => v.id == id);
+    if (i != -1) {
+      _reverseVoucherImpact(vouchers[i]);
+      vouchers.removeAt(i);
+      save();
+      notifyListeners();
+    }
   }
 // ===========================================================================
   // ⚡ ADVANCED STOCK-SAFE MODIFICATION ENGINE
