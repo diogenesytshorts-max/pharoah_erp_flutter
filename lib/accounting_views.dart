@@ -80,18 +80,22 @@ class _VoucherEntryViewState extends State<VoucherEntryView> {
         pendingBills = ph.getPendingBills(selectedParty!.id, widget.type == "Receipt");
       } catch (e) { debugPrint("Sync Error: $e"); }
 
-    } else {
+   } else {
       selectedEntryDate = PharoahDateController.getInitialBillDate(ph.currentFY);
       selectedChequeDate = selectedEntryDate;
       
-      // 🔥 SERIES FIX: Type ab "RECEIPT" ya "PAYMENT" alag se jayega
-      var series = ph.getDefaultSeries(widget.type.toUpperCase());
+      String typeKey = widget.type.toUpperCase(); // e.g. "RECEIPT"
+      var series = ph.getDefaultSeries(typeKey);
+
+      // NAYA: Sirf isi type ke vouchers bhejein (e.g. sirf Receipts scan hon)
+      List<Voucher> filteredList = ph.vouchers.where((v) => v.type.toUpperCase() == typeKey).toList();
+
       voucherNo = await PharoahNumberingEngine.getNextNumber(
-        type: widget.type.toUpperCase(), 
+        type: typeKey, 
         companyID: ph.activeCompany!.id,
         prefix: series.prefix, 
         startFrom: series.startNumber, 
-        currentList: ph.vouchers.where((v) => v.type == widget.type).toList(),
+        currentList: filteredList, // Ab ginti ekdum sahi hogi
       );
     }
     setState(() {});
