@@ -1,3 +1,4 @@
+// FILE: lib/pdf/voucher_pdf.dart
 import 'dart:io';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
@@ -19,23 +20,22 @@ class VoucherPdf {
   static Future<void> generate(Voucher v, Party party, CompanyProfile shop, PharoahManager ph) async {
     final pdf = pw.Document();
     bool isReceipt = v.type == "Receipt";
-    final now = DateTime.now();
 
-    // Bill adjustment details with Pending Days calculation
-    List<Map<String, String>> adjDetails = [];
+    // Bill adjustment details with Date Lookup
+    List<String> billRefs = [];
     for (var bNo in v.linkedBillNumbers) {
-      int days = 0;
+      String bDate = "";
       try {
         if (isReceipt) {
           final s = ph.sales.firstWhere((element) => element.billNo == bNo);
-          days = v.date.difference(s.date).inDays;
+          bDate = DateFormat('dd/MM').format(s.date);
         } else {
           final p = ph.purchases.firstWhere((element) => element.billNo == bNo);
-          days = v.date.difference(p.date).inDays;
+          bDate = DateFormat('dd/MM').format(p.date);
         }
-        adjDetails.add({'ref': bNo, 'days': "$days Days"});
+        billRefs.add("$bNo ($bDate)");
       } catch (e) {
-        adjDetails.add({'ref': bNo, 'days': "N/A"});
+        billRefs.add(bNo);
       }
     }
 
@@ -43,29 +43,41 @@ class VoucherPdf {
       pageFormat: a6Portrait,
       build: (pw.Context context) {
         return pw.Stack(children: [
-          // 1. SHADOW WATERMARK
-          pw.Center(child: pw.Opacity(opacity: 0.05, child: pw.Transform.rotate(angle: 0.5, child: pw.Text(shop.name.toUpperCase(), style: pw.TextStyle(fontSize: 25, fontWeight: pw.FontWeight.bold))))),
+          // 1. FIXED SHADOW WATERMARK (Centered & Scaled for A6)
+          pw.Center(
+            child: pw.Opacity(
+              opacity: 0.05, 
+              child: pw.Transform.rotate(
+                angle: 0.5, 
+                child: pw.Text(shop.name.toUpperCase(), 
+                  style: pw.TextStyle(fontSize: 22, fontWeight: pw.FontWeight.bold),
+                  textAlign: pw.TextAlign.center,
+                )
+              )
+            )
+          ),
 
           // 2. MAIN CONTENT
           pw.Column(children: [
-            // HEADER (Centered)
-            pw.Text(shop.name.toUpperCase(), style: pw.TextStyle(fontSize: 10.5, fontWeight: pw.FontWeight.bold)),
+            // HEADER
+            pw.Text(shop.name.toUpperCase(), style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold)),
             pw.Text(shop.address.toUpperCase(), style: const pw.TextStyle(fontSize: 5.5), textAlign: pw.TextAlign.center),
-            pw.Text("GSTIN: ${shop.gstin} | Mob: ${shop.phone}", style: const pw.TextStyle(fontSize: 6)),
+            pw.Text("GSTIN: ${shop.gstin} | PH: ${shop.phone}", style: const pw.TextStyle(fontSize: 5.5)),
             
             pw.SizedBox(height: 3),
 
-            // MAIN BOX
+            // MAIN BORDERED BOX
             pw.Container(
               decoration: pw.BoxDecoration(border: pw.Border.all(width: 0.7)),
               child: pw.Column(children: [
-                // Type Title
+                // Title Bar
                 pw.Container(
-                  width: double.infinity, padding: const pw.EdgeInsets.all(2),
+                  width: double.infinity, padding: const pw.EdgeInsets.all(1.5),
                   decoration: const pw.BoxDecoration(color: PdfColors.grey100, border: pw.Border(bottom: pw.BorderSide(width: 0.5))),
-                  child: pw.Center(child: pw.Text("${v.type.toUpperCase()} VOUCHER", style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold))),
+                  child: pw.Center(child: pw.Text("${v.type.toUpperCase()} VOUCHER", style: pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold))),
                 ),
-                // No & Date
+                
+                // No & Date Row
                 pw.Padding(
                   padding: const pw.EdgeInsets.symmetric(horizontal: 4, vertical: 2),
                   child: pw.Row(mainAxisAlignment: pw.MainAxisAlignment.spaceBetween, children: [
@@ -73,51 +85,63 @@ class VoucherPdf {
                     pw.Text("Date: ${DateFormat('dd-MM-yyyy').format(v.date)}", style: pw.TextStyle(fontSize: 6.5, fontWeight: pw.FontWeight.bold)),
                   ]),
                 ),
+
+                // BANK / CHEQUE DETAILS (Conditional)
+                if (v.paymentMode == "Bank" && v.chequeNo.isNotEmpty)
+                  pw.Container(
+                    width: double.infinity,
+                    padding: const pw.EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                    decoration: const pw.BoxDecoration(border: pw.Border(top: pw.BorderSide(width: 0.3, style: pw.BorderStyle.dashed))),
+                    child: pw.Text("CHQ NO: ${v.chequeNo}  |  CHQ DATE: ${v.chequeDate != null ? DateFormat('dd-MM-yyyy').format(v.chequeDate!) : 'N/A'}", 
+                      style: pw.TextStyle(fontSize: 6, fontWeight: pw.FontWeight.bold, color: PdfColors.blueGrey800)),
+                  ),
+
                 // Table Header
                 pw.Container(
                   padding: const pw.EdgeInsets.symmetric(horizontal: 4, vertical: 1.5),
                   decoration: const pw.BoxDecoration(border: pw.Border(top: pw.BorderSide(width: 0.5), bottom: pw.BorderSide(width: 0.5))),
                   child: pw.Row(children: [
-                    pw.Expanded(flex: 5, child: pw.Text("Particulars", style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold))),
-                    pw.Expanded(flex: 2, child: pw.Text("Debit", textAlign: pw.TextAlign.right, style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold))),
-                    pw.Expanded(flex: 2, child: pw.Text("Credit", textAlign: pw.TextAlign.right, style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold))),
+                    pw.Expanded(flex: 5, child: pw.Text("Particulars", style: pw.TextStyle(fontSize: 6.5, fontWeight: pw.FontWeight.bold))),
+                    pw.Expanded(flex: 2, child: pw.Text("Debit", textAlign: pw.TextAlign.right, style: pw.TextStyle(fontSize: 6.5, fontWeight: pw.FontWeight.bold))),
+                    pw.Expanded(flex: 2, child: pw.Text("Credit", textAlign: pw.TextAlign.right, style: pw.TextStyle(fontSize: 6.5, fontWeight: pw.FontWeight.bold))),
                   ]),
                 ),
-                // Table Body (Ledgers)
+
+                // Ledger Details
                 pw.Container(
                   padding: const pw.EdgeInsets.all(4),
                   child: pw.Column(children: [
-                    // ROW 1: Principal Account
+                    // Party Row
                     pw.Row(children: [
                       pw.Expanded(flex: 5, child: pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
-                        pw.Text(isReceipt ? "CASH / BANK ACCOUNT" : party.name.toUpperCase(), style: pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold)),
-                        if (!isReceipt) pw.Text("${party.city} | GST: ${party.gst}", style: const pw.TextStyle(fontSize: 5)),
+                        pw.Text(party.name.toUpperCase(), style: pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold)),
+                        pw.Text("${party.city} | GST: ${party.gst}", style: const pw.TextStyle(fontSize: 5)),
                       ])),
-                      pw.Expanded(flex: 2, child: pw.Text(v.amount.toStringAsFixed(2), textAlign: pw.TextAlign.right, style: const pw.TextStyle(fontSize: 7.5))),
-                      pw.Expanded(flex: 2, child: pw.Text("", textAlign: pw.TextAlign.right)),
+                      pw.Expanded(flex: 2, child: pw.Text(isReceipt ? "" : v.amount.toStringAsFixed(2), textAlign: pw.TextAlign.right, style: const pw.TextStyle(fontSize: 7.5))),
+                      pw.Expanded(flex: 2, child: pw.Text(isReceipt ? v.amount.toStringAsFixed(2) : "", textAlign: pw.TextAlign.right, style: const pw.TextStyle(fontSize: 7.5))),
                     ]),
                     pw.SizedBox(height: 3),
-                    // ROW 2: Counter Account
+                    // Contra Account Row (Cash/Bank)
                     pw.Row(children: [
-                      pw.Expanded(flex: 5, child: pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
-                        pw.Text(isReceipt ? party.name.toUpperCase() : "CASH / BANK ACCOUNT", style: const pw.TextStyle(fontSize: 7.5)),
-                        if (isReceipt) pw.Text("${party.city} | GST: ${party.gst}", style: const pw.TextStyle(fontSize: 5)),
-                      ])),
-                      pw.Expanded(flex: 2, child: pw.Text("", textAlign: pw.TextAlign.right)),
-                      pw.Expanded(flex: 2, child: pw.Text(v.amount.toStringAsFixed(2), textAlign: pw.TextAlign.right, style: const pw.TextStyle(fontSize: 7.5))),
+                      pw.Expanded(flex: 5, child: pw.Text(v.depositedIn.toUpperCase(), style: const pw.TextStyle(fontSize: 7))),
+                      pw.Expanded(flex: 2, child: pw.Text(isReceipt ? v.amount.toStringAsFixed(2) : "", textAlign: pw.TextAlign.right, style: const pw.TextStyle(fontSize: 7.5))),
+                      pw.Expanded(flex: 2, child: pw.Text(isReceipt ? "" : v.amount.toStringAsFixed(2), textAlign: pw.TextAlign.right, style: const pw.TextStyle(fontSize: 7.5))),
                     ]),
                   ]),
                 ),
-                // ADJ REFERENCE STRIP (New)
-                if (adjDetails.isNotEmpty)
+
+                // BILL ADJUSTMENT STRIP (Bill No + Bill Date)
+                if (billRefs.isNotEmpty)
                   pw.Container(
                     padding: const pw.EdgeInsets.all(3),
+                    width: double.infinity,
                     decoration: const pw.BoxDecoration(border: pw.Border(top: pw.BorderSide(width: 0.3, style: pw.BorderStyle.dashed))),
-                    child: pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
-                      pw.Text("BILL ADJUSTMENT DETAILS:", style: pw.TextStyle(fontSize: 5, fontWeight: pw.FontWeight.bold, color: PdfColors.grey700)),
-                      pw.Wrap(spacing: 5, children: adjDetails.map((det) => pw.Text("Ref: ${det['ref']} (${det['days']})", style: const pw.TextStyle(fontSize: 5))).toList()),
-                    ]),
+                    child: pw.RichText(text: pw.TextSpan(children: [
+                      pw.TextSpan(text: "ADJ AGAINST: ", style: pw.TextStyle(fontSize: 5.5, fontWeight: pw.FontWeight.bold)),
+                      pw.TextSpan(text: billRefs.join(", "), style: const pw.TextStyle(fontSize: 5.5)),
+                    ])),
                   ),
+
                 // TOTAL
                 pw.Container(
                   padding: const pw.EdgeInsets.symmetric(horizontal: 4, vertical: 2),
@@ -128,25 +152,31 @@ class VoucherPdf {
                     pw.Expanded(flex: 2, child: pw.Text(v.amount.toStringAsFixed(2), textAlign: pw.TextAlign.right, style: pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold))),
                   ]),
                 ),
+
                 // AMOUNT IN WORDS
                 pw.Container(
                   width: double.infinity, padding: const pw.EdgeInsets.all(4),
                   decoration: const pw.BoxDecoration(border: pw.Border(top: pw.BorderSide(width: 0.5))),
-                  child: pw.Text("Rs. ${PdfMasterService.numberToWords(v.amount.round())} Only", style: pw.TextStyle(fontSize: 6.5, fontWeight: pw.FontWeight.bold)),
+                  child: pw.Text("Rupees ${PdfMasterService.numberToWords(v.amount.round())} Only", style: pw.TextStyle(fontSize: 6.5, fontWeight: pw.FontWeight.bold)),
                 ),
               ]),
             ),
+
             pw.Spacer(),
-            // SIGNATURES
-            pw.Padding(
-              padding: const pw.EdgeInsets.only(bottom: 2),
-              child: pw.Row(mainAxisAlignment: pw.MainAxisAlignment.spaceBetween, children: [
-                pw.Text("(Prepared By)", style: const pw.TextStyle(fontSize: 6)),
-                pw.Text("(Receiver)", style: const pw.TextStyle(fontSize: 6)),
-                pw.Text("(Accountant)", style: const pw.TextStyle(fontSize: 6)),
-                pw.Text("(Prop.)", style: const pw.TextStyle(fontSize: 6)),
+
+            // CLEAN SIGNATURE FOOTER (A6 Safe)
+            pw.Container(
+              width: double.infinity,
+              child: pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.end, children: [
+                pw.Text("Authorised Signatory for", style: const pw.TextStyle(fontSize: 6)),
+                pw.SizedBox(height: 2),
+                pw.Text(shop.name.toUpperCase(), style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold)),
+                pw.SizedBox(height: 20),
+                pw.Container(width: 80, border: const pw.Border(top: pw.BorderSide(width: 0.5))),
               ]),
             ),
+            pw.SizedBox(height: 2),
+            pw.Text("System Generated via Pharoah ERP", style: const pw.TextStyle(fontSize: 4, color: PdfColors.grey500)),
           ]),
         ]);
       },
