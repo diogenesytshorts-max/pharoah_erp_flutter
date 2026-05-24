@@ -73,6 +73,16 @@ class AccountsMenuView extends StatelessWidget {
             const SizedBox(height: 15),
 
             // --- SECTION 2: ACCOUNTING REPORTS ---
+            // AccountsMenuView ke building block mein isko add karein:
+
+_reportCard(
+  context, 
+  "Payment/Receipt History", 
+  "Full Audit & A6 Printing", 
+  Icons.history_edu_rounded, 
+  Colors.orange.shade900, 
+  const PaymentReceiptHistory() // Naya Hub
+),
             Row(
               children: [
                 Expanded(
