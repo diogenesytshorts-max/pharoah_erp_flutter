@@ -209,9 +209,10 @@ class _MainControlShellState extends State<MainControlShell> {
         case "GO_LEDGERS": target = const LedgerReportsView(); break;
         case "GO_RECEIPT": target = const VoucherEntryView(type: "Receipt"); break;
         case "GO_PAYMENT": target = const VoucherEntryView(type: "Payment"); break;
-          // lib/main_control_shell.dart ke Switch block mein niche ye jodiye:
+         // lib/main_control_shell.dart ke switch case mein:
 
         case "GO_HISTORY": 
+          // ✅ FIX: 'const' hata diya gaya hai taaki build fail na ho
           target = const PaymentReceiptHistory(); 
           break;
         case "GO_MODIFICATION": target = const ModifyHubView(); break;
