@@ -27,18 +27,22 @@ class PharoahNumberingEngine {
     for (var item in currentList) {
       String idToParse = "";
       
+     // loop ke andar jahan idToParse assign ho raha hai, wahan ye logic jodein:
+
       try {
         if (type == "PURCHASE" || type == "CHALLAN_PUR") {
-          idToParse = item.internalNo; // Purchase builds on Internal ID
+          idToParse = item.internalNo;
         } 
         else if (type == "PRODUCT") {
-          idToParse = item.systemId; // Product builds on System ID (PH-)
+          idToParse = item.systemId;
         } 
-        else if (type == "SALT" || type == "COMPANY" || type == "DRUGTYPE") {
-          idToParse = item.id;
+        // --- NAYA LOGIC YAHAN JODEIN ---
+        else if (type == "RECEIPT" || type == "PAYMENT") {
+          idToParse = item.voucherNo; // Kyunki Voucher model mein field ka naam voucherNo hai
         }
+        // ------------------------------
         else {
-          idToParse = item.billNo; // Sale/Challan builds on Bill No
+          idToParse = item.billNo; 
         }
       } catch (e) {
         idToParse = ""; 
