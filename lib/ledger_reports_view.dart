@@ -105,7 +105,10 @@ class _LedgerReportsViewState extends State<LedgerReportsView> {
       total -= pur.totalAmount;
     }
     // 3. Vouchers (Receipt/Payment)
-    for (var v in ph.vouchers.where((v) => v.partyName == p.name)) {
+    // lib/ledger_reports_view.dart mein calculation line update karein:
+
+    // 3. Vouchers (Receipt/Payment)
+    for (var v in ph.vouchers.where((v) => v.partyName == p.name && v.status == "Active")) { // 👈 ADDED: && v.status == "Active"
       if (v.type == "Receipt") total -= v.amount;
       if (v.type == "Payment") total += v.amount;
     }
