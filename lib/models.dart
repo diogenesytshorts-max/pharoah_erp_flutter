@@ -400,20 +400,7 @@ class Voucher {
     roundOff: (map['roundOff'] ?? 0.0).toDouble(),
   );
 }
-  factory Voucher.fromMap(Map<String, dynamic> map) => Voucher(
-    id: map['id'] ?? "", type: map['type'] ?? "",
-    voucherNo: map['voucherNo'] ?? "LEGACY", // Purana data pehchanne ke liye
-    date: DateTime.parse(map['date'] ?? DateTime.now().toIso8601String()),
-    partyId: map['partyId'] ?? "", partyName: map['partyName'] ?? "",
-    amount: (map['amount'] ?? 0.0).toDouble(),
-    paymentMode: map['paymentMode'] ?? "Cash", narration: map['narration'] ?? "",
-    linkedBillNumbers: List<String>.from(map['linkedBillNumbers'] ?? []),
-    chequeNo: map['chequeNo'] ?? "", bankName: map['bankName'] ?? "",
-    depositedIn: map['depositedIn'] ?? "",
-    chequeDate: map['chequeDate'] != null ? DateTime.parse(map['chequeDate']) : null,
-    roundOff: (map['roundOff'] ?? 0.0).toDouble(),
-  );
-}
+  
 class ChequeEntry { String id, partyName, billNo, chequeNo, partyBank, depositBank, status, remark; DateTime date, chequeDate; double amount; ChequeEntry({required this.id, required this.partyName, this.billNo = "", required this.amount, required this.chequeNo, required this.date, required this.chequeDate, this.partyBank = "", this.depositBank = "", this.status = "Received", this.remark = ""}); Map<String, dynamic> toMap() => {'id': id, 'partyName': partyName, 'billNo': billNo, 'amount': amount, 'chequeNo': chequeNo, 'date': date.toIso8601String(), 'chequeDate': chequeDate.toIso8601String(), 'partyBank': partyBank, 'depositBank': depositBank, 'status': status, 'remark': remark}; factory ChequeEntry.fromMap(Map<String, dynamic> map) => ChequeEntry(id: map['id'] ?? "", partyName: map['partyName'] ?? "", billNo: map['billNo'] ?? "", amount: (map['amount'] ?? 0.0).toDouble(), chequeNo: map['chequeNo'] ?? "", date: DateTime.parse(map['date'] ?? DateTime.now().toIso8601String()), chequeDate: DateTime.parse(map['chequeDate'] ?? DateTime.now().toIso8601String()), partyBank: map['partyBank'] ?? "", depositBank: map['depositBank'] ?? "", status: map['status'] ?? "Received", remark: map['remark'] ?? ""); }
 class ShortageItem { String id, medicineId, medicineName, companyName, distributorName, customerName, source; double qtyRequired, currentStock; DateTime date; Map<String, dynamic> toMap() => {'id': id, 'medicineId': medicineId, 'medicineName': medicineName, 'companyName': companyName, 'distributorName': distributorName, 'customerName': customerName, 'source': source, 'qtyRequired': qtyRequired, 'currentStock': currentStock, 'date': date.toIso8601String()}; ShortageItem({required this.id, required this.medicineId, required this.medicineName, required this.companyName, this.distributorName = "", this.customerName = "", this.source = "Manual", required this.qtyRequired, required this.currentStock, required this.date}); factory ShortageItem.fromMap(Map<String, dynamic> map) => ShortageItem(id: map['id'] ?? "", medicineId: map['medicineId'] ?? "", medicineName: map['medicineName'] ?? "", companyName: map['companyId'] ?? "N/A", distributorName: map['distributorName'] ?? "", customerName: map['customerName'] ?? "", source: map['source'] ?? "Manual", qtyRequired: (map['qtyRequired'] ?? 0.0).toDouble(), currentStock: (map['currentStock'] ?? 0.0).toDouble(), date: DateTime.parse(map['date'] ?? DateTime.now().toIso8601String())); }
 class ModuleAction { final String title; final IconData icon; final Color color; final Widget? targetScreen; final String? navModule; ModuleAction({required this.title, required this.icon, required this.color, this.targetScreen, this.navModule}); }
