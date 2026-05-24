@@ -524,6 +524,24 @@ class PharoahManager with ChangeNotifier {
   void addCheque(ChequeEntry c) { cheques.add(c); save(); }
   void addLog(String a, String d) { logs.add(LogEntry(id: DateTime.now().toString(), action: a, details: d, time: DateTime.now())); save(); }
   void addManualShortage({required Medicine med, required double qty, String cust = ""}) { shortages.add(ShortageItem(id: DateTime.now().toString(), medicineId: med.id, medicineName: med.name, companyName: med.companyId, qtyRequired: qty, currentStock: med.stock, date: DateTime.now(), customerName: cust)); save(); }
+  // --- VOUCHER AUDIT ACTIONS ---
+  void cancelVoucher(String id) {
+    int i = vouchers.indexWhere((v) => v.id == id);
+    if (i != -1) {
+      // Logic: Status field agar model mein nahi hai toh hum narration mein tag lagate hain
+      if (!vouchers[i].narration.contains("[CANCELLED]")) {
+        vouchers[i].narration = "[CANCELLED] " + vouchers[i].narration;
+        addLog("ACCOUNTS", "Cancelled Voucher: ${vouchers[i].voucherNo}");
+        save();
+      }
+    }
+  }
+
+  void deleteVoucher(String id) {
+    vouchers.removeWhere((v) => v.id == id);
+    addLog("ACCOUNTS", "Deleted Voucher Record ID: $id");
+    save();
+  }
 // ===========================================================================
   // ⚡ ADVANCED STOCK-SAFE MODIFICATION ENGINE
   // ===========================================================================
