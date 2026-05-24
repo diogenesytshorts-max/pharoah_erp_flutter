@@ -1,6 +1,4 @@
-// FILE: lib/pdf/voucher_pdf.dart
 import 'dart:io';
-import 'dart:typed_data';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
@@ -11,146 +9,149 @@ import '../gateway/company_registry_model.dart';
 import 'pdf_master_service.dart';
 
 class VoucherPdf {
-  // A5 Portrait Size (148mm x 210mm) - A4 ka perfect aadha
-  static final PdfPageFormat a5Portrait = PdfPageFormat(
+  // A6 Portrait (105mm x 148mm) - Perfect 1/4 of A4
+  static const PdfPageFormat a6Portrait = PdfPageFormat(
+    105 * PdfPageFormat.mm, 
     148 * PdfPageFormat.mm, 
-    210 * PdfPageFormat.mm, 
-    marginAll: 7 * PdfPageFormat.mm,
+    marginAll: 4 * PdfPageFormat.mm,
   );
 
   static Future<void> generate(Voucher v, Party party, CompanyProfile shop, PharoahManager ph) async {
     final pdf = pw.Document();
-    
     bool isReceipt = v.type == "Receipt";
-    PdfColor themeColor = isReceipt ? PdfColors.green900 : PdfColors.red900;
-    PdfColor lightBg = isReceipt ? PdfColors.green50 : PdfColors.red50;
+    final now = DateTime.now();
 
-    // Safety: Bill details fetch logic
-    List<Map<String, dynamic>> billRows = [];
+    // Bill adjustment details with Pending Days calculation
+    List<Map<String, String>> adjDetails = [];
     for (var bNo in v.linkedBillNumbers) {
-      String dt = "N/A";
+      int days = 0;
       try {
         if (isReceipt) {
           final s = ph.sales.firstWhere((element) => element.billNo == bNo);
-          dt = DateFormat('dd/MM/yy').format(s.date);
+          days = v.date.difference(s.date).inDays;
         } else {
           final p = ph.purchases.firstWhere((element) => element.billNo == bNo);
-          dt = DateFormat('dd/MM/yy').format(p.date);
+          days = v.date.difference(p.date).inDays;
         }
-      } catch (e) { dt = "Ref."; }
-      billRows.add({'no': bNo, 'date': dt});
+        adjDetails.add({'ref': bNo, 'days': "$days Days"});
+      } catch (e) {
+        adjDetails.add({'ref': bNo, 'days': "N/A"});
+      }
     }
 
     pdf.addPage(pw.Page(
-      pageFormat: a5Portrait,
-      build: (context) => pw.Container(
-        decoration: pw.BoxDecoration(
-          border: pw.Border.all(width: 1.2, color: themeColor),
-          borderRadius: const pw.BorderRadius.all(pw.Radius.circular(10)),
-        ),
-        child: pw.Column(children: [
-          // 1. HEADER
-          pw.Container(
-            padding: const pw.EdgeInsets.all(8),
-            decoration: pw.BoxDecoration(
-              color: lightBg, 
-              border: pw.Border(bottom: pw.BorderSide(width: 1, color: themeColor))
-            ),
-            child: pw.Row(mainAxisAlignment: pw.MainAxisAlignment.spaceBetween, children: [
-              pw.Expanded(child: pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
-                pw.Text(shop.name.toUpperCase(), style: pw.TextStyle(fontSize: 13, fontWeight: pw.FontWeight.bold, color: themeColor)),
-                pw.Text(shop.address, style: const pw.TextStyle(fontSize: 6.5), maxLines: 1),
-                pw.Text("GSTIN: ${shop.gstin}", style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold)),
-              ])),
-              pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.end, children: [
-                pw.Text(isReceipt ? "RECEIPT" : "PAYMENT", style: pw.TextStyle(fontSize: 11, fontWeight: pw.FontWeight.bold, color: themeColor)),
-                pw.Text("No: ${v.voucherNo}", style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold)),
-                pw.Text(DateFormat('dd/MM/yyyy').format(v.date), style: const pw.TextStyle(fontSize: 7.5)),
+      pageFormat: a6Portrait,
+      build: (pw.Context context) {
+        return pw.Stack(children: [
+          // 1. SHADOW WATERMARK
+          pw.Center(child: pw.Opacity(opacity: 0.05, child: pw.Transform.rotate(angle: 0.5, child: pw.Text(shop.name.toUpperCase(), style: pw.TextStyle(fontSize: 25, fontWeight: pw.FontWeight.bold))))),
+
+          // 2. MAIN CONTENT
+          pw.Column(children: [
+            // HEADER (Centered)
+            pw.Text(shop.name.toUpperCase(), style: pw.TextStyle(fontSize: 10.5, fontWeight: pw.FontWeight.bold)),
+            pw.Text(shop.address.toUpperCase(), style: const pw.TextStyle(fontSize: 5.5), textAlign: pw.TextAlign.center),
+            pw.Text("GSTIN: ${shop.gstin} | Mob: ${shop.phone}", style: const pw.TextStyle(fontSize: 6)),
+            
+            pw.SizedBox(height: 3),
+
+            // MAIN BOX
+            pw.Container(
+              decoration: pw.BoxDecoration(border: pw.Border.all(width: 0.7)),
+              child: pw.Column(children: [
+                // Type Title
+                pw.Container(
+                  width: double.infinity, padding: const pw.EdgeInsets.all(2),
+                  decoration: const pw.BoxDecoration(color: PdfColors.grey100, border: pw.Border(bottom: pw.BorderSide(width: 0.5))),
+                  child: pw.Center(child: pw.Text("${v.type.toUpperCase()} VOUCHER", style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold))),
+                ),
+                // No & Date
+                pw.Padding(
+                  padding: const pw.EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                  child: pw.Row(mainAxisAlignment: pw.MainAxisAlignment.spaceBetween, children: [
+                    pw.Text("Voucher No: ${v.voucherNo}", style: pw.TextStyle(fontSize: 6.5, fontWeight: pw.FontWeight.bold)),
+                    pw.Text("Date: ${DateFormat('dd-MM-yyyy').format(v.date)}", style: pw.TextStyle(fontSize: 6.5, fontWeight: pw.FontWeight.bold)),
+                  ]),
+                ),
+                // Table Header
+                pw.Container(
+                  padding: const pw.EdgeInsets.symmetric(horizontal: 4, vertical: 1.5),
+                  decoration: const pw.BoxDecoration(border: pw.Border(top: pw.BorderSide(width: 0.5), bottom: pw.BorderSide(width: 0.5))),
+                  child: pw.Row(children: [
+                    pw.Expanded(flex: 5, child: pw.Text("Particulars", style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold))),
+                    pw.Expanded(flex: 2, child: pw.Text("Debit", textAlign: pw.TextAlign.right, style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold))),
+                    pw.Expanded(flex: 2, child: pw.Text("Credit", textAlign: pw.TextAlign.right, style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold))),
+                  ]),
+                ),
+                // Table Body (Ledgers)
+                pw.Container(
+                  padding: const pw.EdgeInsets.all(4),
+                  child: pw.Column(children: [
+                    // ROW 1: Principal Account
+                    pw.Row(children: [
+                      pw.Expanded(flex: 5, child: pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
+                        pw.Text(isReceipt ? "CASH / BANK ACCOUNT" : party.name.toUpperCase(), style: pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold)),
+                        if (!isReceipt) pw.Text("${party.city} | GST: ${party.gst}", style: const pw.TextStyle(fontSize: 5)),
+                      ])),
+                      pw.Expanded(flex: 2, child: pw.Text(v.amount.toStringAsFixed(2), textAlign: pw.TextAlign.right, style: const pw.TextStyle(fontSize: 7.5))),
+                      pw.Expanded(flex: 2, child: pw.Text("", textAlign: pw.TextAlign.right)),
+                    ]),
+                    pw.SizedBox(height: 3),
+                    // ROW 2: Counter Account
+                    pw.Row(children: [
+                      pw.Expanded(flex: 5, child: pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
+                        pw.Text(isReceipt ? party.name.toUpperCase() : "CASH / BANK ACCOUNT", style: const pw.TextStyle(fontSize: 7.5)),
+                        if (isReceipt) pw.Text("${party.city} | GST: ${party.gst}", style: const pw.TextStyle(fontSize: 5)),
+                      ])),
+                      pw.Expanded(flex: 2, child: pw.Text("", textAlign: pw.TextAlign.right)),
+                      pw.Expanded(flex: 2, child: pw.Text(v.amount.toStringAsFixed(2), textAlign: pw.TextAlign.right, style: const pw.TextStyle(fontSize: 7.5))),
+                    ]),
+                  ]),
+                ),
+                // ADJ REFERENCE STRIP (New)
+                if (adjDetails.isNotEmpty)
+                  pw.Container(
+                    padding: const pw.EdgeInsets.all(3),
+                    decoration: const pw.BoxDecoration(border: pw.Border(top: pw.BorderSide(width: 0.3, style: pw.BorderStyle.dashed))),
+                    child: pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
+                      pw.Text("BILL ADJUSTMENT DETAILS:", style: pw.TextStyle(fontSize: 5, fontWeight: pw.FontWeight.bold, color: PdfColors.grey700)),
+                      pw.Wrap(spacing: 5, children: adjDetails.map((det) => pw.Text("Ref: ${det['ref']} (${det['days']})", style: const pw.TextStyle(fontSize: 5))).toList()),
+                    ]),
+                  ),
+                // TOTAL
+                pw.Container(
+                  padding: const pw.EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                  decoration: const pw.BoxDecoration(border: pw.Border(top: pw.BorderSide(width: 0.5))),
+                  child: pw.Row(children: [
+                    pw.Expanded(flex: 5, child: pw.Text("TOTAL", style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold))),
+                    pw.Expanded(flex: 2, child: pw.Text(v.amount.toStringAsFixed(2), textAlign: pw.TextAlign.right, style: pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold))),
+                    pw.Expanded(flex: 2, child: pw.Text(v.amount.toStringAsFixed(2), textAlign: pw.TextAlign.right, style: pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold))),
+                  ]),
+                ),
+                // AMOUNT IN WORDS
+                pw.Container(
+                  width: double.infinity, padding: const pw.EdgeInsets.all(4),
+                  decoration: const pw.BoxDecoration(border: pw.Border(top: pw.BorderSide(width: 0.5))),
+                  child: pw.Text("Rs. ${PdfMasterService.numberToWords(v.amount.round())} Only", style: pw.TextStyle(fontSize: 6.5, fontWeight: pw.FontWeight.bold)),
+                ),
               ]),
-            ]),
-          ),
-
-          // 2. PARTY INFO
-          pw.Padding(
-            padding: const pw.EdgeInsets.all(10), 
-            child: pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
-              pw.Text(isReceipt ? "RECEIVED FROM:" : "PAID TO:", style: pw.TextStyle(fontSize: 7, color: PdfColors.grey700)),
-              pw.SizedBox(height: 2),
-              pw.Text(party.name, style: pw.TextStyle(fontSize: 12, fontWeight: pw.FontWeight.bold)),
-              pw.Text("${party.city}, ${party.state}", style: const pw.TextStyle(fontSize: 8)),
-              pw.Divider(thickness: 0.5, color: PdfColors.grey300),
-              
-              pw.SizedBox(height: 5),
-              pw.Row(mainAxisAlignment: pw.MainAxisAlignment.spaceBetween, children: [
-                pw.Text("MODE: ${v.paymentMode.toUpperCase()}", style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold)),
-                if (v.paymentMode != "Cash") pw.Text("CHQ/REF: ${v.chequeNo}", style: const pw.TextStyle(fontSize: 8)),
-              ]),
-            ]),
-          ),
-
-          // 3. AMOUNT BOX
-          pw.Container(
-            margin: const pw.EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-            padding: const pw.EdgeInsets.all(10),
-            decoration: pw.BoxDecoration(
-              color: lightBg, 
-              borderRadius: pw.BorderRadius.circular(8), 
-              border: pw.Border.all(color: themeColor, width: 0.5)
             ),
-            child: pw.Row(mainAxisAlignment: pw.MainAxisAlignment.spaceBetween, children: [
-              pw.Text("NET SETTLEMENT", style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold, color: themeColor)),
-              pw.Text("Rs. ${v.amount.toStringAsFixed(2)}", style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold, color: themeColor)),
-            ]),
-          ),
-
-          // 4. ADJUSTMENT TABLE
-          if (billRows.isNotEmpty) ...[
+            pw.Spacer(),
+            // SIGNATURES
             pw.Padding(
-              padding: const pw.EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-              child: pw.TableHelper.fromTextArray(
-                headerStyle: pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold, color: PdfColors.white),
-                headerDecoration: pw.BoxDecoration(color: themeColor),
-                cellStyle: const pw.TextStyle(fontSize: 7.5),
-                cellAlignment: pw.Alignment.centerLeft,
-                headers: ['Adjusted Bill Number', 'Bill Date'],
-                data: billRows.map((r) => [r['no'], r['date']]).toList(),
-              ),
+              padding: const pw.EdgeInsets.only(bottom: 2),
+              child: pw.Row(mainAxisAlignment: pw.MainAxisAlignment.spaceBetween, children: [
+                pw.Text("(Prepared By)", style: const pw.TextStyle(fontSize: 6)),
+                pw.Text("(Receiver)", style: const pw.TextStyle(fontSize: 6)),
+                pw.Text("(Accountant)", style: const pw.TextStyle(fontSize: 6)),
+                pw.Text("(Prop.)", style: const pw.TextStyle(fontSize: 6)),
+              ]),
             ),
-          ],
-
-          pw.Spacer(),
-
-          // 5. FOOTER & SIGNATURE
-          pw.Padding(
-            padding: const pw.EdgeInsets.all(10),
-            child: pw.Column(children: [
-               pw.Row(
-                mainAxisAlignment: pw.MainAxisAlignment.spaceBetween, 
-                crossAxisAlignment: pw.CrossAxisAlignment.end, // FIXED: pw.End se pw.CrossAxisAlignment.end kiya
-                children: [
-                  pw.Column(children: [
-                    pw.Container(width: 60, decoration: const pw.BoxDecoration(border: pw.Border(bottom: pw.BorderSide(width: 0.5)))),
-                    pw.SizedBox(height: 2),
-                    pw.Text("Receiver's Sign", style: const pw.TextStyle(fontSize: 7)),
-                  ]),
-                  pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.end, children: [
-                    pw.Text("For ${shop.name}", style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold)),
-                    pw.SizedBox(height: 25),
-                    pw.Text("Authorized Signatory", style: const pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold)),
-                  ]),
-               ]),
-               pw.SizedBox(height: 8),
-               pw.Text("Computer Generated Payment Advice", style: const pw.TextStyle(fontSize: 6, color: PdfColors.grey500)),
-            ]),
-          ),
-        ]),
-      ),
+          ]),
+        ]);
+      },
     ));
 
-    await Printing.layoutPdf(
-      onLayout: (format) async => pdf.save(), 
-      name: 'Voucher_${v.voucherNo}',
-      format: a5Portrait, 
-    );
+    await Printing.layoutPdf(onLayout: (format) async => pdf.save(), name: 'Voucher_${v.voucherNo}', format: a6Portrait);
   }
 }
