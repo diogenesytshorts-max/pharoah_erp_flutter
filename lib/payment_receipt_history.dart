@@ -233,9 +233,11 @@ class _PaymentReceiptHistoryState extends State<PaymentReceiptHistory> {
           
           Row(mainAxisAlignment: MainAxisAlignment.spaceAround, children: [
              // 1. VIEW (Read Only Mode)
-             _hubBtn(Icons.visibility_outlined, "VIEW", Colors.blue, () { 
+              _hubBtn(Icons.visibility_outlined, "VIEW", Colors.blue, () { 
                 Navigator.pop(c);
-                Navigator.push(context, MaterialPageRoute(builder: (c) => VoucherEntryView(type: v.type, existingVoucher: v)));
+                Navigator.push(context, MaterialPageRoute(builder: (c) => 
+                  VoucherEntryView(type: v.type, existingVoucher: v, isReadOnly: true)
+                ));
              }),
              // 2. MODIFY (Everything Editable)
              _hubBtn(Icons.edit_note_rounded, "MODIFY", Colors.orange, () { 
