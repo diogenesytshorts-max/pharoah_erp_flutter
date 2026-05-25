@@ -44,13 +44,13 @@ class AccountsMenuView extends StatelessWidget {
                   title: "Receipt (Cash In)",
                   icon: Icons.add_chart_rounded,
                   color: Colors.green.shade700,
-                  onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => const VoucherEntryView(type: "Receipt"))),
+                  onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => const VoucherEntryView(type: "RECEIPT"))),
                 ),
                 ActionIconBtn(
                   title: "Payment (Cash Out)",
                   icon: Icons.analytics_rounded,
                   color: Colors.red.shade700,
-                  onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => const VoucherEntryView(type: "Payment"))),
+                  onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => const VoucherEntryView(type: "PAYMENT"))),
                 ),
                 ActionIconBtn(
                   title: "Contra (Bank)",
