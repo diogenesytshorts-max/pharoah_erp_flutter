@@ -61,18 +61,38 @@ class _PartyLedgerStatementViewState extends State<PartyLedgerStatementView> {
 
     return Scaffold(
       backgroundColor: const Color(0xFFF8F9FB),
-      appBar: AppBar(
-        title: Text(selectedParty == null ? "Ledger Audit" : selectedParty!.name),
-        backgroundColor: const Color(0xFF1A237E),
-        // 🔥 NAYA: PDF Button yahan add kiya gaya hai
-        actions: [
-          if (selectedParty != null)
+   actions: [
+          if (selectedParty != null) ...[
+            // 📧 NAYA: EMAIL ICON FOR STATEMENT
+            if (ph.config.isEmailActive)
+              IconButton(
+                icon: const Icon(Icons.alternate_email),
+                tooltip: "Email Statement to Party",
+                onPressed: () {
+                  // 1. Data collect karna
+                  final data = ph.getPartyStatementData(
+                      partyId: selectedParty!.id, 
+                      fromDate: fromDate, 
+                      toDate: toDate
+                  );
+                  
+                  // 2. Email Dispatch
+                  PdfRouterService.emailDocument(
+                    context: context,
+                    doc: data, // List of transactions
+                    party: selectedParty!,
+                    ph: ph,
+                    type: "LEDGER",
+                  );
+                },
+              ),
+
             IconButton(
               icon: const Icon(Icons.picture_as_pdf_rounded),
-              onPressed: () => _generateStatementPdf(ph), // Connecting logic
+              onPressed: () => _generateStatementPdf(ph),
             ),
+          ]
         ],
-      ),
       body: Column(children: [
         _buildFilterPanel(ph),
         if (selectedParty != null) _buildSummaryRibbon(ledgerData),
