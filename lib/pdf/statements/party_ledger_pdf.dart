@@ -42,6 +42,36 @@ class PartyLedgerPdf {
       name: 'Ledger_${party.name}_${DateFormat('ddMMMyy').format(from)}',
     );
   }
+  // 📧 NAYA: EMAIL KE LIYE BYTES GENERATE KARNA
+  static Future<Uint8List> generateBytes({
+    required CompanyProfile shop,
+    required Party party,
+    required List<Map<String, dynamic>> data,
+    required DateTime from,
+    required DateTime to,
+  }) async {
+    final pdf = pw.Document();
+    
+    // Summary Calculations
+    double totalDr = data.where((e) => e['type'] != 'OPENING').fold(0, (s, e) => s + (e['dr'] ?? 0));
+    double totalCr = data.where((e) => e['type'] != 'OPENING').fold(0, (s, e) => s + (e['cr'] ?? 0));
+    double closingBal = data.last['bal'];
+
+    pdf.addPage(
+      pw.MultiPage(
+        pageFormat: PdfPageFormat.a4,
+        margin: const pw.EdgeInsets.all(30),
+        header: (context) => _buildHeader(shop, party, from, to),
+        build: (context) => [
+          _buildStatementTable(data),
+          pw.SizedBox(height: 20),
+          _buildSummaryBox(totalDr, totalCr, closingBal, shop.name),
+        ],
+      ),
+    );
+
+    return pdf.save(); // Direct bytes return karega
+  }
 
   // --- 1. PROFESSIONAL HEADER (Shop + Party Details) ---
   static pw.Widget _buildHeader(CompanyProfile shop, Party party, DateTime from, DateTime to) {
