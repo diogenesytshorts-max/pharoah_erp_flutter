@@ -1,5 +1,3 @@
-// FILE: lib/accounting_views.dart
-
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
@@ -13,27 +11,25 @@ import 'pdf/pdf_router_service.dart';
 class VoucherEntryView extends StatefulWidget {
   final String type; // Receipt or Payment
   final Voucher? existingVoucher; 
-  final bool isReadOnly; // 🔥 NAYA: View Mode ko lock karne ke liye
+  final bool isReadOnly; 
 
   const VoucherEntryView({
     super.key, 
     required this.type, 
     this.existingVoucher,
-    this.isReadOnly = false, // Default editing allowed
+    this.isReadOnly = false, 
   });
 
   @override State<VoucherEntryView> createState() => _VoucherEntryViewState();
 }
 
 class _VoucherEntryViewState extends State<VoucherEntryView> {
-  // Controllers
   final amountC = TextEditingController();
   final narrationC = TextEditingController();
   final chequeNoC = TextEditingController();
   final partyBankC = TextEditingController();
   final partySearchC = TextEditingController();
 
-  // State Variables
   DateTime selectedEntryDate = DateTime.now(); 
   DateTime selectedChequeDate = DateTime.now(); 
   Party? selectedParty;
@@ -42,7 +38,6 @@ class _VoucherEntryViewState extends State<VoucherEntryView> {
   String voucherNo = "Loading...";
   bool isUpdateMode = false;
 
-  // Selection Logic
   List<Map<String, dynamic>> pendingBills = [];
   List<String> selectedBillNumbers = [];
   double runningTotal = 0.0;
@@ -54,9 +49,6 @@ class _VoucherEntryViewState extends State<VoucherEntryView> {
     _initVoucherSession();
   }
 
-  // ===========================================================================
-  // 🔄 SESSION INITIALIZATION (ALAG SERIES LOGIC)
-  // ===========================================================================
   void _initVoucherSession() async {
     final ph = Provider.of<PharoahManager>(context, listen: false);
     
@@ -77,42 +69,202 @@ class _VoucherEntryViewState extends State<VoucherEntryView> {
       try {
         selectedParty = ph.parties.firstWhere((p) => p.id == v.partyId);
         selectedInternalAccount = ph.parties.firstWhere((p) => p.name == v.depositedIn);
-        pendingBills = ph.getPendingBills(selectedParty!.id, widget.type == "Receipt");
+        pendingBills = ph.getPendingBills(selectedParty!.id, widget.type.toUpperCase() == "RECEIPT");
       } catch (e) { debugPrint("Sync Error: $e"); }
 
-  } else {
+    } else {
       selectedEntryDate = PharoahDateController.getInitialBillDate(ph.currentFY);
       selectedChequeDate = selectedEntryDate;
       
-      String typeKey = widget.type.toUpperCase(); // Ensure it's "RECEIPT" or "PAYMENT"
-
-      // Agar Contra ya Expense hai, toh type "VOUCHER" hi rahega
-      if (typeKey == "CONTRA" || typeKey == "EXPENSE") {
-        typeKey = "VOUCHER"; // General Voucher series ke liye
-      }
-
+      String typeKey = widget.type.toUpperCase(); 
       var series = ph.getDefaultSeries(typeKey);
 
-      // NAYA: Sirf isi type ke vouchers ko filter karein
+      // Filter list to get correct next number
       List<Voucher> filteredList = ph.vouchers.where((v) => v.type.toUpperCase() == typeKey).toList();
 
       voucherNo = await PharoahNumberingEngine.getNextNumber(
-        type: typeKey, // Engine ko sahi type batao
+        type: typeKey, 
         companyID: ph.activeCompany!.id,
         prefix: series.prefix, 
         startFrom: series.startNumber, 
-        currentList: filteredList, // Filtered list pass karein
+        currentList: filteredList,
       );
     }
     setState(() {});
   }
 
-  // ===========================================================================
-  // 🛡️ BILL REFERENCE WIZARD
-  // ===========================================================================
+  @override
+  Widget build(BuildContext context) {
+    final ph = Provider.of<PharoahManager>(context);
+    Color themeColor = widget.type.toUpperCase() == "RECEIPT" ? Colors.green.shade800 : Colors.red.shade800;
+
+    return Scaffold(
+      backgroundColor: const Color(0xFFF8F9FB),
+      appBar: AppBar(
+        title: Text("${widget.isReadOnly ? 'VIEW' : (isUpdateMode ? 'MODIFY' : 'NEW')} ${widget.type.toUpperCase()}"),
+        backgroundColor: widget.isReadOnly ? Colors.blueGrey : themeColor,
+      ),
+      body: IgnorePointer(
+        ignoring: widget.isReadOnly,
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start, 
+            children: [
+              // 1. Header with Voucher No and Date
+              Row(
+                children: [
+                  Expanded(
+                    child: _infoTile("VOUCHER NO", voucherNo, Icons.tag_rounded, color: themeColor),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: _dateTile("ENTRY DATE", selectedEntryDate, (d) => setState(() => selectedEntryDate = d), ph.currentFY, themeColor),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 25),
+
+              _sectionLabel("2. ACCOUNT / PARTY DETAILS"),
+              const SizedBox(height: 10),
+              if (selectedParty == null)
+                TextField(
+                  controller: partySearchC,
+                  decoration: const InputDecoration(hintText: "Search Party Name...", prefixIcon: Icon(Icons.person_search), border: OutlineInputBorder(), filled: true, fillColor: Colors.white),
+                  onChanged: (v) => setState(() => partyQuery = v),
+                )
+              else
+                _selectedItemCard(selectedParty!.name, "City: ${selectedParty!.city}", themeColor, () => setState(() { selectedParty = null; selectedBillNumbers.clear(); })),
+
+              if (selectedParty == null && partyQuery.isNotEmpty)
+                _buildSearchDropdown(ph),
+
+              const SizedBox(height: 25),
+
+              if (selectedParty != null) ...[
+                _sectionLabel("3. PAYMENT MODE & INTERNAL LEDGER"),
+                const SizedBox(height: 10),
+                SegmentedButton<String>(
+                  segments: const [
+                    ButtonSegment(value: 'Cash', label: Text('Cash'), icon: Icon(Icons.money)),
+                    ButtonSegment(value: 'Bank', label: Text('Bank')),
+                  ],
+                  selected: {payMode},
+                  onSelectionChanged: (v) => setState(() => payMode = v.first),
+                ),
+                const SizedBox(height: 15),
+                DropdownButtonFormField<Party>(
+                  value: selectedInternalAccount,
+                  decoration: const InputDecoration(labelText: "Our Internal Account", border: OutlineInputBorder(), filled: true, fillColor: Colors.white),
+                  items: ph.getInternalAccounts()
+                    .where((p) => payMode == "Cash" ? p.group == "Cash in Hand" : p.group == "Bank Accounts")
+                    .map((p) => DropdownMenuItem(value: p, child: Text(p.name))).toList(),
+                  onChanged: (v) => setState(() => selectedInternalAccount = v),
+                ),
+
+                if (payMode == "Bank") ...[
+                  const SizedBox(height: 20),
+                  _sectionLabel("4. CHEQUE / INSTRUMENT DETAILS"),
+                  const SizedBox(height: 10),
+                  Row(children: [
+                    Expanded(child: _input(chequeNoC, "Cheque No.", Icons.numbers)),
+                    const SizedBox(width: 10),
+                    Expanded(child: _dateTile("CHEQUE DATE", selectedChequeDate, (d) => setState(() => selectedChequeDate = d), ph.currentFY, Colors.blueGrey)),
+                  ]),
+                ],
+
+                const SizedBox(height: 25),
+                _sectionLabel("5. BILL ADJUSTMENT"),
+                const SizedBox(height: 10),
+                _buildAdjustmentTrigger(themeColor, ph),
+
+                const SizedBox(height: 30),
+                _sectionLabel("6. FINAL AMOUNT & NARRATION"),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: amountC, keyboardType: TextInputType.number, 
+                  style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900),
+                  decoration: const InputDecoration(labelText: "VOUCHER AMOUNT ₹", border: OutlineInputBorder(), prefixIcon: Icon(Icons.currency_rupee)),
+                ),
+                const SizedBox(height: 15),
+                TextField(controller: narrationC, decoration: const InputDecoration(labelText: "Narration / Note", border: OutlineInputBorder(), prefixIcon: Icon(Icons.notes))),
+                
+                const SizedBox(height: 40),
+                if (!widget.isReadOnly) 
+                  SizedBox(
+                    width: double.infinity, height: 60,
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(backgroundColor: themeColor, foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15))),
+                      onPressed: () => _handleFinalSave(ph),
+                      child: Text(isUpdateMode ? "UPDATE TRANSACTION" : "FINALIZE & SAVE", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                    ),
+                  ),
+              ]
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // --- HELPER WIDGETS ---
+
+  Widget _infoTile(String l, String v, IconData i, {VoidCallback? onTap, Color? color}) {
+    return InkWell(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.grey.shade300)),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(l, style: const TextStyle(fontSize: 8, color: Colors.grey, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 4),
+            Row(children: [
+                Icon(i, size: 14, color: color ?? Colors.blueGrey),
+                const SizedBox(width: 5),
+                Text(v, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+            ]),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _sectionLabel(String t) => Text(t, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.blueGrey, letterSpacing: 1));
+  Widget _input(TextEditingController c, String l, IconData i) => TextField(controller: c, decoration: InputDecoration(labelText: l, prefixIcon: Icon(i, size: 20), border: const OutlineInputBorder(), filled: true, fillColor: Colors.white));
+  
+  Widget _dateTile(String l, DateTime d, Function(DateTime) onPick, String fy, Color col) => InkWell(
+    onTap: () async {
+      DateTime? p = await PharoahDateController.pickDate(context: context, currentFY: fy, initialDate: d);
+      if (p != null) onPick(p);
+    },
+    child: Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(border: Border.all(color: col.withOpacity(0.4)), borderRadius: BorderRadius.circular(8), color: Colors.white), 
+      child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+        Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(l, style: const TextStyle(fontSize: 8, color: Colors.grey)),
+          Text(DateFormat('dd-MM-yyyy').format(d), style: TextStyle(fontWeight: FontWeight.bold, color: col)),
+        ]),
+        Icon(Icons.calendar_month, color: col, size: 20),
+      ])),
+  );
+
+  Widget _buildAdjustmentTrigger(Color col, PharoahManager ph) => InkWell(
+    onTap: () => _openReferenceWizard(ph),
+    child: Container(padding: const EdgeInsets.all(15), decoration: BoxDecoration(color: col.withOpacity(0.05), borderRadius: BorderRadius.circular(10), border: Border.all(color: col.withOpacity(0.3))),
+      child: Row(children: [Icon(Icons.auto_fix_high, color: col), const SizedBox(width: 15), Text(selectedBillNumbers.isEmpty ? "Tap to select pending bills" : "${selectedBillNumbers.length} Bills Adjusted", style: TextStyle(fontWeight: FontWeight.bold, color: col)), const Spacer(), const Icon(Icons.chevron_right)]),
+    ),
+  );
+
+  Widget _selectedItemCard(String t, String s, Color c, VoidCallback onClear) => ListTile(tileColor: c.withOpacity(0.05), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10), side: BorderSide(color: c)), title: Text(t, style: const TextStyle(fontWeight: FontWeight.bold)), subtitle: Text(s), trailing: widget.isReadOnly ? null : IconButton(icon: const Icon(Icons.cancel, color: Colors.red), onPressed: onClear));
+  
+  Widget _buildSearchDropdown(PharoahManager ph) => Container(height: 180, decoration: const BoxDecoration(color: Colors.white, boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 10)]), child: ListView(children: ph.parties.where((p) => p.name.toLowerCase().contains(partyQuery.toLowerCase())).map((p) => ListTile(title: Text(p.name), onTap: () => setState(() => selectedParty = p))).toList()));
+
+  // --- LOGIC METHODS ---
+
   void _openReferenceWizard(PharoahManager ph) {
     if (selectedParty == null || widget.isReadOnly) return;
-    pendingBills = ph.getPendingBills(selectedParty!.id, widget.type == "Receipt");
+    pendingBills = ph.getPendingBills(selectedParty!.id, widget.type.toUpperCase() == "RECEIPT");
 
     showModalBottomSheet(
       context: context, isScrollControlled: true,
@@ -156,158 +308,27 @@ class _VoucherEntryViewState extends State<VoucherEntryView> {
     );
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final ph = Provider.of<PharoahManager>(context);
-    Color themeColor = widget.type == "Receipt" ? Colors.green.shade800 : Colors.red.shade800;
+  void _handleFinalSave(PharoahManager ph) async {
+    double amt = double.tryParse(amountC.text) ?? 0;
+    if (selectedParty == null || amt <= 0 || selectedInternalAccount == null) {
+       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("All fields are mandatory!")));
+       return;
+    }
 
-    return Scaffold(
-      backgroundColor: const Color(0xFFF8F9FB),
-      appBar: AppBar(
-        title: Text("${widget.isReadOnly ? 'VIEW' : (isUpdateMode ? 'MODIFY' : 'NEW')} ${widget.type.toUpperCase()}"),
-        backgroundColor: widget.isReadOnly ? Colors.blueGrey : themeColor,
-      ),
-      body: IgnorePointer(
-        ignoring: widget.isReadOnly, // 🔥 VIEW LOCK: Sab kuch lock kar deta hai
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(20),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Row(
-              children: [
-                Expanded(
-                  child: _infoTile(
-                    "VOUCHER NO", 
-                    voucherNo, 
-                    Icons.tag_rounded, // Icon for voucher number
-                    color: themeColor, // Theme color for consistency
-                  )
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: _dateTile(
-                    "ENTRY DATE", 
-                    selectedEntryDate, 
-                    (d) => setState(() => selectedEntryDate = d), 
-                    ph.currentFY, 
-                    themeColor
-                  )
-                ),
-              ],
-            ),
-            // --- NAYA HELPER WIDGET: _infoTile (Voucher No aur Date ke liye) ---
-  Widget _infoTile(String l, String v, IconData i, {VoidCallback? onTap, Color? color}) {
-    return InkWell(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: Colors.grey.shade300),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(l, style: const TextStyle(fontSize: 8, color: Colors.grey, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 4),
-            Row(
-              children: [
-                Icon(i, size: 14, color: color ?? Colors.blueGrey), // Default color agar provide na ho
-                const SizedBox(width: 5),
-                Text(v, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-              ],
-            ),
-          ],
-        ),
-      ),
+    final v = Voucher(
+      id: isUpdateMode ? widget.existingVoucher!.id : DateTime.now().millisecondsSinceEpoch.toString(),
+      type: widget.type.toUpperCase(), voucherNo: voucherNo, date: selectedEntryDate,
+      partyId: selectedParty!.id, partyName: selectedParty!.name,
+      amount: amt, paymentMode: payMode, depositedIn: selectedInternalAccount!.name,
+      chequeNo: chequeNoC.text, chequeDate: payMode == "Bank" ? selectedChequeDate : null,
+      narration: narrationC.text, status: "Active", linkedBillNumbers: selectedBillNumbers,
     );
-  }
-            const SizedBox(height: 25),
 
-            _sectionLabel("2. ACCOUNT / PARTY DETAILS"),
-            const SizedBox(height: 10),
-            if (selectedParty == null)
-              TextField(
-                controller: partySearchC,
-                decoration: const InputDecoration(hintText: "Search Party Name...", prefixIcon: Icon(Icons.person_search), border: OutlineInputBorder(), filled: true, fillColor: Colors.white),
-                onChanged: (v) => setState(() => partyQuery = v),
-              )
-            else
-              _selectedItemCard(selectedParty!.name, "City: ${selectedParty!.city}", themeColor, () => setState(() { selectedParty = null; selectedBillNumbers.clear(); })),
-
-            if (selectedParty == null && partyQuery.isNotEmpty)
-              _buildSearchDropdown(ph),
-
-            const SizedBox(height: 25),
-
-            if (selectedParty != null) ...[
-              _sectionLabel("3. PAYMENT MODE & INTERNAL LEDGER"),
-              const SizedBox(height: 10),
-              SegmentedButton<String>(
-                segments: const [
-                  ButtonSegment(value: 'Cash', label: Text('Cash'), icon: Icon(Icons.money)),
-                  ButtonSegment(value: 'Bank', label: Text('Bank')),
-                ],
-                selected: {payMode},
-                onSelectionChanged: (v) => setState(() => payMode = v.first),
-              ),
-              const SizedBox(height: 15),
-              DropdownButtonFormField<Party>(
-                value: selectedInternalAccount,
-                decoration: const InputDecoration(labelText: "Our Internal Account", border: OutlineInputBorder(), filled: true, fillColor: Colors.white),
-                items: ph.getInternalAccounts()
-                  .where((p) => payMode == "Cash" ? p.group == "Cash in Hand" : p.group == "Bank Accounts")
-                  .map((p) => DropdownMenuItem(value: p, child: Text(p.name))).toList(),
-                onChanged: (v) => setState(() => selectedInternalAccount = v),
-              ),
-
-              if (payMode == "Bank") ...[
-                const SizedBox(height: 20),
-                _sectionLabel("4. CHEQUE / INSTRUMENT DETAILS"),
-                const SizedBox(height: 10),
-                Row(children: [
-                  Expanded(child: _input(chequeNoC, "Cheque No.", Icons.numbers)),
-                  const SizedBox(width: 10),
-                  Expanded(child: _dateTile("CHEQUE DATE", selectedChequeDate, (d) => setState(() => selectedChequeDate = d), ph.currentFY, Colors.blueGrey)),
-                ]),
-              ],
-
-              const SizedBox(height: 25),
-              _sectionLabel("5. BILL ADJUSTMENT"),
-              const SizedBox(height: 10),
-              _buildAdjustmentTrigger(themeColor, ph),
-
-              const SizedBox(height: 30),
-              _sectionLabel("6. FINAL AMOUNT & NARRATION"),
-              const SizedBox(height: 10),
-              TextField(
-                controller: amountC, keyboardType: TextInputType.number, 
-                style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900),
-                decoration: const InputDecoration(labelText: "VOUCHER AMOUNT ₹", border: OutlineInputBorder(), prefixIcon: Icon(Icons.currency_rupee)),
-              ),
-              const SizedBox(height: 15),
-              TextField(controller: narrationC, decoration: const InputDecoration(labelText: "Narration / Note", border: OutlineInputBorder(), prefixIcon: Icon(Icons.notes))),
-              
-              const SizedBox(height: 40),
-              if (!widget.isReadOnly) // Only show save if not in View mode
-                SizedBox(
-                  width: double.infinity, height: 60,
-                  child: ElevatedButton(
-                    style: ElevatedButton.styleFrom(backgroundColor: themeColor, foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15))),
-                    onPressed: () => _handleFinalSave(ph),
-                    child: Text(isUpdateMode ? "UPDATE TRANSACTION" : "FINALIZE & SAVE", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                  ),
-                ),
-            ]
-          ]),
-        ),
-      ),
-    );
+    if (isUpdateMode) ph.vouchers.removeWhere((old) => old.id == v.id);
+    await ph.finalizeVoucher(v);
+    _showSuccessHub(ph, v.id);
   }
 
-  // ===========================================================================
-  // 🔥 POST-SAVE HUB: PRINT OPTION
-  // ===========================================================================
   void _showSuccessHub(PharoahManager ph, String vId) {
     showDialog(
       context: context,
@@ -331,57 +352,5 @@ class _VoucherEntryViewState extends State<VoucherEntryView> {
         ],
       ),
     );
-  }
-
-  // --- HELPERS ---
-  Widget _sectionLabel(String t) => Text(t, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.blueGrey, letterSpacing: 1));
-  Widget _input(TextEditingController c, String l, IconData i) => TextField(controller: c, decoration: InputDecoration(labelText: l, prefixIcon: Icon(i, size: 20), border: const OutlineInputBorder(), filled: true, fillColor: Colors.white));
-  Widget _dateTile(String l, DateTime d, Function(DateTime) onPick, String fy, Color col) => InkWell(
-    onTap: () async {
-      DateTime? p = await PharoahDateController.pickDate(context: context, currentFY: fy, initialDate: d);
-      if (p != null) onPick(p);
-    },
-    child: Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(border: Border.all(color: col.withOpacity(0.4)), borderRadius: BorderRadius.circular(8), color: Colors.white), 
-      child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-        Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(l, style: const TextStyle(fontSize: 8, color: Colors.grey)),
-          Text(DateFormat('dd-MM-yyyy').format(d), style: TextStyle(fontWeight: FontWeight.bold, color: col)),
-        ]),
-        Icon(Icons.calendar_month, color: col, size: 20),
-      ])),
-  );
-
-  Widget _buildAdjustmentTrigger(Color col, PharoahManager ph) => InkWell(
-    onTap: () => _openReferenceWizard(ph),
-    child: Container(padding: const EdgeInsets.all(15), decoration: BoxDecoration(color: col.withOpacity(0.05), borderRadius: BorderRadius.circular(10), border: Border.all(color: col.withOpacity(0.3))),
-      child: Row(children: [Icon(Icons.auto_fix_high, color: col), const SizedBox(width: 15), Text(selectedBillNumbers.isEmpty ? "Tap to select pending bills" : "${selectedBillNumbers.length} Bills Adjusted", style: TextStyle(fontWeight: FontWeight.bold, color: col)), const Spacer(), const Icon(Icons.chevron_right)]),
-    ),
-  );
-
-  Widget _selectedItemCard(String t, String s, Color c, VoidCallback onClear) => ListTile(tileColor: c.withOpacity(0.05), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10), side: BorderSide(color: c)), title: Text(t, style: const TextStyle(fontWeight: FontWeight.bold)), subtitle: Text(s), trailing: widget.isReadOnly ? null : IconButton(icon: const Icon(Icons.cancel, color: Colors.red), onPressed: onClear));
-  Widget _buildSearchDropdown(PharoahManager ph) => Container(height: 180, decoration: const BoxDecoration(color: Colors.white, boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 10)]), child: ListView(children: ph.parties.where((p) => p.name.toLowerCase().contains(partyQuery.toLowerCase())).map((p) => ListTile(title: Text(p.name), onTap: () => setState(() => selectedParty = p))).toList()));
-
-  void _handleFinalSave(PharoahManager ph) async {
-    double amt = double.tryParse(amountC.text) ?? 0;
-    if (selectedParty == null || amt <= 0 || selectedInternalAccount == null) {
-       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("All fields are mandatory!")));
-       return;
-    }
-
-    final v = Voucher(
-      id: isUpdateMode ? widget.existingVoucher!.id : DateTime.now().millisecondsSinceEpoch.toString(),
-      type: widget.type, voucherNo: voucherNo, date: selectedEntryDate,
-      partyId: selectedParty!.id, partyName: selectedParty!.name,
-      amount: amt, paymentMode: payMode, depositedIn: selectedInternalAccount!.name,
-      chequeNo: chequeNoC.text, chequeDate: payMode == "Bank" ? selectedChequeDate : null,
-      narration: narrationC.text, status: "Active", linkedBillNumbers: selectedBillNumbers,
-    );
-
-    if (isUpdateMode) ph.vouchers.removeWhere((old) => old.id == v.id);
-    String res = await ph.finalizeVoucher(v);
-    
-    if (res != "ERROR_DUPLICATE") {
-      _showSuccessHub(ph, v.id); // 🔥 SUCCESS HUB TRIGGERed
-    }
   }
 }
