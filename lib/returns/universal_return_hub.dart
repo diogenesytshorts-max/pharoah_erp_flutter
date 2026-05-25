@@ -109,12 +109,39 @@ class _UniversalReturnHubState extends State<UniversalReturnHub> {
         ),
         title: Text(name, style: TextStyle(fontWeight: FontWeight.bold, decoration: isCancelled ? TextDecoration.lineThrough : null)),
         subtitle: Text("${ret.billNo} | ${DateFormat('dd/MM/yyyy').format(ret.date)}", style: const TextStyle(fontSize: 11)),
-        trailing: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          crossAxisAlignment: CrossAxisAlignment.end,
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Text("₹${ret.totalAmount.toStringAsFixed(2)}", style: TextStyle(fontWeight: FontWeight.w900, color: isCancelled ? Colors.red.shade300 : Colors.black87)),
-            if (isCancelled) const Text("CANCELLED", style: TextStyle(fontSize: 8, color: Colors.red, fontWeight: FontWeight.bold)),
+            // 📧 NAYA: EMAIL ICON FOR RETURNS
+            if (ph.config.isEmailActive)
+              IconButton(
+                icon: const Icon(Icons.alternate_email, color: Color(0xFF1A237E), size: 20),
+                onPressed: () {
+                  bool isSR = ret is SaleReturn;
+                  String pName = isSR ? ret.partyName : (ret as PurchaseReturn).distributorName;
+                  
+                  final partyObj = ph.parties.firstWhere(
+                    (p) => p.name == pName,
+                    orElse: () => Party(id: 'temp', name: pName)
+                  );
+
+                  PdfRouterService.emailDocument(
+                    context: context,
+                    doc: ret,
+                    party: partyObj,
+                    ph: ph,
+                    type: "SALE", // Templates me hum Return ko Sale format me hi bhej rahe hain
+                  );
+                },
+              ),
+            Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text("₹${ret.totalAmount.toStringAsFixed(2)}", style: TextStyle(fontWeight: FontWeight.w900, color: isCancelled ? Colors.red.shade300 : Colors.black87)),
+                if (isCancelled) const Text("CANCELLED", style: TextStyle(fontSize: 8, color: Colors.red, fontWeight: FontWeight.bold)),
+              ],
+            ),
           ],
         ),
       ),
