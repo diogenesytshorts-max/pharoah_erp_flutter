@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import '../pharoah_manager.dart';
 import '../models.dart';
+import '../../pdf/statements/item_ledger_pdf.dart';
 
 class ItemMovementLedgerView extends StatefulWidget {
   const ItemMovementLedgerView({super.key});
@@ -27,20 +28,28 @@ class _ItemMovementLedgerViewState extends State<ItemMovementLedgerView> {
       appBar: AppBar(
         title: Text(selectedMed == null ? "Item Ledger Audit" : selectedMed!.name),
         backgroundColor: Colors.blue.shade900,
-        actions: [IconButton(icon: const Icon(Icons.picture_as_pdf), onPressed: () {})],
-      ),
-      body: Column(children: [
-        _buildMedicineSelector(ph),
-        if (selectedMed != null) _buildProductQuickStats(),
-        Expanded(
-          child: selectedMed == null 
-            ? _buildInitialState() 
-            : _buildMovementTimeline(movement),
-        ),
-      ]),
-    );
-  }
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.picture_as_pdf), 
+            onPressed: () async {
+              if (selectedMed == null) {
+                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Please select an item first!")));
+                return;
+              }
+              
+              // 1. Get same data shown on screen (Reverse for chronological order in PDF)
+              final rawData = _calculateMovement(ph).reversed.toList();
 
+              // 2. Trigger PDF
+              await ItemLedgerPdf.generate(
+                shop: ph.activeCompany!,
+                med: selectedMed!,
+                movementData: rawData,
+              );
+            }
+          )
+        ],
+      ),
   // ===========================================================================
   // 🧠 CORE LOGIC: ITEM TIMELINE ENGINE
   // ===========================================================================
