@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import '../pharoah_manager.dart';
 import '../models.dart';
 import '../expiry_master.dart';
+import '../pdf/statements/expiry_audit_pdf.dart';
 
 class CompanyExpiryAuditView extends StatefulWidget {
   const CompanyExpiryAuditView({super.key});
@@ -30,19 +31,27 @@ class _CompanyExpiryAuditViewState extends State<CompanyExpiryAuditView> {
       appBar: AppBar(
         title: Text(selectedCompany == null ? "Expiry Audit" : "${selectedCompany!.name}"),
         backgroundColor: Colors.red.shade900,
-        actions: [IconButton(icon: const Icon(Icons.picture_as_pdf), onPressed: () {})],
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.picture_as_pdf), 
+            onPressed: () async {
+              if (selectedCompany == null) return;
+              
+              // 1. Get current filtered data from screen
+              final currentData = _calculateExpiryData(ph);
+
+              // 2. Call PDF Generator
+              await ExpiryAuditPdf.generate(
+                shop: ph.activeCompany!,
+                selectedCompany: selectedCompany!,
+                auditData: currentData,
+                horizon: monthsHorizon,
+                viewMode: viewMode,
+              );
+            }
+          )
+        ],
       ),
-      body: Column(children: [
-        _buildTopSelectionHeader(ph),
-        if (selectedCompany != null) _buildModeToggle(),
-        Expanded(
-          child: selectedCompany == null 
-            ? _buildCompanyPicker(ph) 
-            : _buildAuditList(auditData, ph),
-        ),
-      ]),
-    );
-  }
 
   // ===========================================================================
   // 🧠 CORE LOGIC: EXPIRY & TRACEABILITY ENGINE
