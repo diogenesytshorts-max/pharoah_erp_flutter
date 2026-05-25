@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../pharoah_manager.dart';
+import 'company_stock_view.dart';
 import 'party_ledger_statement_view.dart'; // Agli file hum yahi banayenge
 
 class StatementHubView extends StatelessWidget {
@@ -41,7 +42,7 @@ class StatementHubView extends StatelessWidget {
               childAspectRatio: 1.1,
               children: [
                 _hubCard(context, "Party Ledger\nStatement", "Dr/Cr Audit", Icons.account_balance_wallet_rounded, Colors.indigo, const PartyLedgerStatementView()),
-                _hubCard(context, "Company Wise\nStock", "In-Out Flow", Icons.business_rounded, Colors.purple, null),
+               _hubCard(context, "Company Wise\nStock", "In-Out Flow", Icons.business_rounded, Colors.purple, const CompanyStockView()),
                 _hubCard(context, "Party Wise\nStock", "Sales Analysis", Icons.person_search_rounded, Colors.teal, null),
                 _hubCard(context, "Near Expiry\nStock", "Loss Prevention", Icons.event_busy_rounded, Colors.red, null),
                 _hubCard(context, "Sale Item\nWise", "Movement Log", Icons.trending_up_rounded, Colors.blue, null),
