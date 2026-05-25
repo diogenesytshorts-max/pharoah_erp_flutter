@@ -7,6 +7,7 @@ import 'stock_flow_engine.dart';
 import '../pharoah_date_controller.dart';
 import '../app_date_logic.dart';
 import '../../pdf/statements/company_stock_pdf.dart';
+import '../pdf/pdf_router_service.dart';
 
 class CompanyStockView extends StatefulWidget {
   const CompanyStockView({super.key});
@@ -41,46 +42,35 @@ class _CompanyStockViewState extends State<CompanyStockView> {
     }
 
     return Scaffold(
-  backgroundColor: ...,
-  appBar: AppBar(
-    title: const Text("Company Stock Flow"),
-    backgroundColor: Colors.purple.shade900,
-    actions: [
-          // 📧 NAYA: EMAIL ICON FOR COMPANY STOCK REPORT
+      backgroundColor: const Color(0xFFF4F7FC),
+      appBar: AppBar(
+        title: const Text("Company Stock Flow"),
+        backgroundColor: Colors.purple.shade900,
+        actions: [
           if (ph.config.isEmailActive)
             IconButton(
               icon: const Icon(Icons.alternate_email),
-              tooltip: "Email Stock Flow Report",
               onPressed: () {
                 PdfRouterService.emailDocument(
                   context: context,
-                  doc: {
-                    'grouped': grouped,
-                    'from': fromDate,
-                    'to': toDate,
-                    'basis': valuationBasis
-                  },
-                  party: Party(id: 'internal', name: 'Internal Stock Audit'), // Dummy party for Quick Add
+                  doc: {'grouped': grouped, 'from': fromDate, 'to': toDate, 'basis': valuationBasis},
+                  party: Party(id: 'internal', name: 'Internal Stock Audit'),
                   ph: ph,
                   type: "STOCK",
                 );
               },
             ),
-
           IconButton(
             icon: const Icon(Icons.picture_as_pdf), 
             onPressed: () async {
               await CompanyStockPdf.generate(
-                shop: ph.activeCompany!,
-                groupedData: grouped,
-                from: fromDate,
-                to: toDate,
-                valuationBasis: valuationBasis,
-                ph: ph
+                shop: ph.activeCompany!, groupedData: grouped, from: fromDate, to: toDate,
+                valuationBasis: valuationBasis, ph: ph
               );
             }
           )
         ],
+      ),
       body: Column(children: [
         _buildTopFilterBar(ph),
         _buildValuationDrag(),
@@ -137,10 +127,8 @@ class _CompanyStockViewState extends State<CompanyStockView> {
             scrollDirection: Axis.horizontal,
             child: DataTable(
               columns: const [
-                DataColumn(label: Text("NAME")),
-                DataColumn(label: Text("OPEN")),
-                DataColumn(label: Text("REC")),
-                DataColumn(label: Text("SALE")),
+                DataColumn(label: Text("NAME")), DataColumn(label: Text("OPEN")),
+                DataColumn(label: Text("REC")), DataColumn(label: Text("SALE")),
                 DataColumn(label: Text("CLO")),
               ],
               rows: meds.map((m) {
