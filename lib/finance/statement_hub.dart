@@ -45,7 +45,7 @@ class StatementHubView extends StatelessWidget {
                 _hubCard(context, "Party Ledger\nStatement", "Dr/Cr Audit", Icons.account_balance_wallet_rounded, Colors.indigo, const PartyLedgerStatementView()),
                _hubCard(context, "Company Wise\nStock", "In-Out Flow", Icons.business_rounded, Colors.purple, const CompanyStockView()),
                _hubCard(context, "Party Wise\nStock", "Sales Analysis", Icons.person_search_rounded, Colors.teal, const PartyWiseStockView()),
-                _hubCard(context, "Near Expiry\nStock", "Loss Prevention", Icons.event_busy_rounded, Colors.red, null),
+               _hubCard(context, "Near Expiry\nStock", "Loss Prevention", Icons.event_busy_rounded, Colors.red, const CompanyExpiryAuditView()),
                 _hubCard(context, "Sale Item\nWise", "Movement Log", Icons.trending_up_rounded, Colors.blue, null),
                 _hubCard(context, "Purchase Item\nWise", "Source History", Icons.shopping_cart_rounded, Colors.orange, null),
               ],
