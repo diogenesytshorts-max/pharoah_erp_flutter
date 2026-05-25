@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import '../pharoah_manager.dart';
 import '../models.dart';
+import '../../pdf/statements/expiry_audit_pdf.dart'; // 🔥 Connection
 
 class CompanyExpiryAuditView extends StatefulWidget {
   const CompanyExpiryAuditView({super.key});
@@ -26,17 +27,39 @@ class _CompanyExpiryAuditViewState extends State<CompanyExpiryAuditView> {
       appBar: AppBar(
         title: Text(selectedCompany == null ? "Expiry Audit" : selectedCompany!.name),
         backgroundColor: Colors.red.shade900,
-        actions: [IconButton(icon: const Icon(Icons.picture_as_pdf), onPressed: () {})],
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.picture_as_pdf), 
+            onPressed: () async {
+              if (selectedCompany == null) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text("Please select a company first!"))
+                );
+                return;
+              }
+              
+              // 1. Current screen se fresh audit data nikalna
+              final currentData = _calculateExpiryData(ph);
+
+              if (currentData.isEmpty) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text("No expiring items found to print."))
+                );
+                return;
+              }
+
+              // 2. Call Expiry PDF Generator (Claim Ready)
+              await ExpiryAuditPdf.generate(
+                shop: ph.activeCompany!,
+                selectedCompany: selectedCompany!,
+                auditData: currentData,
+                horizon: monthsHorizon,
+                viewMode: viewMode,
+              );
+            }
+          )
+        ],
       ),
-      body: Column(children: [
-        _buildTopSelectionHeader(ph),
-        if (selectedCompany != null) _buildModeToggle(),
-        Expanded(
-          child: selectedCompany == null ? _buildCompanyPicker(ph) : _buildAuditList(auditData, ph),
-        ),
-      ]),
-    );
-  }
 
   List<Map<String, dynamic>> _calculateExpiryData(PharoahManager ph) {
     List<Map<String, dynamic>> results = [];
