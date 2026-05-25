@@ -9,7 +9,7 @@ import '../app_date_logic.dart';
 import '../sale_entry_view.dart';
 import '../accounting_views.dart';
 import '../pdf/pdf_router_service.dart';
-import '../../pdf/statements/party_ledger_pdf.dart';
+import '../../pdf/statements/party_ledger_pdf.dart'; // Connection with PDF service
 
 class PartyLedgerStatementView extends StatefulWidget {
   const PartyLedgerStatementView({super.key});
@@ -30,6 +30,27 @@ class _PartyLedgerStatementViewState extends State<PartyLedgerStatementView> {
     fromDate = AppDateLogic.getFYStart(ph.currentFY);
   }
 
+  // 🔥 NAYA: PDF Generation Logic
+  void _generateStatementPdf(PharoahManager ph) async {
+    if (selectedParty == null) return;
+
+    // 1. Fresh data manager se mangna
+    final data = ph.getPartyStatementData(
+      partyId: selectedParty!.id, 
+      fromDate: fromDate, 
+      toDate: toDate
+    );
+
+    // 2. Asli PDF File ko trigger karna
+    await PartyLedgerPdf.generate(
+      shop: ph.activeCompany!,
+      party: selectedParty!,
+      data: data,
+      from: fromDate,
+      to: toDate,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final ph = Provider.of<PharoahManager>(context);
@@ -43,6 +64,14 @@ class _PartyLedgerStatementViewState extends State<PartyLedgerStatementView> {
       appBar: AppBar(
         title: Text(selectedParty == null ? "Ledger Audit" : selectedParty!.name),
         backgroundColor: const Color(0xFF1A237E),
+        // 🔥 NAYA: PDF Button yahan add kiya gaya hai
+        actions: [
+          if (selectedParty != null)
+            IconButton(
+              icon: const Icon(Icons.picture_as_pdf_rounded),
+              onPressed: () => _generateStatementPdf(ph), // Connecting logic
+            ),
+        ],
       ),
       body: Column(children: [
         _buildFilterPanel(ph),
