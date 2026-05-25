@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:intl/intl.dart'; // Naya import zaroori hai
+import 'package:intl/intl.dart';
 import '../pharoah_manager.dart';
 import '../models.dart';
 import 'stock_flow_engine.dart';
 import '../pharoah_date_controller.dart';
 import '../app_date_logic.dart';
-import '../../pdf/statements/company_stock_pdf.dart'; // 🔥 Connection
+import '../../pdf/statements/company_stock_pdf.dart';
 
 class CompanyStockView extends StatefulWidget {
   const CompanyStockView({super.key});
@@ -30,8 +30,8 @@ class _CompanyStockViewState extends State<CompanyStockView> {
   @override
   Widget build(BuildContext context) {
     final ph = Provider.of<PharoahManager>(context);
-    
     Map<String, List<Medicine>> grouped = {};
+    
     for (var med in ph.medicines) {
       String cName = ph.companies.firstWhere((c) => c.id == med.companyId, orElse: () => Company(id: '', name: 'OTHERS')).name;
       if (cName.toLowerCase().contains(companySearch.toLowerCase())) {
@@ -49,20 +49,9 @@ class _CompanyStockViewState extends State<CompanyStockView> {
           IconButton(
             icon: const Icon(Icons.picture_as_pdf), 
             onPressed: () async {
-              // 1. Wahi data nikalna jo screen par dikh raha hai
-              Map<String, List<Medicine>> currentGrouped = {};
-              for (var med in ph.medicines) {
-                String cName = ph.companies.firstWhere((c) => c.id == med.companyId, orElse: () => Company(id: '', name: 'OTHERS')).name;
-                if (cName.toLowerCase().contains(companySearch.toLowerCase())) {
-                  if (!currentGrouped.containsKey(cName)) currentGrouped[cName] = [];
-                  currentGrouped[cName]!.add(med);
-                }
-              }
-
-              // 2. Landscape PDF Generator ko call karna
               await CompanyStockPdf.generate(
                 shop: ph.activeCompany!,
-                groupedData: currentGrouped,
+                groupedData: grouped,
                 from: fromDate,
                 to: toDate,
                 valuationBasis: valuationBasis,
@@ -72,7 +61,21 @@ class _CompanyStockViewState extends State<CompanyStockView> {
           )
         ],
       ),
-  // --- HELPERS (Build se bahar rakhein) ---
+      body: Column(children: [
+        _buildTopFilterBar(ph),
+        _buildValuationDrag(),
+        Expanded(
+          child: ListView.builder(
+            itemCount: grouped.length,
+            itemBuilder: (c, i) {
+              String companyName = grouped.keys.elementAt(i);
+              return _buildCompanyCard(companyName, grouped[companyName]!, ph);
+            },
+          ),
+        ),
+      ]),
+    );
+  }
 
   Widget _buildTopFilterBar(PharoahManager ph) => Container(
     padding: const EdgeInsets.all(15), color: Colors.purple.shade900,
@@ -85,7 +88,7 @@ class _CompanyStockViewState extends State<CompanyStockView> {
       const SizedBox(height: 10),
       TextField(
         style: const TextStyle(color: Colors.white),
-        decoration: InputDecoration(hintText: "Filter by Company Name...", hintStyle: const TextStyle(color: Colors.white54), prefixIcon: const Icon(Icons.search, color: Colors.white), filled: true, fillColor: Colors.white.withOpacity(0.1), border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none)),
+        decoration: InputDecoration(hintText: "Search Brand...", hintStyle: const TextStyle(color: Colors.white54), prefixIcon: const Icon(Icons.search, color: Colors.white), filled: true, fillColor: Colors.white.withOpacity(0.1), border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none), isDense: true),
         onChanged: (v) => setState(() => companySearch = v),
       )
     ]),
@@ -95,9 +98,9 @@ class _CompanyStockViewState extends State<CompanyStockView> {
     padding: const EdgeInsets.all(10), color: Colors.white,
     child: SegmentedButton<String>(
       segments: const [
-        ButtonSegment(value: 'PURCHASE', label: Text('PURCHASE'), icon: Icon(Icons.shopping_bag)),
-        ButtonSegment(value: 'SALE', label: Text('SALE RATE'), icon: Icon(Icons.sell)),
-        ButtonSegment(value: 'MRP', label: Text('MRP'), icon: Icon(Icons.tag)),
+        ButtonSegment(value: 'PURCHASE', label: Text('PURCHASE')),
+        ButtonSegment(value: 'SALE', label: Text('SALE')),
+        ButtonSegment(value: 'MRP', label: Text('MRP')),
       ],
       selected: {valuationBasis},
       onSelectionChanged: (v) => setState(() => valuationBasis = v.first),
@@ -105,36 +108,29 @@ class _CompanyStockViewState extends State<CompanyStockView> {
   );
 
   Widget _buildCompanyCard(String name, List<Medicine> meds, PharoahManager ph) {
-    double totalVal = 0;
-    for (var m in meds) {
-      double rate = (valuationBasis == "PURCHASE") ? m.purRate : (valuationBasis == "SALE" ? m.rateA : m.mrp);
-      totalVal += (m.stock * rate);
-    }
     return Card(
       margin: const EdgeInsets.all(10),
       child: ExpansionTile(
         title: Text(name, style: const TextStyle(fontWeight: FontWeight.bold)),
-        subtitle: Text("Items: ${meds.length} | Net Value: ₹${totalVal.toStringAsFixed(0)}", style: const TextStyle(fontSize: 11, color: Colors.purple)),
         children: [
           SingleChildScrollView(
             scrollDirection: Axis.horizontal,
             child: DataTable(
-              columnSpacing: 20,
               columns: const [
-                DataColumn(label: Text("MEDICINE NAME", style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold))),
-                DataColumn(label: Text("OPENING", style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold))),
-                DataColumn(label: Text("RECEIVED", style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold))),
-                DataColumn(label: Text("SALE", style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold))),
-                DataColumn(label: Text("CLOSING", style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold))),
+                DataColumn(label: Text("NAME")),
+                DataColumn(label: Text("OPEN")),
+                DataColumn(label: Text("REC")),
+                DataColumn(label: Text("SALE")),
+                DataColumn(label: Text("CLO")),
               ],
               rows: meds.map((m) {
                 final flow = StockFlowEngine.getItemFlow(med: m, from: fromDate, to: toDate, ph: ph);
                 return DataRow(cells: [
                   DataCell(Text(m.name, style: const TextStyle(fontSize: 10))),
-                  DataCell(Text(flow['opening']!.toStringAsFixed(2))),
-                  DataCell(Text(flow['received']!.toStringAsFixed(2), style: const TextStyle(color: Colors.green, fontWeight: FontWeight.bold))),
-                  DataCell(Text(flow['sale']!.toStringAsFixed(2), style: const TextStyle(color: Colors.red))),
-                  DataCell(Text(flow['closing']!.toStringAsFixed(2), style: const TextStyle(fontWeight: FontWeight.bold))),
+                  DataCell(Text(flow['opening']!.toStringAsFixed(1))),
+                  DataCell(Text(flow['received']!.toStringAsFixed(1))),
+                  DataCell(Text(flow['sale']!.toStringAsFixed(1))),
+                  DataCell(Text(flow['closing']!.toStringAsFixed(1))),
                 ]);
               }).toList(),
             ),
