@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../pharoah_manager.dart';
 import 'company_stock_view.dart';
+import 'company_expiry_audit_view.dart';
 import 'party_wise_stock_view.dart';
 import 'party_ledger_statement_view.dart'; // Agli file hum yahi banayenge
 
