@@ -6,6 +6,7 @@ import '../models.dart';
 import 'stock_flow_engine.dart';
 import '../pharoah_date_controller.dart';
 import '../app_date_logic.dart';
+import '../../pdf/statements/company_stock_pdf.dart'; // 🔥 Connection
 
 class CompanyStockView extends StatefulWidget {
   const CompanyStockView({super.key});
@@ -44,24 +45,33 @@ class _CompanyStockViewState extends State<CompanyStockView> {
       appBar: AppBar(
         title: const Text("Company Stock Flow"),
         backgroundColor: Colors.purple.shade900,
-        actions: [IconButton(icon: const Icon(Icons.picture_as_pdf), onPressed: () {})],
-      ),
-      body: Column(children: [
-        _buildTopFilterBar(ph),
-        _buildValuationDrag(),
-        Expanded(
-          child: ListView.builder(
-            itemCount: grouped.length,
-            itemBuilder: (c, i) {
-              String companyName = grouped.keys.elementAt(i);
-              return _buildCompanyCard(companyName, grouped[companyName]!, ph);
-            },
-          ),
-        ),
-      ]),
-    );
-  }
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.picture_as_pdf), 
+            onPressed: () async {
+              // 1. Wahi data nikalna jo screen par dikh raha hai
+              Map<String, List<Medicine>> currentGrouped = {};
+              for (var med in ph.medicines) {
+                String cName = ph.companies.firstWhere((c) => c.id == med.companyId, orElse: () => Company(id: '', name: 'OTHERS')).name;
+                if (cName.toLowerCase().contains(companySearch.toLowerCase())) {
+                  if (!currentGrouped.containsKey(cName)) currentGrouped[cName] = [];
+                  currentGrouped[cName]!.add(med);
+                }
+              }
 
+              // 2. Landscape PDF Generator ko call karna
+              await CompanyStockPdf.generate(
+                shop: ph.activeCompany!,
+                groupedData: currentGrouped,
+                from: fromDate,
+                to: toDate,
+                valuationBasis: valuationBasis,
+                ph: ph
+              );
+            }
+          )
+        ],
+      ),
   // --- HELPERS (Build se bahar rakhein) ---
 
   Widget _buildTopFilterBar(PharoahManager ph) => Container(
