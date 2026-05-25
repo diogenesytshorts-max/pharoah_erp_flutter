@@ -64,10 +64,28 @@ class _PartyWiseStockViewState extends State<PartyWiseStockView> {
 
     return Scaffold(
       backgroundColor: const Color(0xFFF8F9FB),
-      appBar: AppBar(
-        title: const Text("Party Stock Statement"),
-        backgroundColor: Colors.teal.shade800,
-        actions: [
+      actions: [
+          // 📧 NAYA: EMAIL ICON FOR PARTY WISE STOCK
+          if (ph.config.isEmailActive)
+            IconButton(
+              icon: const Icon(Icons.alternate_email),
+              tooltip: "Email Party Stock Report",
+              onPressed: () {
+                PdfRouterService.emailDocument(
+                  context: context,
+                  doc: {
+                    'grouped': groupedData,
+                    'from': fromDate,
+                    'to': toDate,
+                    'mode': mode
+                  },
+                  party: Party(id: 'internal', name: 'Party Stock Analysis'), // Dummy for Quick Add
+                  ph: ph,
+                  type: "STOCK",
+                );
+              },
+            ),
+
           IconButton(
             icon: const Icon(Icons.picture_as_pdf), 
             onPressed: () async {
@@ -81,7 +99,6 @@ class _PartyWiseStockViewState extends State<PartyWiseStockView> {
             }
           )
         ],
-      ),
       body: Column(children: [
         _buildFilterHeader(ph),
         Expanded(
