@@ -5,6 +5,7 @@ import '../pharoah_manager.dart';
 import '../models.dart';
 import '../pharoah_date_controller.dart';
 import '../app_date_logic.dart';
+import '../pdf/statements/party_stock_pdf.dart';
 
 class PartyWiseStockView extends StatefulWidget {
   const PartyWiseStockView({super.key});
@@ -62,26 +63,40 @@ class _PartyWiseStockViewState extends State<PartyWiseStockView> {
       appBar: AppBar(
         title: const Text("Party Stock Statement"),
         backgroundColor: Colors.teal.shade800,
-        actions: [IconButton(icon: const Icon(Icons.picture_as_pdf), onPressed: () {})],
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.picture_as_pdf), 
+            onPressed: () async {
+              // 1. Wahi filtered data nikalna jo screen par dikh raha hai
+              Map<String, List<Map<String, dynamic>>> currentGrouped = {};
+              // ... (Same grouping logic as in build method)
+              for (var s in ph.sales.where((s) => s.status == "Active" && _isInRange(s.date))) {
+                if (!currentGrouped.containsKey(s.partyName)) currentGrouped[s.partyName] = [];
+                for (var it in s.items) {
+                  currentGrouped[s.partyName]!.add({'name': it.name, 'qty': it.qty, 'free': it.freeQty, 'rate': it.rate, 'total': it.total, 'type': 'SALE'});
+                }
+              }
+              if (mode == "MIXED") {
+                for (var p in ph.purchases.where((p) => _isInRange(p.date))) {
+                  if (!currentGrouped.containsKey(p.distributorName)) currentGrouped[p.distributorName] = [];
+                  for (var it in p.items) {
+                    currentGrouped[p.distributorName]!.add({'name': it.name, 'qty': it.qty, 'free': it.freeQty, 'rate': it.purchaseRate, 'total': it.total, 'type': 'PUR'});
+                  }
+                }
+              }
+
+              // 2. Call PDF Generator
+              await PartyStockPdf.generate(
+                shop: ph.activeCompany!,
+                groupedData: currentGrouped,
+                from: fromDate,
+                to: toDate,
+                mode: mode,
+              );
+            }
+          )
+        ],
       ),
-      body: Column(children: [
-        _buildFilterHeader(ph),
-        Expanded(
-          child: filteredParties.isEmpty 
-            ? const Center(child: Text("No records found for the selected criteria."))
-            : ListView.builder(
-                padding: const EdgeInsets.all(12),
-                itemCount: filteredParties.length,
-                itemBuilder: (c, i) {
-                  String pName = filteredParties[i];
-                  return _buildPartyCard(pName, groupedData[pName]!);
-                },
-              ),
-        ),
-        _buildGrandTotalBar(groupedData, filteredParties),
-      ]),
-    );
-  }
 
   bool _isInRange(DateTime d) => d.isAfter(fromDate.subtract(const Duration(seconds: 1))) && d.isBefore(toDate.add(const Duration(days: 1)));
 
