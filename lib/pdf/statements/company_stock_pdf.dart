@@ -68,6 +68,53 @@ class CompanyStockPdf {
       name: 'Stock_Statement_${DateFormat('ddMMMyy').format(from)}',
     );
   }
+  // 📧 NAYA: EMAIL KE LIYE BYTES GENERATE KARNA
+  static Future<Uint8List> generateBytes({
+    required CompanyProfile shop,
+    required Map<String, List<Medicine>> groupedData,
+    required DateTime from,
+    required DateTime to,
+    required String valuationBasis,
+    required PharoahManager ph,
+  }) async {
+    final pdf = pw.Document();
+
+    for (var companyName in groupedData.keys) {
+      List<Medicine> meds = groupedData[companyName]!;
+      
+      pdf.addPage(
+        pw.MultiPage(
+          pageFormat: PdfPageFormat.a4.landscape,
+          margin: const pw.EdgeInsets.all(25),
+          header: (context) => _buildHeader(shop, companyName, from, to, valuationBasis),
+          build: (context) {
+            double subOpVal = 0, subRecVal = 0, subSaleVal = 0, subCloVal = 0;
+            List<List<String>> tableRows = [];
+            for (int i = 0; i < meds.length; i++) {
+              var m = meds[i];
+              final flow = StockFlowEngine.getItemFlow(med: m, from: from, to: to, ph: ph);
+              double rate = (valuationBasis == "PURCHASE") ? m.purRate : (valuationBasis == "SALE" ? m.rateA : m.mrp);
+              subOpVal += (flow['opening']! * rate);
+              subRecVal += (flow['received']! * rate);
+              subSaleVal += (flow['sale']! * rate);
+              subCloVal += (flow['closing']! * rate);
+              tableRows.add([
+                "${i + 1}", m.name, flow['opening']!.toStringAsFixed(2),
+                flow['received']!.toStringAsFixed(2), flow['sale']!.toStringAsFixed(2),
+                flow['closing']!.toStringAsFixed(2),
+              ]);
+            }
+            return [
+              _buildDataTable(tableRows),
+              pw.SizedBox(height: 15),
+              _buildValueFooter(subOpVal, subRecVal, subSaleVal, subCloVal, valuationBasis),
+            ];
+          },
+        ),
+      );
+    }
+    return pdf.save(); // Direct bytes return karega
+  }
 
   // --- 1. LANDSCAPE HEADER ---
   static pw.Widget _buildHeader(CompanyProfile shop, String company, DateTime from, DateTime to, String basis) {
