@@ -158,7 +158,7 @@ subtitle: Column(
   // 📧 NAYA: EMAIL BUTTON FOR PURCHASE
   if (ph.config.isEmailActive)
     IconButton(
-      icon: const Icon(Icons.alternate_email, color: Colors.orange.shade900, size: 20),
+  icon: Icon(Icons.alternate_email, color: Colors.orange.shade900, size: 20),
       tooltip: "Email to Supplier",
       onPressed: () => PdfRouterService.emailDocument(
         context: context,
