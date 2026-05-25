@@ -41,8 +41,11 @@ class _CompanyStockViewState extends State<CompanyStockView> {
     }
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF4F7FC),
-     actions: [
+  backgroundColor: ...,
+  appBar: AppBar(
+    title: const Text("Company Stock Flow"),
+    backgroundColor: Colors.purple.shade900,
+    actions: [
           // 📧 NAYA: EMAIL ICON FOR COMPANY STOCK REPORT
           if (ph.config.isEmailActive)
             IconButton(
