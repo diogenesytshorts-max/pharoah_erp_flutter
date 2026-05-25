@@ -1,3 +1,7 @@
+name: pharoah_erp
+description: Pharoah ERP Professional Billing & GST Inventory Software.
+version: 1.0.9+1
+publish_to: 'none'
 dependencies:
   flutter:
     sdk: flutter
@@ -19,7 +23,8 @@ dependencies:
   local_auth: ^2.3.0
   flutter_secure_storage: ^9.2.2
   mailer: ^6.1.0  # <--- चेक करें कि यह line सिर्फ़ एक बार हो और dependencies के नीचे हो
-
+environment:
+  sdk: '>=3.0.0 <4.0.0'
 dev_dependencies:
   flutter_test:
     sdk: flutter
