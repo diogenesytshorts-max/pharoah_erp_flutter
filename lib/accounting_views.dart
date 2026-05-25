@@ -80,22 +80,28 @@ class _VoucherEntryViewState extends State<VoucherEntryView> {
         pendingBills = ph.getPendingBills(selectedParty!.id, widget.type == "Receipt");
       } catch (e) { debugPrint("Sync Error: $e"); }
 
-   } else {
+  } else {
       selectedEntryDate = PharoahDateController.getInitialBillDate(ph.currentFY);
       selectedChequeDate = selectedEntryDate;
       
-      String typeKey = widget.type.toUpperCase(); // e.g. "RECEIPT"
+      String typeKey = widget.type.toUpperCase(); // Ensure it's "RECEIPT" or "PAYMENT"
+
+      // Agar Contra ya Expense hai, toh type "VOUCHER" hi rahega
+      if (typeKey == "CONTRA" || typeKey == "EXPENSE") {
+        typeKey = "VOUCHER"; // General Voucher series ke liye
+      }
+
       var series = ph.getDefaultSeries(typeKey);
 
-      // NAYA: Sirf isi type ke vouchers bhejein (e.g. sirf Receipts scan hon)
+      // NAYA: Sirf isi type ke vouchers ko filter karein
       List<Voucher> filteredList = ph.vouchers.where((v) => v.type.toUpperCase() == typeKey).toList();
 
       voucherNo = await PharoahNumberingEngine.getNextNumber(
-        type: typeKey, 
+        type: typeKey, // Engine ko sahi type batao
         companyID: ph.activeCompany!.id,
         prefix: series.prefix, 
         startFrom: series.startNumber, 
-        currentList: filteredList, // Ab ginti ekdum sahi hogi
+        currentList: filteredList, // Filtered list pass karein
       );
     }
     setState(() {});
@@ -166,10 +172,56 @@ class _VoucherEntryViewState extends State<VoucherEntryView> {
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(20),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            _sectionLabel("1. VOUCHER DATE (ENTRY DATE)"),
-            const SizedBox(height: 10),
-            _dateTile("TRANSACTION DATE", selectedEntryDate, (d) => setState(() => selectedEntryDate = d), ph.currentFY, themeColor),
-
+          Row(
+              children: [
+                Expanded(
+                  child: _infoTile(
+                    "VOUCHER NO", 
+                    voucherNo, 
+                    Icons.tag_rounded, // Icon for voucher number
+                    color: themeColor, // Theme color for consistency
+                  )
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: _dateTile(
+                    "ENTRY DATE", 
+                    selectedEntryDate, 
+                    (d) => setState(() => selectedEntryDate = d), 
+                    ph.currentFY, 
+                    themeColor
+                  )
+                ),
+              ],
+            ),
+            // --- NAYA HELPER WIDGET: _infoTile (Voucher No aur Date ke liye) ---
+  Widget _infoTile(String l, String v, IconData i, {VoidCallback? onTap, Color? color}) {
+    return InkWell(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: Colors.grey.shade300),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(l, style: const TextStyle(fontSize: 8, color: Colors.grey, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 4),
+            Row(
+              children: [
+                Icon(i, size: 14, color: color ?? Colors.blueGrey), // Default color agar provide na ho
+                const SizedBox(width: 5),
+                Text(v, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
             const SizedBox(height: 25),
 
             _sectionLabel("2. ACCOUNT / PARTY DETAILS"),
