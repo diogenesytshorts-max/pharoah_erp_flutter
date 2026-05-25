@@ -484,15 +484,14 @@ class PharoahManager with ChangeNotifier {
     Future<String> finalizeVoucher(Voucher v) async {
     vouchers.add(v);
     if (activeCompany != null) {
-      // Type ko "VOUCHER" ki jagah v.type (RECEIPT/PAYMENT) bhejna zaroori hai
-      String seriesType = v.type.toUpperCase(); 
+      // सुधार: "VOUCHER" की जगह असली टाइप (RECEIPT/PAYMENT) भेजें ताकि काउंटर सही से बढ़े
+      String seriesType = v.type.toUpperCase();
       String prefix = v.voucherNo.split(RegExp(r'\d')).first;
-      
       await PharoahNumberingEngine.updateSeriesCounter(
-        type: seriesType, 
-        companyID: activeCompany!.id, 
-        usedNumber: v.voucherNo, 
-        prefix: prefix
+        type: seriesType,
+        companyID: activeCompany!.id,
+        usedNumber: v.voucherNo,
+        prefix: prefix,
       );
     }
     await save();
