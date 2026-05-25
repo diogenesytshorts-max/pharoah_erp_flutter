@@ -1,0 +1,32 @@
+dependencies:
+  flutter:
+    sdk: flutter
+  intl: ^0.19.0
+  shared_preferences: ^2.2.2
+  path_provider: ^2.1.2
+  permission_handler: ^11.3.1
+  provider: ^6.1.1
+  pdf: ^3.10.7
+  printing: ^5.11.0
+  share_plus: ^7.2.2
+  archive: ^3.6.1
+  csv: ^6.0.0
+  file_picker: ^8.1.2
+  file_saver: ^0.2.11
+  image_picker: ^1.0.7
+  google_mlkit_text_recognition: ^0.11.0
+  http: ^1.2.0
+  local_auth: ^2.3.0
+  flutter_secure_storage: ^9.2.2
+  mailer: ^6.1.0  # <--- चेक करें कि यह line सिर्फ़ एक बार हो और dependencies के नीचे हो
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.0
+
+# यहाँ से नीचे सिर्फ़ एक बार 'flutter:' होना चाहिए
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/logo.png
