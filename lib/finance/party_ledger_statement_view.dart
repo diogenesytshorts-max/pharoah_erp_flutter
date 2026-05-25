@@ -255,8 +255,22 @@ class _PartyLedgerStatementViewState extends State<PartyLedgerStatementView> {
 
   Widget _menuItem(IconData i, String t, Color c, VoidCallback onTap) => ListTile(leading: Icon(i, color: c), title: Text(t, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)), onTap: onTap);
 
-  void _generateStatementPdf(PharoahManager ph) {
-    // This will call our future party_ledger_pdf.dart
-    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Generating A4 Statement PDF...")));
+  void _generateStatementPdf(PharoahManager ph) async {
+    if (selectedParty == null) return;
+    
+    // Get fresh data
+    final data = ph.getPartyStatementData(
+      partyId: selectedParty!.id, 
+      fromDate: fromDate, 
+      toDate: toDate
+    );
+
+    // Call PDF Service
+    await PartyLedgerPdf.generate(
+      shop: ph.activeCompany!,
+      party: selectedParty!,
+      data: data,
+      from: fromDate,
+      to: toDate,
+    );
   }
-}
