@@ -6,6 +6,7 @@ import 'package:intl/intl.dart';
 import '../../models.dart';
 import '../../gateway/company_registry_model.dart';
 import '../../finance/stock_flow_engine.dart';
+import 'dart:typed_data'; // <--- Ye line jodein
 import '../../pharoah_manager.dart';
 
 class CompanyStockPdf {
