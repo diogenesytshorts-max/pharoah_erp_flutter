@@ -42,10 +42,28 @@ class _CompanyStockViewState extends State<CompanyStockView> {
 
     return Scaffold(
       backgroundColor: const Color(0xFFF4F7FC),
-      appBar: AppBar(
-        title: const Text("Company Stock Flow"),
-        backgroundColor: Colors.purple.shade900,
-        actions: [
+     actions: [
+          // 📧 NAYA: EMAIL ICON FOR COMPANY STOCK REPORT
+          if (ph.config.isEmailActive)
+            IconButton(
+              icon: const Icon(Icons.alternate_email),
+              tooltip: "Email Stock Flow Report",
+              onPressed: () {
+                PdfRouterService.emailDocument(
+                  context: context,
+                  doc: {
+                    'grouped': grouped,
+                    'from': fromDate,
+                    'to': toDate,
+                    'basis': valuationBasis
+                  },
+                  party: Party(id: 'internal', name: 'Internal Stock Audit'), // Dummy party for Quick Add
+                  ph: ph,
+                  type: "STOCK",
+                );
+              },
+            ),
+
           IconButton(
             icon: const Icon(Icons.picture_as_pdf), 
             onPressed: () async {
@@ -60,7 +78,6 @@ class _CompanyStockViewState extends State<CompanyStockView> {
             }
           )
         ],
-      ),
       body: Column(children: [
         _buildTopFilterBar(ph),
         _buildValuationDrag(),
