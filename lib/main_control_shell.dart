@@ -44,6 +44,7 @@ import 'administration/app_settings_view.dart';
 import 'sale_summary_view.dart'; // Corrected Import
 import 'purchase/purchase_summary_view.dart'; // Corrected Import
 import 'payment_receipt_history.dart';
+import 'finance/statement_hub.dart';
 
 class MainControlShell extends StatefulWidget {
   const MainControlShell({super.key});
@@ -207,6 +208,7 @@ class _MainControlShellState extends State<MainControlShell> {
         case "GO_ITEM_LEDGER": target = const ItemLedgerSearchView(); break;
         case "GO_DUMP": target = const StockHealthReports(); break;
         case "GO_DAYBOOK": target = const DaybookView(); break;
+        case "GO_STATEMENT_HUB": target = const StatementHubView(); break;
         case "GO_LEDGERS": target = const LedgerReportsView(); break;
         case "GO_RECEIPT": target = const VoucherEntryView(type: "Receipt"); break;
         case "GO_PAYMENT": target = const VoucherEntryView(type: "Payment"); break;
