@@ -191,15 +191,38 @@ class _SaleChallanRegisterState extends State<SaleChallanRegister> {
                   ],
                 ),
               ),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
+              // 📧 NAYA: EMAIL ICON + PURANA PRICE COLUMN
+              Row(
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text("₹${ch.totalAmount.toStringAsFixed(2)}", style: const TextStyle(fontWeight: FontWeight.w900, color: Color(0xFF1A237E))),
-                  Row(
+                  if (ph.config.isEmailActive)
+                    IconButton(
+                      icon: const Icon(Icons.alternate_email, color: Color(0xFF1A237E), size: 20),
+                      onPressed: () {
+                        final partyObj = ph.parties.firstWhere(
+                          (p) => p.name == ch.partyName, 
+                          orElse: () => Party(id: 'temp', name: ch.partyName, gst: ch.partyGstin, state: ch.partyState)
+                        );
+                        PdfRouterService.emailDocument(
+                          context: context,
+                          doc: ch,
+                          party: partyObj,
+                          ph: ph,
+                          type: "CHALLAN",
+                        );
+                      },
+                    ),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
-                      if (hasSign) Icon(Icons.verified, size: 14, color: isTampered ? Colors.orange : Colors.green),
-                      const SizedBox(width: 4),
-                      _statusBadge(ch.status, isPending),
+                      Text("₹${ch.totalAmount.toStringAsFixed(2)}", style: const TextStyle(fontWeight: FontWeight.w900, color: Color(0xFF1A237E))),
+                      Row(
+                        children: [
+                          if (hasSign) Icon(Icons.verified, size: 14, color: isTampered ? Colors.orange : Colors.green),
+                          const SizedBox(width: 4),
+                          _statusBadge(ch.status, isPending),
+                        ],
+                      ),
                     ],
                   ),
                 ],
