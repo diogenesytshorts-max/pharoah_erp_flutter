@@ -180,7 +180,33 @@ class _PurchaseChallanRegisterState extends State<PurchaseChallanRegister> {
                   ],
                 ),
               ),
-              Text("₹${ch.totalAmount.toStringAsFixed(0)}", style: TextStyle(fontWeight: FontWeight.w900, color: Colors.amber.shade900)),
+            // 📧 NAYA: EMAIL ICON + TOTAL AMOUNT
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (ph.config.isEmailActive)
+                    IconButton(
+                      icon: const Icon(Icons.alternate_email, color: Colors.amber, size: 20),
+                      tooltip: "Email to Supplier",
+                      onPressed: () {
+                        // Supplier/Distributor object find karna
+                        final partyObj = ph.parties.firstWhere(
+                          (p) => p.name == ch.distributorName, 
+                          orElse: () => Party(id: 'temp', name: ch.distributorName)
+                        );
+                        
+                        PdfRouterService.emailDocument(
+                          context: context,
+                          doc: ch,
+                          party: partyObj,
+                          ph: ph,
+                          type: "CHALLAN",
+                        );
+                      },
+                    ),
+                  Text("₹${ch.totalAmount.toStringAsFixed(0)}", style: TextStyle(fontWeight: FontWeight.w900, color: Colors.amber.shade900)),
+                ],
+              ),
             ],
           ),
         ),
