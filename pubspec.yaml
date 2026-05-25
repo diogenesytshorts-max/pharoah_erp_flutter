@@ -26,6 +26,11 @@ dependencies:
   http: ^1.2.0
   local_auth: ^2.3.0             # NAYA: For Biometrics
   flutter_secure_storage: ^9.2.2  # NAYA: For Hardware Encrypted Token
+  dependencies:
+  flutter:
+    sdk: flutter
+  # ... (baaki purani libraries) ...
+  mailer: ^6.1.0  # <--- Ye naya add karein
 
 dev_dependencies:
   flutter_test:
