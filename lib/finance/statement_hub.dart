@@ -47,8 +47,8 @@ class StatementHubView extends StatelessWidget {
                _hubCard(context, "Company Wise\nStock", "In-Out Flow", Icons.business_rounded, Colors.purple, const CompanyStockView()),
                _hubCard(context, "Party Wise\nStock", "Sales Analysis", Icons.person_search_rounded, Colors.teal, const PartyWiseStockView()),
                _hubCard(context, "Near Expiry\nStock", "Loss Prevention", Icons.event_busy_rounded, Colors.red, const CompanyExpiryAuditView()),
-              _hubCard(context, "Item Movement\nLedger", "In-Out Timeline", Icons.history_edu_rounded, Colors.blue, const ItemMovementLedgerView()),
-// Aap chaho toh 6th button ko ab 'Custom Report' ya 'HSN Summary' ke liye rakh sakte ho ya disable kar sakte ho.
+           // Line 50 aur 52 ke paas ye replace karein:
+_hubCard(context, "Item Movement\nLedger", "In-Out Timeline", Icons.history_edu_rounded, Colors.blue, const ItemMovementLedgerView()),
 _hubCard(context, "Purchase Source\nHistory", "Price Tracking", Icons.shopping_cart_rounded, Colors.orange, const ItemMovementLedgerView()),
               ],
             ),
