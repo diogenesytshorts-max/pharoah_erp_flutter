@@ -4,7 +4,8 @@ import '../pharoah_manager.dart';
 import 'company_stock_view.dart';
 import 'company_expiry_audit_view.dart';
 import 'party_wise_stock_view.dart';
-import 'party_ledger_statement_view.dart'; // Agli file hum yahi banayenge
+import 'party_ledger_statement_view.dart';
+import 'item_movement_ledger_view.dart'; // ✅ Fixed: Missing import added
 
 class StatementHubView extends StatelessWidget {
   const StatementHubView({super.key});
@@ -34,7 +35,6 @@ class StatementHubView extends StatelessWidget {
             ),
             const SizedBox(height: 15),
             
-            // --- GRID OF 6 BUTTONS (As per your plan) ---
             GridView.count(
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
@@ -44,12 +44,13 @@ class StatementHubView extends StatelessWidget {
               childAspectRatio: 1.1,
               children: [
                 _hubCard(context, "Party Ledger\nStatement", "Dr/Cr Audit", Icons.account_balance_wallet_rounded, Colors.indigo, const PartyLedgerStatementView()),
-               _hubCard(context, "Company Wise\nStock", "In-Out Flow", Icons.business_rounded, Colors.purple, const CompanyStockView()),
-               _hubCard(context, "Party Wise\nStock", "Sales Analysis", Icons.person_search_rounded, Colors.teal, const PartyWiseStockView()),
-               _hubCard(context, "Near Expiry\nStock", "Loss Prevention", Icons.event_busy_rounded, Colors.red, const CompanyExpiryAuditView()),
-           // Line 50 aur 52 ke paas ye replace karein:
-_hubCard(context, "Item Movement\nLedger", "In-Out Timeline", Icons.history_edu_rounded, Colors.blue, const ItemMovementLedgerView()),
-_hubCard(context, "Purchase Source\nHistory", "Price Tracking", Icons.shopping_cart_rounded, Colors.orange, const ItemMovementLedgerView()),
+                _hubCard(context, "Company Wise\nStock", "In-Out Flow", Icons.business_rounded, Colors.purple, const CompanyStockView()),
+                _hubCard(context, "Party Wise\nStock", "Sales Analysis", Icons.person_search_rounded, Colors.teal, const PartyWiseStockView()),
+                _hubCard(context, "Near Expiry\nStock", "Loss Prevention", Icons.event_busy_rounded, Colors.red, const CompanyExpiryAuditView()),
+                
+                // ✅ Fixed: Removed 'const' which was causing build error
+                _hubCard(context, "Item Movement\nLedger", "In-Out Timeline", Icons.history_edu_rounded, Colors.blue, const ItemMovementLedgerView()),
+                _hubCard(context, "Purchase Source\nHistory", "Price Tracking", Icons.shopping_cart_rounded, Colors.orange, const ItemMovementLedgerView()),
               ],
             ),
             const SizedBox(height: 100),
