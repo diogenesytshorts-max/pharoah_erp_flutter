@@ -648,22 +648,19 @@ void cancelReturn(String id, bool isSaleReturn) {
   // ===========================================================================
 
   NumberingSeries getDefaultSeries(String t) {
-    // 1. Pehle check karo agar user ne koi Default series banayi hai
+    final searchType = t.toUpperCase();
     try {
-      return numberingSeries.firstWhere((s) => s.type == t && s.isDefault);
+      // 1. सबसे पहले चेक करो अगर आपने कोई DEFAULT सीरीज़ बनाई है
+      return numberingSeries.firstWhere((s) => s.type == searchType && s.isDefault && s.isActive);
     } catch (e) {
-      // 2. Agar nahi, toh Transaction Type ke hisab se "Smart Default" do
-      String defaultPrefix = "TXN-";
-      if (t == "RECEIPT") defaultPrefix = "RCT-";
-      if (t == "PAYMENT") defaultPrefix = "PAY-";
-
-      return NumberingSeries(
-        id: 'tmp_${t}', 
-        name: 'System Default', 
-        type: t, 
-        prefix: defaultPrefix, 
-        isDefault: true
-      );
+      try {
+        // 2. अगर डिफ़ॉल्ट नहीं मिली, तो उस टाइप की कोई भी ACTIVE सीरीज़ ले लो
+        return numberingSeries.firstWhere((s) => s.type == searchType && s.isActive);
+      } catch (e) {
+        // 3. अगर कुछ नहीं मिला, तो सिस्टम का अपना स्मार्ट डिफ़ॉल्ट दो
+        String prefix = searchType == "RECEIPT" ? "RCT-" : (searchType == "PAYMENT" ? "PAY-" : "TXN-");
+        return NumberingSeries(id: 'sys_$searchType', name: 'System Default', type: searchType, prefix: prefix, isDefault: true);
+      }
     }
   }  List<NumberingSeries> getSeriesByType(String t) => numberingSeries.where((s) => s.type == t).toList();
   List<String> getSortedStates() { final all = ["Andhra Pradesh", "Assam", "Bihar", "Chhattisgarh", "Goa", "Gujarat", "Haryana", "Himachal Pradesh", "Jharkhand", "Karnataka", "Kerala", "Madhya Pradesh", "Maharashtra", "Manipur", "Meghalaya", "Mizoram", "Nagaland", "Odisha", "Punjab", "Rajasthan", "Sikkim", "Tamil Nadu", "Telangana", "Tripura", "Uttar Pradesh", "Uttarakhand", "West Bengal", "Delhi", "Jammu and Kashmir", "Ladakh", "Puducherry", "Chandigarh"]; Map<String, int> counts = {}; for (var p in parties) { counts[p.state] = (counts[p.state] ?? 0) + 1; } List<String> sorted = List.from(all); sorted.sort((a, b) => (counts[b] ?? 0).compareTo(counts[a] ?? 0)); return sorted; }
