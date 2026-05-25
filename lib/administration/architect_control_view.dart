@@ -1,4 +1,4 @@
-// FILE: lib/administration/architect_control_view.dart
+// FILE: lib/administration/architect_control_view.dart (FIXED FULL VERSION)
 
 import 'dart:io';
 import 'package:flutter/material.dart';
@@ -16,23 +16,30 @@ class ArchitectControlView extends StatefulWidget {
 }
 
 class _ArchitectControlViewState extends State<ArchitectControlView> {
-  // Controllers
+  // 1. Core Controllers
   late TextEditingController labelC, nameC, numC, ifscC, bankC, termsC;
+  
+  // 2. 🔥 NAYA: EMAIL CONTROLLERS (Class Level par define kiye gaye hain)
+  late TextEditingController emailC, passC, hostC, portC;
 
   @override
   void initState() {
     super.initState();
     final ph = Provider.of<PharoahManager>(context, listen: false);
+    
+    // Core initialization
     labelC = TextEditingController(text: ph.config.signLabel);
     nameC = TextEditingController(text: ph.config.bankAccName);
     numC = TextEditingController(text: ph.config.bankAccNumber);
     ifscC = TextEditingController(text: ph.config.bankIfsc);
     bankC = TextEditingController(text: ph.config.bankNameBranch);
     termsC = TextEditingController(text: ph.config.termsAndConditions);
+    
+    // Email initialization
     emailC = TextEditingController(text: ph.config.smtpEmail);
-  passC = TextEditingController(text: ph.config.smtpPassword);
-  hostC = TextEditingController(text: ph.config.smtpHost);
-  portC = TextEditingController(text: ph.config.smtpPort.toString());
+    passC = TextEditingController(text: ph.config.smtpPassword);
+    hostC = TextEditingController(text: ph.config.smtpHost);
+    portC = TextEditingController(text: ph.config.smtpPort.toString());
   }
 
   // --- LOGIC: SAVE ALL ---
@@ -44,14 +51,16 @@ class _ArchitectControlViewState extends State<ArchitectControlView> {
     updated.bankIfsc = ifscC.text.trim();
     updated.bankNameBranch = bankC.text.trim();
     updated.termsAndConditions = termsC.text.trim();
+    
+    // 🔥 NAYA: Email Settings Saving
     updated.smtpEmail = emailC.text.trim();
-  updated.smtpPassword = passC.text.trim();
-  updated.smtpHost = hostC.text.trim();
-  updated.smtpPort = int.tryParse(portC.text) ?? 587;
+    updated.smtpPassword = passC.text.trim();
+    updated.smtpHost = hostC.text.trim();
+    updated.smtpPort = int.tryParse(portC.text) ?? 587;
 
-    ph.updateAppConfig(updated); // Iske andar manager.save() call hota hai
+    ph.updateAppConfig(updated); 
     ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-      content: Text("✅ All Architect Settings Synchronized!"),
+      content: Text("✅ All Settings Synchronized!"),
       backgroundColor: Colors.indigo,
     ));
   }
@@ -115,11 +124,10 @@ class _ArchitectControlViewState extends State<ArchitectControlView> {
         padding: const EdgeInsets.all(20),
         child: Column(
           children: [
-            // --- MASTER SWITCH: ARCHITECT MODE ---
             _buildArchitectMasterBanner(ph),
             const SizedBox(height: 25),
 
-            // STEP 01: SERIES MASTER
+            // STEP 01: SERIES
             _architectCard(
               step: "01", title: "INVOICE SERIES ARCHITECT", icon: Icons.format_list_numbered_rounded, color: Colors.purple,
               child: Column(children: [
@@ -182,40 +190,31 @@ class _ArchitectControlViewState extends State<ArchitectControlView> {
               ]),
             ),
 
-            // STEP 06: AESTHETICS (ZEBRA SHADING)
+            // STEP 06: AESTHETICS
             _architectCard(
               step: "06", title: "AESTHETICS & READABILITY", icon: Icons.style_rounded, color: Colors.blueGrey,
               child: _switchTile("Table Zebra Shading", "Alternating row colors", ph.config.useZebraShading, (v) {
                   ph.config.useZebraShading = v; ph.updateAppConfig(ph.config);
               }),
             ),
-            // STEP 08: EMAIL AUTOMATION SETUP (NAYA CARD)
-_architectCard(
-  step: "08", title: "EMAIL AUTOMATION ENGINE", icon: Icons.alternate_email_rounded, color: Colors.deepOrange,
-  child: Column(children: [
-    _switchTile("Activate Email Service", "Send bills directly from ERP", ph.config.isEmailActive, (v) {
-      ph.config.isEmailActive = v; ph.updateAppConfig(ph.config);
-    }),
-    const SizedBox(height: 10),
-    _inputField(emailC, "Your Gmail/Outlook ID", "dukan@gmail.com"),
-    _inputField(passC, "App Password (16-Digit)", "xxxx xxxx xxxx xxxx"),
-    Row(children: [
-      Expanded(child: _inputField(hostC, "SMTP Host", "smtp.gmail.com")),
-      const SizedBox(width: 10),
-      Expanded(child: _inputField(portC, "Port", "587", isNum: true)),
-    ]),
-    const SizedBox(height: 10),
-    Container(
-      padding: const EdgeInsets.all(10),
-      decoration: BoxDecoration(color: Colors.orange.withOpacity(0.1), borderRadius: BorderRadius.circular(10)),
-      child: const Row(children: [
-        Icon(Icons.info_outline, size: 16, color: Colors.orange),
-        SizedBox(width: 8),
-        Expanded(child: Text("Google users: Generate an 'App Password' from your Google account settings to use this feature.", style: TextStyle(fontSize: 9, color: Colors.blueGrey))),
-      ]),
-    ),
-  ]),
-),
+
+            // 🔥 STEP 08: EMAIL AUTOMATION ENGINE
+            _architectCard(
+              step: "08", title: "EMAIL AUTOMATION ENGINE", icon: Icons.alternate_email_rounded, color: Colors.deepOrange,
+              child: Column(children: [
+                _switchTile("Activate Email Service", "Send bills directly from ERP", ph.config.isEmailActive, (v) {
+                  ph.config.isEmailActive = v; ph.updateAppConfig(ph.config);
+                }),
+                const SizedBox(height: 10),
+                _inputField(emailC, "Your Gmail/Outlook ID", "dukan@gmail.com"),
+                _inputField(passC, "App Password (16-Digit)", "xxxx xxxx xxxx xxxx"),
+                Row(children: [
+                  Expanded(child: _inputField(hostC, "SMTP Host", "smtp.gmail.com")),
+                  const SizedBox(width: 10),
+                  Expanded(child: _inputField(portC, "Port", "587", isNum: true)),
+                ]),
+              ]),
+            ),
 
             // STEP 07: TERMS
             _architectCard(
@@ -279,7 +278,15 @@ _architectCard(
 
   Widget _switchTile(String l, String s, bool v, Function(bool) onChanged) => SwitchListTile(title: Text(l, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)), subtitle: Text(s, style: const TextStyle(fontSize: 11, color: Colors.grey)), value: v, onChanged: onChanged, contentPadding: EdgeInsets.zero, activeColor: Colors.green, dense: true);
 
-  Widget _inputField(TextEditingController c, String l, String h) => Padding(padding: const EdgeInsets.only(bottom: 12), child: TextField(controller: c, decoration: InputDecoration(labelText: l, hintText: h, isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)))));
+  // 🔥 FIXED HELPER: added isNum parameter
+  Widget _inputField(TextEditingController c, String l, String h, {bool isNum = false}) => Padding(
+    padding: const EdgeInsets.only(bottom: 12), 
+    child: TextField(
+      controller: c, 
+      keyboardType: isNum ? TextInputType.number : TextInputType.text,
+      decoration: InputDecoration(labelText: l, hintText: h, isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)))
+    )
+  );
 
   Widget _actionBtn(String l, IconData i, Color c, VoidCallback onTap) => Container(width: double.infinity, height: 48, decoration: BoxDecoration(color: c, borderRadius: BorderRadius.circular(12)), child: TextButton.icon(onPressed: onTap, icon: Icon(i, color: Colors.white, size: 18), label: Text(l, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 11))));
 
