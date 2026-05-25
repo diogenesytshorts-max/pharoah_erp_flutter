@@ -118,6 +118,7 @@ class PharoahManager with ChangeNotifier {
     ModuleAction(title: "Receipts", icon: Icons.add_chart, color: Colors.green, navModule: "GO_RECEIPT"),
     ModuleAction(title: "Payments", icon: Icons.analytics, color: Colors.red, navModule: "GO_PAYMENT"),
     ModuleAction(title: "Audit History", icon: Icons.history_edu_rounded, color: Colors.orange.shade900, navModule: "GO_HISTORY"),
+    ModuleAction(title: "STATEMENTS", icon: Icons.analytics_rounded, color: Colors.indigo.shade900, navModule: "GO_STATEMENT_HUB"),
   ];
 
   List<ModuleAction> get mastersActions => [
