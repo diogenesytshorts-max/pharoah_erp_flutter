@@ -676,7 +676,7 @@ void cancelReturn(String id, bool isSaleReturn) {
     return sorted;
   }
 
-  // ===========================================================================
+// ===========================================================================
   // 📊 ADVANCED STATEMENT ENGINE (FOR PARTY LEDGER & AUDIT)
   // ===========================================================================
 
@@ -763,49 +763,52 @@ void cancelReturn(String id, bool isSaleReturn) {
 
     return finalResult;
   }
-} // <--- Class ends here
-  // --- SIGNATURES (RESTORED) ---
-  Future<void> addSignatureToChallan({required String challanId, required String imagePath, required String code, required double amount, required double qty, required double x, required double y}) async { int idx = saleChallans.indexWhere((c) => c.id == challanId); if (idx != -1) { final s = ChallanSignature(id: DateTime.now().toString(), imagePath: imagePath, verificationCode: code, signedAmount: amount, signedQty: qty, signDate: DateTime.now(), signX: x, signY: y); List<ChallanSignature> h = List.from(saleChallans[idx].sigHistory); h.add(s); saleChallans[idx].sigHistory = h; saleChallans[idx].isSigned = true; save(); } }
-  Future<String> saveSignatureFile(String cNo, Uint8List b) async { final r = await getApplicationDocumentsDirectory(); final d = Directory('${r.path}/Pharoah_Data/${activeCompany!.id}/Signatures'); if (!await d.exists()) await d.create(recursive: true); final f = File('${d.path}/Sign_${cNo}_${DateTime.now().millisecondsSinceEpoch}.png'); await f.writeAsBytes(b); return f.path; }
-// 🔥 MAGIC HISTORY ENGINE: FY Locked Transaction Lookup (MRP Included)
+
+  // ===========================================================================
+  // ✍️ SIGNATURES & CHALLAN SECURITY
+  // ===========================================================================
+  
+  Future<void> addSignatureToChallan({required String challanId, required String imagePath, required String code, required double amount, required double qty, required double x, required double y}) async { 
+    int idx = saleChallans.indexWhere((c) => c.id == challanId); 
+    if (idx != -1) { 
+      final s = ChallanSignature(id: DateTime.now().toString(), imagePath: imagePath, verificationCode: code, signedAmount: amount, signedQty: qty, signDate: DateTime.now(), signX: x, signY: y); 
+      List<ChallanSignature> h = List.from(saleChallans[idx].sigHistory); 
+      h.add(s); 
+      saleChallans[idx].sigHistory = h; 
+      saleChallans[idx].isSigned = true; 
+      await save(); 
+    } 
+  }
+
+  Future<String> saveSignatureFile(String cNo, Uint8List b) async { 
+    final r = await getApplicationDocumentsDirectory(); 
+    final d = Directory('${r.path}/Pharoah_Data/${activeCompany!.id}/Signatures'); 
+    if (!await d.exists()) await d.create(recursive: true); 
+    final f = File('${d.path}/Sign_${cNo}_${DateTime.now().millisecondsSinceEpoch}.png'); 
+    await f.writeAsBytes(b); 
+    return f.path; 
+  }
+
+  // ===========================================================================
+  // 📜 MEDICINE HISTORY ENGINE
+  // ===========================================================================
+
   List<Map<String, dynamic>> getMedicineHistory({required String partyId, required String medicineId, required bool isSale}) {
     List<Map<String, dynamic>> history = [];
-
     if (isSale) {
-      // Sales History: Check karega ki is Customer ne ye item kab liya tha
       for (var s in sales.where((s) => s.partyId == partyId && s.status == "Active")) {
         for (var it in s.items.where((it) => it.medicineID == medicineId)) {
-          history.add({
-            'date': s.date,
-            'billNo': s.billNo,
-            'batch': it.batch,
-            'qty': it.qty,
-            'free': it.freeQty,
-            'rate': it.rate,
-            'mrp': it.mrp,
-            'gst': it.gstRate,
-          });
+          history.add({'date': s.date, 'billNo': s.billNo, 'batch': it.batch, 'qty': it.qty, 'free': it.freeQty, 'rate': it.rate, 'mrp': it.mrp, 'gst': it.gstRate});
         }
       }
     } else {
-      // Purchase History: Check karega ki is Supplier se humne kab kharida tha
       for (var p in purchases.where((p) => p.partyId == partyId)) {
         for (var it in p.items.where((it) => it.medicineID == medicineId)) {
-          history.add({
-            'date': p.date,
-            'billNo': p.billNo, 
-            'batch': it.batch,
-            'qty': it.qty,
-            'free': it.freeQty,
-            'rate': it.purchaseRate,
-            'mrp': it.mrp,
-            'gst': it.gstRate,
-          });
+          history.add({'date': p.date, 'billNo': p.billNo, 'batch': it.batch, 'qty': it.qty, 'free': it.freeQty, 'rate': it.purchaseRate, 'mrp': it.mrp, 'gst': it.gstRate});
         }
       }
     }
-    // Latest transactions ko sabse upar dikhayenge
     history.sort((a, b) => b['date'].compareTo(a['date']));
     return history;
   }
-}
+} // <--- FILE KI AKHRI LINE PAR SIRF EK BRACE HONA CHAHIYE
