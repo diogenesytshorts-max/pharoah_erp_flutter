@@ -5,7 +5,7 @@ import '../pharoah_manager.dart';
 import '../models.dart';
 import '../pharoah_date_controller.dart';
 import '../app_date_logic.dart';
-import '../../pdf/statements/party_stock_pdf.dart'; // 🔥 Connection
+import '../../pdf/statements/party_stock_pdf.dart'; // Connection with PDF
 
 class PartyWiseStockView extends StatefulWidget {
   const PartyWiseStockView({super.key});
@@ -26,13 +26,19 @@ class _PartyWiseStockViewState extends State<PartyWiseStockView> {
     fromDate = AppDateLogic.getFYStart(ph.currentFY);
   }
 
-  bool _isInRange(DateTime d) => d.isAfter(fromDate.subtract(const Duration(seconds: 1))) && d.isBefore(toDate.add(const Duration(days: 1)));
+  // Helper logic for date range
+  bool _isInRange(DateTime d) => 
+      d.isAfter(fromDate.subtract(const Duration(seconds: 1))) && 
+      d.isBefore(toDate.add(const Duration(days: 1)));
 
   @override
   Widget build(BuildContext context) {
     final ph = Provider.of<PharoahManager>(context);
+    
+    // 1. Data Aggregation Logic
     Map<String, List<Map<String, dynamic>>> groupedData = {};
 
+    // Process Sales
     for (var s in ph.sales.where((s) => s.status == "Active" && _isInRange(s.date))) {
       if (!groupedData.containsKey(s.partyName)) groupedData[s.partyName] = [];
       for (var it in s.items) {
@@ -42,6 +48,7 @@ class _PartyWiseStockViewState extends State<PartyWiseStockView> {
       }
     }
 
+    // Process Purchases (If Mixed Mode)
     if (mode == "MIXED") {
       for (var p in ph.purchases.where((p) => _isInRange(p.date))) {
         if (!groupedData.containsKey(p.distributorName)) groupedData[p.distributorName] = [];
@@ -64,35 +71,9 @@ class _PartyWiseStockViewState extends State<PartyWiseStockView> {
           IconButton(
             icon: const Icon(Icons.picture_as_pdf), 
             onPressed: () async {
-              // 1. Logic: Mirror current UI grouping for PDF
-              Map<String, List<Map<String, dynamic>>> currentGrouped = {};
-
-              // Sales process karein
-              for (var s in ph.sales.where((s) => s.status == "Active" && _isInRange(s.date))) {
-                if (!currentGrouped.containsKey(s.partyName)) currentGrouped[s.partyName] = [];
-                for (var it in s.items) {
-                  currentGrouped[s.partyName]!.add({
-                    'name': it.name, 'qty': it.qty, 'free': it.freeQty, 'rate': it.rate, 'total': it.total, 'type': 'SALE'
-                  });
-                }
-              }
-
-              // Purchase process karein (Sirf agar mode Mixed ho)
-              if (mode == "MIXED") {
-                for (var p in ph.purchases.where((p) => _isInRange(p.date))) {
-                  if (!currentGrouped.containsKey(p.distributorName)) currentGrouped[p.distributorName] = [];
-                  for (var it in p.items) {
-                    currentGrouped[p.distributorName]!.add({
-                      'name': it.name, 'qty': it.qty, 'free': it.freeQty, 'rate': it.purchaseRate, 'total': it.total, 'type': 'PUR'
-                    });
-                  }
-                }
-              }
-
-              // 2. Call Nested PDF Generator
               await PartyStockPdf.generate(
                 shop: ph.activeCompany!,
-                groupedData: currentGrouped,
+                groupedData: groupedData,
                 from: fromDate,
                 to: toDate,
                 mode: mode,
@@ -101,6 +82,28 @@ class _PartyWiseStockViewState extends State<PartyWiseStockView> {
           )
         ],
       ),
+      body: Column(children: [
+        _buildFilterHeader(ph),
+        Expanded(
+          child: filteredParties.isEmpty 
+            ? const Center(child: Text("No records found."))
+            : ListView.builder(
+                padding: const EdgeInsets.all(12),
+                itemCount: filteredParties.length,
+                itemBuilder: (c, i) {
+                  String pName = filteredParties[i];
+                  return _buildPartyCard(pName, groupedData[pName]!);
+                },
+              ),
+        ),
+        _buildGrandTotalBar(groupedData, filteredParties),
+      ]),
+    );
+  }
+
+  // ===========================================================================
+  // UI HELPER METHODS (OUTSIDE BUILD)
+  // ===========================================================================
 
   Widget _buildFilterHeader(PharoahManager ph) => Container(
     padding: const EdgeInsets.all(15), color: Colors.teal.shade800,
@@ -122,7 +125,14 @@ class _PartyWiseStockViewState extends State<PartyWiseStockView> {
       const SizedBox(height: 10),
       TextField(
         style: const TextStyle(color: Colors.white),
-        decoration: InputDecoration(hintText: "Search Party...", hintStyle: const TextStyle(color: Colors.white54), prefixIcon: const Icon(Icons.search, color: Colors.white), filled: true, fillColor: Colors.white.withOpacity(0.1), border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none), isDense: true),
+        decoration: InputDecoration(
+          hintText: "Search Party...", 
+          hintStyle: const TextStyle(color: Colors.white54), 
+          prefixIcon: const Icon(Icons.search, color: Colors.white), 
+          filled: true, fillColor: Colors.white.withOpacity(0.1), 
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none), 
+          isDense: true
+        ),
         onChanged: (v) => setState(() => partySearch = v),
       )
     ]),
@@ -144,9 +154,12 @@ class _PartyWiseStockViewState extends State<PartyWiseStockView> {
         _itemTable(items),
         Container(
           padding: const EdgeInsets.all(10),
-          decoration: BoxDecoration(color: Colors.grey.shade50, border: const Border(top: BorderSide(color: Color(0xFFEEEEEE)))),
+          decoration: const BoxDecoration(color: Color(0xFFFAFAFA), border: Border(top: BorderSide(color: Color(0xFFEEEEEE)))),
           child: Row(mainAxisAlignment: MainAxisAlignment.end, children: [
-            _miniStat("QTY", q), _miniStat("FREE", f),
+            const Text("PARTY TOTAL:", style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.blueGrey)),
+            const SizedBox(width: 15),
+            _miniStat("QTY", q), 
+            _miniStat("FREE", f),
             Text("₹${t.toStringAsFixed(2)}", style: const TextStyle(fontWeight: FontWeight.w900, color: Colors.teal)),
           ]),
         )
@@ -177,7 +190,9 @@ class _PartyWiseStockViewState extends State<PartyWiseStockView> {
 
   Widget _buildGrandTotalBar(Map<String, List<Map<String, dynamic>>> data, List<String> filteredKeys) {
     double grandTotal = 0;
-    for (var key in filteredKeys) { grandTotal += data[key]!.fold(0, (s, e) => s + e['total']); }
+    for (var key in filteredKeys) { 
+      grandTotal += data[key]!.fold(0, (s, e) => s + e['total']); 
+    }
     return Container(
       padding: const EdgeInsets.all(20), color: Colors.teal.shade900,
       child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
@@ -187,6 +202,23 @@ class _PartyWiseStockViewState extends State<PartyWiseStockView> {
     );
   }
 
-  Widget _miniStat(String l, double v) => Padding(padding: const EdgeInsets.only(right: 15), child: Column(children: [Text(l, style: const TextStyle(fontSize: 7, color: Colors.grey)), Text(v.toStringAsFixed(2), style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold))]));
-  Widget _dateTile(String l, DateTime d, Function(DateTime) onPick, String fy) => InkWell(onTap: () async { DateTime? p = await PharoahDateController.pickDate(context: context, currentFY: fy, initialDate: d); if (p != null) onPick(p); }, child: Container(padding: const EdgeInsets.all(10), decoration: BoxDecoration(border: Border.all(color: Colors.white24), borderRadius: BorderRadius.circular(8)), child: Text("$l: ${DateFormat('dd/MM').format(d)}", style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold))));
+  Widget _miniStat(String l, double v) => Padding(
+    padding: const EdgeInsets.only(right: 15), 
+    child: Column(children: [
+      Text(l, style: const TextStyle(fontSize: 7, color: Colors.grey)), 
+      Text(v.toStringAsFixed(2), style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold))
+    ])
+  );
+
+  Widget _dateTile(String l, DateTime d, Function(DateTime) onPick, String fy) => InkWell(
+    onTap: () async { 
+      DateTime? p = await PharoahDateController.pickDate(context: context, currentFY: fy, initialDate: d); 
+      if (p != null) onPick(p); 
+    }, 
+    child: Container(
+      padding: const EdgeInsets.all(10), 
+      decoration: BoxDecoration(border: Border.all(color: Colors.white24), borderRadius: BorderRadius.circular(8)), 
+      child: Text("$l: ${DateFormat('dd/MM').format(d)}", style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold))
+    )
+  );
 }
