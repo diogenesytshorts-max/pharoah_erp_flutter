@@ -12,6 +12,8 @@ import 'package:intl/intl.dart';
 import '../models.dart';
 import '../pharoah_manager.dart';
 import '../gateway/company_registry_model.dart';
+import '../logic/email_service.dart'; // NAYA
+import 'package:flutter/material.dart'; // UI Dialogs ke liye
 
 import 'sale_invoice_pdf.dart';
 import 'architect_sale_pdf.dart';
@@ -97,6 +99,106 @@ class PdfRouterService {
       final latestSupplier = _getLatestParty(ph, challan.partyId, challan.distributorName);
       await PurchaseChallanPdf.generate(challan, latestSupplier, ph.activeCompany!);
     }
+  }
+  // ===========================================================================
+  // 📧 4. UNIVERSAL EMAIL DISPATCHER (With Quick Add Logic)
+  // ===========================================================================
+  static Future<void> emailDocument({
+    required BuildContext context,
+    required dynamic doc, // Sale, Purchase, Challan, or Statement Map
+    required Party party,
+    required PharoahManager ph,
+    required String type, // "SALE", "CHALLAN", "LEDGER", "STOCK"
+  }) async {
+    final config = ph.config;
+
+    // 1. Check if Email Service is Active
+    if (!config.isEmailActive) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Email service is OFF. Enable it in Settings > Architect Control."), backgroundColor: Colors.orange));
+      return;
+    }
+
+    // 2. QUICK ADD EMAIL LOGIC: Agar email khali hai toh pucho
+    String targetEmail = party.email.trim();
+    if (targetEmail.isEmpty || !targetEmail.contains('@')) {
+      String? newEmail = await _showQuickEmailDialog(context, party.name);
+      if (newEmail == null || newEmail.isEmpty) return; // Cancelled
+
+      // Update Party Master permanently
+      int idx = ph.parties.indexWhere((p) => p.id == party.id);
+      if (idx != -1) {
+        ph.parties[idx].email = newEmail;
+        await ph.save();
+        targetEmail = newEmail;
+        print("Master Updated: Email added for ${party.name}");
+      }
+    }
+
+    // 3. Generating PDF Bytes (Existing Logic Reused)
+    Uint8List pdfBytes;
+    String docNo = "";
+
+    try {
+      if (type == "SALE") {
+        docNo = (doc as Sale).billNo;
+        if (config.isArchitectMode) pdfBytes = await ArchitectSalePdf.generateBytes(doc, party, ph.activeCompany!, config);
+        else pdfBytes = await SaleInvoicePdf.generateBytes(doc, party, ph.activeCompany!);
+      } 
+      else if (type == "CHALLAN") {
+        docNo = (doc as SaleChallan).billNo;
+        pdfBytes = await SaleChallanPdf.generateBytes(doc, party, ph.activeCompany!);
+      }
+      else {
+         // Agar Ledger ya Stock hai, toh Bytes generation ka alag method chahiye hoga 
+         // Filhal hum Sale/Challan par focus kar rahe hain. 
+         // Statements ke liye hum bytes nikalne wala logic baad me update karenge.
+         return;
+      }
+
+      // 4. Get Template and Send
+      final template = PharoahEmailService.getTemplate(type: type, shopName: ph.activeCompany!.name, docNo: docNo);
+      
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Sending email to $targetEmail...")));
+
+      bool success = await PharoahEmailService.sendEmailWithPdf(
+        config: config,
+        shopName: ph.activeCompany!.name,
+        recipientEmail: targetEmail,
+        subject: template['subject']!,
+        body: template['body']!,
+        pdfBytes: pdfBytes,
+        fileName: "${type}_$docNo",
+      );
+
+      if (success) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("✅ Email Sent Successfully!"), backgroundColor: Colors.green));
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("❌ Failed to send email. Check credentials."), backgroundColor: Colors.red));
+      }
+    } catch (e) {
+      print("Router Email Error: $e");
+    }
+  }
+
+  // --- PRIVATE HELPER: QUICK EMAIL DIALOG ---
+  static Future<String?> _showQuickEmailDialog(BuildContext context, String partyName) async {
+    final emailC = TextEditingController();
+    return showDialog<String>(
+      context: context,
+      barrierDismissible: false,
+      builder: (c) => AlertDialog(
+        title: const Text("Email Required"),
+        content: Column(mainAxisSize: MainAxisSize.min, children: [
+          Text("No email found for $partyName. Enter email to send and save to master record."),
+          const SizedBox(height: 15),
+          TextField(controller: emailC, keyboardType: TextInputType.emailAddress, decoration: const InputDecoration(labelText: "Customer Email ID", border: OutlineInputBorder(), prefixIcon: Icon(Icons.email))),
+        ]),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(c), child: const Text("CANCEL")),
+          ElevatedButton(onPressed: () => Navigator.pop(c, emailC.text.trim()), child: const Text("SAVE & SEND")),
+        ],
+      ),
+    );
   }
 
   // ===========================================================================
