@@ -1,9 +1,10 @@
-// FILE: lib/administration/architect_control_view.dart (FIXED FULL VERSION)
+// FILE: lib/administration/architect_control_view.dart (FINAL UPDATED VERSION)
 
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:url_launcher/url_launcher.dart'; // 🔥 NAYA IMPORT
 import '../../pharoah_manager.dart';
 import '../logic/app_settings_model.dart';
 import 'series_master_view.dart';
@@ -19,7 +20,7 @@ class _ArchitectControlViewState extends State<ArchitectControlView> {
   // 1. Core Controllers
   late TextEditingController labelC, nameC, numC, ifscC, bankC, termsC;
   
-  // 2. 🔥 NAYA: EMAIL CONTROLLERS (Class Level par define kiye gaye hain)
+  // 2. Email Controllers
   late TextEditingController emailC, passC, hostC, portC;
 
   @override
@@ -27,7 +28,6 @@ class _ArchitectControlViewState extends State<ArchitectControlView> {
     super.initState();
     final ph = Provider.of<PharoahManager>(context, listen: false);
     
-    // Core initialization
     labelC = TextEditingController(text: ph.config.signLabel);
     nameC = TextEditingController(text: ph.config.bankAccName);
     numC = TextEditingController(text: ph.config.bankAccNumber);
@@ -35,12 +35,60 @@ class _ArchitectControlViewState extends State<ArchitectControlView> {
     bankC = TextEditingController(text: ph.config.bankNameBranch);
     termsC = TextEditingController(text: ph.config.termsAndConditions);
     
-    // Email initialization
     emailC = TextEditingController(text: ph.config.smtpEmail);
     passC = TextEditingController(text: ph.config.smtpPassword);
     hostC = TextEditingController(text: ph.config.smtpHost);
     portC = TextEditingController(text: ph.config.smtpPort.toString());
   }
+
+  // ===========================================================================
+  // 📧 NAYA: EMAIL SETUP HELPERS (LINK & GUIDE)
+  // ===========================================================================
+
+  // 1. Browser me Google Link kholne ke liye
+  Future<void> _launchGmailSecurity() async {
+    final Uri url = Uri.parse('https://myaccount.google.com/apppasswords');
+    if (!await launchUrl(url, mode: LaunchMode.externalApplication)) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Could not open browser. Check Internet.")));
+    }
+  }
+
+  // 2. Step-by-Step Guide Dialog
+  void _showEmailSetupGuide() {
+    showDialog(
+      context: context,
+      builder: (c) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(25)),
+        title: const Row(children: [Icon(Icons.auto_awesome, color: Colors.orange), SizedBox(width: 10), Text("Quick Email Setup")]),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text("Google security requires an 'App Password' for ERP billing. Regular passwords won't work.", style: TextStyle(fontSize: 11, color: Colors.blueGrey, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 15),
+            _stepRow("1", "Go to your Google Account > Security."),
+            _stepRow("2", "Enable '2-Step Verification' (If OFF)."),
+            _stepRow("3", "Search for 'App Passwords' in Search Bar."),
+            _stepRow("4", "Type 'Pharoah ERP' as App Name."),
+            _stepRow("5", "Copy the 16-digit code & paste it here."),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(c), child: const Text("GOT IT")),
+          ElevatedButton(onPressed: () { Navigator.pop(c); _launchGmailSecurity(); }, child: const Text("OPEN LINK")),
+        ],
+      ),
+    );
+  }
+
+  Widget _stepRow(String num, String text) => Padding(
+    padding: const EdgeInsets.only(bottom: 8),
+    child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      CircleAvatar(radius: 9, backgroundColor: Colors.indigo, child: Text(num, style: const TextStyle(fontSize: 9, color: Colors.white))),
+      const SizedBox(width: 10),
+      Expanded(child: Text(text, style: const TextStyle(fontSize: 11))),
+    ]),
+  );
 
   // --- LOGIC: SAVE ALL ---
   void _saveSettings(PharoahManager ph) {
@@ -52,7 +100,6 @@ class _ArchitectControlViewState extends State<ArchitectControlView> {
     updated.bankNameBranch = bankC.text.trim();
     updated.termsAndConditions = termsC.text.trim();
     
-    // 🔥 NAYA: Email Settings Saving
     updated.smtpEmail = emailC.text.trim();
     updated.smtpPassword = passC.text.trim();
     updated.smtpHost = hostC.text.trim();
@@ -75,36 +122,6 @@ class _ArchitectControlViewState extends State<ArchitectControlView> {
       ph.updateAppConfig(ph.config);
       setState(() {});
     }
-  }
-
-  // --- UI: CUSTOMER SIGN DIALOG ---
-  void _showCustomerSignDialog(PharoahManager ph) {
-    showDialog(
-      context: context,
-      builder: (c) => StatefulBuilder(builder: (context, setDialogState) {
-        return AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(25)),
-          title: const Text("Customer Signature Setup", style: TextStyle(fontWeight: FontWeight.bold)),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Text("Control receiver sign area on delivery documents.", style: TextStyle(fontSize: 12, color: Colors.grey)),
-              const SizedBox(height: 20),
-              SwitchListTile(
-                title: const Text("Sale Challan Signature", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-                value: ph.config.showCustomerSignChallan,
-                activeColor: Colors.indigo,
-                onChanged: (v) {
-                  setDialogState(() => ph.config.showCustomerSignChallan = v);
-                  ph.updateAppConfig(ph.config);
-                },
-              )
-            ],
-          ),
-          actions: [TextButton(onPressed: () => Navigator.pop(c), child: const Text("CLOSE"))],
-        );
-      }),
-    );
   }
 
   @override
@@ -146,8 +163,6 @@ class _ArchitectControlViewState extends State<ArchitectControlView> {
                   ph.config.showStaffSign = v; ph.updateAppConfig(ph.config);
                 }),
                 _inputField(labelC, "Signature Label", "Authorised Signatory"),
-                const SizedBox(height: 15),
-                _actionBtn("CUSTOMER SIGNATURE", Icons.person_pin_rounded, Colors.indigo.shade800, () => _showCustomerSignDialog(ph)),
               ]),
             ),
 
@@ -167,52 +182,62 @@ class _ArchitectControlViewState extends State<ArchitectControlView> {
             _architectCard(
               step: "04", title: "SMART PRINT ENGINE", icon: Icons.print_rounded, color: Colors.pink.shade800,
               child: Row(children: [
-                _formatTile("A4 PRO", "Landscape", "A4", Icons.description_outlined, ph),
+                _formatTile("A4 PRO", "A4", Icons.description_outlined, ph),
                 const SizedBox(width: 12),
-                _formatTile("THERMAL", "3-Inch POS", "Thermal", Icons.receipt_long_rounded, ph),
+                _formatTile("THERMAL", "Thermal", Icons.receipt_long_rounded, ph),
               ]),
             ),
 
-            // STEP 05: FINANCE
+            // 🔥 STEP 08: EMAIL AUTOMATION ENGINE (THE UPDATED HUB)
             _architectCard(
-              step: "05", title: "FINANCIAL IDENTITY", icon: Icons.account_balance_rounded, color: Colors.teal,
-              child: Column(children: [
-                _switchTile("Enable UPI QR Code", "Scan-to-pay on bills", ph.config.showQrCode, (v) {
-                  ph.config.showQrCode = v; ph.updateAppConfig(ph.config);
-                }),
-                _actionBtn("UPLOAD UPI QR IMAGE", Icons.qr_code_scanner_rounded, Colors.teal.shade800, () => _pickImage(ph, false)),
-                if(ph.config.qrCodePath != null) _imageIndicator(ph.config.qrCodePath!),
-                const SizedBox(height: 15),
-                _inputField(nameC, "Account Holder Name", "Name on Bank"),
-                _inputField(numC, "Bank Account Number", "Digits"),
-                _inputField(ifscC, "IFSC Code", "SBIN000XXXX"),
-                _inputField(bankC, "Bank Name & Branch", "Branch"),
-              ]),
-            ),
-
-            // STEP 06: AESTHETICS
-            _architectCard(
-              step: "06", title: "AESTHETICS & READABILITY", icon: Icons.style_rounded, color: Colors.blueGrey,
-              child: _switchTile("Table Zebra Shading", "Alternating row colors", ph.config.useZebraShading, (v) {
-                  ph.config.useZebraShading = v; ph.updateAppConfig(ph.config);
-              }),
-            ),
-
-            // 🔥 STEP 08: EMAIL AUTOMATION ENGINE
-            _architectCard(
-              step: "08", title: "EMAIL AUTOMATION ENGINE", icon: Icons.alternate_email_rounded, color: Colors.deepOrange,
+              step: "05", title: "EMAIL AUTOMATION HUB", icon: Icons.alternate_email_rounded, color: Colors.deepOrange,
               child: Column(children: [
                 _switchTile("Activate Email Service", "Send bills directly from ERP", ph.config.isEmailActive, (v) {
                   ph.config.isEmailActive = v; ph.updateAppConfig(ph.config);
                 }),
                 const SizedBox(height: 10),
-                _inputField(emailC, "Your Gmail/Outlook ID", "dukan@gmail.com"),
-                _inputField(passC, "App Password (16-Digit)", "xxxx xxxx xxxx xxxx"),
+                _inputField(emailC, "Sender Gmail ID", "dukan@gmail.com"),
+                _inputField(passC, "App Password (16-Digit)", "xxxx xxxx xxxx xxxx", isPass: true),
+                
+                Row(children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: _showEmailSetupGuide,
+                      icon: const Icon(Icons.help_outline, size: 16),
+                      label: const Text("SETUP GUIDE", style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold)),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      onPressed: _launchGmailSecurity,
+                      icon: const Icon(Icons.open_in_new, size: 16),
+                      label: const Text("GENERATE LINK", style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold)),
+                      style: ElevatedButton.styleFrom(backgroundColor: Colors.deepOrange, foregroundColor: Colors.white),
+                    ),
+                  ),
+                ]),
+                const SizedBox(height: 15),
                 Row(children: [
                   Expanded(child: _inputField(hostC, "SMTP Host", "smtp.gmail.com")),
                   const SizedBox(width: 10),
                   Expanded(child: _inputField(portC, "Port", "587", isNum: true)),
                 ]),
+              ]),
+            ),
+
+            // STEP 05: FINANCE
+            _architectCard(
+              step: "06", title: "FINANCIAL IDENTITY", icon: Icons.account_balance_rounded, color: Colors.teal,
+              child: Column(children: [
+                _switchTile("Enable UPI QR Code", "Scan-to-pay on bills", ph.config.showQrCode, (v) {
+                  ph.config.showQrCode = v; ph.updateAppConfig(ph.config);
+                }),
+                _actionBtn("UPLOAD UPI QR IMAGE", Icons.qr_code_scanner_rounded, Colors.teal.shade800, () => _pickImage(ph, false)),
+                const SizedBox(height: 15),
+                _inputField(nameC, "Account Holder Name", "Name on Bank"),
+                _inputField(numC, "Bank Account Number", "Digits"),
+                _inputField(ifscC, "IFSC Code", "SBIN000XXXX"),
               ]),
             ),
 
@@ -245,24 +270,20 @@ class _ArchitectControlViewState extends State<ArchitectControlView> {
     );
   }
 
-  // --- UI BUILDING BLOCKS ---
+  // --- UI HELPERS ---
 
   Widget _buildArchitectMasterBanner(PharoahManager ph) {
     return Container(
       decoration: BoxDecoration(
         gradient: LinearGradient(colors: [Colors.indigo.shade900, Colors.indigo.shade700]),
         borderRadius: BorderRadius.circular(20),
-        boxShadow: [BoxShadow(color: Colors.indigo.withOpacity(0.3), blurRadius: 10)],
       ),
       child: SwitchListTile(
         title: const Text("ACTIVATE ARCHITECT SERIES", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
         subtitle: const Text("Switch to advanced precision layout", style: TextStyle(color: Colors.white70, fontSize: 11)),
         value: ph.config.isArchitectMode,
         activeColor: Colors.cyanAccent,
-        onChanged: (v) {
-          ph.config.isArchitectMode = v;
-          ph.updateAppConfig(ph.config);
-        },
+        onChanged: (v) { ph.config.isArchitectMode = v; ph.updateAppConfig(ph.config); },
       ),
     );
   }
@@ -278,11 +299,11 @@ class _ArchitectControlViewState extends State<ArchitectControlView> {
 
   Widget _switchTile(String l, String s, bool v, Function(bool) onChanged) => SwitchListTile(title: Text(l, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)), subtitle: Text(s, style: const TextStyle(fontSize: 11, color: Colors.grey)), value: v, onChanged: onChanged, contentPadding: EdgeInsets.zero, activeColor: Colors.green, dense: true);
 
-  // 🔥 FIXED HELPER: added isNum parameter
-  Widget _inputField(TextEditingController c, String l, String h, {bool isNum = false}) => Padding(
+  // 🔥 FIXED HELPER: added isNum and isPass support
+  Widget _inputField(TextEditingController c, String l, String h, {bool isNum = false, bool isPass = false}) => Padding(
     padding: const EdgeInsets.only(bottom: 12), 
     child: TextField(
-      controller: c, 
+      controller: c, obscureText: isPass,
       keyboardType: isNum ? TextInputType.number : TextInputType.text,
       decoration: InputDecoration(labelText: l, hintText: h, isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)))
     )
@@ -294,14 +315,14 @@ class _ArchitectControlViewState extends State<ArchitectControlView> {
 
   Widget _imageIndicator(String path) => Padding(padding: const EdgeInsets.only(top: 8), child: Row(children: [const Icon(Icons.check_circle, color: Colors.green, size: 14), const SizedBox(width: 5), Text("Selected: ${path.split('/').last}", style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.blueGrey))]));
 
-  Widget _formatTile(String t, String s, String v, IconData i, PharoahManager ph) {
+  Widget _formatTile(String t, String v, IconData i, PharoahManager ph) {
     bool isSel = ph.config.printFormat == v;
     return Expanded(child: InkWell(
       onTap: () { ph.config.printFormat = v; ph.updateAppConfig(ph.config); },
       child: Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(color: isSel ? const Color(0xFF0D47A1) : Colors.white, borderRadius: BorderRadius.circular(18), border: Border.all(color: isSel ? const Color(0xFF0D47A1) : Colors.grey.shade300, width: 2)),
-        child: Column(children: [Icon(i, color: isSel ? Colors.white : Colors.grey, size: 28), Text(t, style: TextStyle(color: isSel ? Colors.white : Colors.black87, fontWeight: FontWeight.bold, fontSize: 12)), Text(s, style: TextStyle(color: isSel ? Colors.white70 : Colors.grey, fontSize: 8))]),
+        padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(color: isSel ? const Color(0xFF0D47A1) : Colors.white, borderRadius: BorderRadius.circular(15), border: Border.all(color: isSel ? const Color(0xFF0D47A1) : Colors.grey.shade300, width: 2)),
+        child: Column(children: [Icon(i, color: isSel ? Colors.white : Colors.grey, size: 24), Text(t, style: TextStyle(color: isSel ? Colors.white : Colors.black87, fontWeight: FontWeight.bold, fontSize: 10))]),
       ),
     ));
   }
