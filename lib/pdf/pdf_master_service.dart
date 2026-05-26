@@ -37,4 +37,17 @@ class PdfMasterService {
     if (amount < 10000000) return numberToWords((amount / 100000).floor()) + " LAKH" + (amount % 100000 != 0 ? " " + numberToWords(amount % 100000) : "");
     return amount.toString();
   }
+  // ---------------------------------------------------------------------------
+  // 📠 NAYA: THERMAL DIVIDER (For 80mm Strip)
+  // ---------------------------------------------------------------------------
+  static pw.Widget thermalDivider() {
+    return pw.Container(
+      margin: const pw.EdgeInsets.symmetric(vertical: 2),
+      child: pw.Text(
+        "--------------------------------------------------------------------------",
+        style: pw.TextStyle(fontSize: 7, color: PdfColors.grey700),
+        maxLines: 1,
+      ),
+    );
+  }
 }
