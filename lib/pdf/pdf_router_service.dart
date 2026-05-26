@@ -66,8 +66,14 @@ class PdfRouterService {
     final shop = ph.activeCompany!;
     final latestParty = _getLatestParty(ph, sale.partyId, sale.partyName, gst: sale.partyGstin, state: sale.partyState);
 
-    if (config.printFormat == "Thermal") {
-      await ThermalInvoicePdf.generate(sale, latestParty, shop, config);
+ if (config.printFormat == "Thermal") {
+      // 🚀 NAYA LOGIC: Sab kuch Universal Engine ke paas jayega
+      await UniversalThermalEngine.generate(
+        doc: sale, 
+        party: latestParty, 
+        ph: ph, 
+        type: "SALE"
+      );
     } else if (config.isArchitectMode) {
       await ArchitectSalePdf.generate(sale, latestParty, shop, config);
     } else {
