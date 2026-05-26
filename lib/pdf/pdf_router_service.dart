@@ -1,4 +1,4 @@
-// FILE: lib/pdf/pdf_router_service.dart (FINAL INTEGRATED VERSION)
+// FILE: lib/pdf/pdf_router_service.dart (FINAL COMPREHENSIVE VERSION)
 
 import 'dart:io';
 import 'dart:typed_data';
@@ -15,7 +15,7 @@ import '../pharoah_manager.dart';
 import '../gateway/company_registry_model.dart';
 import '../logic/email_service.dart';
 
-// --- PDF Generators ---
+// --- PDF Generators (A4/Architect) ---
 import 'sale_invoice_pdf.dart';
 import 'architect_sale_pdf.dart';
 import 'purchase_pdf.dart';
@@ -29,7 +29,7 @@ import 'statements/company_stock_pdf.dart';
 import 'statements/party_stock_pdf.dart';
 
 // --- The New Power Engine ---
-import 'universal_thermal_engine.dart'; 
+import 'universal_thermal_engine.dart'; // 🚀 UNIVERSAL THERMAL
 
 class PdfRouterService {
   
@@ -49,12 +49,13 @@ class PdfRouterService {
   }
 
   // ===========================================================================
-  // 2. VOUCHER PRINT (Receipt & Payment) - UNIVERSAL READY
+  // 2. VOUCHER PRINT (Receipt & Payment) - UNIVERSAL SYNC
   // ===========================================================================
   static Future<void> printVoucher({required Voucher voucher, required Party party, required PharoahManager ph}) async {
     if (ph.activeCompany == null) return;
     try {
       if (ph.config.printFormat == "Thermal") {
+        // 📠 Route to Universal Thermal
         await UniversalThermalEngine.generate(doc: voucher, party: party, ph: ph, type: "VOUCHER");
       } else {
         await VoucherPdf.generate(voucher, party, ph.activeCompany!, ph);
@@ -74,6 +75,7 @@ class PdfRouterService {
     final latestParty = _getLatestParty(ph, sale.partyId, sale.partyName, gst: sale.partyGstin, state: sale.partyState);
 
     if (config.printFormat == "Thermal") {
+      // 📠 Route to Universal Thermal
       await UniversalThermalEngine.generate(doc: sale, party: latestParty, ph: ph, type: "SALE");
     } else {
       if (config.isArchitectMode) {
@@ -86,6 +88,7 @@ class PdfRouterService {
 
   static Future<void> printPurchase({required Purchase purchase, required Party supplier, required PharoahManager ph}) async {
     if (ph.config.printFormat == "Thermal") {
+      // 📠 Route to Universal Thermal
       await UniversalThermalEngine.generate(doc: purchase, party: supplier, ph: ph, type: "PURCHASE");
     } else {
       await PurchasePdf.generate(purchase, supplier, ph.activeCompany!);
@@ -94,6 +97,7 @@ class PdfRouterService {
 
   static Future<void> printChallan({required dynamic challan, required Party party, required PharoahManager ph, required bool isSaleChallan}) async {
     if (ph.config.printFormat == "Thermal") {
+      // 📠 Route to Universal Thermal
       await UniversalThermalEngine.generate(doc: challan, party: party, ph: ph, type: "CHALLAN");
     } else {
       if (isSaleChallan) await SaleChallanPdf.generate(challan, party, ph.activeCompany!);
@@ -103,6 +107,7 @@ class PdfRouterService {
 
   static Future<void> printCreditNote({required SaleReturn returnObj, required Party party, required PharoahManager ph}) async {
     if (ph.config.printFormat == "Thermal") {
+      // 📠 Route to Universal Thermal
       await UniversalThermalEngine.generate(doc: returnObj, party: party, ph: ph, type: "RETURN");
     } else {
       await CreditNotePdf.generate(returnObj, party, ph.activeCompany!, ph.config);
@@ -111,6 +116,7 @@ class PdfRouterService {
 
   static Future<void> printDebitNote({required PurchaseReturn returnObj, required Party supplier, required PharoahManager ph}) async {
     if (ph.config.printFormat == "Thermal") {
+      // 📠 Route to Universal Thermal
       await UniversalThermalEngine.generate(doc: returnObj, party: supplier, ph: ph, type: "RETURN");
     } else {
       await DebitNotePdf.generate(returnObj, supplier, ph.activeCompany!, ph.config);
@@ -118,7 +124,7 @@ class PdfRouterService {
   }
 
   // ===========================================================================
-  // 📧 4. MASTER EMAIL DISPATCHER (A4 Format Focus)
+  // 📧 4. MASTER EMAIL DISPATCHER (Professional A4 Focus)
   // ===========================================================================
   static Future<void> emailDocument({
     required BuildContext context,
@@ -130,7 +136,7 @@ class PdfRouterService {
     final config = ph.config;
 
     ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-      content: Text("Preparing professional document... please wait."),
+      content: Text("Preparing professional PDF for email..."),
       duration: Duration(seconds: 2),
     ));
 
@@ -139,6 +145,7 @@ class PdfRouterService {
       return;
     }
 
+    // Quick Add Email if Missing
     String targetEmail = party.email.trim();
     if (targetEmail.isEmpty || !targetEmail.contains('@')) {
       String? newEmail = await _showQuickEmailDialog(context, party.name);
@@ -221,7 +228,7 @@ class PdfRouterService {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("❌ Failed to send email."), backgroundColor: Colors.red));
       }
     } catch (e) {
-      debugPrint("Router Error: $e");
+      debugPrint("Router Email Error: $e");
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("System Error: $e"), backgroundColor: Colors.red));
     }
   }
