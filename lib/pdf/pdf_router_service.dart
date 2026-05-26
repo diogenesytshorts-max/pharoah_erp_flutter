@@ -106,6 +106,9 @@ class PdfRouterService {
 // ===========================================================================
   // 📧 FINAL DISPATCHER: SALES, CHALLANS & STATEMENTS
   // ===========================================================================
+  // ===========================================================================
+  // 📧 MASTER EMAIL DISPATCHER (REFINED VERSION)
+  // ===========================================================================
   static Future<void> emailDocument({
     required BuildContext context,
     required dynamic doc, 
@@ -115,18 +118,22 @@ class PdfRouterService {
   }) async {
     final config = ph.config;
 
+    // 1. IMMEDIATE FEEDBACK (Sabse pehle message dikhao)
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+      content: Text("Preparing document... please wait."),
+      duration: Duration(seconds: 2),
+    ));
+
     if (!config.isEmailActive) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Email service is OFF."), backgroundColor: Colors.orange));
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Email service is OFF in Settings."), backgroundColor: Colors.orange));
       return;
     }
 
-    // 1. QUICK ADD EMAIL LOGIC
+    // 2. QUICK ADD EMAIL LOGIC
     String targetEmail = party.email.trim();
     if (targetEmail.isEmpty || !targetEmail.contains('@')) {
       String? newEmail = await _showQuickEmailDialog(context, party.name);
       if (newEmail == null || newEmail.isEmpty) return;
-      
-      // Update Master if it's a real party (not internal)
       if (party.id != 'internal') {
         int idx = ph.parties.indexWhere((p) => p.id == party.id);
         if (idx != -1) { ph.parties[idx].email = newEmail; await ph.save(); }
@@ -139,39 +146,53 @@ class PdfRouterService {
     String dateRange = "";
 
     try {
-      // 2. LOGIC SWITCH BASED ON TYPE
+      // 3. ROBUST TYPE HANDLING (All Cases)
       if (type == "SALE") {
-        docNo = (doc is Sale) ? doc.billNo : (doc as Purchase).billNo;
-        if (config.isArchitectMode && doc is Sale) pdfBytes = await ArchitectSalePdf.generateBytes(doc, party, ph.activeCompany!, config);
-        else if (doc is Sale) pdfBytes = await SaleInvoicePdf.generateBytes(doc, party, ph.activeCompany!);
-        else pdfBytes = await PurchasePdf.generateBytes(doc as Purchase, party, ph.activeCompany!);
+        if (doc is Sale) {
+          docNo = doc.billNo;
+          if (config.isArchitectMode) pdfBytes = await ArchitectSalePdf.generateBytes(doc, party, ph.activeCompany!, config);
+          else pdfBytes = await SaleInvoicePdf.generateBytes(doc, party, ph.activeCompany!);
+        } else {
+          docNo = (doc as Purchase).billNo;
+          pdfBytes = await PurchasePdf.generateBytes(doc, party, ph.activeCompany!);
+        }
       } 
       else if (type == "CHALLAN") {
-        docNo = (doc is SaleChallan) ? doc.billNo : (doc as PurchaseChallan).internalNo;
-        pdfBytes = await SaleChallanPdf.generateBytes(doc as SaleChallan, party, ph.activeCompany!);
+        if (doc is SaleChallan) {
+          docNo = doc.billNo;
+          pdfBytes = await SaleChallanPdf.generateBytes(doc, party, ph.activeCompany!);
+        } else {
+          docNo = (doc as PurchaseChallan).billNo;
+          pdfBytes = await PurchaseChallanPdf.generateBytes(doc, party, ph.activeCompany!);
+        }
+      }
+      else if (type == "RETURN") {
+        if (doc is SaleReturn) {
+          docNo = doc.billNo;
+          // Note: Generating bytes for returns (using standard generator)
+          pdfBytes = await CreditNotePdf.generateBytes(doc, party, ph.activeCompany!, config);
+        } else {
+          docNo = (doc as PurchaseReturn).billNo;
+          pdfBytes = await DebitNotePdf.generateBytes(doc, party, ph.activeCompany!, config);
+        }
       }
       else if (type == "LEDGER") {
-        // 'doc' yahan list of transactions hai
         docNo = "Statement";
-        dateRange = "Recent"; 
         pdfBytes = await PartyLedgerPdf.generateBytes(shop: ph.activeCompany!, party: party, data: doc, from: DateTime.now(), to: DateTime.now());
       }
       else if (type == "STOCK") {
-        // 'doc' yahan ek Map hai (Step 12/13 se)
         docNo = "StockReport";
-        dateRange = "${DateFormat('dd/MM').format(doc['from'])} to ${DateFormat('dd/MM').format(doc['to'])}";
-        
-        if (doc.containsKey('basis')) { // Company Wise
+        if (doc.containsKey('basis')) {
           pdfBytes = await CompanyStockPdf.generateBytes(shop: ph.activeCompany!, groupedData: doc['grouped'], from: doc['from'], to: doc['to'], valuationBasis: doc['basis'], ph: ph);
-        } else { // Party Wise
+        } else {
           pdfBytes = await PartyStockPdf.generateBytes(shop: ph.activeCompany!, groupedData: doc['grouped'], from: doc['from'], to: doc['to'], mode: doc['mode']);
         }
       } else { return; }
 
-      // 3. SENDING PROCESS
+      // 4. TEMPLATE & SEND
       final template = PharoahEmailService.getTemplate(type: type, shopName: ph.activeCompany!.name, docNo: docNo, dateRange: dateRange);
       
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Processing Email for $targetEmail...")));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Connecting to Server... Sending to $targetEmail"), backgroundColor: Colors.indigo));
 
       bool success = await PharoahEmailService.sendEmailWithPdf(
         config: config,
@@ -184,12 +205,13 @@ class PdfRouterService {
       );
 
       if (success) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("✅ Sent Successfully!"), backgroundColor: Colors.green));
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("✅ Email Delivered Successfully!"), backgroundColor: Colors.green));
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("❌ Mail Failed. Check Internet/Settings."), backgroundColor: Colors.red));
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("❌ Mail Failed. Check SMTP Credentials."), backgroundColor: Colors.red));
       }
     } catch (e) {
-      print("Final Router Error: $e");
+      print("Router Error: $e");
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("System Error: $e"), backgroundColor: Colors.red));
     }
   }
 
