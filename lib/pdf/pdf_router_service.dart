@@ -194,7 +194,12 @@ class PdfRouterService {
         } else {
           pdfBytes = await PartyStockPdf.generateBytes(shop: ph.activeCompany!, groupedData: doc['grouped'], from: doc['from'], to: doc['to'], mode: doc['mode']);
         }
-      } else { return; }
+      } 
+      else if (type == "VOUCHER") {
+        docNo = (doc as Voucher).voucherNo;
+        pdfBytes = await VoucherPdf.generateBytes(doc, party, ph.activeCompany!, ph);
+      }
+      else { return; }
 
       final template = PharoahEmailService.getTemplate(type: type, shopName: ph.activeCompany!.name, docNo: docNo, dateRange: dateRange);
       
