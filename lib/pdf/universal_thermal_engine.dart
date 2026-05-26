@@ -58,12 +58,81 @@ class UniversalThermalEngine {
 
               // --- D. THE DYNAMIC CONTENT AREA ---
               // (Iska code hum agle hisse mein likhenge: Table Builder)
-              pw.Center(child: pw.Text("--- ITEMS AREA ---", style: const pw.TextStyle(fontSize: 8))),
+           PdfMasterService.thermalDivider(),
+
+              // --- D. THE DYNAMIC CONTENT AREA (FIXED) ---
+              _buildDynamicContent(doc, type, config),
 
               PdfMasterService.thermalDivider(),
 
               // --- E. ADVANCED SUMMARY & FOOTER ---
               _buildAdvancedFooter(doc, shop, config, ph, type),
+              // ===========================================================================
+  // 📦 4. DYNAMIC CONTENT ENGINE (Stacked Row Logic)
+  // ===========================================================================
+
+  static pw.Widget _buildDynamicContent(dynamic doc, String type, AppConfig config) {
+    List<dynamic> items = [];
+    if (doc is Sale || doc is SaleChallan || doc is SaleReturn) items = doc.items;
+    else if (doc is Purchase || doc is PurchaseChallan || doc is PurchaseReturn) items = doc.items;
+    
+    // Ledger aur Stock ke liye hum bad mein alag table banayenge
+    if (type == "LEDGER" || type == "STOCK") return pw.Center(child: pw.Text("Statement Data Processing..."));
+
+    return pw.Column(
+      children: List.generate(items.length, (index) {
+        final item = items[index];
+        bool isShaded = config.useZebraShading && (index % 2 != 0);
+
+        return pw.Container(
+          padding: const pw.EdgeInsets.all(3),
+          decoration: pw.BoxDecoration(
+            color: isShaded ? PdfColors.grey100 : null,
+            border: const pw.Border(bottom: pw.BorderSide(width: 0.2, color: PdfColors.grey400))
+          ),
+          child: pw.Column(
+            crossAxisAlignment: pw.CrossAxisAlignment.start,
+            children: [
+              // Row 1: S.N + Product Name + Packing
+              pw.Row(children: [
+                pw.Text("${(index + 1).toString().padLeft(2, '0')}. ", style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold)),
+                pw.Expanded(child: pw.Text("${item.name} (${item.packing})", style: pw.TextStyle(fontSize: 8.5, fontWeight: pw.FontWeight.bold))),
+              ]),
+              
+              pw.SizedBox(height: 1),
+
+              // Row 2: Technicals (Batch, Exp, HSN, Qty)
+              pw.Row(mainAxisAlignment: pw.MainAxisAlignment.spaceBetween, children: [
+                pw.Text("B: ${item.batch}", style: const pw.TextStyle(fontSize: 7.5)),
+                pw.Text("E: ${item.exp}", style: const pw.TextStyle(fontSize: 7.5)),
+                pw.Text("HSN: ${item.hsn}", style: const pw.TextStyle(fontSize: 7.5)),
+                pw.Text("Qty: ${item.qty.toInt()}${item.freeQty > 0 ? '+${item.freeQty.toInt()}' : ''}", style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold)),
+              ]),
+
+              pw.SizedBox(height: 1),
+
+              // Row 3: Financials (MRP, Rate, Total)
+              pw.Row(mainAxisAlignment: pw.MainAxisAlignment.spaceBetween, children: [
+                pw.Text("MRP: ${item.mrp.toStringAsFixed(2)}", style: const pw.TextStyle(fontSize: 7.5)),
+                pw.Text("Rate: ${(item is PurchaseItem ? item.purchaseRate : item.rate).toStringAsFixed(2)}", style: const pw.TextStyle(fontSize: 7.5)),
+                pw.Text("GST: ${item.gstRate.toInt()}%", style: const pw.TextStyle(fontSize: 7.5)),
+                pw.Text("Amt: ${item.total.toStringAsFixed(2)}", style: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold)),
+              ]),
+            ],
+          ),
+        );
+      }),
+    );
+  }
+
+  // ===========================================================================
+  // 📊 5. TAX SUMMARY TABLE (For Sales/Purchase)
+  // ===========================================================================
+  static pw.Widget _buildTaxSummary(dynamic doc) {
+    // Ye function har bill ke niche Tax ka GST% wise break-up dikhayega
+    // Jaisa A4 bill ke end mein hota hai.
+    return pw.SizedBox.shrink(); // Coming in Step 5
+  }
             ],
           );
         },
