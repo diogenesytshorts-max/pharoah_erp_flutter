@@ -1,4 +1,5 @@
 // FILE: lib/main_control_shell.dart
+
 import 'challans/purchase_challan_register.dart';
 import 'challans/sale_challan_register.dart';
 import 'package:flutter/material.dart';
@@ -41,11 +42,11 @@ import 'modifications/modify_hub_view.dart';
 import 'compliance/compliance_hub.dart';   
 import 'administration/series_master_view.dart'; 
 import 'administration/app_settings_view.dart'; 
-import 'sale_summary_view.dart'; // Corrected Import
-import 'purchase/purchase_summary_view.dart'; // Corrected Import
+import 'administration/ca_profile_view.dart'; // <--- NAYA IMPORT ADDED
+import 'sale_summary_view.dart'; 
+import 'purchase/purchase_summary_view.dart'; 
 import 'payment_receipt_history.dart';
 import 'finance/statement_hub.dart';
-import 'administration/ca_profile_view.dart';
 
 class MainControlShell extends StatefulWidget {
   const MainControlShell({super.key});
@@ -190,8 +191,8 @@ class _MainControlShellState extends State<MainControlShell> {
     } else if (action.navModule != null) {
       Widget? target;
       switch (action.navModule) {
-        case "GO_RETURN_PUR_REG": target = const UniversalReturnHub(); break; // Redirected to Hub
-        case "GO_RETURN_SALE_REG": target = const UniversalReturnHub(); break; // Redirected to Hub
+        case "GO_RETURN_PUR_REG": target = const UniversalReturnHub(); break; 
+        case "GO_RETURN_SALE_REG": target = const UniversalReturnHub(); break; 
         case "GO_CHALLAN_PUR_REG": target = const PurchaseChallanRegister(); break;
         case "GO_CHALLAN_SALE_REG": target = const SaleChallanRegister(); break;
         case "GO_SALE": target = const SaleEntryView(); break;
@@ -213,15 +214,14 @@ class _MainControlShellState extends State<MainControlShell> {
         case "GO_LEDGERS": target = const LedgerReportsView(); break;
         case "GO_RECEIPT": target = const VoucherEntryView(type: "Receipt"); break;
         case "GO_PAYMENT": target = const VoucherEntryView(type: "Payment"); break;
-        case "GO_HISTORY": target = PaymentReceiptHistory(); break;
+        case "GO_HISTORY": target = const PaymentReceiptHistory(); break;
         case "GO_MODIFICATION": target = const ModifyHubView(); break;
         case "GO_COMPLIANCE": target = const ComplianceHub(); break;
         case "GO_M_PARTY": target = const PartyMasterView(); break;
-        case "GO_M_ITEM": target = ProductMasterView(); break;
+        case "GO_M_ITEM": target = const ProductMasterView(); break;
         case "GO_M_SERIES": target = const SeriesMasterView(); break;
         case "GO_M_STAFF": target = const SystemUserMasterView(); break;
         case "GO_M_BATCH": target = const BatchMasterView(); break;
-        case "GO_CA_PROFILE": target = const CaProfileView(); break;
         case "GO_M_ROUTE": target = const RouteMasterView(); break;
         case "GO_M_COMP": target = const CompanyMasterView(); break;
         case "GO_M_SALT": target = const SaltMasterView(); break;
@@ -229,12 +229,10 @@ class _MainControlShellState extends State<MainControlShell> {
         case "GO_GST_3B": target = const GSTReportDetailView(reportType: "GSTR-3B"); break;
         case "GO_GST_RECON": target = const GSTReconciliationView(); break;
         case "GO_STITCHER_WIZARD": target = const ChallanStitcherWizard(); break;
-        
-        // YE LINE SWITCH KE ANDAR HONI CHAHIYE (Closing } se pehle)
         case "GO_DATA_HUB": target = const DataExchangeView(); break; 
-      } // <--- SWITCH BLOCK YAHAN KHATAM HOGA
+        case "GO_CA_PROFILE": target = const CaProfileView(); break; // <--- NAYA CASE ADDED
+      }
 
-      // Navigation switch ke bahar honi chahiye
       if (target != null) Navigator.push(context, MaterialPageRoute(builder: (c) => target!));
     }
   }
