@@ -45,6 +45,7 @@ import 'sale_summary_view.dart'; // Corrected Import
 import 'purchase/purchase_summary_view.dart'; // Corrected Import
 import 'payment_receipt_history.dart';
 import 'finance/statement_hub.dart';
+import 'administration/ca_profile_view.dart';
 
 class MainControlShell extends StatefulWidget {
   const MainControlShell({super.key});
@@ -220,6 +221,7 @@ class _MainControlShellState extends State<MainControlShell> {
         case "GO_M_SERIES": target = const SeriesMasterView(); break;
         case "GO_M_STAFF": target = const SystemUserMasterView(); break;
         case "GO_M_BATCH": target = const BatchMasterView(); break;
+        case "GO_CA_PROFILE": target = const CaProfileView(); break;
         case "GO_M_ROUTE": target = const RouteMasterView(); break;
         case "GO_M_COMP": target = const CompanyMasterView(); break;
         case "GO_M_SALT": target = const SaltMasterView(); break;
