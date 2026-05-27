@@ -54,6 +54,12 @@ class MasterHubView extends StatelessWidget {
                   onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => const BatchMasterView()))
                 ),
                 ActionIconBtn(
+                  title: "CA Profile / Audit", 
+                  icon: Icons.assignment_ind_rounded, 
+                  color: Colors.orange.shade900, 
+                  onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => const CaProfileView()))
+                ),
+                ActionIconBtn(
                   title: "Route Master", 
                   icon: Icons.map_rounded, 
                   color: Colors.teal, 
