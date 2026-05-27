@@ -1,21 +1,29 @@
-// FILE: lib/pdf/sale_report_pdf.dart
+// FILE: lib/pdf/sale_report_pdf.dart (UPDATED FOR EMAIL BYTES)
 
+import 'dart:typed_data'; // NAYA: Bytes के लिए
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import 'package:intl/intl.dart';
 import '../models.dart';
-import '../gateway/company_registry_model.dart'; // NAYA SOURCE
+import '../gateway/company_registry_model.dart';
 
 class SaleReportPdf {
-  // NAYA: Ab yeh active shop profile lega
+  
+  // 1. ORIGINAL GENERATE (For Printing)
   static Future<void> generate(List<Sale> sales, DateTime fDate, DateTime tDate, Party? selectedParty, CompanyProfile shop) async {
+    final bytes = await generateBytes(sales, shop, from: fDate, to: tDate);
+    await Printing.layoutPdf(onLayout: (format) async => bytes, name: 'Sales_Register_${shop.name}', format: PdfPageFormat.a4.landscape);
+  }
+
+  // ===========================================================================
+  // 📧 2. NAYA: GENERATE BYTES (For Email Dispatch)
+  // ===========================================================================
+  static Future<Uint8List> generateBytes(List<Sale> sales, CompanyProfile shop, {DateTime? from, DateTime? to}) async {
     final pdf = pw.Document();
-    
-    // NAYA: Dukan ka naam registry se
     String shopName = shop.name.toUpperCase();
 
-    // Summary Calculations (ORIGINAL LOGIC)
+    // Summary Calculations (जैसा आपके ओरिजिनल कोड में था)
     double totalTaxable = 0; double totalGst = 0; double netTotal = 0;
     double cashTotal = 0; double creditTotal = 0;
 
@@ -34,15 +42,17 @@ class SaleReportPdf {
       header: (context) => pw.Column(children: [
         pw.Row(mainAxisAlignment: pw.MainAxisAlignment.spaceBetween, children: [
           pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
-            pw.Text(shopName, style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold)),
+            pw.Text(shopName, style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold, color: PdfColors.blue900)),
             pw.Text("Sales Register Report", style: const pw.TextStyle(fontSize: 12)),
           ]),
           pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.end, children: [
-            pw.Text("Period: ${DateFormat('dd/MM/yy').format(fDate)} to ${DateFormat('dd/MM/yy').format(tDate)}"),
-            pw.Text("Filter: ${selectedParty?.name ?? 'All Parties'}"),
+            if (from != null && to != null)
+              pw.Text("Period: ${DateFormat('dd/MM/yy').format(from)} to ${DateFormat('dd/MM/yy').format(to)}"),
+            pw.Text("Total Bills: ${sales.length}"),
           ]),
         ]),
-        pw.Divider(thickness: 1),
+        pw.Divider(thickness: 1, color: PdfColors.blue900),
+        pw.SizedBox(height: 10),
       ]),
       build: (context) => [
         pw.TableHelper.fromTextArray(
@@ -73,7 +83,7 @@ class SaleReportPdf {
       ],
     ));
 
-    await Printing.layoutPdf(onLayout: (format) async => pdf.save(), format: PdfPageFormat.a4.landscape);
+    return pdf.save(); // Bytes रिटर्न करेगा
   }
 
   static pw.Widget _sumBox(String label, double val, {bool isBold = false}) {
