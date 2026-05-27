@@ -24,6 +24,11 @@ class AppConfig {
   String bankNameBranch;
   bool showTerms;
   String termsAndConditions;
+  // --- CA AUDIT NEXUS FIELDS ---
+  String caName;
+  String caEmail;
+  String caPhone;
+  bool isAuditMode; // Master Toggle Switch
 
   // --- 📧 NAYA: EMAIL SMTP CONFIGURATION ---
   bool isEmailActive;
@@ -62,10 +67,19 @@ class AppConfig {
     this.smtpPassword = "",
     this.smtpHost = "smtp.gmail.com",
     this.smtpPort = 587,
+    // CA Nexus Defaults
+    this.caName = "",
+    this.caEmail = "",
+    this.caPhone = "",
+    this.isAuditMode = false,
   });
 
   Map<String, dynamic> toMap() {
     return {
+      'caName': caName,
+      'caEmail': caEmail,
+      'caPhone': caPhone,
+      'isAuditMode': isAuditMode,
       'salePrefix': salePrefix,
       'saleChallanPrefix': saleChallanPrefix,
       'saleReturnPrefix': saleReturnPrefix,
@@ -99,6 +113,10 @@ class AppConfig {
 
   factory AppConfig.fromMap(Map<String, dynamic> map) {
     return AppConfig(
+      caName: map['caName'] ?? "",
+      caEmail: map['caEmail'] ?? "",
+      caPhone: map['caPhone'] ?? "",
+      isAuditMode: map['isAuditMode'] ?? false,
       salePrefix: map['salePrefix'] ?? "INV-",
       saleChallanPrefix: map['saleChallanPrefix'] ?? "SCH-",
       saleReturnPrefix: map['saleReturnPrefix'] ?? "SRN-",
