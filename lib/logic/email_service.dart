@@ -29,8 +29,12 @@ class PharoahEmailService {
     // A. PDF Bytes ko temporary file mein badalna (Mailer file path maangta hai)
     final tempDir = await getTemporaryDirectory();
   // --- FIXED: Extension check logic ---
-    String extension = fileName.toLowerCase().endsWith('.zip') ? '' : '.pdf';
-    final file = File('${tempDir.path}/$fileName$extension');
+   // --- FIXED: Checking if it's already a ZIP or needs PDF extension ---
+    String finalPath = fileName.toLowerCase().endsWith('.zip') 
+        ? '${tempDir.path}/$fileName' 
+        : '${tempDir.path}/$fileName.pdf';
+        
+    final file = File(finalPath);
     await file.writeAsBytes(pdfBytes);
     
     // B. SMTP Server Configure karna
