@@ -1,3 +1,5 @@
+// FILE: lib/master_hub_view.dart (UPDATED)
+
 import 'package:flutter/material.dart';
 import 'widgets.dart';
 import 'party_master.dart';
@@ -6,7 +8,9 @@ import 'route_master_view.dart';
 import 'company_master_view.dart';
 import 'salt_master_view.dart';
 import 'drug_type_master_view.dart';
-import 'batch_master_view.dart'; // NAYA IMPORT
+import 'batch_master_view.dart';
+// --- NAYA IMPORT ZAROORI HAI ---
+import 'administration/ca_profile_view.dart'; 
 
 class MasterHubView extends StatelessWidget {
   const MasterHubView({super.key});
@@ -53,12 +57,15 @@ class MasterHubView extends StatelessWidget {
                   color: Colors.indigo.shade900, 
                   onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => const BatchMasterView()))
                 ),
+                
+                // --- CA PROFILE BUTTON (यह अब सही काम करेगा) ---
                 ActionIconBtn(
                   title: "CA Profile / Audit", 
                   icon: Icons.assignment_ind_rounded, 
                   color: Colors.orange.shade900, 
                   onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => const CaProfileView()))
                 ),
+                
                 ActionIconBtn(
                   title: "Route Master", 
                   icon: Icons.map_rounded, 
@@ -86,14 +93,14 @@ class MasterHubView extends StatelessWidget {
             
             const SizedBox(height: 30),
             
-            // --- INFO ---
+            // --- INFO CARD ---
             Container(
               padding: const EdgeInsets.all(15),
               decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(15), border: Border.all(color: Colors.black12)),
               child: const Row(children: [
                 Icon(Icons.tips_and_updates_outlined, color: Colors.orange, size: 20),
                 SizedBox(width: 10),
-                Expanded(child: Text("Central Batch Master allows manual stock correction and expiry management without editing bills.", style: TextStyle(fontSize: 11, color: Colors.blueGrey))),
+                Expanded(child: Text("Use CA Profile to activate Audit Mode and redirect all emails to your accountant.", style: TextStyle(fontSize: 11, color: Colors.blueGrey))),
               ]),
             ),
             const SizedBox(height: 30),
