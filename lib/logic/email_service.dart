@@ -1,4 +1,4 @@
-// FILE: lib/logic/email_service.dart
+// FILE: lib/logic/email_service.dart (FINAL STABLE VERSION)
 
 import 'dart:io';
 import 'dart:typed_data';
@@ -26,18 +26,20 @@ class PharoahEmailService {
       return false;
     }
 
-    // A. PDF Bytes ko temporary file mein badalna (Mailer file path maangta hai)
+    // A. Bytes को अस्थायी फाइल (Temporary File) में बदलना
     final tempDir = await getTemporaryDirectory();
-  // --- FIXED: Extension check logic ---
-   // --- FIXED: Checking if it's already a ZIP or needs PDF extension ---
-    String finalPath = fileName.toLowerCase().endsWith('.zip') 
-        ? '${tempDir.path}/$fileName' 
-        : '${tempDir.path}/$fileName.pdf';
+
+    // --- 🛡️ CRITICAL FIX: EXTENSION LOGIC ---
+    // अगर fileName में पहले से ही '.zip' है (जैसे Audit Bundle), तो हम दोबारा '.pdf' नहीं जोड़ेंगे।
+    // इससे "File Corrupted" वाला एरर जड़ से खत्म हो जाएगा।
+    String finalFileName = fileName.toLowerCase().endsWith('.zip') 
+        ? fileName 
+        : '$fileName.pdf';
         
-    final file = File(finalPath);
+    final file = File('${tempDir.path}/$finalFileName');
     await file.writeAsBytes(pdfBytes);
     
-    // B. SMTP Server Configure karna
+    // B. SMTP Server कॉन्फ़िगर करना
     final smtpServer = SmtpServer(
       config.smtpHost,
       port: config.smtpPort,
@@ -45,7 +47,7 @@ class PharoahEmailService {
       password: config.smtpPassword,
     );
 
-    // C. Email Message taiyar karna
+    // C. Email Message तैयार करना
     final message = Message()
       ..from = Address(config.smtpEmail, shopName)
       ..recipients.add(recipientEmail)
@@ -54,22 +56,21 @@ class PharoahEmailService {
       ..attachments.add(FileAttachment(file));
 
     try {
-      // D. Bhejna
+      // D. मेल भेजना
       await send(message, smtpServer);
-      print("Email sent successfully to $recipientEmail");
+      print("Email sent successfully to $recipientEmail as $finalFileName");
       return true;
     } catch (e) {
-      print("Email Error: $e");
+      print("Email Dispatch Error: $e");
       return false;
     }
   }
 
   // ===========================================================================
-  // 📝 2. SMART MESSAGE TEMPLATES (Aapke bataye anusar)
+  // 📝 2. SMART MESSAGE TEMPLATES
   // ===========================================================================
-
   static Map<String, String> getTemplate({
-    required String type, // "SALE", "CHALLAN", "LEDGER", "STOCK"
+    required String type, 
     required String shopName,
     String docNo = "",
     String dateRange = "",
@@ -80,23 +81,23 @@ class PharoahEmailService {
     switch (type) {
       case "SALE":
         subject = "Invoice Attached: $docNo from $shopName";
-        body = "Dear Sir/Madam,\n\nPlease find attached the Tax Invoice ($docNo) for your recent purchase.\n\nWith Regards,\n$shopName\nPowered by Pharoah ERP";
+        body = "Dear Sir/Madam,\n\nPlease find attached the Tax Invoice ($docNo).\n\nRegards,\n$shopName\nPowered by Pharoah ERP";
         break;
       case "CHALLAN":
         subject = "Delivery Challan: $docNo from $shopName";
-        body = "Dear Sir,\n\nAttached is the Delivery Challan ($docNo) for the material dispatched to you today.\n\nWith Regards,\n$shopName\nPowered by Pharoah ERP";
+        body = "Dear Sir,\n\nAttached is the Delivery Challan ($docNo) for the material dispatched.\n\nRegards,\n$shopName";
         break;
       case "LEDGER":
         subject = "Account Statement: $shopName";
-        body = "Dear Sir,\n\nYour Ledger Statement for the period $dateRange has been attached for your review.\n\nWith Regards,\n$shopName\nPowered by Pharoah ERP";
+        body = "Dear Sir,\n\nYour Ledger Statement for the period $dateRange has been attached.\n\nRegards,\n$shopName";
         break;
       case "STOCK":
-        subject = "Stock Statement: $shopName";
-        body = "Dear Sir,\n\nStock statement from $dateRange has been attached.\n\nWith Regards,\n$shopName\nPowered by Pharoah ERP";
+        subject = "Stock Report: $shopName";
+        body = "Dear Sir,\n\nStock summary report has been attached for your review.\n\nRegards,\n$shopName";
         break;
       default:
         subject = "Document from $shopName";
-        body = "Please find the attached document.\n\nWith Regards,\n$shopName";
+        body = "Please find the attached document.\n\nRegards,\n$shopName";
     }
 
     return {"subject": subject, "body": body};
