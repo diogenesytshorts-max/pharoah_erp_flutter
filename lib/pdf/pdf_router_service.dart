@@ -28,10 +28,12 @@ import 'statements/party_ledger_pdf.dart';
 import 'statements/company_stock_pdf.dart';
 import 'statements/party_stock_pdf.dart';
 import 'universal_thermal_engine.dart'; 
+import 'sale_report_pdf.dart';     // NAYA IMPORT
+import 'purchase_report_pdf.dart'; // NAYA IMPORT
+import '../gst_report_service.dart'; // NAYA IMPORT
 
 class PdfRouterService {
   
-  // 1. UNIVERSAL PARTY FINDER
   static Party _getLatestParty(PharoahManager ph, String partyId, String partyName, {String gst = "", String state = "Rajasthan"}) {
     try {
       return ph.parties.firstWhere((p) => p.id == partyId || p.name == partyName);
@@ -44,65 +46,9 @@ class PdfRouterService {
     }
   }
 
-  // 2. VOUCHER PRINT
-  static Future<void> printVoucher({required Voucher voucher, required Party party, required PharoahManager ph}) async {
-    if (ph.activeCompany == null) return;
-    try {
-      if (ph.config.printFormat == "Thermal") {
-        await UniversalThermalEngine.generate(doc: voucher, party: party, ph: ph, type: "VOUCHER");
-      } else {
-        await VoucherPdf.generate(voucher, party, ph.activeCompany!, ph);
-      }
-    } catch (e) { debugPrint("PDF Routing Error (Voucher): $e"); }
-  }
-
-  // 3. TRANSACTION PRINTS
-  static Future<void> printSale({required Sale sale, required Party party, required PharoahManager ph}) async {
-    final config = ph.config;
-    final shop = ph.activeCompany!;
-    final latestParty = _getLatestParty(ph, sale.partyId, sale.partyName, gst: sale.partyGstin, state: sale.partyState);
-
-    if (config.printFormat == "Thermal") {
-      await UniversalThermalEngine.generate(doc: sale, party: latestParty, ph: ph, type: "SALE");
-    } else {
-      if (config.isArchitectMode) {
-        await ArchitectSalePdf.generate(sale, latestParty, shop, config);
-      } else {
-        await SaleInvoicePdf.generate(sale, latestParty, shop);
-      }
-    }
-  }
-
-  static Future<void> printPurchase({required Purchase purchase, required Party supplier, required PharoahManager ph}) async {
-    if (ph.config.printFormat == "Thermal") {
-      await UniversalThermalEngine.generate(doc: purchase, party: supplier, ph: ph, type: "PURCHASE");
-    } else {
-      await PurchasePdf.generate(purchase, supplier, ph.activeCompany!);
-    }
-  }
-
-  static Future<void> printChallan({required dynamic challan, required Party party, required PharoahManager ph, required bool isSaleChallan}) async {
-    if (ph.config.printFormat == "Thermal") {
-      await UniversalThermalEngine.generate(doc: challan, party: party, ph: ph, type: "CHALLAN");
-    } else {
-      if (isSaleChallan) await SaleChallanPdf.generate(challan, party, ph.activeCompany!);
-      else await PurchaseChallanPdf.generate(challan, party, ph.activeCompany!);
-    }
-  }
-
-  static Future<void> printCreditNote({required SaleReturn returnObj, required Party party, required PharoahManager ph}) async {
-    if (ph.config.printFormat == "Thermal") await UniversalThermalEngine.generate(doc: returnObj, party: party, ph: ph, type: "RETURN");
-    else await CreditNotePdf.generate(returnObj, party, ph.activeCompany!, ph.config);
-  }
-
-  static Future<void> printDebitNote({required PurchaseReturn returnObj, required Party supplier, required PharoahManager ph}) async {
-    if (ph.config.printFormat == "Thermal") await UniversalThermalEngine.generate(doc: returnObj, party: supplier, ph: ph, type: "RETURN");
-    else await DebitNotePdf.generate(returnObj, supplier, ph.activeCompany!, ph.config);
-  }
-
-  // ===========================================================================
-  // 📧 4. MASTER EMAIL DISPATCHER (RECIPIENT REDIRECTED IF AUDIT ON)
-  // ===========================================================================
+  // ---------------------------------------------------------------------------
+  // 📧 MASTER EMAIL DISPATCHER (FULLY FIXED)
+  // ---------------------------------------------------------------------------
   static Future<void> emailDocument({
     required BuildContext context,
     required dynamic doc, 
@@ -111,19 +57,15 @@ class PdfRouterService {
     required String type, 
   }) async {
     final config = ph.config;
-
     if (!config.isEmailActive) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Email service is OFF in Settings."), backgroundColor: Colors.orange));
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Email service is OFF."), backgroundColor: Colors.orange));
       return;
     }
 
-    // AUDIT MODE CHECK: Redirect to CA
-    String targetEmail = "";
-    if (config.isAuditMode && config.caEmail.isNotEmpty) {
-      targetEmail = config.caEmail.trim();
-    } else {
-      targetEmail = party.email.trim();
-    }
+    // AUDIT MODE REDIRECTION
+    String targetEmail = (config.isAuditMode && config.caEmail.isNotEmpty) 
+        ? config.caEmail.trim() 
+        : party.email.trim();
 
     if (targetEmail.isEmpty || !targetEmail.contains('@')) {
       String? newEmail = await _showQuickEmailDialog(context, config.isAuditMode ? "CA Profile" : party.name);
@@ -132,9 +74,10 @@ class PdfRouterService {
     }
 
     Uint8List pdfBytes;
-    String docNo = "";
+    String docNo = "Report";
 
     try {
+      // --- LOGIC: TYPE BASED BYTE GENERATION ---
       if (type == "SALE") {
         if (doc is Sale) {
           docNo = doc.billNo;
@@ -147,14 +90,26 @@ class PdfRouterService {
         }
       } 
       else if (type == "CHALLAN") {
-        docNo = (doc is SaleChallan) ? doc.billNo : doc.billNo;
+        docNo = doc.billNo;
         pdfBytes = (doc is SaleChallan) 
             ? await SaleChallanPdf.generateBytes(doc, party, ph.activeCompany!)
             : await PurchaseChallanPdf.generateBytes(doc, party, ph.activeCompany!);
       }
+      // 🔥 NEW: GSTR & REGISTER SUMMARIES LOGIC
       else if (type == "LEDGER") {
-        docNo = "Statement";
-        pdfBytes = await PartyLedgerPdf.generateBytes(shop: ph.activeCompany!, party: party, data: doc, from: DateTime.now(), to: DateTime.now());
+        if (party.name.contains("GSTR-1")) {
+          pdfBytes = await GstReportService.generateGstr1Bytes(doc, ph.activeCompany!);
+        } else if (party.name.contains("GSTR-3B")) {
+          pdfBytes = await GstReportService.generateGstr3bBytes(doc, ph.purchases, ph.activeCompany!);
+        } else if (party.name.contains("GSTR-2")) {
+          pdfBytes = await GstReportService.generateGstr2Bytes(doc, ph.vouchers, ph.parties, ph.activeCompany!);
+        } else if (party.name.contains("CA Summary")) {
+           // Check if it's Sale or Purchase summary
+           if (doc is List<Sale>) pdfBytes = await SaleReportPdf.generateBytes(doc, ph.activeCompany!);
+           else pdfBytes = await PurchaseReportPdf.generateBytes(doc, ph.activeCompany!);
+        } else {
+          pdfBytes = await PartyLedgerPdf.generateBytes(shop: ph.activeCompany!, party: party, data: doc, from: DateTime.now(), to: DateTime.now());
+        }
       }
       else { return; }
 
@@ -165,58 +120,18 @@ class PdfRouterService {
         shopName: ph.activeCompany!.name,
         recipientEmail: targetEmail,
         subject: config.isAuditMode ? "AUDIT: ${template['subject']}" : template['subject']!,
-        body: config.isAuditMode ? "Dear CA, Attached is the audit document for review." : template['body']!,
+        body: config.isAuditMode ? "Respected CA, Attached is the required audit report." : template['body']!,
         pdfBytes: pdfBytes,
-        fileName: "${type}_$docNo",
+        fileName: "${type}_${docNo.replaceAll(' ', '_')}",
       );
 
-      if (success) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("✅ Dispatched!"), backgroundColor: Colors.green));
+      if (success) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("✅ Sent to $targetEmail"), backgroundColor: Colors.green));
     } catch (e) { debugPrint("Router Error: $e"); }
   }
 
-  // ===========================================================================
-  // 📦 5. THE MISSING FUNCTION: createBulkZip (FIXES BUILD ERROR)
-  // This is used by ChallanStitcherWizard.dart
-  // ===========================================================================
-  static Future<String> createBulkZip({
-    required List<Map<String, dynamic>> selectedDrafts,
-    required PharoahManager ph,
-    required Function(double progress, String filename) onProgress,
-  }) async {
-    final archive = Archive();
-    final shop = ph.activeCompany!;
-    final config = ph.config;
-
-    for (int i = 0; i < selectedDrafts.length; i++) {
-      var draft = selectedDrafts[i];
-      dynamic billObj = draft['saleObj']; 
-      Uint8List pdfBytes;
-
-      if (billObj is Sale) {
-        final latestParty = _getLatestParty(ph, billObj.partyId, billObj.partyName);
-        onProgress((i + 1) / selectedDrafts.length, latestParty.name);
-        pdfBytes = config.isArchitectMode 
-            ? await ArchitectSalePdf.generateBytes(billObj, latestParty, shop, config)
-            : await SaleInvoicePdf.generateBytes(billObj, latestParty, shop);
-      } else {
-        final latestSupplier = _getLatestParty(ph, (billObj as Purchase).partyId, billObj.distributorName);
-        onProgress((i + 1) / selectedDrafts.length, latestSupplier.name);
-        pdfBytes = await PurchasePdf.generateBytes(billObj, latestSupplier, shop);
-      }
-
-      archive.addFile(ArchiveFile("${billObj.billNo}.pdf", pdfBytes.length, pdfBytes));
-    }
-
-    final zipData = ZipEncoder().encode(archive);
-    final tempDir = await getTemporaryDirectory();
-    final zipPath = '${tempDir.path}/Batch_Export_${DateFormat('ddMM_HHmm').format(DateTime.now())}.zip';
-    await File(zipPath).writeAsBytes(zipData!);
-    return zipPath;
-  }
-
-  // ===========================================================================
-  // 🛡️ 6. NEW CA AUDIT ZIP DISPATCH
-  // ===========================================================================
+  // ---------------------------------------------------------------------------
+  // 📦 6. NEW CA AUDIT ZIP DISPATCH (STITCHER LOGIC)
+  // ---------------------------------------------------------------------------
   static Future<void> sendBatchToCa({
     required List<dynamic> documents, 
     required PharoahManager ph,
@@ -251,22 +166,48 @@ class PdfRouterService {
       final zipData = ZipEncoder().encode(archive);
       if (zipData == null) return;
 
+      // 🔥 IMPORTANT: FileName must end with .zip
       await PharoahEmailService.sendEmailWithPdf(
         config: config,
         shopName: ph.activeCompany!.name,
         recipientEmail: config.caEmail,
-        subject: "CA AUDIT BUNDLE: ${documents.length} $type Records",
-        body: "Attached is the audit package for your review.",
+        subject: "AUDIT BUNDLE: ${documents.length} $type Records",
+        body: "Respected CA, Attached is the zipped audit bundle for ${ph.activeCompany!.name}.",
         pdfBytes: Uint8List.fromList(zipData),
-        fileName: "Audit_Bundle_${DateFormat('ddMM').format(DateTime.now())}",
+        fileName: "Audit_Bundle_${DateFormat('ddMM').format(DateTime.now())}.zip",
       );
 
-      ph.addLog("AUDIT", "Sent ${documents.length} $type records as ZIP to CA.");
-
-    } catch (e) { debugPrint("Audit Dispatch Error: $e"); }
+      ph.addLog("AUDIT", "Mailed ZIP bundle to CA.");
+    } catch (e) { debugPrint("Batch Error: $e"); }
   }
 
-  // --- PRIVATE HELPER: QUICK EMAIL DIALOG ---
+  // (createBulkZip और _showQuickEmailDialog पहले जैसे ही रहेंगे...)
+  static Future<String> createBulkZip({required List<Map<String, dynamic>> selectedDrafts, required PharoahManager ph, required Function(double progress, String filename) onProgress}) async {
+    final archive = Archive();
+    final shop = ph.activeCompany!;
+    final config = ph.config;
+    for (int i = 0; i < selectedDrafts.length; i++) {
+      var draft = selectedDrafts[i];
+      dynamic billObj = draft['saleObj']; 
+      Uint8List pdfBytes;
+      if (billObj is Sale) {
+        final latestParty = _getLatestParty(ph, billObj.partyId, billObj.partyName);
+        onProgress((i + 1) / selectedDrafts.length, latestParty.name);
+        pdfBytes = config.isArchitectMode ? await ArchitectSalePdf.generateBytes(billObj, latestParty, shop, config) : await SaleInvoicePdf.generateBytes(billObj, latestParty, shop);
+      } else {
+        final latestSupplier = _getLatestParty(ph, (billObj as Purchase).partyId, billObj.distributorName);
+        onProgress((i + 1) / selectedDrafts.length, latestSupplier.name);
+        pdfBytes = await PurchasePdf.generateBytes(billObj, latestSupplier, shop);
+      }
+      archive.addFile(ArchiveFile("${billObj.billNo}.pdf", pdfBytes.length, pdfBytes));
+    }
+    final zipData = ZipEncoder().encode(archive);
+    final tempDir = await getTemporaryDirectory();
+    final zipPath = '${tempDir.path}/Batch_Export_${DateFormat('ddMM_HHmm').format(DateTime.now())}.zip';
+    await File(zipPath).writeAsBytes(zipData!);
+    return zipPath;
+  }
+
   static Future<String?> _showQuickEmailDialog(BuildContext context, String partyName) async {
     final emailC = TextEditingController();
     return showDialog<String>(
@@ -275,7 +216,7 @@ class PdfRouterService {
       builder: (c) => AlertDialog(
         title: const Text("Email Required"),
         content: Column(mainAxisSize: MainAxisSize.min, children: [
-          Text("Target: $partyName. Please enter email."),
+          Text("Target: $partyName. Enter Email:"),
           const SizedBox(height: 15),
           TextField(controller: emailC, keyboardType: TextInputType.emailAddress, decoration: const InputDecoration(labelText: "Email ID", border: OutlineInputBorder())),
         ]),
