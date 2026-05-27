@@ -1,4 +1,4 @@
-// FILE: lib/gst_report_detail_view.dart
+// FILE: lib/gst_report_detail_view.dart (UPDATED WITH AUDIT REDIRECTION)
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -6,6 +6,7 @@ import 'package:intl/intl.dart';
 import 'pharoah_manager.dart';
 import 'models.dart';
 import 'gst_report_service.dart';
+import 'pdf/pdf_router_service.dart'; // NAYA: Router Service
 
 class GSTReportDetailView extends StatefulWidget {
   final String reportType;
@@ -22,10 +23,54 @@ class _GSTReportDetailViewState extends State<GSTReportDetailView> {
   @override
   void initState() {
     super.initState();
-    // Default: Current Month 1st to Today
     final now = DateTime.now();
     fromDate = DateTime(now.year, now.month, 1);
     toDate = now;
+  }
+
+  // --- NAYA AUDIT CODE: UNIFIED ACTION HANDLER ---
+  void _handleGstPdfAction(PharoahManager ph, dynamic activeShop, bool isMail) {
+    if (activeShop == null) return;
+
+    String rangeLabel = "${DateFormat('dd/MM/yy').format(fromDate)} to ${DateFormat('dd/MM/yy').format(toDate)}";
+    
+    // ओरिजिनल फिल्टरिंग लॉजिक (जैसा build में है)
+    List<Sale> allSales = ph.sales.where((s) =>
+      s.date.isAfter(fromDate.subtract(const Duration(days: 1))) && 
+      s.date.isBefore(toDate.add(const Duration(days: 1)))
+    ).toList();
+    List<Sale> activeSales = allSales.where((s) => s.status == "Active").toList();
+    List<Purchase> monthlyPur = ph.purchases.where((p) =>
+      p.date.isAfter(fromDate.subtract(const Duration(days: 1))) && 
+      p.date.isBefore(toDate.add(const Duration(days: 1)))
+    ).toList();
+
+    if (isMail) {
+      // CA को सीधे मेल भेजने के लिए
+      dynamic dataToSend;
+      if (widget.reportType.contains("GSTR-1")) dataToSend = allSales;
+      else if (widget.reportType.contains("GSTR-2")) dataToSend = monthlyPur;
+      else dataToSend = activeSales;
+
+      PdfRouterService.emailDocument(
+        context: context, 
+        doc: dataToSend, 
+        party: Party(id: 'internal', name: widget.reportType), 
+        ph: ph, 
+        type: "LEDGER" 
+      );
+    } else {
+      // ओरिजिनल PDF ओपन लॉजिक
+      if (widget.reportType.contains("GSTR-1")) {
+        GstReportService.generateGstr1Pdf(allSales, rangeLabel, activeShop);
+      } 
+      else if (widget.reportType.contains("GSTR-3B")) {
+        GstReportService.generateGstr3bPdf(activeSales, monthlyPur, rangeLabel, activeShop);
+      }
+      else if (widget.reportType.contains("GSTR-2")) {
+        GstReportService.generateGstr2Pdf(monthlyPur, ph.vouchers, ph.parties, rangeLabel, activeShop);
+      }
+    }
   }
 
   @override
@@ -33,14 +78,12 @@ class _GSTReportDetailViewState extends State<GSTReportDetailView> {
     final ph = Provider.of<PharoahManager>(context);
     final activeShop = ph.activeCompany;
 
-    // --- FILTERING LOGIC (ORIGINAL) ---
+    // --- ओरिजिनल फिल्टरिंग लॉजिक (No Change) ---
     List<Sale> allSales = ph.sales.where((s) =>
       s.date.isAfter(fromDate.subtract(const Duration(days: 1))) && 
       s.date.isBefore(toDate.add(const Duration(days: 1)))
     ).toList();
-    
     List<Sale> activeSales = allSales.where((s) => s.status == "Active").toList();
-
     List<Purchase> monthlyPurchases = ph.purchases.where((p) =>
       p.date.isAfter(fromDate.subtract(const Duration(days: 1))) && 
       p.date.isBefore(toDate.add(const Duration(days: 1)))
@@ -53,24 +96,22 @@ class _GSTReportDetailViewState extends State<GSTReportDetailView> {
         backgroundColor: Colors.indigo.shade900,
         foregroundColor: Colors.white,
         actions: [
-          IconButton(
-            icon: const Icon(Icons.picture_as_pdf_rounded),
-            tooltip: "Download PDF Report",
-            onPressed: (activeShop == null) ? null : () {
-              String rangeLabel = "${DateFormat('dd/MM/yy').format(fromDate)} to ${DateFormat('dd/MM/yy').format(toDate)}";
-              
-              // NAYA: Passing 'activeShop' to all PDF calls
-              if (widget.reportType.contains("GSTR-1")) {
-                GstReportService.generateGstr1Pdf(allSales, rangeLabel, activeShop);
-              } 
-              else if (widget.reportType.contains("GSTR-3B")) {
-                GstReportService.generateGstr3bPdf(activeSales, monthlyPurchases, rangeLabel, activeShop);
-              }
-              else if (widget.reportType.contains("GSTR-2")) {
-                GstReportService.generateGstr2Pdf(monthlyPurchases, ph.vouchers, ph.parties, rangeLabel, activeShop);
-              }
-            },
-          ),
+          // --- NAYA AUDIT CODE: SMART PDF BUTTON ---
+          if (ph.config.isAuditMode)
+            PopupMenuButton<String>(
+              icon: const Icon(Icons.picture_as_pdf_rounded, color: Colors.white),
+              onSelected: (val) => _handleGstPdfAction(ph, activeShop, val == 'mail'),
+              itemBuilder: (c) => [
+                const PopupMenuItem(value: 'view', child: Row(children: [Icon(Icons.visibility, size: 18), SizedBox(width: 10), Text("Open Report PDF")])),
+                const PopupMenuItem(value: 'mail', child: Row(children: [Icon(Icons.alternate_email, size: 18, color: Colors.blue), SizedBox(width: 10), Text("Mail Report to CA")])),
+              ],
+            )
+          else
+            IconButton(
+              icon: const Icon(Icons.picture_as_pdf_rounded),
+              tooltip: "Download PDF Report",
+              onPressed: (activeShop == null) ? null : () => _handleGstPdfAction(ph, activeShop, false),
+            ),
         ],
       ),
       body: Column(
@@ -87,7 +128,7 @@ class _GSTReportDetailViewState extends State<GSTReportDetailView> {
     );
   }
 
-  // --- UI COMPONENTS (ORIGINAL) ---
+  // --- ओरिजिनल UI कॉम्पोनेन्ट (No Change) ---
 
   Widget _buildDateRangePicker() {
     return Container(
