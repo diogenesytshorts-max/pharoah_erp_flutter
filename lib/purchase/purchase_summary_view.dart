@@ -1,4 +1,4 @@
-// FILE: lib/purchase/purchase_summary_view.dart (UPDATED WITH CA AUDIT NEXUS)
+// FILE: lib/purchase/purchase_summary_view.dart (FINAL AUDIT UPDATED)
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -22,7 +22,7 @@ class _PurchaseSummaryViewState extends State<PurchaseSummaryView> {
   String searchQuery = "";
   bool _isInit = false;
 
-  // --- NAYA AUDIT CODE: SELECTION & PROCESSING STATE ---
+  // --- 🛡️ NAYA AUDIT CODE: SELECTION & PROCESSING STATE ---
   bool isSelectionMode = false;
   List<String> selectedPurchaseIds = [];
   bool isProcessing = false;
@@ -42,7 +42,7 @@ class _PurchaseSummaryViewState extends State<PurchaseSummaryView> {
     }
   }
 
-  // --- NAYA AUDIT CODE: NO-CRASH BATCH LOGIC (Stitcher Style) ---
+  // --- 📦 NAYA AUDIT CODE: NO-CRASH BATCH ZIP LOGIC (Challan Stitcher Style) ---
   Future<void> _handleBatchAuditMail(PharoahManager ph) async {
     if (selectedPurchaseIds.isEmpty) return;
 
@@ -55,7 +55,7 @@ class _PurchaseSummaryViewState extends State<PurchaseSummaryView> {
     try {
       List<Purchase> purchasesToZip = ph.purchases.where((p) => selectedPurchaseIds.contains(p.id)).toList();
       
-      // Safe Loop with delays to prevent UI freeze
+      // Safe Loop with delays to prevent UI freeze/crash
       for (int i = 0; i < purchasesToZip.length; i++) {
         await Future.delayed(const Duration(milliseconds: 100)); 
         setState(() {
@@ -115,7 +115,7 @@ class _PurchaseSummaryViewState extends State<PurchaseSummaryView> {
         backgroundColor: Colors.orange.shade800, 
         foregroundColor: Colors.white,
         actions: [
-          // --- NAYA AUDIT CODE: TOP RIGHT PDF INTERCEPTOR ---
+          // --- 🛡️ NAYA AUDIT CODE: TOP RIGHT INTERCEPTOR ---
           if (ph.config.isAuditMode)
             PopupMenuButton<String>(
               icon: const Icon(Icons.picture_as_pdf, color: Colors.white),
@@ -137,7 +137,7 @@ class _PurchaseSummaryViewState extends State<PurchaseSummaryView> {
                 : () => PurchaseReportPdf.generate(filteredPur, fromDate, toDate, null, activeShop)
             ),
 
-          // NAYA: Select Mode Button (Only if Audit Mode is ON)
+          // NAYA: Select Mode Button (Only visible if Audit Switch is ON)
           if (ph.config.isAuditMode && filteredPur.isNotEmpty)
             IconButton(
               icon: Icon(isSelectionMode ? Icons.close : Icons.checklist_rtl_rounded),
@@ -175,7 +175,7 @@ class _PurchaseSummaryViewState extends State<PurchaseSummaryView> {
             // --- 2. LIST SECTION ---
             Expanded(
               child: filteredPur.isEmpty 
-              ? const Center(child: Text("No records found for this period."))
+              ? const Center(child: Text("No records found for selected period."))
               : ListView.builder(
                 padding: const EdgeInsets.all(10), itemCount: filteredPur.length,
                 itemBuilder: (c, i) {
@@ -184,11 +184,12 @@ class _PurchaseSummaryViewState extends State<PurchaseSummaryView> {
                     (pt) => pt.name == p.distributorName, 
                     orElse: () => Party(id: "", name: p.distributorName)
                   );
+
                   return Card(
                     elevation: 2, margin: const EdgeInsets.only(bottom: 8),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                     child: ListTile(
-                      // --- NAYA AUDIT CODE: LEADING CHECKBOX ---
+                      // --- 🛡️ NAYA AUDIT CODE: LEADING CHECKBOX ---
                       leading: isSelectionMode 
                         ? Checkbox(
                             value: selectedPurchaseIds.contains(p.id), 
@@ -200,7 +201,7 @@ class _PurchaseSummaryViewState extends State<PurchaseSummaryView> {
                       subtitle: _buildSubtitleWidget(p),
                       
                       trailing: Row(mainAxisSize: MainAxisSize.min, children: [
-                        // --- NAYA AUDIT CODE: ROW LEVEL CA MAIL ICON ---
+                        // --- 🛡️ NAYA AUDIT CODE: ROW LEVEL CA MAIL ICON ---
                         if (ph.config.isAuditMode && !isSelectionMode)
                           IconButton(
                             icon: Icon(Icons.forward_to_inbox_rounded, color: Colors.orange.shade900, size: 20),
@@ -237,7 +238,7 @@ class _PurchaseSummaryViewState extends State<PurchaseSummaryView> {
             )
           ]),
 
-          // --- NAYA AUDIT CODE: NO-CRASH PROGRESS OVERLAY ---
+          // --- 📦 NAYA AUDIT CODE: PROGRESS OVERLAY ---
           if (isProcessing)
             Container(
               color: Colors.black87,
@@ -257,7 +258,7 @@ class _PurchaseSummaryViewState extends State<PurchaseSummaryView> {
         ],
       ),
 
-      // --- NAYA AUDIT CODE: BATCH ZIP ACTION BAR ---
+      // --- 🛡️ NAYA AUDIT CODE: BATCH ZIP ACTION BAR ---
       bottomNavigationBar: (isSelectionMode && selectedPurchaseIds.isNotEmpty)
         ? Container(
             padding: const EdgeInsets.all(20),
