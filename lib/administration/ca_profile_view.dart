@@ -1,5 +1,8 @@
+// FILE: lib/administration/ca_profile_view.dart (FINAL ADVANCED VERSION)
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:intl/intl.dart';
 import '../pharoah_manager.dart';
 
 class CaProfileView extends StatefulWidget {
@@ -10,28 +13,49 @@ class CaProfileView extends StatefulWidget {
 }
 
 class _CaProfileViewState extends State<CaProfileView> {
-  late TextEditingController nameC, emailC, phoneC;
+  final nameC = TextEditingController();
+  final emailC = TextEditingController();
+  final phoneC = TextEditingController();
 
   @override
   void initState() {
     super.initState();
-    final ph = Provider.of<PharoahManager>(context, listen: false);
-    nameC = TextEditingController(text: ph.config.caName);
-    emailC = TextEditingController(text: ph.config.caEmail);
-    phoneC = TextEditingController(text: ph.config.caPhone);
+    _loadCurrentCaSettings();
   }
 
-  void _saveCaSettings(PharoahManager ph) {
+  // NAYA: Settings लोड करना
+  void _loadCurrentCaSettings() {
+    final ph = Provider.of<PharoahManager>(context, listen: false);
+    nameC.text = ph.config.caName;
+    emailC.text = ph.config.caEmail;
+    phoneC.text = ph.config.caPhone;
+  }
+
+  // NAYA: पूरी तरह सुरक्षित Save Logic
+  Future<void> _saveAllDetails() async {
+    final ph = Provider.of<PharoahManager>(context, listen: false);
+
+    if (nameC.text.trim().isEmpty || emailC.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("CA Name and Email are mandatory!"), backgroundColor: Colors.red),
+      );
+      return;
+    }
+
+    // 1. Config Object Update
     ph.config.caName = nameC.text.trim().toUpperCase();
     ph.config.caEmail = emailC.text.trim().toLowerCase();
     ph.config.caPhone = phoneC.text.trim();
-    ph.updateAppConfig(ph.config);
-    ph.save(); // Config को परमानेंट सेव करना
     
-    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-      content: Text("✅ CA Profile Synchronized!"),
-      backgroundColor: Colors.indigo,
-    ));
+    // 2. Sync with Manager & Save to Disk
+    ph.updateAppConfig(ph.config);
+    await ph.save();
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("✅ CA Profile Updated Successfully!"), backgroundColor: Colors.green),
+      );
+    }
   }
 
   @override
@@ -41,84 +65,113 @@ class _CaProfileViewState extends State<CaProfileView> {
     return Scaffold(
       backgroundColor: const Color(0xFFF5F6F9),
       appBar: AppBar(
-        title: const Text("CA Audit Configuration"),
+        title: const Text("Audit & CA Configuration"),
         backgroundColor: const Color(0xFF0D47A1),
         foregroundColor: Colors.white,
+        elevation: 0,
       ),
-      body: SingleChildScrollView(
+      body: ListView(
         padding: const EdgeInsets.all(20),
-        child: Column(
-          children: [
-            // --- THE MASTER TOGGLE (Very Important) ---
-            Container(
-              decoration: BoxDecoration(
-                color: ph.config.isAuditMode ? Colors.orange.shade50 : Colors.white,
-                borderRadius: BorderRadius.circular(15),
-                border: Border.all(color: ph.config.isAuditMode ? Colors.orange : Colors.grey.shade300),
-              ),
-              child: SwitchListTile(
-                title: const Text("ACTIVATE CA AUDIT MODE", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-                subtitle: const Text("Redirection to CA email will be enabled app-wide.", style: TextStyle(fontSize: 10)),
-                value: ph.config.isAuditMode,
-                activeColor: Colors.orange.shade900,
-                onChanged: (v) {
-                  setState(() => ph.config.isAuditMode = v);
-                  ph.updateAppConfig(ph.config);
-                },
-              ),
+        children: [
+          // --- SECTION: MASTER TOGGLE (Point 1 Logic) ---
+          _buildSectionHeader("SYSTEM AUDIT MODE", Icons.security_rounded, Colors.orange.shade900),
+          Container(
+            margin: const EdgeInsets.only(bottom: 20),
+            decoration: BoxDecoration(
+              color: ph.config.isAuditMode ? Colors.orange.shade50 : Colors.white,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: ph.config.isAuditMode ? Colors.orange : Colors.grey.shade300),
             ),
-            const SizedBox(height: 25),
+            child: SwitchListTile(
+              title: const Text("REDIRECT ALL MAILS TO CA", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+              subtitle: Text(ph.config.isAuditMode ? "Mode: ACTIVE (Audit Mode)" : "Mode: NORMAL (Customer Mode)", 
+                  style: const TextStyle(fontSize: 10)),
+              value: ph.config.isAuditMode,
+              activeColor: Colors.orange.shade900,
+              onChanged: (v) {
+                setState(() => ph.config.isAuditMode = v);
+                ph.updateAppConfig(ph.config);
+                ph.save();
+              },
+            ),
+          ),
 
-            // --- CA DETAILS CARD ---
-            Card(
-              elevation: 0,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20), side: BorderSide(color: Colors.grey.shade200)),
-              child: Padding(
-                padding: const EdgeInsets.all(20),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text("AUDITOR / CA INFORMATION", style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.blueGrey, letterSpacing: 1.2)),
-                    const Divider(height: 30),
-                    _inputField(nameC, "CA Full Name", Icons.person),
-                    _inputField(emailC, "CA Official Email ID", Icons.email),
-                    _inputField(phoneC, "Mobile Number", Icons.phone, isNum: true),
-                  ],
-                ),
-              ),
-            ),
+          // --- SECTION: CA IDENTITY (Styled exactly like your UserMasterView) ---
+          _buildSectionHeader("AUDITOR / CA PROFILE", Icons.assignment_ind_rounded, const Color(0xFF0D47A1)),
+          _inputField(nameC, "CA Full Name / Firm Name"),
+          _inputField(emailC, "CA Email Address (Dispatch Target)"),
+          _inputField(phoneC, "CA Mobile Number", isNum: true),
 
-            const SizedBox(height: 30),
-            SizedBox(
-              width: double.infinity,
-              height: 55,
-              child: ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF0D47A1),
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                ),
-                onPressed: () => _saveCaSettings(ph),
-                child: const Text("SAVE CA PROFILE", style: TextStyle(fontWeight: FontWeight.bold)),
+          const SizedBox(height: 30),
+
+          // --- SAVE BUTTON ---
+          SizedBox(
+            width: double.infinity,
+            height: 55,
+            child: ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF0D47A1),
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               ),
+              onPressed: _saveAllDetails,
+              child: const Text("SAVE CA SETTINGS", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
             ),
-          ],
-        ),
+          ),
+
+          const SizedBox(height: 40),
+
+          // --- SECTION: DISPATCH HISTORY (Point 5 Logic) ---
+          _buildSectionHeader("RECENT AUDIT LOGS", Icons.history_edu_rounded, Colors.blueGrey),
+          ...ph.logs.reversed.where((l) => l.action == "AUDIT").take(5).map((log) => Card(
+            elevation: 0,
+            margin: const EdgeInsets.only(bottom: 8),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10), side: BorderSide(color: Colors.grey.shade200)),
+            child: ListTile(
+              dense: true,
+              leading: const Icon(Icons.mark_email_read_rounded, color: Colors.green, size: 18),
+              title: Text(log.details, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+              subtitle: Text(DateFormat('dd MMM yyyy, hh:mm a').format(log.time), style: const TextStyle(fontSize: 9)),
+            ),
+          )).toList(),
+          
+          if (ph.logs.where((l) => l.action == "AUDIT").isEmpty)
+            const Center(child: Text("No audit history found.", style: TextStyle(fontSize: 11, color: Colors.grey))),
+
+          const SizedBox(height: 50),
+        ],
       ),
     );
   }
 
-  Widget _inputField(TextEditingController ctrl, String label, IconData icon, {bool isNum = false}) {
+  // --- UI HELPERS (Exact Match with your UserMasterView) ---
+
+  Widget _buildSectionHeader(String title, IconData icon, Color color) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 15, top: 10),
+      child: Row(
+        children: [
+          Icon(icon, color: color, size: 20),
+          const SizedBox(width: 10),
+          Text(title, style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 13, letterSpacing: 1.2)),
+        ],
+      ),
+    );
+  }
+
+  Widget _inputField(TextEditingController ctrl, String label, {bool isNum = false}) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 15),
       child: TextField(
         controller: ctrl,
         keyboardType: isNum ? TextInputType.number : TextInputType.text,
+        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
         decoration: InputDecoration(
           labelText: label,
-          prefixIcon: Icon(icon, size: 20),
+          filled: true,
+          fillColor: Colors.white,
           border: const OutlineInputBorder(),
-          filled: true, fillColor: Colors.white,
+          contentPadding: const EdgeInsets.symmetric(horizontal: 15, vertical: 15),
         ),
       ),
     );
