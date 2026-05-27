@@ -24,18 +24,19 @@ class AppConfig {
   String bankNameBranch;
   bool showTerms;
   String termsAndConditions;
-  // --- CA AUDIT NEXUS FIELDS ---
+
+  // --- 📧 EMAIL SMTP CONFIGURATION ---
+  bool isEmailActive;
+  String smtpEmail;
+  String smtpPassword; 
+  String smtpHost;
+  int smtpPort;
+
+  // --- 🛡️ NAYA: CA AUDIT NEXUS FIELDS ---
   String caName;
   String caEmail;
   String caPhone;
-  bool isAuditMode; // Master Toggle Switch
-
-  // --- 📧 NAYA: EMAIL SMTP CONFIGURATION ---
-  bool isEmailActive;
-  String smtpEmail;
-  String smtpPassword; // Secure Storage mein bhi rakh sakte hain par Config mein logic simple rahega
-  String smtpHost;
-  int smtpPort;
+  bool isAuditMode; // Master Toggle Switch for Audit Features
 
   AppConfig({
     this.salePrefix = "INV-",
@@ -67,6 +68,7 @@ class AppConfig {
     this.smtpPassword = "",
     this.smtpHost = "smtp.gmail.com",
     this.smtpPort = 587,
+
     // CA Nexus Defaults
     this.caName = "",
     this.caEmail = "",
@@ -76,10 +78,6 @@ class AppConfig {
 
   Map<String, dynamic> toMap() {
     return {
-      'caName': caName,
-      'caEmail': caEmail,
-      'caPhone': caPhone,
-      'isAuditMode': isAuditMode,
       'salePrefix': salePrefix,
       'saleChallanPrefix': saleChallanPrefix,
       'saleReturnPrefix': saleReturnPrefix,
@@ -102,21 +100,21 @@ class AppConfig {
       'bankNameBranch': bankNameBranch,
       'showTerms': showTerms,
       'termsAndConditions': termsAndConditions,
-      // Naya mapping
       'isEmailActive': isEmailActive,
       'smtpEmail': smtpEmail,
       'smtpPassword': smtpPassword,
       'smtpHost': smtpHost,
       'smtpPort': smtpPort,
+      // Naya mapping
+      'caName': caName,
+      'caEmail': caEmail,
+      'caPhone': caPhone,
+      'isAuditMode': isAuditMode,
     };
   }
 
   factory AppConfig.fromMap(Map<String, dynamic> map) {
     return AppConfig(
-      caName: map['caName'] ?? "",
-      caEmail: map['caEmail'] ?? "",
-      caPhone: map['caPhone'] ?? "",
-      isAuditMode: map['isAuditMode'] ?? false,
       salePrefix: map['salePrefix'] ?? "INV-",
       saleChallanPrefix: map['saleChallanPrefix'] ?? "SCH-",
       saleReturnPrefix: map['saleReturnPrefix'] ?? "SRN-",
@@ -139,12 +137,16 @@ class AppConfig {
       bankNameBranch: map['bankNameBranch'] ?? "",
       showTerms: map['showTerms'] ?? true,
       termsAndConditions: map['termsAndConditions'] ?? "",
-      // Naya mapping load
       isEmailActive: map['isEmailActive'] ?? false,
       smtpEmail: map['smtpEmail'] ?? "",
       smtpPassword: map['smtpPassword'] ?? "",
       smtpHost: map['smtpHost'] ?? "smtp.gmail.com",
       smtpPort: map['smtpPort'] ?? 587,
+      // Naya load logic
+      caName: map['caName'] ?? "",
+      caEmail: map['caEmail'] ?? "",
+      caPhone: map['caPhone'] ?? "",
+      isAuditMode: map['isAuditMode'] ?? false,
     );
   }
 }
