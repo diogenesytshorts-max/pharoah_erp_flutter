@@ -214,13 +214,27 @@ class _UniversalReturnHubState extends State<UniversalReturnHub> {
         trailing: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // --- 🛡️ NAYA AUDIT CODE: CA REDIRECTION MAIL ICON ---
-            if (ph.config.isAuditMode && !isSelectionMode)
+           // --- 📬 SMART DISPATCH ICON (Returns Logic) ---
+            if (ph.config.isMailActive && !isSelectionMode)
               IconButton(
-                icon: Icon(Icons.forward_to_inbox_rounded, color: isSR ? Colors.red.shade900 : Colors.amber.shade900, size: 20),
+                icon: Icon(
+                  ph.config.isAuditMode ? Icons.forward_to_inbox_rounded : Icons.alternate_email, 
+                  color: ph.config.isAuditMode ? Colors.indigo.shade900 : (isSR ? Colors.red.shade700 : Colors.orange.shade800), 
+                  size: 22
+                ),
+                tooltip: ph.config.isAuditMode ? "Forward to CA (Auditor)" : "Send to Party Mail",
                 onPressed: () {
-                  final partyObj = ph.parties.firstWhere((p) => p.name == name, orElse: () => Party(id: 'temp', name: name));
-                  PdfRouterService.emailDocument(context: context, doc: ret, party: partyObj, ph: ph, type: isSR ? "CN" : "DN");
+                  final partyObj = ph.parties.firstWhere(
+                    (p) => p.name == name, 
+                    orElse: () => Party(id: 'temp', name: name)
+                  );
+                  PdfRouterService.emailDocument(
+                    context: context, 
+                    doc: ret, 
+                    party: partyObj, 
+                    ph: ph, 
+                    type: isSR ? "CN" : "DN"
+                  );
                 },
               ),
             
