@@ -112,17 +112,29 @@ class _SaleSummaryViewState extends State<SaleSummaryView> {
         backgroundColor: Colors.blue.shade900, 
         foregroundColor: Colors.white,
         actions: [
-          // --- NAYA AUDIT CODE: TOP RIGHT INTERCEPTOR ---
-          if (ph.config.isAuditMode)
+      // --- 📊 SUMMARY & MAIL ACTION ---
+          if (ph.config.isMailActive)
             PopupMenuButton<String>(
               icon: const Icon(Icons.picture_as_pdf, color: Colors.white),
               onSelected: (val) {
                 if (val == 'view') SaleReportPdf.generate(filteredSales, fromDate, toDate, null, activeShop!);
-                if (val == 'mail') PdfRouterService.emailDocument(context: context, doc: filteredSales, party: Party(id: 'internal', name: 'CA Summary'), ph: ph, type: "LEDGER");
+                if (val == 'mail') {
+                  PdfRouterService.emailDocument(
+                    context: context, 
+                    doc: filteredSales, 
+                    party: Party(id: 'internal', name: ph.config.isAuditMode ? 'CA Summary' : 'Sale Register'), 
+                    ph: ph, 
+                    type: "LEDGER"
+                  );
+                }
               },
               itemBuilder: (c) => [
                 const PopupMenuItem(value: 'view', child: Row(children: [Icon(Icons.visibility, size: 18), SizedBox(width: 10), Text("Open Summary PDF")])),
-                const PopupMenuItem(value: 'mail', child: Row(children: [Icon(Icons.alternate_email, size: 18, color: Colors.blue), SizedBox(width: 10), Text("Mail Summary to CA")])),
+                PopupMenuItem(value: 'mail', child: Row(children: [
+                   Icon(ph.config.isAuditMode ? Icons.forward_to_inbox : Icons.alternate_email, size: 18, color: Colors.blue), 
+                   const SizedBox(width: 10), 
+                   Text(ph.config.isAuditMode ? "Mail Summary to CA" : "Mail Summary to My Mail")
+                ])),
               ],
             )
           else
@@ -197,11 +209,16 @@ class _SaleSummaryViewState extends State<SaleSummaryView> {
                       title: Text(s.partyName, style: const TextStyle(fontWeight: FontWeight.bold)),
                       subtitle: _buildSubtitleWidget(s), // Subtitle UI Logic
                       
-                      trailing: Row(mainAxisSize: MainAxisSize.min, children: [
-                        // --- NAYA AUDIT CODE: ROW LEVEL CA MAIL ICON ---
-                        if (ph.config.isAuditMode && !isSelectionMode)
+                     trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+                        // --- 📬 SMART DISPATCH ICON (Party vs CA) ---
+                        if (ph.config.isMailActive && !isSelectionMode)
                           IconButton(
-                            icon: const Icon(Icons.forward_to_inbox_rounded, color: Colors.indigo, size: 20),
+                            icon: Icon(
+                              ph.config.isAuditMode ? Icons.forward_to_inbox_rounded : Icons.alternate_email, 
+                              color: ph.config.isAuditMode ? Colors.indigo.shade900 : Colors.blue.shade700, 
+                              size: 22
+                            ),
+                            tooltip: ph.config.isAuditMode ? "Send to CA (Auditor)" : "Send to Customer Mail",
                             onPressed: () => PdfRouterService.emailDocument(context: context, doc: s, party: p, ph: ph, type: "SALE"),
                           ),
 
