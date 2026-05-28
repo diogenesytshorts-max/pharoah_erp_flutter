@@ -194,10 +194,33 @@ class PdfRouterService {
           pdfBytes = await DebitNotePdf.generateBytes(doc, party, ph.activeCompany!, config);
         }
       }
-      else if (type == "LEDGER") {
-        // ... (LEDGER and STOCK logic remains same)
-        docNo = "Statement";
-        pdfBytes = await PartyLedgerPdf.generateBytes(shop: ph.activeCompany!, party: party, data: doc, from: DateTime.now(), to: DateTime.now());
+    else if (type == "LEDGER") {
+        docNo = "GST_Report";
+        
+        // --- 🛡️ ISOLATED GST MAIL FIX ---
+        if (party.name.contains("GSTR-1") && doc is List<Sale>) {
+          pdfBytes = await GstReportService.generateGstr1Bytes(doc, ph.activeCompany!);
+        } 
+        else if (party.name.contains("GSTR-3B") && doc is List<Sale>) {
+          pdfBytes = await GstReportService.generateGstr3bBytes(doc, ph.purchases, ph.activeCompany!);
+        } 
+        else if (party.name.contains("CA Summary")) {
+          if (doc is List<Sale>) {
+            pdfBytes = await SaleReportPdf.generateBytes(doc, ph.activeCompany!);
+          } else {
+            pdfBytes = await PurchaseReportPdf.generateBytes((doc as List).cast<Purchase>(), ph.activeCompany!);
+          }
+        } 
+        else {
+          // Normal Ledger: Sirf tabhi chalega jab data List of Sale NA HO
+          pdfBytes = await PartyLedgerPdf.generateBytes(
+            shop: ph.activeCompany!, 
+            party: party, 
+            data: (doc as List).cast<Map<String, dynamic>>(), 
+            from: DateTime.now(), 
+            to: DateTime.now()
+          );
+        }
       }
       else if (type == "STOCK") {
         docNo = "StockReport";
