@@ -1,3 +1,5 @@
+// FILE: lib/finance/company_stock_view.dart (UPDATED DISPATCH LOGIC)
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
@@ -47,14 +49,19 @@ class _CompanyStockViewState extends State<CompanyStockView> {
         title: const Text("Company Stock Flow"),
         backgroundColor: Colors.purple.shade900,
         actions: [
-          if (ph.config.isEmailActive)
+          // --- 📬 SMART DISPATCH (MAIL) ---
+          if (ph.config.isMailActive) // Updated variable
             IconButton(
-              icon: const Icon(Icons.alternate_email),
+              icon: Icon(
+                ph.config.isAuditMode ? Icons.forward_to_inbox_rounded : Icons.alternate_email,
+                color: Colors.white,
+              ),
+              tooltip: ph.config.isAuditMode ? "Forward to CA (Auditor)" : "Send to My Mail",
               onPressed: () {
                 PdfRouterService.emailDocument(
                   context: context,
                   doc: {'grouped': grouped, 'from': fromDate, 'to': toDate, 'basis': valuationBasis},
-                  party: Party(id: 'internal', name: 'Internal Stock Audit'),
+                  party: Party(id: 'internal', name: ph.config.isAuditMode ? 'Inward Audit' : 'Internal Stock Audit'),
                   ph: ph,
                   type: "STOCK",
                 );
