@@ -82,6 +82,7 @@ class FYTransferEngine {
       await saveToNew('sales.json', []);
       await saveToNew('purc.json', []);
       await saveToNew('vouc.json', []);
+      await saveToNew('s_challan.json', []);
       
       // Audit log entry for transfer
       await saveToNew('logs.json', [
