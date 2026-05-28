@@ -261,14 +261,91 @@ class _CompanyControlPanelViewState extends State<CompanyControlPanelView> {
     ));
   }
 
+// lib/gateway/company_control_panel.dart ke aakhir mein ise replace karein:
+
+  // ===========================================================================
+  // 🧨 THE 15-STEP DELETE BARRIER (DANGER ZONE)
+  // ===========================================================================
   void _confirmDelete(PharoahManager ph) {
-    showDialog(context: context, builder: (c) => AlertDialog(
-        title: const Text("Delete Entire Company?"),
-        content: const Text("This action is irreversible. All your data will be permanently wiped."),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(c), child: const Text("CANCEL")),
-          ElevatedButton(style: ElevatedButton.styleFrom(backgroundColor: Colors.red), onPressed: () { ph.companiesRegistry.removeWhere((x) => x.id == ph.activeCompany!.id); ph.saveRegistry(); ph.clearSession(); Navigator.pop(c); }, child: const Text("YES, DELETE EVERYTHING", style: TextStyle(color: Colors.white))),
-        ],
-    ));
+    int clickCount = 0; // Deletion counter
+
+    showDialog(
+      context: context,
+      barrierDismissible: false, // User ko dialogue ke bahar click karne se rokna
+      builder: (context) {
+        return StatefulBuilder(builder: (context, setDialogState) {
+          return AlertDialog(
+            backgroundColor: const Color(0xFFFFF5F5), // Warning Red Tint
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(25), side: const BorderSide(color: Colors.red, width: 2)),
+            title: Row(children: [
+              const Icon(Icons.warning_amber_rounded, color: Colors.red, size: 30),
+              const SizedBox(width: 10),
+              Text("PERMANENT WIPE", style: TextStyle(color: Colors.red.shade900, fontWeight: FontWeight.w900)),
+            ]),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text("You are about to delete '${ph.activeCompany!.name.toUpperCase()}'", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                const SizedBox(height: 10),
+                const Text("This will permanently erase ALL Bills, Items, and Settings. There is NO UNDO.", textAlign: TextAlign.center, style: TextStyle(fontSize: 12, color: Colors.red)),
+                const SizedBox(height: 25),
+                
+                // --- PROGRESS INDICATOR ---
+                Text("CONFIRMATION STEP: ${clickCount}/15", style: TextStyle(fontWeight: FontWeight.w900, fontSize: 20, color: Colors.red.shade900)),
+                const SizedBox(height: 10),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(10),
+                  child: LinearProgressIndicator(
+                    value: clickCount / 15,
+                    minHeight: 12,
+                    color: Colors.red,
+                    backgroundColor: Colors.red.withOpacity(0.1),
+                  ),
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text("STOP / GO BACK", style: TextStyle(color: Colors.blueGrey, fontWeight: FontWeight.bold)),
+              ),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.red.shade900, 
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))
+                ),
+                onPressed: () async {
+                  setDialogState(() => clickCount++); // Increment counter
+                  
+                  if (clickCount >= 15) {
+                    // --- FINAL DELETION LOGIC ---
+                    final root = await getApplicationDocumentsDirectory();
+                    final companyDir = Directory('${root.path}/Pharoah_Data/${ph.activeCompany!.id}');
+                    
+                    // 1. Delete Physical Files
+                    if (await companyDir.exists()) {
+                      await companyDir.delete(recursive: true);
+                    }
+                    
+                    // 2. Remove from Registry & Clear Session
+                    ph.companiesRegistry.removeWhere((x) => x.id == ph.activeCompany!.id);
+                    await ph.saveRegistry();
+                    ph.clearSession();
+                    
+                    if (context.mounted) {
+                      Navigator.pop(context);
+                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("💥 Business Data Wiped Permanently!"), backgroundColor: Colors.black));
+                    }
+                  }
+                },
+                child: Text(clickCount >= 14 ? "CONFIRM FINAL WIPE" : "YES, DELETE"),
+              ),
+            ],
+          );
+        });
+      },
+    );
   }
 }
