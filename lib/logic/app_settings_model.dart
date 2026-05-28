@@ -1,7 +1,6 @@
 // FILE: lib/logic/app_settings_model.dart
 
 class AppConfig {
-  // --- EXISTING FIELDS ---
   String salePrefix;
   String saleChallanPrefix;
   String saleReturnPrefix;
@@ -25,18 +24,18 @@ class AppConfig {
   bool showTerms;
   String termsAndConditions;
 
-  // --- 📧 EMAIL SMTP CONFIGURATION ---
-  bool isEmailActive;
-  String smtpEmail;
-  String smtpPassword; 
+  // --- 📬 DISPATCH / MAIL CONFIGURATION (Email Word Removed) ---
+  bool isMailActive;      // Pehle isEmailActive tha
+  String smtpMailID;      // Pehle smtpEmail tha
+  String smtpMailPass;    // Pehle smtpPassword tha
   String smtpHost;
   int smtpPort;
 
-  // --- 🛡️ NAYA: CA AUDIT NEXUS FIELDS ---
+  // --- 🛡️ CA AUDIT NEXUS ---
   String caName;
-  String caEmail;
+  String caMailID;        // Pehle caEmail tha
   String caPhone;
-  bool isAuditMode; // Master Toggle Switch for Audit Features
+  bool isAuditMode; 
 
   AppConfig({
     this.salePrefix = "INV-",
@@ -62,16 +61,16 @@ class AppConfig {
     this.showTerms = true,
     this.termsAndConditions = "1. Goods once sold will not be taken back.\n2. All disputes subject to local jurisdiction.",
     
-    // Default Email Values
-    this.isEmailActive = false,
-    this.smtpEmail = "",
-    this.smtpPassword = "",
+    // Default Mail Values
+    this.isMailActive = false,
+    this.smtpMailID = "",
+    this.smtpMailPass = "",
     this.smtpHost = "smtp.gmail.com",
     this.smtpPort = 587,
 
     // CA Nexus Defaults
     this.caName = "",
-    this.caEmail = "",
+    this.caMailID = "",
     this.caPhone = "",
     this.isAuditMode = false,
   });
@@ -100,14 +99,14 @@ class AppConfig {
       'bankNameBranch': bankNameBranch,
       'showTerms': showTerms,
       'termsAndConditions': termsAndConditions,
-      'isEmailActive': isEmailActive,
-      'smtpEmail': smtpEmail,
-      'smtpPassword': smtpPassword,
+      // Mapping
+      'isMailActive': isMailActive,
+      'smtpMailID': smtpMailID,
+      'smtpMailPass': smtpMailPass,
       'smtpHost': smtpHost,
       'smtpPort': smtpPort,
-      // Naya mapping
       'caName': caName,
-      'caEmail': caEmail,
+      'caMailID': caMailID,
       'caPhone': caPhone,
       'isAuditMode': isAuditMode,
     };
@@ -137,14 +136,17 @@ class AppConfig {
       bankNameBranch: map['bankNameBranch'] ?? "",
       showTerms: map['showTerms'] ?? true,
       termsAndConditions: map['termsAndConditions'] ?? "",
-      isEmailActive: map['isEmailActive'] ?? false,
-      smtpEmail: map['smtpEmail'] ?? "",
-      smtpPassword: map['smtpPassword'] ?? "",
+      
+      // Migration Logic: Agar purana 'Email' key milti hai toh use naye 'Mail' mein load karein
+      isMailActive: map['isMailActive'] ?? map['isEmailActive'] ?? false,
+      smtpMailID: map['smtpMailID'] ?? map['smtpEmail'] ?? "",
+      smtpMailPass: map['smtpMailPass'] ?? map['smtpPassword'] ?? "",
+      
       smtpHost: map['smtpHost'] ?? "smtp.gmail.com",
       smtpPort: map['smtpPort'] ?? 587,
-      // Naya load logic
+      
       caName: map['caName'] ?? "",
-      caEmail: map['caEmail'] ?? "",
+      caMailID: map['caMailID'] ?? map['caEmail'] ?? "",
       caPhone: map['caPhone'] ?? "",
       isAuditMode: map['isAuditMode'] ?? false,
     );
