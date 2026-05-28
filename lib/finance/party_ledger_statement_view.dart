@@ -1,3 +1,5 @@
+// FILE: lib/finance/party_ledger_statement_view.dart (UPDATED DISPATCH LOGIC)
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
@@ -48,9 +50,14 @@ class _PartyLedgerStatementViewState extends State<PartyLedgerStatementView> {
         backgroundColor: const Color(0xFF1A237E),
         actions: [
           if (selectedParty != null) ...[
-            if (ph.config.isEmailActive)
+            // --- 📬 SMART DISPATCH (MAIL) ---
+            if (ph.config.isMailActive) // Variable updated
               IconButton(
-                icon: const Icon(Icons.alternate_email),
+                icon: Icon(
+                  ph.config.isAuditMode ? Icons.forward_to_inbox_rounded : Icons.alternate_email,
+                  color: Colors.white,
+                ),
+                tooltip: ph.config.isAuditMode ? "Mail Statement to CA" : "Mail Statement to Party",
                 onPressed: () {
                   PdfRouterService.emailDocument(
                     context: context, doc: ledgerData, party: selectedParty!, ph: ph, type: "LEDGER",
