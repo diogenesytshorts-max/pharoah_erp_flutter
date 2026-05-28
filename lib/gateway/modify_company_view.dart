@@ -1,3 +1,5 @@
+// FILE: lib/gateway/modify_company_view.dart (FULL PROFILE EDITOR)
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../pharoah_manager.dart';
@@ -12,54 +14,75 @@ class ModifyCompanyView extends StatefulWidget {
 }
 
 class _ModifyCompanyViewState extends State<ModifyCompanyView> {
-  late TextEditingController nameC;
-  late TextEditingController passwordC;
-  late String selectedType;
+  // --- CONTROLLERS ---
+  late TextEditingController nameC, addressC, phoneC, emailC, gstinC, dlNoC, usernameC, passwordC;
+  late String selectedType, selectedState;
+  late bool useFingerprint;
+  late int lockMinutes;
+
+  final List<String> states = [
+    "Andhra Pradesh", "Assam", "Bihar", "Chhattisgarh", "Goa", "Gujarat", "Haryana", 
+    "Himachal Pradesh", "Jharkhand", "Karnataka", "Kerala", "Madhya Pradesh", 
+    "Maharashtra", "Manipur", "Meghalaya", "Mizoram", "Nagaland", "Odisha", 
+    "Punjab", "Rajasthan", "Sikkim", "Tamil Nadu", "Telangana", "Tripura", 
+    "Uttar Pradesh", "Uttarakhand", "West Bengal", "Delhi"
+  ];
 
   @override
   void initState() {
     super.initState();
-    // Purani details load karna
-    nameC = TextEditingController(text: widget.comp.name);
-    passwordC = TextEditingController(text: widget.comp.password);
-    selectedType = widget.comp.businessType;
+    final c = widget.comp;
+    // Pre-filling existing data
+    nameC = TextEditingController(text: c.name);
+    addressC = TextEditingController(text: c.address);
+    phoneC = TextEditingController(text: c.phone);
+    emailC = TextEditingController(text: c.email);
+    gstinC = TextEditingController(text: c.gstin);
+    dlNoC = TextEditingController(text: c.dlNo);
+    usernameC = TextEditingController(text: c.adminUser);
+    passwordC = TextEditingController(text: c.password);
+    selectedType = c.businessType;
+    selectedState = c.state;
+    useFingerprint = c.isBiometricEnabled;
+    lockMinutes = c.autoLockMinutes;
   }
 
   void _handleUpdate() async {
     if (nameC.text.trim().isEmpty || passwordC.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Name and Password cannot be empty!")),
-      );
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Name and Password are mandatory!")));
       return;
     }
 
     final ph = Provider.of<PharoahManager>(context, listen: false);
-
-    // 1. Registry mein is company ko dhoondhna
     int idx = ph.companiesRegistry.indexWhere((c) => c.id == widget.comp.id);
     
     if (idx != -1) {
-      // 2. Nayi details update karna
-      ph.companiesRegistry[idx] = CompanyProfile(
-        id: widget.comp.id, // ID hamesha locked rahegi
+      // Create Updated Profile Object
+      final updatedProfile = CompanyProfile(
+        id: widget.comp.id, // System ID locked
         name: nameC.text.trim().toUpperCase(),
         businessType: selectedType,
-        password: passwordC.text.trim(),
-        fYears: widget.comp.fYears,
         createdAt: widget.comp.createdAt,
+        address: addressC.text.trim(),
+        state: selectedState,
+        gstin: gstinC.text.trim().toUpperCase(),
+        dlNo: dlNoC.text.trim().toUpperCase(),
+        phone: phoneC.text.trim(),
+        email: emailC.text.trim().toLowerCase(),
+        adminUser: usernameC.text.trim().toLowerCase(),
+        password: passwordC.text.trim(),
+        isBiometricEnabled: useFingerprint,
+        recoveryKey: widget.comp.recoveryKey, // Recovery key locked
+        autoLockMinutes: lockMinutes,
+        fYears: widget.comp.fYears,
       );
 
-      // 3. Registry file save karna
+      ph.companiesRegistry[idx] = updatedProfile;
+      ph.activeCompany = updatedProfile; 
       await ph.saveRegistry();
       
-      // 4. Active session update karna taaki dashboard par naya naam dikhe
-      ph.activeCompany = ph.companiesRegistry[idx];
-      ph.notifyListeners();
-
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("✅ Company Profile Updated!"), backgroundColor: Colors.green),
-        );
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("✅ Business Profile Updated!"), backgroundColor: Colors.green));
         Navigator.pop(context);
       }
     }
@@ -68,9 +91,9 @@ class _ModifyCompanyViewState extends State<ModifyCompanyView> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: const Color(0xFFF8F9FD),
       appBar: AppBar(
-        title: const Text("Edit Company Profile"),
+        title: const Text("Modify Business Profile"),
         backgroundColor: const Color(0xFF0D47A1),
         foregroundColor: Colors.white,
       ),
@@ -79,60 +102,89 @@ class _ModifyCompanyViewState extends State<ModifyCompanyView> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // ID Display (No Change Allowed)
-            Text("COMPANY SYSTEM ID: ${widget.comp.id}", 
-              style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.grey, fontSize: 12)),
-            const Divider(height: 30),
-
-            _inputLabel("FIRM NAME"),
-            TextField(
-              controller: nameC,
-              textCapitalization: TextCapitalization.characters,
-              decoration: const InputDecoration(border: OutlineInputBorder(), prefixIcon: Icon(Icons.business)),
-            ),
-            const SizedBox(height: 20),
-
-            _inputLabel("NATURE OF BUSINESS"),
+            _sectionLabel("PRIMARY IDENTITY"),
+            _inputField(nameC, "Firm Name", Icons.business, isCaps: true),
+            
+            _inputLabel("Nature of Business"),
             DropdownButtonFormField<String>(
               value: selectedType,
               decoration: const InputDecoration(border: OutlineInputBorder(), prefixIcon: Icon(Icons.category)),
               items: ["WHOLESALE", "RETAIL"].map((t) => DropdownMenuItem(value: t, child: Text(t))).toList(),
               onChanged: (v) => setState(() => selectedType = v!),
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 25),
 
-            _inputLabel("LOGIN PASSWORD"),
-            TextField(
-              controller: passwordC,
-              decoration: const InputDecoration(
-                border: OutlineInputBorder(), 
-                prefixIcon: Icon(Icons.lock_reset),
-                hintText: "Enter new password",
-              ),
+            _sectionLabel("LOCATION & CONTACT"),
+            _inputField(addressC, "Office Address", Icons.location_on),
+            _inputLabel("Business State"),
+            DropdownButtonFormField<String>(
+              value: selectedState,
+              decoration: const InputDecoration(border: OutlineInputBorder(), prefixIcon: Icon(Icons.map)),
+              items: states.map((s) => DropdownMenuItem(value: s, child: Text(s))).toList(),
+              onChanged: (v) => setState(() => selectedState = v!),
+            ),
+            const SizedBox(height: 15),
+            Row(children: [
+              Expanded(child: _inputField(phoneC, "Mobile", Icons.phone, isNum: true)),
+              const SizedBox(width: 10),
+              Expanded(child: _inputField(emailC, "Email", Icons.email)),
+            ]),
+
+            _sectionLabel("STATUTORY DETAILS"),
+            Row(children: [
+              Expanded(child: _inputField(gstinC, "GSTIN", Icons.receipt_long, isCaps: true)),
+              const SizedBox(width: 10),
+              Expanded(child: _inputField(dlNoC, "Drug License", Icons.medical_services, isCaps: true)),
+            ]),
+
+            _sectionLabel("SECURITY & ACCESS"),
+            _inputField(usernameC, "Admin Username", Icons.person_lock),
+            _inputField(passwordC, "Login Password", Icons.key),
+            
+            SwitchListTile(
+              title: const Text("Enable Biometric Login", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+              value: useFingerprint,
+              activeColor: Colors.blue.shade900,
+              onChanged: (v) => setState(() => useFingerprint = v),
+            ),
+            
+            const Divider(),
+            const Text("Auto-Lock Timer (Minutes)", style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.blueGrey)),
+            const SizedBox(height: 10),
+            SegmentedButton<int>(
+              segments: const [
+                ButtonSegment(value: 0, label: Text("OFF")),
+                ButtonSegment(value: 5, label: Text("5m")),
+                ButtonSegment(value: 10, label: Text("10m")),
+              ],
+              selected: {lockMinutes},
+              onSelectionChanged: (v) => setState(() => lockMinutes = v.first),
             ),
 
-            const SizedBox(height: 40),
+            const SizedBox(height: 50),
             SizedBox(
-              width: double.infinity,
-              height: 55,
+              width: double.infinity, height: 60,
               child: ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF0D47A1),
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                ),
+                style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF0D47A1), foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15))),
                 onPressed: _handleUpdate,
-                child: const Text("UPDATE SETTINGS", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                child: const Text("SAVE UPDATED PROFILE", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
               ),
             ),
+            const SizedBox(height: 30),
           ],
         ),
       ),
     );
   }
 
-  Widget _inputLabel(String t) => Padding(
-    padding: const EdgeInsets.only(bottom: 8, left: 4),
-    child: Text(t, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.blueGrey)),
+  Widget _sectionLabel(String t) => Padding(padding: const EdgeInsets.only(top: 20, bottom: 10, left: 4), child: Text(t, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.blueGrey, letterSpacing: 1.5)));
+  Widget _inputLabel(String t) => Padding(padding: const EdgeInsets.only(bottom: 8, left: 4), child: Text(t, style: const TextStyle(fontSize: 11, color: Colors.grey)));
+  Widget _inputField(TextEditingController c, String l, IconData i, {bool isNum = false, bool isCaps = false}) => Padding(
+    padding: const EdgeInsets.only(bottom: 15),
+    child: TextField(
+      controller: c, keyboardType: isNum ? TextInputType.number : TextInputType.text,
+      textCapitalization: isCaps ? TextCapitalization.characters : TextCapitalization.none,
+      decoration: InputDecoration(labelText: l, prefixIcon: Icon(i, size: 20), border: const OutlineInputBorder(), filled: true, fillColor: Colors.white),
+    ),
   );
 }
