@@ -1,4 +1,4 @@
-// FILE: lib/administration/ca_profile_view.dart (FINAL ADVANCED VERSION)
+// FILE: lib/administration/ca_profile_view.dart (FINAL AUDIT NEXUS VERSION)
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -14,7 +14,7 @@ class CaProfileView extends StatefulWidget {
 
 class _CaProfileViewState extends State<CaProfileView> {
   final nameC = TextEditingController();
-  final emailC = TextEditingController();
+  final mailC = TextEditingController(); // Name updated from emailC
   final phoneC = TextEditingController();
 
   @override
@@ -23,37 +23,37 @@ class _CaProfileViewState extends State<CaProfileView> {
     _loadCurrentCaSettings();
   }
 
-  // NAYA: Settings लोड करना
+  // Settings Load karna (Updated variables)
   void _loadCurrentCaSettings() {
     final ph = Provider.of<PharoahManager>(context, listen: false);
     nameC.text = ph.config.caName;
-    emailC.text = ph.config.caEmail;
+    mailC.text = ph.config.caMailID; // Updated from caEmail
     phoneC.text = ph.config.caPhone;
   }
 
-  // NAYA: पूरी तरह सुरक्षित Save Logic
+  // Save Logic
   Future<void> _saveAllDetails() async {
     final ph = Provider.of<PharoahManager>(context, listen: false);
 
-    if (nameC.text.trim().isEmpty || emailC.text.trim().isEmpty) {
+    if (nameC.text.trim().isEmpty || mailC.text.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("CA Name and Email are mandatory!"), backgroundColor: Colors.red),
+        const SnackBar(content: Text("CA Name and Mail ID are mandatory!"), backgroundColor: Colors.red),
       );
       return;
     }
 
     // 1. Config Object Update
     ph.config.caName = nameC.text.trim().toUpperCase();
-    ph.config.caEmail = emailC.text.trim().toLowerCase();
+    ph.config.caMailID = mailC.text.trim().toLowerCase(); // Updated from caEmail
     ph.config.caPhone = phoneC.text.trim();
     
-    // 2. Sync with Manager & Save to Disk
+    // 2. Sync with Manager & Save
     ph.updateAppConfig(ph.config);
     await ph.save();
 
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("✅ CA Profile Updated Successfully!"), backgroundColor: Colors.green),
+        const SnackBar(content: Text("✅ CA Profile & Dispatch Route Updated!"), backgroundColor: Colors.green),
       );
     }
   }
@@ -66,17 +66,17 @@ class _CaProfileViewState extends State<CaProfileView> {
       backgroundColor: const Color(0xFFF5F6F9),
       appBar: AppBar(
         title: const Text("Audit & CA Configuration"),
-        backgroundColor: const Color(0xFF0D47A1),
+        backgroundColor: const Color(0xFF1A237E),
         foregroundColor: Colors.white,
         elevation: 0,
       ),
       body: ListView(
         padding: const EdgeInsets.all(20),
         children: [
-          // --- SECTION: MASTER TOGGLE (Point 1 Logic) ---
+          // --- SECTION: MASTER TOGGLE (REDIRECTION LOGIC) ---
           _buildSectionHeader("SYSTEM AUDIT MODE", Icons.security_rounded, Colors.orange.shade900),
           Container(
-            margin: const EdgeInsets.only(bottom: 20),
+            margin: const EdgeInsets.only(bottom: 10),
             decoration: BoxDecoration(
               color: ph.config.isAuditMode ? Colors.orange.shade50 : Colors.white,
               borderRadius: BorderRadius.circular(12),
@@ -84,7 +84,7 @@ class _CaProfileViewState extends State<CaProfileView> {
             ),
             child: SwitchListTile(
               title: const Text("REDIRECT ALL MAILS TO CA", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-              subtitle: Text(ph.config.isAuditMode ? "Mode: ACTIVE (Audit Mode)" : "Mode: NORMAL (Customer Mode)", 
+              subtitle: Text(ph.config.isAuditMode ? "Mode: ACTIVE (Audit Redirection)" : "Mode: NORMAL (Customer Direct)", 
                   style: const TextStyle(fontSize: 10)),
               value: ph.config.isAuditMode,
               activeColor: Colors.orange.shade900,
@@ -96,10 +96,24 @@ class _CaProfileViewState extends State<CaProfileView> {
             ),
           ),
 
-          // --- SECTION: CA IDENTITY (Styled exactly like your UserMasterView) ---
-          _buildSectionHeader("AUDITOR / CA PROFILE", Icons.assignment_ind_rounded, const Color(0xFF0D47A1)),
+          // --- 🔥 SMART WARNING BANNER ---
+          if (ph.config.isAuditMode)
+            Container(
+              padding: const EdgeInsets.all(12),
+              margin: const EdgeInsets.only(bottom: 20),
+              decoration: BoxDecoration(color: Colors.red.shade50, borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.red.shade200)),
+              child: Row(children: [
+                const Icon(Icons.warning_amber_rounded, color: Colors.red, size: 20),
+                const SizedBox(width: 10),
+                Expanded(child: Text("All transaction mails will now be sent to ${ph.config.caMailID.isEmpty ? 'CA' : ph.config.caMailID} instead of customers.", 
+                  style: const TextStyle(color: Colors.red, fontSize: 10, fontWeight: FontWeight.bold))),
+              ]),
+            ),
+
+          // --- SECTION: CA IDENTITY ---
+          _buildSectionHeader("AUDITOR / CA PROFILE", Icons.assignment_ind_rounded, const Color(0xFF1A237E)),
           _inputField(nameC, "CA Full Name / Firm Name"),
-          _inputField(emailC, "CA Email Address (Dispatch Target)"),
+          _inputField(mailC, "CA Mail ID (Redirection Target)"), // Label updated
           _inputField(phoneC, "CA Mobile Number", isNum: true),
 
           const SizedBox(height: 30),
@@ -110,7 +124,7 @@ class _CaProfileViewState extends State<CaProfileView> {
             height: 55,
             child: ElevatedButton(
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF0D47A1),
+                backgroundColor: const Color(0xFF1A237E),
                 foregroundColor: Colors.white,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               ),
@@ -121,7 +135,7 @@ class _CaProfileViewState extends State<CaProfileView> {
 
           const SizedBox(height: 40),
 
-          // --- SECTION: DISPATCH HISTORY (Point 5 Logic) ---
+          // --- SECTION: DISPATCH HISTORY ---
           _buildSectionHeader("RECENT AUDIT LOGS", Icons.history_edu_rounded, Colors.blueGrey),
           ...ph.logs.reversed.where((l) => l.action == "AUDIT").take(5).map((log) => Card(
             elevation: 0,
@@ -144,7 +158,7 @@ class _CaProfileViewState extends State<CaProfileView> {
     );
   }
 
-  // --- UI HELPERS (Exact Match with your UserMasterView) ---
+  // --- UI HELPERS ---
 
   Widget _buildSectionHeader(String title, IconData icon, Color color) {
     return Padding(
