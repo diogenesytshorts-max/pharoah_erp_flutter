@@ -14,7 +14,7 @@ class CompanyControlPanelView extends StatefulWidget {
   @override
   State<CompanyControlPanelView> createState() => _CompanyControlPanelViewState();
 }
-
+double maintenanceProgress = 0.0; // Isse % chalega
 class _CompanyControlPanelViewState extends State<CompanyControlPanelView> {
   bool isMaintenanceRunning = false;
   String maintenanceStatus = "";
@@ -57,14 +57,23 @@ class _CompanyControlPanelViewState extends State<CompanyControlPanelView> {
 
   // --- MAINTENANCE ENGINE ---
   void _runMaintenance(PharoahManager ph) async {
-    // Maintenance ke liye humein latest FY ka context chahiye hota hai
-    String latestFY = ph.activeCompany?.fYears.last ?? "";
-    if (latestFY.isEmpty) return;
-
     setState(() {
       isMaintenanceRunning = true;
-      maintenanceStatus = "Waking up Pharoah Doctor...";
+      maintenanceProgress = 0.0;
     });
+
+    final engine = MaintenanceService(ph, await ph.getWorkingPath());
+    await engine.runFullMaintenance(onProgress: (p, s) {
+      if (mounted) {
+        setState(() {
+          maintenanceProgress = p; // % update
+          maintenanceStatus = s;   // text update
+        });
+      }
+    });
+
+    if (mounted) setState(() => isMaintenanceRunning = false);
+  }
 
     // Pehle data load karo background mein
     await ph.loginToCompany(ph.activeCompany!, latestFY);
@@ -180,16 +189,58 @@ class _CompanyControlPanelViewState extends State<CompanyControlPanelView> {
     return InkWell(onTap: onTap, borderRadius: BorderRadius.circular(20), child: Container(decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20), border: Border.all(color: color.withOpacity(0.1), width: 2)), child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(icon, color: color, size: 40), const SizedBox(height: 12), Text(title, textAlign: TextAlign.center, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold))])));
   }
 
+ // ===========================================================================
+  // 🌫️ THE ADVANCED LOADING OVERLAY (1% to 100%)
+  // ===========================================================================
   Widget _buildMaintenanceOverlay() {
     return Container(
-      color: Colors.black.withOpacity(0.85), width: double.infinity, height: double.infinity,
-      child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-          const Icon(Icons.medical_services_outlined, color: Colors.orange, size: 80),
-          const SizedBox(height: 25),
-          const Text("PHAROAH DOCTOR RUNNING", style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+      color: Colors.black.withOpacity(0.9), // Full screen cover
+      width: double.infinity,
+      height: double.infinity,
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          // 1. Animated Icon
+          const Icon(Icons.health_and_safety_outlined, color: Colors.orange, size: 80),
+          const SizedBox(height: 30),
+          
+          // 2. Percentage Text
+          Text(
+            "${(maintenanceProgress * 100).toInt()}%",
+            style: const TextStyle(color: Colors.white, fontSize: 40, fontWeight: FontWeight.w900, letterSpacing: 2),
+          ),
+          
           const SizedBox(height: 10),
-          Text(maintenanceStatus, style: const TextStyle(color: Colors.white70, fontSize: 13)),
-      ]),
+          
+          // 3. Progress Bar
+          SizedBox(
+            width: 250,
+            child: LinearProgressIndicator(
+              value: maintenanceProgress,
+              backgroundColor: Colors.white12,
+              color: Colors.orange,
+              minHeight: 8,
+              borderRadius: BorderRadius.circular(10),
+            ),
+          ),
+          
+          const SizedBox(height: 25),
+          
+          // 4. Status Message
+          Text(
+            maintenanceStatus.toUpperCase(),
+            textAlign: TextAlign.center,
+            style: const TextStyle(color: Colors.white70, fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 1.5),
+          ),
+          
+          const SizedBox(height: 50),
+          
+          const Text(
+            "PLEASE DO NOT CLOSE THE APP",
+            style: TextStyle(color: Colors.redAccent, fontSize: 10, fontWeight: FontWeight.bold),
+          ),
+        ],
+      ),
     );
   }
 
