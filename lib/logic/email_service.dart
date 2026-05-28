@@ -9,6 +9,9 @@ import 'app_settings_model.dart';
 
 class PharoahEmailService {
   
+  // ===========================================================================
+  // 📬 MAIN DISPATCH LOGIC (Renamed variables to 'Mail' for conflict safety)
+  // ===========================================================================
   static Future<bool> sendEmailWithPdf({
     required AppConfig config,
     required String shopName,
@@ -18,12 +21,13 @@ class PharoahEmailService {
     required Uint8List pdfBytes,
     required String fileName,
   }) async {
-    // UPDATED: isMailActive, smtpMailID, smtpMailPass
+    // UPDATED: config.isMailActive, config.smtpMailID, config.smtpMailPass
     if (!config.isMailActive || config.smtpMailID.isEmpty || config.smtpMailPass.isEmpty) {
       print("Mail service not configured in settings.");
       return false;
     }
 
+    // A. Temporary File Preparation
     final tempDir = await getTemporaryDirectory();
     String finalFileName = fileName.toLowerCase().endsWith('.zip') 
         ? fileName 
@@ -32,7 +36,7 @@ class PharoahEmailService {
     final file = File('${tempDir.path}/$finalFileName');
     await file.writeAsBytes(pdfBytes);
     
-    // UPDATED: smtpMailID, smtpMailPass
+    // B. SMTP Server Config (UPDATED: smtpMailID, smtpMailPass)
     final smtpServer = SmtpServer(
       config.smtpHost,
       port: config.smtpPort,
@@ -40,6 +44,7 @@ class PharoahEmailService {
       password: config.smtpMailPass,
     );
 
+    // C. Mail Composition (UPDATED: config.smtpMailID)
     final message = Message()
       ..from = Address(config.smtpMailID, shopName)
       ..recipients.add(recipientEmail)
@@ -48,7 +53,9 @@ class PharoahEmailService {
       ..attachments.add(FileAttachment(file));
 
     try {
+      // D. Dispatch
       await send(message, smtpServer);
+      print("Mail sent successfully to $recipientEmail");
       return true;
     } catch (e) {
       print("Mail Dispatch Error: $e");
@@ -56,6 +63,9 @@ class PharoahEmailService {
     }
   }
 
+  // ===========================================================================
+  // 📝 SMART MESSAGE TEMPLATES
+  // ===========================================================================
   static Map<String, String> getTemplate({
     required String type, 
     required String shopName,
@@ -77,6 +87,10 @@ class PharoahEmailService {
       case "LEDGER":
         subject = "Account Statement: $shopName";
         body = "Dear Sir,\n\nYour Ledger Statement for the period $dateRange has been attached.\n\nRegards,\n$shopName";
+        break;
+      case "STOCK":
+        subject = "Stock Report: $shopName";
+        body = "Dear Sir,\n\nStock summary report has been attached for your review.\n\nRegards,\n$shopName";
         break;
       default:
         subject = "Document from $shopName";
