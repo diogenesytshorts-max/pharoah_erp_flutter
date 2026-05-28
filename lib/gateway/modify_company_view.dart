@@ -137,8 +137,8 @@ class _ModifyCompanyViewState extends State<ModifyCompanyView> {
               Expanded(child: _inputField(dlNoC, "Drug License", Icons.medical_services, isCaps: true)),
             ]),
 
-            _sectionLabel("SECURITY & ACCESS"),
-            _inputField(usernameC, "Admin Username", Icons.person_lock),
+            _sectionLabel("SECURITY & ACCESS"),// Modify_company_view.dart mein Line 141 ko dhundiye aur badal dijiye:
+_inputField(usernameC, "Admin Username", Icons.lock_person),
             _inputField(passwordC, "Login Password", Icons.key),
             
             SwitchListTile(
