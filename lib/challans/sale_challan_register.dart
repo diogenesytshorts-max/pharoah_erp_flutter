@@ -3,13 +3,13 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
-import 'dart:io'; // NAYA: Signature file read karne ke liye
+import 'dart:io'; 
 import '../pharoah_manager.dart';
 import '../models.dart';
 import '../pharoah_date_controller.dart';
 import '../app_date_logic.dart';
 import 'sale_challan_view.dart';
-import 'challan_signature_view.dart'; // NAYA: Signature screen ke liye
+import 'challan_signature_view.dart'; 
 import '../pdf/pdf_router_service.dart';
 import '../pdf/sale_challan_report_pdf.dart';
 
@@ -191,7 +191,7 @@ class _SaleChallanRegisterState extends State<SaleChallanRegister> {
                   ],
                 ),
               ),
-             // --- 📬 SMART DISPATCH (MAIL) ---
+              // --- 📬 SMART DISPATCH (MAIL) ---
               Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
@@ -222,17 +222,6 @@ class _SaleChallanRegisterState extends State<SaleChallanRegister> {
                     crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
                       Text("₹${ch.totalAmount.toStringAsFixed(2)}", style: const TextStyle(fontWeight: FontWeight.w900, color: Color(0xFF1A237E))),
-                      Row(
-                        children: [
-                          if (hasSign) Icon(Icons.verified, size: 14, color: isTampered ? Colors.orange : Colors.green),
-                          const SizedBox(width: 4),
-                          _statusBadge(ch.status, isPending),
-                        ],
-                      ),
-                    ],
-                  ),
-                ],
-              ),
                       Row(
                         children: [
                           if (hasSign) Icon(Icons.verified, size: 14, color: isTampered ? Colors.orange : Colors.green),
@@ -279,14 +268,12 @@ class _SaleChallanRegisterState extends State<SaleChallanRegister> {
             if (isTampered) const Text("⚠️ DETAILS CHANGED AFTER SIGNING", style: TextStyle(color: Colors.red, fontSize: 9, fontWeight: FontWeight.bold)),
             const Divider(),
             
-            // 1. VIEW SIGNATURE PROOF
             if (hasSign)
               _menuTile(Icons.assignment_turned_in, "View Signature Proof", Colors.green, () {
                 Navigator.pop(c);
                 _showSignaturePreview(ch);
               }),
 
-            // 2. RE-SIGN (Only if Tampered)
             if (isTampered && ch.status != "Billed")
               _menuTile(Icons.draw_rounded, "Re-Verify (Re-Sign)", Colors.orange, () {
                 Navigator.pop(c);
