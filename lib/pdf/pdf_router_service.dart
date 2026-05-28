@@ -268,8 +268,10 @@ class PdfRouterService {
   }
 
   // For CA Audit Mode
+// For CA Audit Mode
   static Future<void> sendBatchToCa({required List<dynamic> documents, required PharoahManager ph, required String type}) async {
-    if (!ph.config.isAuditMode || ph.config.caEmail.isEmpty) return;
+    // UPDATED: caMailID
+    if (!ph.config.isAuditMode || ph.config.caMailID.isEmpty) return; 
     try {
       final archive = Archive();
       for (var doc in documents) {
@@ -285,8 +287,10 @@ class PdfRouterService {
       }
       final zipData = ZipEncoder().encode(archive);
       if (zipData == null) return;
+      
+      // UPDATED: caMailID
       await PharoahEmailService.sendEmailWithPdf(
-        config: ph.config, shopName: ph.activeCompany!.name, recipientEmail: ph.config.caEmail,
+        config: ph.config, shopName: ph.activeCompany!.name, recipientEmail: ph.config.caMailID,
         subject: "AUDIT BUNDLE: ${documents.length} $type Bills",
         body: "Attached is the zipped bundle for audit.",
         pdfBytes: Uint8List.fromList(zipData),
@@ -294,7 +298,6 @@ class PdfRouterService {
       );
     } catch (e) { debugPrint("Batch Error: $e"); }
   }
-
   static Future<String?> _showQuickEmailDialog(BuildContext context, String partyName) async {
     final emailC = TextEditingController();
     return showDialog<String>(
