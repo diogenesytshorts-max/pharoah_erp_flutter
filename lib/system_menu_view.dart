@@ -11,42 +11,92 @@ class SystemMenuView extends StatelessWidget {
   final VoidCallback onLogout;
   const SystemMenuView({super.key, required this.onLogout});
 
-  // --- FINANCIAL YEAR TRANSFER PROCESS ---
+// FILE: lib/system_menu_view.dart
+
+  // ===========================================================================
+  // 🚀 SMART FY TRANSFER ENGINE (WITH CHALLAN WATCHDOG)
+  // ===========================================================================
   void _handleFYTransfer(BuildContext context, PharoahManager ph) {
     String current = ph.currentFY;
     
-    // NAYA: Using Date Master to calculate next year string
-    String nextFY = AppDateLogic.getNextFYString(current);
+    // 1. AUTO-CALCULATE NEXT YEAR (e.g. 2024-25 -> 2025-26)
+    int startYear = int.parse(current.split('-')[0]);
+    if (startYear < 2000) startYear += 2000;
+    String nextFY = "${startYear + 1}-${(startYear + 2).toString().substring(2)}";
 
+    // 2. CHECK FOR PENDING CHALLANS
+    final pendingChallans = ph.saleChallans.where((c) => c.status == "Pending").toList();
+
+    if (pendingChallans.isNotEmpty) {
+      // --- ALERT: PENDING CHALLANS DETECTED ---
+      showDialog(
+        context: context,
+        builder: (c) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: const Row(children: [Icon(Icons.warning_amber_rounded, color: Colors.red), SizedBox(width: 10), Text("Pending Challans!")]),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text("Naye saal mein jaane se pehle in challans ko check karein. Inka bill abhi tak nahi bana hai:", style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 15),
+              SizedBox(
+                height: 150, width: double.maxFinite,
+                child: ListView.builder(
+                  shrinkWrap: true,
+                  itemCount: pendingChallans.length,
+                  itemBuilder: (context, i) => ListTile(
+                    dense: true,
+                    leading: const Icon(Icons.circle, size: 8, color: Colors.red),
+                    title: Text(pendingChallans[i].partyName, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                    subtitle: Text("Challan: ${pendingChallans[i].billNo} | ₹${pendingChallans[i].totalAmount.toStringAsFixed(0)}", style: const TextStyle(fontSize: 9)),
+                  ),
+                ),
+              ),
+              const Divider(),
+              const Text("Note: Transfer ke baad ye challans purane saal mein hi reh jayenge.", style: TextStyle(fontSize: 10, color: Colors.blueGrey, fontStyle: FontStyle.italic)),
+            ],
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(c), child: const Text("GO BACK & FIX")),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.orange.shade900),
+              onPressed: () { Navigator.pop(c); _showFinalConfirmation(context, ph, nextFY); }, 
+              child: const Text("IGNORE & CONTINUE")
+            ),
+          ],
+        ),
+      );
+    } else {
+      // No pending challans, go straight to confirmation
+      _showFinalConfirmation(context, ph, nextFY);
+    }
+  }
+
+  // --- SUB-DIALOG: FINAL FY CONFIRMATION ---
+  void _showFinalConfirmation(BuildContext context, PharoahManager ph, String nextFY) {
     showDialog(
       context: context,
       builder: (c) => AlertDialog(
-        title: const Text("Start New Financial Year?"),
-        content: Text("Kya aap $current ka data $nextFY mein transfer karna chahte hain?\n\n"
-            "• Closing Stock automatic Opening Stock ban jayega.\n"
-            "• Party Balances carry forward ho jayenge.\n"
-            "• Purana saal safe rahega, par naye saal mein fresh billing hogi."),
+        title: Text("Confirm New Year: $nextFY"),
+        content: const Text("System will now:\n1. Copy Item & Party Master.\n2. Carry forward Ledger Balances.\n3. Transfer Closing Stock as Opening Stock.\n\nTransactions (Bills/Vouchers) will start from Zero."),
         actions: [
           TextButton(onPressed: () => Navigator.pop(c), child: const Text("CANCEL")),
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: Colors.blue.shade900),
             onPressed: () async {
               Navigator.pop(c);
-              // Loading indicator
               showDialog(context: context, barrierDismissible: false, builder: (c) => const Center(child: CircularProgressIndicator()));
               
-              // Action call to Manager
               bool success = await ph.startNewFinancialYear(nextFY);
               
-              if (context.mounted) Navigator.pop(context); // Close Loader
-              
-              if (success) {
-                _showSuccessDialog(context, nextFY);
-              } else {
-                if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Error: Transfer failed!")));
+              if (context.mounted) {
+                Navigator.pop(context); // Close Loader
+                if (success) _showSuccessDialog(context, nextFY);
+                else ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Transfer Error!")));
               }
             },
-            child: Text("YES, START $nextFY", style: const TextStyle(color: Colors.white)),
+            child: Text("START $nextFY NOW", style: const TextStyle(color: Colors.white)),
           ),
         ],
       ),
