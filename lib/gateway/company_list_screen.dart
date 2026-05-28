@@ -21,7 +21,6 @@ class _CompanyListScreenState extends State<CompanyListScreen> {
   Widget build(BuildContext context) {
     final ph = Provider.of<PharoahManager>(context);
     
-    // Filtering companies based on search
     final list = ph.companiesRegistry.where((c) => 
       c.name.toLowerCase().contains(searchQuery.toLowerCase()) || 
       c.id.toLowerCase().contains(searchQuery.toLowerCase())
@@ -34,8 +33,6 @@ class _CompanyListScreenState extends State<CompanyListScreen> {
         backgroundColor: const Color(0xFF0D47A1),
         foregroundColor: Colors.white,
         actions: [
-          // IMPORT BACKUP
-          actions: [
           // --- 📥 RESTORE FROM BACKUP BUTTON ---
           IconButton(
             icon: const Icon(Icons.settings_backup_restore_rounded),
@@ -45,10 +42,6 @@ class _CompanyListScreenState extends State<CompanyListScreen> {
               if (success) {
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(content: Text("✅ Business Restored Successfully!"), backgroundColor: Colors.green)
-                );
-              } else {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text("❌ Invalid Backup File"), backgroundColor: Colors.red)
                 );
               }
             },
@@ -65,7 +58,6 @@ class _CompanyListScreenState extends State<CompanyListScreen> {
       ),
       body: Column(
         children: [
-          // --- SEARCH BAR ---
           Container(
             padding: const EdgeInsets.all(15),
             color: const Color(0xFF0D47A1),
@@ -83,8 +75,6 @@ class _CompanyListScreenState extends State<CompanyListScreen> {
               ),
             ),
           ),
-
-          // --- REGISTERED COMPANIES LIST ---
           Expanded(
             child: list.isEmpty
                 ? _buildEmptyState()
@@ -113,17 +103,9 @@ class _CompanyListScreenState extends State<CompanyListScreen> {
                             ),
                           ),
                           title: Text(comp.name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                          subtitle: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text("ID: ${comp.id}", style: const TextStyle(fontSize: 10, color: Colors.grey, fontWeight: FontWeight.bold)),
-                              const SizedBox(height: 5),
-                              _typeBadge(comp.businessType, isWholesale),
-                            ],
-                          ),
+                          subtitle: Text("ID: ${comp.id} | ${comp.businessType}"),
                           trailing: const Icon(Icons.arrow_forward_ios, size: 14, color: Colors.grey),
                           onTap: () {
-                            // Seedha active company set karo, password LoginView me puchenge
                             ph.activeCompany = comp;
                             ph.notifyListeners();
                           },
@@ -137,27 +119,7 @@ class _CompanyListScreenState extends State<CompanyListScreen> {
     );
   }
 
-  Widget _typeBadge(String type, bool isW) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-      decoration: BoxDecoration(
-        color: isW ? Colors.blue.shade100 : Colors.green.shade100,
-        borderRadius: BorderRadius.circular(5),
-      ),
-      child: Text(type, style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: isW ? Colors.blue.shade900 : Colors.green.shade900)),
-    );
-  }
-
   Widget _buildEmptyState() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.storefront_outlined, size: 80, color: Colors.grey.shade300),
-          const SizedBox(height: 15),
-          const Text("No registered businesses found.", style: TextStyle(color: Colors.grey)),
-        ],
-      ),
-    );
+    return const Center(child: Text("No registered businesses found.", style: TextStyle(color: Colors.grey)));
   }
 }
