@@ -1,10 +1,10 @@
-// FILE: lib/administration/architect_control_view.dart (FINAL UPDATED VERSION)
+// FILE: lib/administration/architect_control_view.dart (FINAL COMPREHENSIVE VERSION)
 
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:url_launcher/url_launcher.dart'; // 🔥 NAYA IMPORT
+import 'package:url_launcher/url_launcher.dart'; 
 import '../../pharoah_manager.dart';
 import '../logic/app_settings_model.dart';
 import 'series_master_view.dart';
@@ -20,7 +20,7 @@ class _ArchitectControlViewState extends State<ArchitectControlView> {
   // 1. Core Controllers
   late TextEditingController labelC, nameC, numC, ifscC, bankC, termsC;
   
-  // 2. Email Controllers
+  // 2. Dispatch/Mail Controllers (Updated Names)
   late TextEditingController emailC, passC, hostC, portC;
 
   @override
@@ -35,17 +35,17 @@ class _ArchitectControlViewState extends State<ArchitectControlView> {
     bankC = TextEditingController(text: ph.config.bankNameBranch);
     termsC = TextEditingController(text: ph.config.termsAndConditions);
     
-    emailC = TextEditingController(text: ph.config.smtpEmail);
-    passC = TextEditingController(text: ph.config.smtpPassword);
+    // Naya Variable Mapping from Step 1
+    emailC = TextEditingController(text: ph.config.smtpMailID);
+    passC = TextEditingController(text: ph.config.smtpMailPass);
     hostC = TextEditingController(text: ph.config.smtpHost);
     portC = TextEditingController(text: ph.config.smtpPort.toString());
   }
 
   // ===========================================================================
-  // 📧 NAYA: EMAIL SETUP HELPERS (LINK & GUIDE)
+  // 📬 MAIL SETUP HELPERS (LINK & GUIDE)
   // ===========================================================================
 
-  // 1. Browser me Google Link kholne ke liye
   Future<void> _launchGmailSecurity() async {
     final Uri url = Uri.parse('https://myaccount.google.com/apppasswords');
     if (!await launchUrl(url, mode: LaunchMode.externalApplication)) {
@@ -53,13 +53,12 @@ class _ArchitectControlViewState extends State<ArchitectControlView> {
     }
   }
 
-  // 2. Step-by-Step Guide Dialog
   void _showEmailSetupGuide() {
     showDialog(
       context: context,
       builder: (c) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(25)),
-        title: const Row(children: [Icon(Icons.auto_awesome, color: Colors.orange), SizedBox(width: 10), Text("Quick Email Setup")]),
+        title: const Row(children: [Icon(Icons.auto_awesome, color: Colors.orange), SizedBox(width: 10), Text("Quick Mail Setup")]),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -100,8 +99,9 @@ class _ArchitectControlViewState extends State<ArchitectControlView> {
     updated.bankNameBranch = bankC.text.trim();
     updated.termsAndConditions = termsC.text.trim();
     
-    updated.smtpEmail = emailC.text.trim();
-    updated.smtpPassword = passC.text.trim();
+    // Naya Variable Mapping
+    updated.smtpMailID = emailC.text.trim();
+    updated.smtpMailPass = passC.text.trim();
     updated.smtpHost = hostC.text.trim();
     updated.smtpPort = int.tryParse(portC.text) ?? 587;
 
@@ -188,15 +188,15 @@ class _ArchitectControlViewState extends State<ArchitectControlView> {
               ]),
             ),
 
-            // 🔥 STEP 08: EMAIL AUTOMATION ENGINE (THE UPDATED HUB)
+            // 🔥 STEP 05: MAIL AUTOMATION HUB (Labels Updated)
             _architectCard(
-              step: "05", title: "EMAIL AUTOMATION HUB", icon: Icons.alternate_email_rounded, color: Colors.deepOrange,
+              step: "05", title: "MAIL DISPATCH HUB", icon: Icons.alternate_email_rounded, color: Colors.deepOrange,
               child: Column(children: [
-                _switchTile("Activate Email Service", "Send bills directly from ERP", ph.config.isEmailActive, (v) {
-                  ph.config.isEmailActive = v; ph.updateAppConfig(ph.config);
+                _switchTile("Activate Mail Service", "Send bills directly from ERP", ph.config.isMailActive, (v) {
+                  ph.config.isMailActive = v; ph.updateAppConfig(ph.config);
                 }),
                 const SizedBox(height: 10),
-                _inputField(emailC, "Sender Gmail ID", "dukan@gmail.com"),
+                _inputField(emailC, "Sender Mail ID", "dukan@gmail.com"),
                 _inputField(passC, "App Password (16-Digit)", "xxxx xxxx xxxx xxxx", isPass: true),
                 
                 Row(children: [
@@ -226,7 +226,7 @@ class _ArchitectControlViewState extends State<ArchitectControlView> {
               ]),
             ),
 
-            // STEP 05: FINANCE
+            // STEP 06: FINANCE
             _architectCard(
               step: "06", title: "FINANCIAL IDENTITY", icon: Icons.account_balance_rounded, color: Colors.teal,
               child: Column(children: [
@@ -299,7 +299,6 @@ class _ArchitectControlViewState extends State<ArchitectControlView> {
 
   Widget _switchTile(String l, String s, bool v, Function(bool) onChanged) => SwitchListTile(title: Text(l, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)), subtitle: Text(s, style: const TextStyle(fontSize: 11, color: Colors.grey)), value: v, onChanged: onChanged, contentPadding: EdgeInsets.zero, activeColor: Colors.green, dense: true);
 
-  // 🔥 FIXED HELPER: added isNum and isPass support
   Widget _inputField(TextEditingController c, String l, String h, {bool isNum = false, bool isPass = false}) => Padding(
     padding: const EdgeInsets.only(bottom: 12), 
     child: TextField(
