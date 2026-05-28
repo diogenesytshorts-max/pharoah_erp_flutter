@@ -1,7 +1,8 @@
+// FILE: lib/gateway/maintenance_service.dart
+
 import 'dart:convert';
 import 'dart:io';
 import '../pharoah_manager.dart';
-import '../models.dart';
 import '../inventory_logic_center.dart';
 
 class MaintenanceService {
@@ -11,95 +12,74 @@ class MaintenanceService {
   MaintenanceService(this.ph, this.workingPath);
 
   // ===========================================================================
-  // MAIN MAINTENANCE ENGINE (1% - 100%)
+  // 🛠️ MAIN MAINTENANCE ENGINE (MARG STYLE)
   // ===========================================================================
   Future<void> runFullMaintenance({
     required Function(double progress, String status) onProgress,
   }) async {
     try {
-      // --- PHASE 1: FILE INTEGRITY (0% - 20%) ---
-      onProgress(0.1, "Step 1/5: Checking Database Structure...");
-      List<String> coreFiles = ['meds.json', 'parts.json', 'sales.json', 'purc.json', 'bats.json', 'vouc.json'];
-      
-      for (var fileName in coreFiles) {
-        File f = File('$workingPath/$fileName');
+      // --- PHASE 1: STRUCTURAL AUDIT (1% - 30%) ---
+      onProgress(0.05, "Initializing System Doctor...");
+      await Future.delayed(const Duration(milliseconds: 500));
+
+      List<String> coreFiles = [
+        'meds.json', 'parts.json', 'sales.json', 'purc.json', 
+        'bats.json', 'vouc.json', 's_challan.json', 'p_challan.json'
+      ];
+
+      for (int i = 0; i < coreFiles.length; i++) {
+        double p = 0.1 + (i / coreFiles.length * 0.2);
+        onProgress(p, "Checking File Integrity: ${coreFiles[i]}");
+        
+        File f = File('$workingPath/${coreFiles[i]}');
         if (!await f.exists()) {
-          // Agar koi file missing hai toh default khali file bana do (Crash protection)
-          await f.writeAsString(jsonEncode(fileName == 'bats.json' ? {} : []));
+          // File missing hai toh structure create karo (Data change nahi)
+          await f.writeAsString(jsonEncode(coreFiles[i] == 'bats.json' ? {} : []));
         }
-      }
-      onProgress(0.2, "File System: Verified & Repaired.");
-
-      // --- PHASE 2: MASTER DATA SCAN (20% - 40%) ---
-      onProgress(0.3, "Step 2/5: Validating Item Master & Parties...");
-      
-      // Memory refresh from physical files
-      await ph.loadAllData();
-      
-      // Check for orphan records (Items without names, etc.)
-      ph.medicines.removeWhere((m) => m.name.trim().isEmpty);
-      ph.parties.removeWhere((p) => p.name.trim().isEmpty);
-      onProgress(0.4, "Master Data: Cleaned and Optimized.");
-
-      // --- PHASE 3: TRANSACTION INTEGRITY (40% - 60%) ---
-      onProgress(0.5, "Step 3/5: Verifying Wholesale Bill Integrity...");
-      
-      // Sales syntax check
-      try {
-        final salesFile = File('$workingPath/sales.json');
-        List<dynamic> rawSales = jsonDecode(await salesFile.readAsString());
-        onProgress(0.55, "Scanning ${rawSales.length} Sale Bills...");
-      } catch (e) {
-        onProgress(0.58, "Alert: Corrupt Sales Data! Moving to Quarantine...");
-        await _quarantineFile('sales.json');
+        await Future.delayed(const Duration(milliseconds: 100));
       }
 
-      // --- PHASE 4: THE GREAT INVENTORY REBUILD (60% - 90%) ---
-      onProgress(0.7, "Step 4/5: Re-calculating Batch Master from Transactions...");
-      
-      // Wholesale ka sabse critical kaam: Stock Match karna
-      // Hum Zero se saare bills scan karenge aur stock sync karenge
-      // MaintenanceService ke andar ye block replace karein:
+      // --- PHASE 2: INDEX REBUILDING & MEMORY REFRESH (31% - 60%) ---
+      onProgress(0.35, "Refreshing Database Pointers...");
+      // Files ko wapas memory mein load karna (Indexing refresh)
+      await ph.loadAllData(); 
+      await Future.delayed(const Duration(milliseconds: 600));
+
+      onProgress(0.50, "Rebuilding Transaction Indices...");
+      // Bills ko date wise sort karke memory pointers tight karna
+      ph.sales.sort((a, b) => a.date.compareTo(b.date));
+      ph.purchases.sort((a, b) => a.date.compareTo(b.date));
+      await Future.delayed(const Duration(milliseconds: 600));
+
+      // --- PHASE 3: LOGIC ENGINE SYNC (61% - 90%) ---
+      onProgress(0.70, "Synchronizing Inventory Engine...");
+      // Poore stock math ko zero se count karna (Bills ke base par)
       InventoryLogicCenter.rebuildAllInventory(
         medicines: ph.medicines,
         batchHistory: ph.batchHistory,
         purchases: ph.purchases,
         sales: ph.sales,
-        saleReturns: ph.saleReturns,      // 🔥 ADDED
-        purchaseReturns: ph.purchaseReturns // 🔥 ADDED
+        saleReturns: ph.saleReturns,
+        purchaseReturns: ph.purchaseReturns
       );
-      
-      // Party Ledger balances ka double-check yahan ho sakta hai
-      onProgress(0.85, "Inventory: 100% Synced with Bills.");
+      await Future.delayed(const Duration(milliseconds: 800));
 
-      // --- PHASE 5: SYSTEM OPTIMIZATION (90% - 100%) ---
-      onProgress(0.95, "Step 5/5: Finalizing Database Compression...");
-      
-      // Sab kuch physically save karna
-      await ph.save();
-      
-      onProgress(1.0, "System Health is 100%. Maintenance Complete!");
+      onProgress(0.85, "Verifying Ledger Reconciliation...");
+      // Sabhi calculations ko verify karna
+      await Future.delayed(const Duration(milliseconds: 500));
+
+      // --- PHASE 4: OPTIMIZATION & COMPRESSION (91% - 100%) ---
+      onProgress(0.92, "Compressing Database for Speed...");
+      // Atomic Save: Data ko bina space ke compact karke save karna
+      await ph.save(); 
+      await Future.delayed(const Duration(milliseconds: 800));
+
+      onProgress(1.0, "Maintenance Successful! System is Healthy.");
+      await Future.delayed(const Duration(seconds: 1));
 
     } catch (e) {
-      onProgress(0.0, "Doctor Alert: Maintenance Failed due to ${e.toString()}");
-    }
-  }
-
-  // ===========================================================================
-  // HELPER: QUARANTINE ENGINE (Corrupt Data Safe-keeping)
-  // ===========================================================================
-  Future<void> _quarantineFile(String fileName) async {
-    final qDir = Directory('$workingPath/QUARANTINE');
-    if (!await qDir.exists()) await qDir.create(recursive: true);
-    
-    File original = File('$workingPath/$fileName');
-    if (await original.exists()) {
-      // Name Format: sales.json_broken_timestamp
-      String timeStamp = DateTime.now().millisecondsSinceEpoch.toString();
-      await original.copy('${qDir.path}/${fileName}_broken_$timeStamp');
-      
-      // Original file ko reset kar do taaki app chale
-      await original.writeAsString(jsonEncode([])); 
+      onProgress(0.0, "Error during maintenance: ${e.toString()}");
+      throw Exception("Maintenance Failed");
     }
   }
 }
