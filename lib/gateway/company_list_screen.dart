@@ -35,12 +35,21 @@ class _CompanyListScreenState extends State<CompanyListScreen> {
         foregroundColor: Colors.white,
         actions: [
           // IMPORT BACKUP
+          actions: [
+          // --- 📥 RESTORE FROM BACKUP BUTTON ---
           IconButton(
-            icon: const Icon(Icons.file_download_outlined),
+            icon: const Icon(Icons.settings_backup_restore_rounded),
+            tooltip: "Restore Business from Backup",
             onPressed: () async {
               bool success = await ExportService(ph).importCompany();
               if (success) {
-                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("✅ Backup Imported!")));
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text("✅ Business Restored Successfully!"), backgroundColor: Colors.green)
+                );
+              } else {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text("❌ Invalid Backup File"), backgroundColor: Colors.red)
+                );
               }
             },
           ),
