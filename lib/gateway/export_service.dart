@@ -1,8 +1,12 @@
+// FILE: lib/gateway/export_service.dart
+
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:archive/archive.dart'; // Zip ke liye
 import '../pharoah_manager.dart';
 import 'company_registry_model.dart';
 
@@ -10,74 +14,95 @@ class ExportService {
   final PharoahManager ph;
   ExportService(this.ph);
 
+  // ===========================================================================
+  // 📤 EXPORT: Pura Data + Images ka Bundle banana
+  // ===========================================================================
   Future<void> exportEntireCompany(CompanyProfile comp) async {
     try {
+      final archive = Archive();
       final root = await getApplicationDocumentsDirectory();
+      
+      // 1. Scan Company Directory (Data + Images)
       final companyPath = '${root.path}/Pharoah_Data/${comp.id}';
       final companyDir = Directory(companyPath);
       if (!await companyDir.exists()) return;
 
-      Map<String, dynamic> exportBundle = {
-        "app_name": "PHAROAH_ERP",
-        "profile": comp.toMap(),
-        "data_payload": {}
-      };
-
-      List<FileSystemEntity> typeFolders = companyDir.listSync();
-      for (var typeFolder in typeFolders) {
-        if (typeFolder is Directory) {
-          String typeName = typeFolder.path.split(Platform.pathSeparator).last;
-          exportBundle["data_payload"][typeName] = {};
-          List<FileSystemEntity> fyFolders = typeFolder.listSync();
-          for (var fyFolder in fyFolders) {
-            if (fyFolder is Directory) {
-              String fyName = fyFolder.path.split(Platform.pathSeparator).last;
-              exportBundle["data_payload"][typeName][fyName] = {};
-              List<FileSystemEntity> files = fyFolder.listSync();
-              for (var file in files) {
-                if (file is File && file.path.endsWith('.json')) {
-                  String fileName = file.path.split(Platform.pathSeparator).last.replaceAll('.json', '');
-                  exportBundle["data_payload"][typeName][fyName][fileName] = jsonDecode(await file.readAsString());
-                }
-              }
-            }
-          }
+      // Sabhi files ko zip archive mein add karna
+      List<FileSystemEntity> files = companyDir.listSync(recursive: true);
+      for (var file in files) {
+        if (file is File) {
+          String relPath = file.path.replaceFirst(companyPath, "");
+          List<int> bytes = await file.readAsBytes();
+          archive.addFile(ArchiveFile(relPath, bytes.length, bytes));
         }
       }
+
+      // 2. Add Registry Profile (Iske bina restore nahi hota)
+      String profileJson = jsonEncode(comp.toMap());
+      archive.addFile(ArchiveFile("profile.json", profileJson.length, utf8.encode(profileJson)));
+
+      // 3. Zip file ko save aur share karna
+      final zipData = ZipEncoder().encode(archive);
       final tempDir = await getTemporaryDirectory();
-      final exportFile = File('${tempDir.path}/${comp.name.replaceAll(' ', '_')}.pharoah');
-      await exportFile.writeAsString(jsonEncode(exportBundle));
-      await Share.shareXFiles([XFile(exportFile.path)], subject: 'Backup: ${comp.name}');
-    } catch (e) { print("Export Error: $e"); }
+      final zipFile = File('${tempDir.path}/${comp.name.replaceAll(' ', '_')}_Backup.pharoah');
+      await zipFile.writeAsBytes(zipData!);
+
+      await Share.shareXFiles([XFile(zipFile.path)], subject: 'Backup: ${comp.name}');
+    } catch (e) {
+      print("Export Error: $e");
+    }
   }
 
+  // ===========================================================================
+  // 📥 IMPORT: Bundle se Restore karna
+  // ===========================================================================
   Future<bool> importCompany() async {
     try {
-      FilePickerResult? result = await FilePicker.platform.pickFiles();
+      FilePickerResult? result = await FilePicker.platform.pickFiles(
+        type: FileType.custom, 
+        allowedExtensions: ['pharoah'] // Sirf hamari backup file
+      );
+      
       if (result == null) return false;
-      File file = File(result.files.single.path!);
-      Map<String, dynamic> bundle = jsonDecode(await file.readAsString());
-      if (bundle['app_name'] != "PHAROAH_ERP") return false;
+      File pickedFile = File(result.files.single.path!);
+      Uint8List bytes = await pickedFile.readAsBytes();
+      
+      // Zip ko decode karna
+      final archive = ZipDecoder().decodeBytes(bytes);
+      CompanyProfile? importedProfile;
 
-      CompanyProfile profile = CompanyProfile.fromMap(bundle['profile']);
-      Map<String, dynamic> payload = bundle['data_payload'];
       final root = await getApplicationDocumentsDirectory();
 
-      for (var type in payload.keys) {
-        for (var fy in payload[type].keys) {
-          final target = '${root.path}/Pharoah_Data/${profile.id}/$type/$fy';
-          await Directory(target).create(recursive: true);
-          Map<String, dynamic> files = payload[type][fy];
-          for (var name in files.keys) {
-            await File('$target/$name.json').writeAsString(jsonEncode(files[name]));
-          }
+      // Pehle profile dhundo
+      for (final file in archive) {
+        if (file.name == "profile.json") {
+          importedProfile = CompanyProfile.fromMap(jsonDecode(utf8.decode(file.content)));
+          break;
         }
       }
-      if (!ph.companiesRegistry.any((c) => c.id == profile.id)) {
-        ph.companiesRegistry.add(profile);
+
+      if (importedProfile == null) return false;
+
+      // Folder create karo aur saari files extract karo
+      final targetPath = '${root.path}/Pharoah_Data/${importedProfile.id}';
+      for (final file in archive) {
+        if (file.name != "profile.json") {
+          final outFile = File('$targetPath/${file.name}');
+          await outFile.create(recursive: true);
+          await outFile.writeAsBytes(file.content);
+        }
+      }
+
+      // Registry mein jodh do taaki dukan dikhne lage
+      if (!ph.companiesRegistry.any((c) => c.id == importedProfile!.id)) {
+        ph.companiesRegistry.add(importedProfile);
         await ph.saveRegistry();
       }
+
       return true;
-    } catch (e) { return false; }
+    } catch (e) {
+      print("Import Error: $e");
+      return false;
+    }
   }
 }
