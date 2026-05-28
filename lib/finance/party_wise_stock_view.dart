@@ -1,3 +1,5 @@
+// FILE: lib/finance/party_wise_stock_view.dart (UPDATED DISPATCH LOGIC)
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
@@ -60,14 +62,19 @@ class _PartyWiseStockViewState extends State<PartyWiseStockView> {
         title: const Text("Party Stock Statement"),
         backgroundColor: Colors.teal.shade800,
         actions: [
-          if (ph.config.isEmailActive)
+          // --- 📬 SMART DISPATCH (MAIL) ---
+          if (ph.config.isMailActive) // Variable updated
             IconButton(
-              icon: const Icon(Icons.alternate_email),
+              icon: Icon(
+                ph.config.isAuditMode ? Icons.forward_to_inbox_rounded : Icons.alternate_email,
+                color: Colors.white,
+              ),
+              tooltip: ph.config.isAuditMode ? "Forward to CA (Auditor)" : "Send to My Mail",
               onPressed: () {
                 PdfRouterService.emailDocument(
                   context: context,
                   doc: {'grouped': groupedData, 'from': fromDate, 'to': toDate, 'mode': mode},
-                  party: Party(id: 'internal', name: 'Party Stock Analysis'),
+                  party: Party(id: 'internal', name: ph.config.isAuditMode ? 'Audit Analysis' : 'Party Stock Analysis'),
                   ph: ph, type: "STOCK",
                 );
               },
