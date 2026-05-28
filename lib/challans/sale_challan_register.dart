@@ -191,13 +191,18 @@ class _SaleChallanRegisterState extends State<SaleChallanRegister> {
                   ],
                 ),
               ),
-              // 📧 NAYA: EMAIL ICON + PURANA PRICE COLUMN
+             // --- 📬 SMART DISPATCH (MAIL) ---
               Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  if (ph.config.isEmailActive)
+                  if (ph.config.isMailActive)
                     IconButton(
-                      icon: const Icon(Icons.alternate_email, color: Color(0xFF1A237E), size: 20),
+                      icon: Icon(
+                        ph.config.isAuditMode ? Icons.forward_to_inbox_rounded : Icons.alternate_email, 
+                        color: ph.config.isAuditMode ? Colors.indigo.shade900 : const Color(0xFF1A237E), 
+                        size: 22
+                      ),
+                      tooltip: ph.config.isAuditMode ? "Forward to CA (Auditor)" : "Mail to Customer",
                       onPressed: () {
                         final partyObj = ph.parties.firstWhere(
                           (p) => p.name == ch.partyName, 
@@ -212,10 +217,22 @@ class _SaleChallanRegisterState extends State<SaleChallanRegister> {
                         );
                       },
                     ),
+                  const SizedBox(width: 5),
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
                       Text("₹${ch.totalAmount.toStringAsFixed(2)}", style: const TextStyle(fontWeight: FontWeight.w900, color: Color(0xFF1A237E))),
+                      Row(
+                        children: [
+                          if (hasSign) Icon(Icons.verified, size: 14, color: isTampered ? Colors.orange : Colors.green),
+                          const SizedBox(width: 4),
+                          _statusBadge(ch.status, isPending),
+                        ],
+                      ),
+                    ],
+                  ),
+                ],
+              ),
                       Row(
                         children: [
                           if (hasSign) Icon(Icons.verified, size: 14, color: isTampered ? Colors.orange : Colors.green),
