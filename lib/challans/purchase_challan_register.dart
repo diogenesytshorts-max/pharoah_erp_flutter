@@ -180,21 +180,23 @@ class _PurchaseChallanRegisterState extends State<PurchaseChallanRegister> {
                   ],
                 ),
               ),
-            // 📧 NAYA: EMAIL ICON + TOTAL AMOUNT
+           // --- 📬 SMART DISPATCH (MAIL) ---
               Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  if (ph.config.isEmailActive)
+                  if (ph.config.isMailActive)
                     IconButton(
-                      icon: const Icon(Icons.alternate_email, color: Colors.amber, size: 20),
-                      tooltip: "Email to Supplier",
+                      icon: Icon(
+                        ph.config.isAuditMode ? Icons.forward_to_inbox_rounded : Icons.alternate_email, 
+                        color: ph.config.isAuditMode ? Colors.indigo.shade900 : Colors.amber.shade900, 
+                        size: 22
+                      ),
+                      tooltip: ph.config.isAuditMode ? "Forward to CA (Auditor)" : "Mail to Supplier",
                       onPressed: () {
-                        // Supplier/Distributor object find karna
                         final partyObj = ph.parties.firstWhere(
                           (p) => p.name == ch.distributorName, 
                           orElse: () => Party(id: 'temp', name: ch.distributorName)
                         );
-                        
                         PdfRouterService.emailDocument(
                           context: context,
                           doc: ch,
@@ -204,6 +206,7 @@ class _PurchaseChallanRegisterState extends State<PurchaseChallanRegister> {
                         );
                       },
                     ),
+                  const SizedBox(width: 5),
                   Text("₹${ch.totalAmount.toStringAsFixed(0)}", style: TextStyle(fontWeight: FontWeight.w900, color: Colors.amber.shade900)),
                 ],
               ),
