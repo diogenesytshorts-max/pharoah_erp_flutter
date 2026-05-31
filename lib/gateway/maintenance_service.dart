@@ -46,10 +46,24 @@ class MaintenanceService {
       await Future.delayed(const Duration(milliseconds: 600));
 
       onProgress(0.50, "Rebuilding Transaction Indices...");
-      // Bills ko date wise sort karke memory pointers tight karna
       ph.sales.sort((a, b) => a.date.compareTo(b.date));
       ph.purchases.sort((a, b) => a.date.compareTo(b.date));
-      await Future.delayed(const Duration(milliseconds: 600));
+      await Future.delayed(const Duration(milliseconds: 300));
+
+      // --- NAYA: Orphaned Batch Cleanup Logic ---
+      onProgress(0.60, "Auditing Product-Batch Links...");
+      List<String> validProductKeys = ph.medicines.map((m) => m.identityKey).toList();
+      int removedBatches = 0;
+      
+      // Sirf wahi batches hatana jinka product system mein nahi hai
+      ph.batchHistory.removeWhere((key, value) {
+        bool isOrphaned = !validProductKeys.contains(key);
+        if (isOrphaned) removedBatches++;
+        return isOrphaned;
+      });
+      
+      ph.addLog("MAINTENANCE", "Database Repaired. Removed $removedBatches orphaned batch entries.");
+      await Future.delayed(const Duration(milliseconds: 500));
 
       // --- PHASE 3: LOGIC ENGINE SYNC (61% - 90%) ---
       onProgress(0.70, "Synchronizing Inventory Engine...");
