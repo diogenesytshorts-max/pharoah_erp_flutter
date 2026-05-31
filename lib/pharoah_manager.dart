@@ -639,10 +639,15 @@ class PharoahManager with ChangeNotifier {
   Future<bool> startNewFinancialYear(String n, {bool filterZeroStock = false, bool filterExpired = false}) async { 
     await save(); 
     
+    // --- 🛡️ PATH COLLISION FIX (NEW) ---
+    // Gateway screen par currentFY khali ("") hoti hai, jisse path mismatch ho jata hai.
+    // Isliye hum strictly pichle saal ka active folder (fYears.last) use karenge.
+    String actualSourceYear = currentFY.isNotEmpty ? currentFY : activeCompany!.fYears.last;
+
     bool ok = await FYTransferEngine.transferData(
       companyID: activeCompany!.id, 
       businessType: activeCompany!.businessType, 
-      sourceFY: currentFY, 
+      sourceFY: actualSourceYear, // Smart Sync Source Year
       targetFY: n,
       filterZeroStock: filterZeroStock, 
       filterExpired: filterExpired,     
