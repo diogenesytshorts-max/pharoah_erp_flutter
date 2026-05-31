@@ -1,4 +1,4 @@
-// FILE: lib/item_entry_card.dart
+// FILE: lib/item_entry_card.dart (UPGRADED DYNAMIC BATCH FILTER VERSION)
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -44,7 +44,10 @@ class _ItemEntryCardState extends State<ItemEntryCard> {
   final normDiscC = TextEditingController(text: "0.0"); // Memory for Disc %
   final discAmtC = TextEditingController(text: "0.0"); 
 
-  String selectedRateType = "A"; // 🔥 Choices Load Variable
+  String selectedRateType = "A"; // Choices Load Variable
+
+  // --- NAYA: Dynamic Batch Filter Local State ---
+  bool hideZeroStock = true; // By default zero stock batches chhupayenge
 
   @override
   void initState() {
@@ -63,12 +66,10 @@ class _ItemEntryCardState extends State<ItemEntryCard> {
       freeC.text = i.freeQty.toString();
       gstC.text = i.gstRate.toString();
       
-      // 🔥 FIX: LOAD STORED CHOICES (Point 2 Fix)
       selectedRateType = i.appliedRateType; 
       rateCDiscC.text = i.rateCFormula.toString();
       normDiscC.text = i.discountPer.toString();
       
-      // Load current Amount (Rs) from Stored %
       _syncBillDiscount(true); 
     } else {
       mrpC.text = widget.med.mrp.toString();
@@ -78,7 +79,7 @@ class _ItemEntryCardState extends State<ItemEntryCard> {
   }
 
   // ===========================================================================
-  // 🔥 RATE C SPECIAL FORMULA: MRP -> Tax Free -> Formula % = Rate
+  // RATE C SPECIAL FORMULA: MRP -> Tax Free -> Formula % = Rate
   // ===========================================================================
   void _calculateRateC() {
     double mrp = double.tryParse(mrpC.text) ?? 0.0;
@@ -91,7 +92,7 @@ class _ItemEntryCardState extends State<ItemEntryCard> {
   }
 
   // ===========================================================================
-  // 🔥 TWO-WAY DISCOUNT SYNC: % <-> ₹ (Persistence Fixed)
+  // TWO-WAY DISCOUNT SYNC: % <-> ₹
   // ===========================================================================
   void _syncBillDiscount(bool isPercentSource) {
     double q = double.tryParse(qtyC.text) ?? 0;
@@ -148,8 +149,24 @@ class _ItemEntryCardState extends State<ItemEntryCard> {
   Widget build(BuildContext context) {
     final ph = Provider.of<PharoahManager>(context);
     final totals = _calcTotals();
-    final matchingBatches = BatchSyncEngine.getFilteredBatches(ph: ph, productKey: widget.med.identityKey, hideExpired: !widget.allowExpired)
-        .where((b) => b.batch.toLowerCase().contains(batchC.text.toLowerCase())).toList();
+
+    // --- SMART BATCH SELECTION FILTER ENGINE (NEW) ---
+    final rawBatches = BatchSyncEngine.getFilteredBatches(
+      ph: ph, 
+      productKey: widget.med.identityKey, 
+      hideExpired: !widget.allowExpired
+    );
+
+    final matchingBatches = rawBatches.where((b) {
+      bool matchesSearch = b.batch.toLowerCase().contains(batchC.text.toLowerCase());
+      if (!matchesSearch) return false;
+      
+      // Dynamic Filter Check
+      if (ph.showBatchFilter && hideZeroStock && b.qty <= 0) {
+        return false; 
+      }
+      return true;
+    }).toList();
 
     return Dialog(
       backgroundColor: Colors.transparent,
@@ -178,14 +195,53 @@ class _ItemEntryCardState extends State<ItemEntryCard> {
                   Expanded(child: _modernInput("EXPIRY (MM/YY)", expC, isNum: true, onChanged: _formatExpiry)),
                 ]),
 
+                // --- NAYA: Conditional Batch Filter Header ---
+                if (ph.showBatchFilter && widget.existingItem == null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 15, left: 4),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text("AVAILABLE BATCHES", style: TextStyle(fontSize: 8, fontWeight: FontWeight.bold, color: Colors.grey, letterSpacing: 0.5)),
+                        InkWell(
+                          onTap: () => setState(() => hideZeroStock = !hideZeroStock),
+                          child: Row(
+                            children: [
+                              Icon(
+                                hideZeroStock ? Icons.check_box : Icons.check_box_outline_blank, 
+                                size: 14, 
+                                color: Colors.blueAccent
+                              ),
+                              const SizedBox(width: 4),
+                              const Text("Hide Zero Stock", style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.blueAccent)),
+                            ],
+                          ),
+                        )
+                      ],
+                    ),
+                  ),
+
                 if (matchingBatches.isNotEmpty && widget.existingItem == null)
-                  Container(height: 45, margin: const EdgeInsets.only(top: 15), child: ListView(scrollDirection: Axis.horizontal, children: matchingBatches.map((b) => Padding(padding: const EdgeInsets.only(right: 8), child: ActionChip(label: Text(b.batch), onPressed: () {
-                          setState(() { 
-                            batchC.text = b.batch; expC.text = b.exp; 
-                            mrpC.text = b.mrp.toString(); rateC.text = b.rate.toString(); 
-                            _updateRateLogic();
-                          });
-                  }))).toList())),
+                  Container(
+                    height: 45, 
+                    margin: const EdgeInsets.only(top: 10), 
+                    child: ListView(
+                      scrollDirection: Axis.horizontal, 
+                      children: matchingBatches.map((b) => Padding(
+                        padding: const EdgeInsets.only(right: 8), 
+                        child: ActionChip(
+                          label: Text("${b.batch} (${b.qty.toInt()})"), // Dynamic stock indicator
+                          onPressed: () {
+                            setState(() { 
+                              batchC.text = b.batch; expC.text = b.exp; 
+                              mrpC.text = b.mrp.toString(); rateC.text = b.rate.toString(); 
+                              _updateRateLogic();
+                            });
+                          }
+                        )
+                      )).toList()
+                    )
+                  ),
 
                 const SizedBox(height: 25),
                 SegmentedButton<String>(
@@ -232,7 +288,6 @@ class _ItemEntryCardState extends State<ItemEntryCard> {
                 const SizedBox(height: 25),
                 SizedBox(width: double.infinity, height: 60, child: ElevatedButton(style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF2563EB), foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15))), 
                 onPressed: () {
-                   // 🔥 FINAL STEP: SAVE CHOICES TO MODEL
                    widget.onAdd(BillItem(
                       id: widget.existingItem?.id ?? DateTime.now().toString(),
                       srNo: widget.srNo, medicineID: widget.med.id, name: widget.med.name, packing: widget.med.packing,
@@ -242,8 +297,8 @@ class _ItemEntryCardState extends State<ItemEntryCard> {
                       cgst: totals['cgst']!, sgst: totals['sgst']!, igst: totals['igst']!, total: totals['total']!,
                       discountRupees: totals['discountAmt']!, 
                       discountPer: double.tryParse(normDiscC.text) ?? 0.0,
-                      appliedRateType: selectedRateType, // 🔥 Choices Persistent
-                      rateCFormula: double.tryParse(rateCDiscC.text) ?? 0.0, // 🔥 Formula Persistent
+                      appliedRateType: selectedRateType, 
+                      rateCFormula: double.tryParse(rateCDiscC.text) ?? 0.0, 
                       isBreakage: widget.allowExpired
                    ));
                 }, child: const Text("UPDATE ITEM", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, letterSpacing: 1))))
