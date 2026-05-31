@@ -286,5 +286,41 @@ class _PartyMasterViewState extends State<PartyMasterView> {
 
   Widget _searchableBox({required String label, required String value, required IconData icon, required VoidCallback onTap}) => InkWell(onTap: onTap, child: Container(padding: const EdgeInsets.all(10), decoration: BoxDecoration(border: Border.all(color: Colors.grey), borderRadius: BorderRadius.circular(5)), child: Row(children: [Icon(icon, color: Colors.grey, size: 18), const SizedBox(width: 8), Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(label, style: const TextStyle(fontSize: 9)), Text(value, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold), overflow: TextOverflow.ellipsis)])), const Icon(Icons.arrow_drop_down)])));
 
-  void _confirmDelete(PharoahManager ph, Party p) { showDialog(context: context, builder: (c) => AlertDialog(title: const Text("Delete Account?"), content: Text("Delete '${p.name}'? This will remove associated ledger history."), actions: [TextButton(onPressed: () => Navigator.pop(c), child: const Text("NO")), ElevatedButton(onPressed: () { ph.deleteParty(p.id); Navigator.pop(c); }, child: const Text("YES, DELETE"))])); }
+  void _confirmDelete(PharoahManager ph, Party p) {
+    if (p.name == "CASH") return;
+
+    // 1. CHECK USAGE FIRST (NAYA LOGIC)
+    bool inUse = ph.isPartyInUse(p.id, p.name);
+
+    if (inUse) {
+      showDialog(
+        context: context,
+        builder: (c) => AlertDialog(
+          title: const Text("Action Restricted", style: TextStyle(color: Colors.red)),
+          content: Text("You cannot delete '${p.name}' because it has active transactions (Sales/Purchases/Vouchers) linked to it."),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(c), child: const Text("I UNDERSTAND")),
+          ],
+        ),
+      );
+      return;
+    }
+
+    // 2. Normal delete dialog agar party free hai
+    showDialog(
+      context: context,
+      builder: (c) => AlertDialog(
+        title: const Text("Delete Party?"),
+        content: Text("Are you sure you want to remove '${p.name}' from records?"),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(c), child: const Text("NO")),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () { ph.deleteParty(p.id); Navigator.pop(c); }, 
+            child: const Text("YES, DELETE", style: TextStyle(color: Colors.white))
+          ),
+        ],
+      ),
+    );
+  }
 }
