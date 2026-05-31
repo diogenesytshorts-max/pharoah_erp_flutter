@@ -1,4 +1,4 @@
-// FILE: lib/fy_transfer_engine.dart (UPDATED VERSION)
+// FILE: lib/fy_transfer_engine.dart (ADVANCED MARG-LEVEL TRANSFER ENGINE)
 
 import 'dart:convert';
 import 'dart:io';
@@ -7,12 +7,14 @@ import 'models.dart';
 
 class FYTransferEngine {
   
-  /// MAIN FUNCTION: Purane saal se naye saal mein data le jana (Multi-Company Ready)
+  /// MAIN FUNCTION: Purane saal se naye saal mein data le jana (Crash-Safe & Multi-FY optimized)
   static Future<bool> transferData({
     required String companyID,      
     required String businessType,   
     required String sourceFY,       
     required String targetFY,       
+    bool filterZeroStock = false,   // NAYA: Database filtration option
+    bool filterExpired = false,     // NAYA: Database filtration option
   }) async {
     try {
       final root = await getApplicationDocumentsDirectory();
@@ -25,12 +27,11 @@ class FYTransferEngine {
       final sourceDir = Directory(sourcePath);
       final targetDir = Directory(targetPath);
 
-      // 1. Agar naya folder nahi hai toh bana do
       if (!await targetDir.exists()) {
         await targetDir.create(recursive: true);
       }
 
-      // 2. Load Source Data (Purane saal ki files)
+      // Load Source Data Helper
       dynamic loadJson(String name) {
         final f = File('$sourcePath/$name');
         return f.existsSync() ? jsonDecode(f.readAsStringSync()) : null;
@@ -41,80 +42,190 @@ class FYTransferEngine {
       List<Sale> oldSales = (loadJson('sales.json') as List?)?.map((e) => Sale.fromMap(e)).toList() ?? [];
       List<Purchase> oldPurc = (loadJson('purc.json') as List?)?.map((e) => Purchase.fromMap(e)).toList() ?? [];
       List<Voucher> oldVouc = (loadJson('vouc.json') as List?)?.map((e) => Voucher.fromMap(e)).toList() ?? [];
+      List<Bank> oldBanks = (loadJson('banks.json') as List?)?.map((e) => Bank.fromMap(e)).toList() ?? [];
       Map<String, dynamic> oldBatchesRaw = loadJson('bats.json') ?? {};
 
-      // 3. CALCULATE NEW PARTY BALANCES (Opening Balances for New Year)
+      // -----------------------------------------------------------------------
+      // 1. CALCULATE NEW PARTY BALANCES (Includes all Voucher Types)
+      // -----------------------------------------------------------------------
       List<Party> newParties = oldParties.map((p) {
         if (p.name == "CASH") return p;
 
         double runningBal = p.opBal;
-        // Sales add to Dr
+        // Sales (Debit +)
         for (var s in oldSales.where((s) => s.partyName == p.name && s.status == "Active")) {
           runningBal += s.totalAmount;
         }
-        // Purchases subtract (Credit)
+        // Purchases (Credit -)
         for (var pr in oldPurc.where((pr) => pr.distributorName == p.name)) {
           runningBal -= pr.totalAmount;
         }
-        // Vouchers
-        for (var v in oldVouc.where((v) => v.partyName == p.name)) {
-          if (v.type == "Receipt") runningBal -= v.amount;
-          if (v.type == "Payment") runningBal += v.amount;
+        // Vouchers (Receipts, Payments, Contra & Expenses)
+        for (var v in oldVouc.where((v) => v.partyName == p.name && v.status == "Active")) {
+          String type = v.type.toUpperCase();
+          if (type == "RECEIPT") {
+            runningBal -= v.amount;
+          } else if (type == "PAYMENT" || type == "EXPENSE") {
+            runningBal += v.amount;
+          }
         }
 
-        // Ye ab naye saal ka Opening Balance ban jayega
         p.opBal = runningBal;
         return p;
       }).toList();
 
-      // 4. 🔥 NAYA: MEDICINE STOCK CORRECTION (Negative to 0)
+      // -----------------------------------------------------------------------
+      // 2. 🏛️ NAYA: BANK CLOSING TO OPENING BALANCE (Advanced Carry Forward)
+      // -----------------------------------------------------------------------
+      List<Bank> newBanks = oldBanks.map((b) {
+        double currentBal = b.openingBalance;
+
+        // Vouchers processing impacting this specific bank
+        for (var v in oldVouc.where((v) => v.depositedIn.toUpperCase() == b.name.toUpperCase() && v.status == "Active")) {
+          String type = v.type.toUpperCase();
+          if (type == "RECEIPT") {
+            currentBal += v.amount; // Bank inflows
+          } else if (type == "PAYMENT" || type == "EXPENSE") {
+            currentBal -= v.amount; // Bank outflows
+          }
+        }
+        b.openingBalance = currentBal; // Live closing becomes new opening balance
+        return b;
+      }).toList();
+
+      // -----------------------------------------------------------------------
+      // 3. 📝 NAYA: BILL-BY-BILL OUTSTANDING (Pending Invoices Database)
+      // -----------------------------------------------------------------------
+      List<Map<String, dynamic>> pendingInvoices = [];
+      
+      // Collect all settled bill numbers across previous years
+      Set<String> settledBillNos = oldVouc
+          .where((v) => v.status == "Active")
+          .expand((v) => v.linkedBillNumbers)
+          .toSet();
+
+      // Filter Unpaid Sales
+      for (var s in oldSales.where((s) => s.status == "Active" && s.paymentMode == "CREDIT")) {
+        if (!settledBillNos.contains(s.billNo)) {
+          pendingInvoices.add({
+            'billNo': s.billNo,
+            'partyId': s.partyId,
+            'partyName': s.partyName,
+            'date': s.date.toIso8601String(),
+            'amount': s.totalAmount,
+            'type': 'SALE'
+          });
+        }
+      }
+      // Filter Unpaid Purchases
+      for (var p in oldPurc.where((p) => p.paymentMode == "CREDIT")) {
+        if (!settledBillNos.contains(p.billNo)) {
+          pendingInvoices.add({
+            'billNo': p.billNo,
+            'partyId': p.partyId,
+            'partyName': p.distributorName,
+            'date': p.date.toIso8601String(),
+            'amount': p.totalAmount,
+            'type': 'PURCHASE'
+          });
+        }
+      }
+
+      // -----------------------------------------------------------------------
+      // 4. 📦 NAYA: PENDING CHALLANS CARRY-FORWARD (Continuity Guard)
+      // -----------------------------------------------------------------------
+      List<SaleChallan> oldSaleChallans = (loadJson('s_challan.json') as List?)?.map((e) => SaleChallan.fromMap(e)).toList() ?? [];
+      List<PurchaseChallan> oldPurChallans = (loadJson('p_challan.json') as List?)?.map((e) => PurchaseChallan.fromMap(e)).toList() ?? [];
+
+      // Keep only Challans which are strictly "Pending"
+      List<SaleChallan> pendingSaleChallans = oldSaleChallans.where((c) => c.status == "Pending").toList();
+      List<PurchaseChallan> pendingPurChallans = oldPurChallans.where((c) => c.status == "Pending").toList();
+
+      // -----------------------------------------------------------------------
+      // 5. MEDICINE STOCK CORRECTION (Negative to 0)
+      // -----------------------------------------------------------------------
       List<Map<String, dynamic>> correctedMeds = oldMeds.map((m) {
-        // Business Rule: Agar stock negative hai toh naye saal mein 0 se shuru karein
         if (m.stock < 0) m.stock = 0; 
         return m.toMap();
       }).toList();
 
-      // 5. 🔥 NAYA: BATCH HISTORY CORRECTION (Negative to 0)
+      // -----------------------------------------------------------------------
+      // 6. 🧹 NAYA: BATCH FILTRATION & PURGING (Zero Stock / Expired Cleanup)
+      // -----------------------------------------------------------------------
       Map<String, dynamic> correctedBatches = {};
+      DateTime today = DateTime.now();
+
       oldBatchesRaw.forEach((medKey, batchList) {
         List<dynamic> batches = batchList as List;
-        List<Map<String, dynamic>> processedBatches = batches.map((b) {
+        List<Map<String, dynamic>> processedBatches = [];
+
+        for (var b in batches) {
           BatchInfo bObj = BatchInfo.fromMap(b);
-          // Batch level par bhi negative stock ko zero kar rahe hain consistency ke liye
+          
           if (bObj.qty < 0) bObj.qty = 0;
-          // Opening Qty ko update karna zaroori hai kyunki naya saal hai
+
+          // Advanced Filtration Check
+          if (filterZeroStock && bObj.qty <= 0) {
+            continue; // Skip zero-stock batch completely
+          }
+
+          if (filterExpired) {
+            try {
+              List<String> parts = bObj.exp.split('/');
+              int m = int.parse(parts[0]);
+              int y = 2000 + int.parse(parts[1]);
+              DateTime lastDay = DateTime(y, m + 1, 0);
+              if (lastDay.isBefore(today)) {
+                continue; // Skip expired batch completely
+              }
+            } catch (e) {
+              // If invalid format, we don't drop it (safety first)
+            }
+          }
+
           bObj.openingQty = bObj.qty;
-          bObj.adjustmentQty = 0; // Adjustments reset
-          return bObj.toMap();
-        }).toList();
-        correctedBatches[medKey] = processedBatches;
+          bObj.adjustmentQty = 0; // Reset corrections for new year
+          processedBatches.add(bObj.toMap());
+        }
+
+        if (processedBatches.isNotEmpty) {
+          correctedBatches[medKey] = processedBatches;
+        }
       });
 
-      // 6. SAVE TO NEW FY DIRECTORY
+      // -----------------------------------------------------------------------
+      // 7. SAVE TO NEW FY DIRECTORY (Atomic Writes)
+      // -----------------------------------------------------------------------
       Future saveToNew(String name, dynamic data) async {
         await File('$targetPath/$name').writeAsString(jsonEncode(data));
       }
 
       await saveToNew('meds.json', correctedMeds);
       await saveToNew('parts.json', newParties.map((e) => e.toMap()).toList());
-      await saveToNew('bats.json', correctedBatches); 
+      await saveToNew('banks.json', newBanks.map((e) => e.toMap()).toList()); // Upgraded Bank Balances
+      await saveToNew('bats.json', correctedBatches); // Filtered Batches
+      await saveToNew('pending_invoices.json', pendingInvoices); // Bill-by-Bill Outstanding Database
+      
+      // Saving Pending Challans instead of wiping them
+      await saveToNew('s_challan.json', pendingSaleChallans.map((e) => e.toMap()).toList());
+      await saveToNew('p_challan.json', pendingPurChallans.map((e) => e.toMap()).toList());
+
       await saveToNew('routs.json', loadJson('routs.json') ?? []);
       await saveToNew('comps.json', loadJson('comps.json') ?? []);
       await saveToNew('salts.json', loadJson('salts.json') ?? []);
       await saveToNew('dtypes.json', loadJson('dtypes.json') ?? []);
 
-      // RESET TRANSACTIONS FOR NEW YEAR
+      // RESET OTHER TRANSACTIONS FOR NEW YEAR
       await saveToNew('sales.json', []);
       await saveToNew('purc.json', []);
       await saveToNew('vouc.json', []);
-      await saveToNew('s_challan.json', []);
       
-      // Audit log entry for transfer
+      // Audit log entry
       await saveToNew('logs.json', [
         LogEntry(
           id: '1', 
           action: 'SYSTEM', 
-          details: 'Data Transferred from $sourceFY to $targetFY. Negative stocks reset to 0.', 
+          details: 'Data Transferred from $sourceFY to $targetFY. Balances recalculated & Pending Challans moved.', 
           time: DateTime.now()
         ).toMap()
       ]);
