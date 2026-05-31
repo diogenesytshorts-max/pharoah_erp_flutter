@@ -641,7 +641,51 @@ void cancelReturn(String id, bool isSaleReturn) {
   // ===========================================================================
 
   Future<void> setupNewCompanyEnvironment(CompanyProfile p, String f) async { activeCompany = p; currentFY = f; numberingSeries = [NumberingSeries(id: 's1', name: "Standard Retail", type: "SALE", prefix: "INV-", isDefault: true)]; medicines = DemoData.getMedicines(); companies = MasterDataLibrary.getTopCompanies(); salts = MasterDataLibrary.getTopSalts(); drugTypes = MasterDataLibrary.getDrugTypes(); parties = [DemoData.getDemoParty(), Party(id: 'cash', name: "CASH", group: "Cash in Hand")]; await save(); if (!companiesRegistry.any((c) => c.id == p.id)) { companiesRegistry.add(p); await saveRegistry(); } notifyListeners(); }
-  Future<bool> startNewFinancialYear(String n) async { await save(); bool ok = await FYTransferEngine.transferData(companyID: activeCompany!.id, businessType: activeCompany!.businessType, sourceFY: currentFY, targetFY: n); if(ok) { currentFY = n; await loadAllData(); } return ok; }
+  Future<bool> startNewFinancialYear(String n) async { 
+    await save(); 
+    // 1. Data transfer process
+    bool ok = await FYTransferEngine.transferData(
+      companyID: activeCompany!.id, 
+      businessType: activeCompany!.businessType, 
+      sourceFY: currentFY, 
+      targetFY: n
+    ); 
+
+    if(ok) {
+      // 2. CRITICAL BUG FIX: Registry mein naya saal add karna taaki "Login to Work" mein dikhe
+      int idx = companiesRegistry.indexWhere((c) => c.id == activeCompany!.id);
+      if (idx != -1) {
+        List<String> updatedYears = List.from(companiesRegistry[idx].fYears);
+        if (!updatedYears.contains(n)) {
+          updatedYears.add(n);
+          // Naya profile object banana kyunki CompanyProfile final fields use karta hai
+          companiesRegistry[idx] = CompanyProfile(
+            id: activeCompany!.id,
+            name: activeCompany!.name,
+            businessType: activeCompany!.businessType,
+            createdAt: activeCompany!.createdAt,
+            password: activeCompany!.password,
+            adminUser: activeCompany!.adminUser,
+            address: activeCompany!.address,
+            state: activeCompany!.state,
+            gstin: activeCompany!.gstin,
+            dlNo: activeCompany!.dlNo,
+            phone: activeCompany!.phone,
+            email: activeCompany!.email,
+            isBiometricEnabled: activeCompany!.isBiometricEnabled,
+            recoveryKey: activeCompany!.recoveryKey,
+            autoLockMinutes: activeCompany!.autoLockMinutes,
+            fYears: updatedYears, // Nayi list yahan pass ki
+          );
+          activeCompany = companiesRegistry[idx];
+          await saveRegistry(); // Registry file mein save kiya
+        }
+      }
+      currentFY = n; 
+      await loadAllData(); 
+    } 
+    return ok; 
+  }
   Future<void> masterReset() async { final p = await getWorkingPath(); if(p.isNotEmpty) { final d = Directory(p); if(d.existsSync()) d.deleteSync(recursive: true); } await loadAllData(); }
 
   // ===========================================================================
