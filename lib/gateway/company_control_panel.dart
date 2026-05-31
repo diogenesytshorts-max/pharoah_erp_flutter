@@ -1,4 +1,4 @@
-// FILE: lib/gateway/company_control_panel.dart (UPDATED VERSION)
+// FILE: lib/gateway/company_control_panel.dart (FULL UPGRADED VERSION)
 
 import 'dart:io';
 import 'package:flutter/material.dart';
@@ -9,7 +9,7 @@ import 'company_registry_model.dart';
 import 'maintenance_service.dart';
 import 'modify_company_view.dart';
 import 'export_service.dart';
-import '../app_date_logic.dart'; // Naya import for FY logic
+import '../app_date_logic.dart'; // Import to calculate smart next financial year
 
 class CompanyControlPanelView extends StatefulWidget {
   const CompanyControlPanelView({super.key});
@@ -23,7 +23,9 @@ class _CompanyControlPanelViewState extends State<CompanyControlPanelView> {
   String maintenanceStatus = "";
   double maintenanceProgress = 0.0;
 
-  // --- POPUP: FINANCIAL YEAR SELECTOR ---
+  // ===========================================================================
+  // 🏢 1. POPUP: FINANCIAL YEAR SELECTOR
+  // ===========================================================================
   void _showFYSelectionDialog(PharoahManager ph, CompanyProfile comp) {
     showDialog(
       context: context,
@@ -58,97 +60,204 @@ class _CompanyControlPanelViewState extends State<CompanyControlPanelView> {
     );
   }
 
-  // --- MAINTENANCE ENGINE (Updated with Professional UI Control) ---
+  // ===========================================================================
+  // 🛠️ 2. THE FILE MAINTENANCE PROCESS (WITH DETERMINATE PROGRESS)
+  // ===========================================================================
   void _runMaintenance(PharoahManager ph) async {
     String latestFY = ph.activeCompany?.fYears.last ?? "";
     if (latestFY.isEmpty) return;
 
+    // Start Immersive Determinate Loading Overlay
     setState(() {
       isMaintenanceRunning = true;
       maintenanceProgress = 0.0;
-      maintenanceStatus = "Initializing Structural Audit...";
+      maintenanceStatus = "Waking up Database Doctor...";
     });
 
-    await ph.loginToCompany(ph.activeCompany!, latestFY);
-    String path = await ph.getWorkingPath();
+    try {
+      await ph.loginToCompany(ph.activeCompany!, latestFY);
+      String path = await ph.getWorkingPath();
 
-    final engine = MaintenanceService(ph, path);
-    await engine.runFullMaintenance(onProgress: (p, s) {
+      final engine = MaintenanceService(ph, path);
+      
+      // Drive progress in real-time from actual calculated tasks
+      await engine.runFullMaintenance(onProgress: (p, s) {
+        if (mounted) {
+          setState(() {
+            maintenanceProgress = p;
+            maintenanceStatus = s;
+          });
+        }
+      });
+
+    } catch (e) {
       if (mounted) {
-        setState(() {
-          maintenanceProgress = p;
-          maintenanceStatus = s;
-        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Error: $e"), backgroundColor: Colors.red)
+        );
       }
-    });
+    }
 
     ph.currentFY = ""; 
     ph.notifyListeners();
 
+    // Release Immersive Overlay
     if (mounted) setState(() => isMaintenanceRunning = false);
   }
 
-  // --- 🚀 NEW YEAR SETUP: WITH CHECKLIST & AUTO-FILL ---
+  // ===========================================================================
+  // 🚀 3. NEW FINANCIAL YEAR SETUP (WITH WARNING CHECKLIST & AUTO-FILL)
+  // ===========================================================================
   void _showNewYearDialog(PharoahManager ph) {
-    // 1. AUTO-FILL LOGIC: Last FY se agla saal nikalna
+    // A. AUTO-FILL LOGIC: automatically pre-fills next logical year
     String lastFY = ph.activeCompany!.fYears.last;
     String suggestedNextFY = AppDateLogic.getNextFYString(lastFY);
     final fyC = TextEditingController(text: suggestedNextFY);
 
-    // 2. CHECKLIST LOGIC: Pending Challans check karna
+    // B. CHECKLIST WATCHDOG: scans for unbilled pending challans
     final pendingChallans = ph.saleChallans.where((c) => c.status == "Pending").toList();
 
     showDialog(
       context: context,
+      barrierDismissible: false,
       builder: (c) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Text("Setup New Year"),
+        title: const Text("Setup New Financial Year"),
         content: Column(
           mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // Checklist Alert Box
             if (pendingChallans.isNotEmpty) ...[
               Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(color: Colors.red.shade50, borderRadius: BorderRadius.circular(10)),
-                child: Row(children: [
-                  const Icon(Icons.warning_amber_rounded, color: Colors.red),
-                  const SizedBox(width: 10),
-                  Expanded(child: Text("Warning: ${pendingChallans.length} Pending Challans found! Inka stock automatic transfer nahi hoga.", style: const TextStyle(fontSize: 10, color: Colors.red, fontWeight: FontWeight.bold))),
-                ]),
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.red.shade50, 
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: Colors.red.shade200)
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Icon(Icons.warning_amber_rounded, color: Colors.red, size: 20),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            "Warning: ${pendingChallans.length} Pending Challans Found!", 
+                            style: const TextStyle(fontSize: 11, color: Colors.red, fontWeight: FontWeight.bold)
+                          ),
+                          const SizedBox(height: 3),
+                          const Text(
+                            "Unbilled stocks cannot be carried forward properly. Please bill them or ignore to proceed.", 
+                            style: TextStyle(fontSize: 9, color: Colors.black87)
+                          ),
+                        ],
+                      )
+                    ),
+                  ],
+                ),
               ),
               const SizedBox(height: 15),
             ],
-            const Text("Enter target Financial Year name:", style: TextStyle(fontSize: 12)),
+            const Text("Enter target Financial Year name:", style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.blueGrey)),
             const SizedBox(height: 10),
             TextField(
               controller: fyC, 
-              decoration: const InputDecoration(labelText: "New FY", border: OutlineInputBorder(), hintText: "e.g. 2026-27")
+              decoration: const InputDecoration(
+                labelText: "Target FY (MM/YY format)", 
+                border: OutlineInputBorder(), 
+                hintText: "e.g. 2026-27"
+              )
             ),
           ],
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(c), child: const Text("CANCEL")),
+          TextButton(onPressed: () => Navigator.pop(c), child: const Text("CANCEL", style: TextStyle(color: Colors.grey))),
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: Colors.purple, foregroundColor: Colors.white),
             onPressed: () async {
               if (fyC.text.isEmpty) return;
-              Navigator.pop(c);
+              Navigator.pop(c); // Close Dialog
               
-              // Full Screen Loader for Transfer
-              setState(() { isMaintenanceRunning = true; maintenanceStatus = "Transferring Masters & Balances..."; maintenanceProgress = 0.5; });
-              
+              // Trigger Immersive Progress Screen for transfer
+              setState(() {
+                isMaintenanceRunning = true;
+                maintenanceStatus = "Transferring Masters & Closing Balances...";
+                maintenanceProgress = 0.50; // Set half way
+              });
+
               bool ok = await ph.startNewFinancialYear(fyC.text.trim());
-              
+
               setState(() => isMaintenanceRunning = false);
-              if (ok && mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("✅ New Year Created Successfully!")));
+              
+              if (ok && mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text("✅ New Financial Year environment built!"), backgroundColor: Colors.green)
+                );
+              }
             }, 
-            child: const Text("START TRANSFER")
+            child: const Text("START YEAR-TRANSFER")
           )
         ],
       ),
     );
   }
 
+  // ===========================================================================
+  // 🏢 4. THE IMMERSIVE "SPLASH" PROGRESS OVERLAY
+  // ===========================================================================
+  Widget _buildMaintenanceOverlay() {
+    return Container(
+      color: Colors.black.withOpacity(0.92), // High opacity deep glass dimmer
+      width: double.infinity,
+      height: double.infinity,
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Icon(Icons.health_and_safety_outlined, color: Colors.orange, size: 85),
+          const SizedBox(height: 30),
+          Text(
+            "${(maintenanceProgress * 100).toInt()}%",
+            style: const TextStyle(color: Colors.white, fontSize: 42, fontWeight: FontWeight.w900, letterSpacing: 1),
+          ),
+          const SizedBox(height: 15),
+          SizedBox(
+            width: 240,
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(10),
+              child: LinearProgressIndicator(
+                value: maintenanceProgress,
+                color: Colors.orange,
+                backgroundColor: Colors.white10,
+                minHeight: 10,
+              ),
+            ),
+          ),
+          const SizedBox(height: 25),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 40),
+            child: Text(
+              maintenanceStatus.toUpperCase(),
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: Colors.white70, fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 1.5),
+            ),
+          ),
+          const SizedBox(height: 60),
+          const Text(
+            "DO NOT CLOSE OR MINIMIZE APP",
+            style: TextStyle(color: Colors.redAccent, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1.2),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ===========================================================================
+  // 5. MAIN SCREEN BUILDER
+  // ===========================================================================
   @override
   Widget build(BuildContext context) {
     final ph = Provider.of<PharoahManager>(context);
@@ -167,7 +276,7 @@ class _CompanyControlPanelViewState extends State<CompanyControlPanelView> {
         foregroundColor: Colors.white,
         leading: IconButton(icon: const Icon(Icons.logout), onPressed: () => ph.clearSession()),
       ),
-      body: Stack( // PROFESSIONAL OVERLAY SUPPORT
+      body: Stack( // Wrapped with Stack to overlay the Progress Curtain
         children: [
           SingleChildScrollView(
             padding: const EdgeInsets.all(20),
@@ -199,53 +308,9 @@ class _CompanyControlPanelViewState extends State<CompanyControlPanelView> {
             ),
           ),
           
-          // --- THE MAINTENANCE "CURTAIN" OVERLAY ---
+          // --- THE IMMERSIVE "CURTAIN" PROGRESS OVERLAY ---
           if (isMaintenanceRunning) 
             _buildMaintenanceOverlay(),
-        ],
-      ),
-    );
-  }
-
-  // ===========================================================================
-  // UI COMPONENTS
-  // ===========================================================================
-
-  Widget _buildMaintenanceOverlay() {
-    return Container(
-      color: Colors.black.withOpacity(0.9), // Dark Dimmer
-      width: double.infinity,
-      height: double.infinity,
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          const Icon(Icons.health_and_safety_outlined, color: Colors.orange, size: 90),
-          const SizedBox(height: 30),
-          Text(
-            "${(maintenanceProgress * 100).toInt()}%",
-            style: const TextStyle(color: Colors.white, fontSize: 45, fontWeight: FontWeight.w900),
-          ),
-          const SizedBox(height: 15),
-          SizedBox(
-            width: 250,
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(10),
-              child: LinearProgressIndicator(
-                value: maintenanceProgress, 
-                color: Colors.orange, 
-                backgroundColor: Colors.white10,
-                minHeight: 10,
-              ),
-            ),
-          ),
-          const SizedBox(height: 30),
-          Text(
-            maintenanceStatus.toUpperCase(), 
-            textAlign: TextAlign.center,
-            style: const TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.bold, letterSpacing: 1.5)
-          ),
-          const SizedBox(height: 60),
-          const Text("DO NOT CLOSE THE APPLICATION", style: TextStyle(color: Colors.redAccent, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1)),
         ],
       ),
     );
@@ -295,7 +360,7 @@ class _CompanyControlPanelViewState extends State<CompanyControlPanelView> {
           return AlertDialog(
             title: const Text("PERMANENT DELETE"),
             content: Column(mainAxisSize: MainAxisSize.min, children: [
-                const Text("Warning: All years of this company will be wiped.", style: TextStyle(fontSize: 12, color: Colors.red)),
+                const Text("Warning: All data folders will be wiped permanently.", style: TextStyle(fontSize: 12, color: Colors.red)),
                 const SizedBox(height: 15),
                 Text("Confirm deletion: $clickCount/15"),
                 LinearProgressIndicator(value: clickCount/15),
