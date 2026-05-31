@@ -108,100 +108,146 @@ class _CompanyControlPanelViewState extends State<CompanyControlPanelView> {
   // ===========================================================================
   // 🚀 3. NEW FINANCIAL YEAR SETUP (WITH WARNING CHECKLIST & AUTO-FILL)
   // ===========================================================================
+// --- 🚀 NEW YEAR SETUP: WITH CHECKLIST, FILTERS & AUTO-FILL (UPGRADED) ---
   void _showNewYearDialog(PharoahManager ph) {
-    // A. AUTO-FILL LOGIC: automatically pre-fills next logical year
+    // 1. AUTO-FILL LOGIC: Last FY se agla saal nikalna
     String lastFY = ph.activeCompany!.fYears.last;
     String suggestedNextFY = AppDateLogic.getNextFYString(lastFY);
     final fyC = TextEditingController(text: suggestedNextFY);
 
-    // B. CHECKLIST WATCHDOG: scans for unbilled pending challans
+    // 2. CHECKLIST LOGIC: Pending Challans check karna
     final pendingChallans = ph.saleChallans.where((c) => c.status == "Pending").toList();
+
+    // Checkbox Local States
+    bool skipZeroStock = false;
+    bool skipExpired = false;
 
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (c) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Text("Setup New Financial Year"),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Checklist Alert Box
-            if (pendingChallans.isNotEmpty) ...[
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.red.shade50, 
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: Colors.red.shade200)
-                ),
-                child: Row(
+      builder: (c) => StatefulBuilder( // StatefulBuilder lagaya taaki checkboxes tick ho sakein
+        builder: (context, setDialogState) {
+          return AlertDialog(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+            title: const Text("Setup New Financial Year"),
+            content: SizedBox(
+              width: 400,
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Icon(Icons.warning_amber_rounded, color: Colors.red, size: 20),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            "Warning: ${pendingChallans.length} Pending Challans Found!", 
-                            style: const TextStyle(fontSize: 11, color: Colors.red, fontWeight: FontWeight.bold)
-                          ),
-                          const SizedBox(height: 3),
-                          const Text(
-                            "Unbilled stocks cannot be carried forward properly. Please bill them or ignore to proceed.", 
-                            style: TextStyle(fontSize: 9, color: Colors.black87)
-                          ),
-                        ],
+                    // Checklist Warning Box
+                    if (pendingChallans.isNotEmpty) ...[
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.red.shade50, 
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: Colors.red.shade200)
+                        ),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Icon(Icons.warning_amber_rounded, color: Colors.red, size: 20),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    "Warning: ${pendingChallans.length} Pending Challans Found!", 
+                                    style: const TextStyle(fontSize: 11, color: Colors.red, fontWeight: FontWeight.bold)
+                                  ),
+                                  const SizedBox(height: 3),
+                                  const Text(
+                                    "Unbilled stocks cannot be carried forward properly. Please bill them or ignore to proceed.", 
+                                    style: TextStyle(fontSize: 9, color: Colors.black87)
+                                  ),
+                                ],
+                              )
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 15),
+                    ],
+                    
+                    const Text("Enter target Financial Year name:", style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.blueGrey)),
+                    const SizedBox(height: 10),
+                    TextField(
+                      controller: fyC, 
+                      decoration: const InputDecoration(
+                        labelText: "Target FY (MM/YY format)", 
+                        border: OutlineInputBorder(), 
+                        hintText: "e.g. 2026-27"
                       )
+                    ),
+                    const SizedBox(height: 20),
+                    const Divider(),
+                    const Text("DATABASE OPTIMIZATION FILTERS (MARG STYLE)", style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.grey, letterSpacing: 1)),
+                    const SizedBox(height: 8),
+
+                    // Checkbox 1: Zero Stock Filter
+                    CheckboxListTile(
+                      dense: true,
+                      contentPadding: EdgeInsets.zero,
+                      activeColor: Colors.purple,
+                      title: const Text("Skip Zero-Stock Batches", style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                      subtitle: const Text("Dead stock will not be copied (Lightweight DB)", style: TextStyle(fontSize: 9)),
+                      value: skipZeroStock, 
+                      onChanged: (v) => setDialogState(() => skipZeroStock = v!),
+                    ),
+
+                    // Checkbox 2: Expired Stock Filter
+                    CheckboxListTile(
+                      dense: true,
+                      contentPadding: EdgeInsets.zero,
+                      activeColor: Colors.purple,
+                      title: const Text("Skip Expired Batches", style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                      subtitle: const Text("Expired items will not be transfered", style: TextStyle(fontSize: 9)),
+                      value: skipExpired, 
+                      onChanged: (v) => setDialogState(() => skipExpired = v!),
                     ),
                   ],
                 ),
               ),
-              const SizedBox(height: 15),
-            ],
-            const Text("Enter target Financial Year name:", style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.blueGrey)),
-            const SizedBox(height: 10),
-            TextField(
-              controller: fyC, 
-              decoration: const InputDecoration(
-                labelText: "Target FY (MM/YY format)", 
-                border: OutlineInputBorder(), 
-                hintText: "e.g. 2026-27"
-              )
             ),
-          ],
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(c), child: const Text("CANCEL", style: TextStyle(color: Colors.grey))),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.purple, foregroundColor: Colors.white),
-            onPressed: () async {
-              if (fyC.text.isEmpty) return;
-              Navigator.pop(c); // Close Dialog
-              
-              // Trigger Immersive Progress Screen for transfer
-              setState(() {
-                isMaintenanceRunning = true;
-                maintenanceStatus = "Transferring Masters & Closing Balances...";
-                maintenanceProgress = 0.50; // Set half way
-              });
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(c), child: const Text("CANCEL", style: TextStyle(color: Colors.grey))),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.purple, foregroundColor: Colors.white),
+                onPressed: () async {
+                  if (fyC.text.isEmpty) return;
+                  Navigator.pop(c); // Close Dialog
+                  
+                  // Trigger Immersive Progress Screen for transfer
+                  setState(() {
+                    isMaintenanceRunning = true;
+                    maintenanceStatus = "Transferring Masters, Checking Filters & Closing Balances...";
+                    maintenanceProgress = 0.50; // Set half way
+                  });
 
-              bool ok = await ph.startNewFinancialYear(fyC.text.trim());
+                  // Triggering startNewFinancialYear with our checkboxes parameters
+                  bool ok = await ph.startNewFinancialYear(
+                    fyC.text.trim(),
+                    filterZeroStock: skipZeroStock,
+                    filterExpired: skipExpired,
+                  );
 
-              setState(() => isMaintenanceRunning = false);
-              
-              if (ok && mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text("✅ New Financial Year environment built!"), backgroundColor: Colors.green)
-                );
-              }
-            }, 
-            child: const Text("START YEAR-TRANSFER")
-          )
-        ],
+                  setState(() => isMaintenanceRunning = false);
+                  
+                  if (ok && mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text("✅ New Financial Year environment built!"), backgroundColor: Colors.green)
+                    );
+                  }
+                }, 
+                child: const Text("START TRANSFER")
+              )
+            ],
+          );
+        }
       ),
     );
   }
