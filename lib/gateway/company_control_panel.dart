@@ -1,4 +1,4 @@
-// FILE: lib/gateway/company_control_panel.dart (FULL UPGRADED VERSION)
+// FILE: lib/gateway/company_control_panel.dart (Consolidated Advanced Version)
 
 import 'dart:io';
 import 'package:flutter/material.dart';
@@ -106,16 +106,62 @@ class _CompanyControlPanelViewState extends State<CompanyControlPanelView> {
   }
 
   // ===========================================================================
-  // 🚀 3. NEW FINANCIAL YEAR SETUP (WITH WARNING CHECKLIST & AUTO-FILL)
+  // 🏛️ 3. NAYA: PROVISIONAL BALANCE SYNC (Carry Balances Math)
   // ===========================================================================
-// --- 🚀 NEW YEAR SETUP: WITH CHECKLIST, FILTERS & AUTO-FILL (UPGRADED) ---
+  void _runProvisionalSync(PharoahManager ph) async {
+    setState(() {
+      isMaintenanceRunning = true;
+      maintenanceProgress = 0.0;
+      maintenanceStatus = "Contacting previous year files...";
+    });
+
+    try {
+      // Dynamic Progress Simulation based on safe yielding
+      setState(() { maintenanceProgress = 0.25; maintenanceStatus = "Re-calculating Party Opening Balances..."; });
+      await Future.delayed(const Duration(milliseconds: 400));
+
+      setState(() { maintenanceProgress = 0.55; maintenanceStatus = "Auditing Bank & Cash flow..."; });
+      await Future.delayed(const Duration(milliseconds: 400));
+
+      setState(() { maintenanceProgress = 0.80; maintenanceStatus = "Applying carry-forward changes..."; });
+      await Future.delayed(const Duration(milliseconds: 200));
+
+      // Main sync engine call
+      bool success = await ph.syncOpeningBalancesFromPreviousYear();
+      
+      setState(() { maintenanceProgress = 1.0; maintenanceStatus = "Sync Completed!"; });
+      await Future.delayed(const Duration(milliseconds: 400));
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(success ? "✅ Opening balances & Stock synced from pichla saal!" : "❌ Sync Failed! Previous year folder missing."),
+            backgroundColor: success ? Colors.green : Colors.red,
+          )
+        );
+      }
+
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Sync Error: $e"), backgroundColor: Colors.red)
+        );
+      }
+    }
+
+    if (mounted) setState(() => isMaintenanceRunning = false);
+  }
+
+  // ===========================================================================
+  // 🚀 4. NEW FINANCIAL YEAR SETUP (WITH WARNING CHECKLIST & AUTO-FILL)
+  // ===========================================================================
   void _showNewYearDialog(PharoahManager ph) {
-    // 1. AUTO-FILL LOGIC: Last FY se agla saal nikalna
+    // A. AUTO-FILL LOGIC: automatically pre-fills next logical year
     String lastFY = ph.activeCompany!.fYears.last;
     String suggestedNextFY = AppDateLogic.getNextFYString(lastFY);
     final fyC = TextEditingController(text: suggestedNextFY);
 
-    // 2. CHECKLIST LOGIC: Pending Challans check karna
+    // B. CHECKLIST WATCHDOG: scans for unbilled pending challans
     final pendingChallans = ph.saleChallans.where((c) => c.status == "Pending").toList();
 
     // Checkbox Local States
@@ -228,7 +274,6 @@ class _CompanyControlPanelViewState extends State<CompanyControlPanelView> {
                     maintenanceProgress = 0.50; // Set half way
                   });
 
-                  // Triggering startNewFinancialYear with our checkboxes parameters
                   bool ok = await ph.startNewFinancialYear(
                     fyC.text.trim(),
                     filterZeroStock: skipZeroStock,
@@ -253,7 +298,7 @@ class _CompanyControlPanelViewState extends State<CompanyControlPanelView> {
   }
 
   // ===========================================================================
-  // 🏢 4. THE IMMERSIVE "SPLASH" PROGRESS OVERLAY
+  // 🏢 5. THE IMMERSIVE "SPLASH" PROGRESS OVERLAY
   // ===========================================================================
   Widget _buildMaintenanceOverlay() {
     return Container(
@@ -302,7 +347,72 @@ class _CompanyControlPanelViewState extends State<CompanyControlPanelView> {
   }
 
   // ===========================================================================
-  // 5. MAIN SCREEN BUILDER
+  // 🏛️ 6. NAYA: PROVISIONAL SYNC BANNER WIDGET (MARG STYLE)
+  // ===========================================================================
+  Widget _buildProvisionalSyncBanner(PharoahManager ph) {
+    return InkWell(
+      onTap: () {
+        showDialog(
+          context: context,
+          builder: (c) => AlertDialog(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+            title: const Text("Sync Previous Year Balances?"),
+            content: const Text(
+              "This will recalculate all closing ledger & stock balances from the previous financial year and carry them forward as opening balances in this year.\n\n"
+              "Your current year transactions will remain 100% untouched & safe."
+            ),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(c), child: const Text("CANCEL", style: TextStyle(color: Colors.grey))),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.teal, foregroundColor: Colors.white),
+                onPressed: () {
+                  Navigator.pop(c);
+                  _runProvisionalSync(ph);
+                },
+                child: const Text("START SYNC"),
+              )
+            ],
+          )
+        );
+      },
+      borderRadius: BorderRadius.circular(20),
+      child: Container(
+        padding: const EdgeInsets.all(18),
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            colors: [Color(0xFF00796B), Color(0xFF004D40)], // Premium Teal gradient
+            begin: Alignment.topLeft, end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [BoxShadow(color: Colors.teal.withOpacity(0.2), blurRadius: 10, offset: const Offset(0, 5))],
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(color: Colors.white.withOpacity(0.2), shape: BoxShape.circle),
+              child: const Icon(Icons.sync_alt_rounded, color: Colors.white, size: 24),
+            ),
+            const SizedBox(width: 15),
+            const Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text("CARRY BALANCES (PROVISIONAL)", style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold, letterSpacing: 0.5)),
+                  SizedBox(height: 3),
+                  Text("Sync opening balances & stock from previous year", style: TextStyle(color: Colors.white70, fontSize: 10)),
+                ],
+              ),
+            ),
+            const Icon(Icons.chevron_right_rounded, color: Colors.white70),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ===========================================================================
+  // 7. MAIN SCREEN BUILDER
   // ===========================================================================
   @override
   Widget build(BuildContext context) {
@@ -330,6 +440,13 @@ class _CompanyControlPanelViewState extends State<CompanyControlPanelView> {
               children: [
                 _buildHeaderCard(comp, isAdmin),
                 const SizedBox(height: 25),
+
+                // --- 🏛️ NAYA: CONDITIONAL PROVISIONAL SYNC BANNER (MARG STYLE) ---
+                if (comp.fYears.length > 1) ...[
+                  _buildProvisionalSyncBanner(ph),
+                  const SizedBox(height: 20),
+                ],
+
                 GridView(
                   shrinkWrap: true,
                   physics: const NeverScrollableScrollPhysics(),
