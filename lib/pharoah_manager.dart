@@ -1,4 +1,4 @@
-// FILE: lib/pharoah_manager.dart (FULLY UPGRADED & INTEGRATED STABLE VERSION)
+// FILE: lib/pharoah_manager.dart (FULLY INTEGRATED, COMPILE-SAFE VERSION)
 
 import 'dart:convert';
 import 'dart:io';
@@ -8,7 +8,7 @@ import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:local_auth/local_auth.dart'; 
 import 'package:flutter_secure_storage/flutter_secure_storage.dart'; 
-import 'package:shared_preferences/shared_preferences.dart'; // REQUIRED FOR DYNAMIC NAMESPACE
+import 'package:shared_preferences/shared_preferences.dart'; // REQUIRED IMPORT
 
 import 'models.dart';
 import 'administration/system_user_model.dart';
@@ -27,7 +27,6 @@ class PharoahManager with ChangeNotifier {
   // ===========================================================================
   
   String activeModule = "HOME"; 
-  
   // --- CONDITIONAL BATCH FILTER WATCHDOG (NEW) ---
   // Yeh tabhi true dega jab company ke paas 1 se zyada Financial Years honge
   bool get showBatchFilter => activeCompany != null && activeCompany!.fYears.length > 1;
@@ -199,19 +198,16 @@ class PharoahManager with ChangeNotifier {
   }
 
   void handleAppLifecycle(AppLifecycleState state) {
-    // Agar user app se bahar gaya (Minimize kiya ya PDF window kholi)
     if (state == AppLifecycleState.paused || state == AppLifecycleState.inactive) {
       if (activeCompany != null && activeCompany!.autoLockMinutes > 0) {
-        // Turant lock karne ki jagah 60 second ka buffer timer shuru karein
         _backgroundLockTimer?.cancel();
         _backgroundLockTimer = Timer(const Duration(seconds: 60), () {
-          lockApp(); // Agar 60 second tak wapas nahi aaya toh lock karo
+          lockApp(); 
         });
       }
     } 
-    // Agar user 60 second ke andar wapas aa gaya (Resumed)
     else if (state == AppLifecycleState.resumed) {
-      _backgroundLockTimer?.cancel(); // Buffer timer ko stop kar do, lock mat hone do
+      _backgroundLockTimer?.cancel(); 
       debugPrint("🛡️ System: Welcome back! Lock cancelled via Grace Period.");
     }
   }
@@ -242,11 +238,8 @@ class PharoahManager with ChangeNotifier {
     activeCompany = c; 
     currentFY = fy; 
     
-    // --- SMART NAMESPACING FOR FINANCIAL YEAR (NEW) ---
     final prefs = await SharedPreferences.getInstance();
-    // 1. Numbering Engine ke liye active year lock kiya
     await prefs.setString('active_fy_${c.id}', fy); 
-    // 2. Restart par system ko yaad rahe isliye saal save kiya
     await prefs.setString('last_active_fy_for_${c.id}', fy); 
     
     await loadAllData(); 
@@ -310,7 +303,7 @@ class PharoahManager with ChangeNotifier {
     else config = AppConfig();
     
     medicines = (load('meds.json') as List?)?.map((e) => Medicine.fromMap(e)).toList() ?? DemoData.getMedicines();
-    parties = (load('parts.json') as List?)?.map((e) => Party.fromMap(e)).toList() ?? [Party(id:'cash',name:"CASH",group:"Cash in Hand")];
+    parties = (load('parts.json') as List?)?.map((e) => Party.fromMap(e)).toList() ?? [DemoData.getDemoParty(), Party(id:'cash',name:"CASH",group:"Cash in Hand")];
     companies = (load('comps.json') as List?)?.map((e) => Company.fromMap(e)).toList() ?? MasterDataLibrary.getTopCompanies();
     salts = (load('salts.json') as List?)?.map((e) => Salt.fromMap(e)).toList() ?? MasterDataLibrary.getTopSalts();
     drugTypes = (load('dtypes.json') as List?)?.map((e) => DrugType.fromMap(e)).toList() ?? MasterDataLibrary.getDrugTypes();
@@ -331,14 +324,13 @@ class PharoahManager with ChangeNotifier {
     var uD = load('sys_users.json'); if (uD!=null) systemUsers = (uD as List).map((e)=>SystemUser.fromMap(e)).toList();
     var bD = load('bats.json'); if (bD!=null) { batchHistory.clear(); (bD as Map).forEach((k,v)=>batchHistory[k]=(v as List).map((b)=>BatchInfo.fromMap(b)).toList()); }
     
-    // 🔥 UPDATED: Rebuild engine ab Returns ko bhi scan karega
     InventoryLogicCenter.rebuildAllInventory(
       medicines: medicines, 
       batchHistory: batchHistory, 
       purchases: purchases, 
       sales: sales,
-      saleReturns: saleReturns,      // 👈 Naya connection
-      purchaseReturns: purchaseReturns // 👈 Naya connection
+      saleReturns: saleReturns,      
+      purchaseReturns: purchaseReturns 
     );
     notifyListeners();
   }
@@ -353,7 +345,6 @@ class PharoahManager with ChangeNotifier {
     if (linkedIds != null) { for (var id in linkedIds) { int i = saleChallans.indexWhere((c) => c.id == id); if (i != -1) saleChallans[i].status = "Billed"; } }
     if (sourceTag.isEmpty && activeCompany != null) { String pfx = billNo.split(RegExp(r'\d')).first; await PharoahNumberingEngine.updateSeriesCounter(type: "SALE", companyID: activeCompany!.id, usedNumber: billNo, prefix: pfx); }
     await save(); 
-    // 🔥 FIXED CALL:
     InventoryLogicCenter.rebuildAllInventory(medicines: medicines, batchHistory: batchHistory, purchases: purchases, sales: sales, saleReturns: saleReturns, purchaseReturns: purchaseReturns); 
     notifyListeners();
   }
@@ -377,7 +368,6 @@ class PharoahManager with ChangeNotifier {
     for (var s in batch) { if (s.linkedChallanIds.isNotEmpty) { for (var id in s.linkedChallanIds) { int i = saleChallans.indexWhere((c) => c.id == id); if (i != -1) saleChallans[i].status = "Billed"; } } } 
     if (batch.isNotEmpty && activeCompany != null) { String l = batch.last.billNo; String p = l.split(RegExp(r'\d')).first; await PharoahNumberingEngine.updateSeriesCounter(type: "SALE", companyID: activeCompany!.id, usedNumber: l, prefix: p); } 
     await save(); 
-    // 🔥 FIXED CALL:
     InventoryLogicCenter.rebuildAllInventory(medicines: medicines, batchHistory: batchHistory, purchases: purchases, sales: sales, saleReturns: saleReturns, purchaseReturns: purchaseReturns); 
     notifyListeners(); 
   }
@@ -385,7 +375,6 @@ class PharoahManager with ChangeNotifier {
   Future<void> finalizeBatchPurchases(List<Purchase> batch) async { 
     purchases.addAll(batch); 
     await save(); 
-    // 🔥 FIXED CALL:
     InventoryLogicCenter.rebuildAllInventory(medicines: medicines, batchHistory: batchHistory, purchases: purchases, sales: sales, saleReturns: saleReturns, purchaseReturns: purchaseReturns); 
     notifyListeners(); 
   }
@@ -397,7 +386,7 @@ class PharoahManager with ChangeNotifier {
   void finalizeSaleReturn({required String billNo, required DateTime date, required Party party, required List<BillItem> items, required double total, double extraDiscount = 0.0, double roundOff = 0.0, String type = "Mixed"}) async { 
     saleReturns.add(SaleReturn(id: DateTime.now().toString(), billNo: billNo, date: date, partyName: party.name, items: items, totalAmount: total, returnType: type, extraDiscount: extraDiscount, roundOff: roundOff, status: "Active")); 
     await save();
-    await loadAllData(); // Full Inventory Rebuild trigger
+    await loadAllData(); 
   }
 
   void finalizePurchaseReturn({required String billNo, required DateTime date, required Party party, required List<PurchaseItem> items, required double total, double extraDiscount = 0.0, double roundOff = 0.0, String type = "Mixed"}) { 
@@ -430,14 +419,12 @@ class PharoahManager with ChangeNotifier {
     double grossSaleQty = 0;
     double returnedQty = 0;
 
-    // 1. Asli Sale scan karein
     for (var s in sales.where((s) => s.status == "Active" && s.date.isAfter(thirtyDaysAgo))) {
       for (var item in s.items.where((it) => it.medicineID == mid)) {
         grossSaleQty += (item.qty + item.freeQty);
       }
     }
 
-    // 2. Returns (CN) scan karein aur sirf SELLABLE wapas aaya maal minus karein
     for (var r in saleReturns.where((r) => r.status == "Active" && r.date.isAfter(thirtyDaysAgo))) {
       for (var item in r.items.where((it) => it.medicineID == mid && it.isBreakage == false)) {
         returnedQty += (item.qty + item.freeQty);
@@ -448,17 +435,17 @@ class PharoahManager with ChangeNotifier {
     return netMonthlySale < 0 ? 0 : netMonthlySale;
   }
   void adjustBatchStock({required String medId, required String batchNo, required double adjQty, required String reason}) { if (batchHistory.containsKey(medId)) { try { var b = batchHistory[medId]!.firstWhere((x) => x.batch == batchNo); b.adjustmentQty += adjQty; b.adjReason = reason; save().then((_) => loadAllData()); } catch (e) {} } }
-  void updateBatchMetadata({required String medId, required String batchNo, required String newExp, required double newMrp, required double newRate}) { if (batchHistory.containsKey(medId)) { try { var b = batchHistory[medId]!.firstWhere((x) => x.batch == batchNo); b.exp = newExp; b.mrp = newMrp; b.rate = newRate; save().then((_) => loadAllData()); } catch (e) {} } }// ===========================================================================
-  // 💹 ADVANCED ACCOUNTING & VOUCHER ENGINE (MODIFIED)
+  void updateBatchMetadata({required String medId, required String batchNo, required String newExp, required double newMrp, required double newRate}) { if (batchHistory.containsKey(medId)) { try { var b = batchHistory[medId]!.firstWhere((x) => x.batch == batchNo); b.exp = newExp; b.mrp = newMrp; b.rate = newRate; save().then((_) => loadAllData()); } catch (e) {} } }
+  
+  // ===========================================================================
+  // 💹 ADVANCED ACCOUNTING & VOUCHER ENGINE
   // ===========================================================================
 
-  // 1. GET PENDING BILLS FOR ADJUSTMENT (Reference Mode Logic)
   List<Map<String, dynamic>> getPendingBills(String partyId, bool isReceipt) {
     List<Map<String, dynamic>> pending = [];
     DateTime now = DateTime.now();
 
     if (isReceipt) {
-      // Sundry Debtors: Sales scan karein
       for (var s in sales.where((s) => s.partyId == partyId && s.paymentMode == "CREDIT" && s.status == "Active")) {
         bool alreadySettle = vouchers.any((v) => v.linkedBillNumbers.contains(s.billNo));
         if (!alreadySettle) {
@@ -467,7 +454,6 @@ class PharoahManager with ChangeNotifier {
         }
       }
     } else {
-      // Sundry Creditors: Purchases scan karein
       for (var p in purchases.where((p) => p.partyId == partyId && p.paymentMode == "CREDIT")) {
         bool alreadySettle = vouchers.any((v) => v.linkedBillNumbers.contains(p.billNo));
         if (!alreadySettle) {
@@ -480,14 +466,12 @@ class PharoahManager with ChangeNotifier {
     return pending;
   }
 
-  // 2. INTERNAL LEDGER FILTER (Point 4 Fix: Drodown logic)
   List<Party> getInternalAccounts() {
     return parties.where((p) => 
       p.group == "Bank Accounts" || p.group == "Cash in Hand"
     ).toList();
   }
 
-  // 3. BANK & CHEQUE IDENTITY MEMORY
   String getLastUsedBank(String partyId) {
     try {
       final lastVoucher = vouchers.lastWhere((v) => v.partyId == partyId && v.bankName.isNotEmpty);
@@ -495,11 +479,9 @@ class PharoahManager with ChangeNotifier {
     } catch (e) { return ""; }
   }
 
-  // 4. SMART VOUCHER FINALIZATION (Returns ID for Post-Save Hub)
-    Future<String> finalizeVoucher(Voucher v) async {
+  Future<String> finalizeVoucher(Voucher v) async {
     vouchers.add(v);
     if (activeCompany != null) {
-      // सुधार: "VOUCHER" की जगह असली टाइप (RECEIPT/PAYMENT) भेजें ताकि काउंटर सही से बढ़े
       String seriesType = v.type.toUpperCase();
       String prefix = v.voucherNo.split(RegExp(r'\d')).first;
       await PharoahNumberingEngine.updateSeriesCounter(
@@ -514,7 +496,6 @@ class PharoahManager with ChangeNotifier {
     return v.id;
   }
 
-  // 5. CASH LIMIT WATCHDOG
   bool isCashLimitExceeded(String partyId, double newAmount) {
     DateTime today = DateTime.now();
     double todayTotal = vouchers
@@ -542,15 +523,11 @@ class PharoahManager with ChangeNotifier {
   void addCheque(ChequeEntry c) { cheques.add(c); save(); }
   void addLog(String a, String d) { logs.add(LogEntry(id: DateTime.now().toString(), action: a, details: d, time: DateTime.now())); save(); }
   void addManualShortage({required Medicine med, required double qty, String cust = ""}) { shortages.add(ShortageItem(id: DateTime.now().toString(), medicineId: med.id, medicineName: med.name, companyName: med.companyId, qtyRequired: qty, currentStock: med.stock, date: DateTime.now(), customerName: cust)); save(); }
-  // --- VOUCHER AUDIT ACTIONS ---
+  
   void _reverseVoucherImpact(Voucher v) {
-    // Note: Is ERP mein outstanding logic dynamically calculated hai (Ledger Reports mein).
-    // Isliye reversal ka matlab hai ki "Cancelled" status ko identify karna.
-    // Hum bas status 'Cancelled' mark karte hain aur logic Reports mein handle ho jayega.
     addLog("ACCOUNTS", "Reversed Impact of ${v.voucherNo} for ${v.partyName}");
   }
 
-  // 3. CANCEL ACTION (Audit-Friendly)
   void cancelVoucher(String id) {
     int i = vouchers.indexWhere((v) => v.id == id);
     if (i != -1) {
@@ -562,7 +539,6 @@ class PharoahManager with ChangeNotifier {
     }
   }
 
-  // 4. DELETE ACTION (Hard Wipe)
   void deleteVoucher(String id) {
     int i = vouchers.indexWhere((v) => v.id == id);
     if (i != -1) {
@@ -572,23 +548,20 @@ class PharoahManager with ChangeNotifier {
       notifyListeners();
     }
   }
-// ===========================================================================
+
+  // ===========================================================================
   // ⚡ ADVANCED STOCK-SAFE MODIFICATION ENGINE
   // ===========================================================================
 
-  // 1. Sale Return Update (Credit Note)
   Future<void> updateSaleReturn({required String id, required String billNo, required DateTime date, required Party party, required List<BillItem> items, required double total, double extraDiscount = 0.0, double roundOff = 0.0}) async {
     int i = saleReturns.indexWhere((r) => r.id == id);
     if (i != -1) {
-      // Step A: Replace old object with new values in memory
       saleReturns[i] = SaleReturn(
         id: id, billNo: billNo, date: date, partyName: party.name, 
         items: items, totalAmount: total, extraDiscount: extraDiscount, 
         roundOff: roundOff, status: "Active"
       );
       
-      // Step B: Atomic Save & Deep Rebuild
-      // Ye function automatic purane stock effect ko hata kar naya add karega
       await save(); 
       InventoryLogicCenter.rebuildAllInventory(
         medicines: medicines, batchHistory: batchHistory, 
@@ -599,18 +572,15 @@ class PharoahManager with ChangeNotifier {
     }
   }
 
-  // 2. Purchase Return Update (Debit Note)
   Future<void> updatePurchaseReturn({required String id, required String billNo, required DateTime date, required Party party, required List<PurchaseItem> items, required double total, double extraDiscount = 0.0, double roundOff = 0.0}) async {
     int i = purchaseReturns.indexWhere((r) => r.id == id);
     if (i != -1) {
-      // Step A: Replace old object in memory
       purchaseReturns[i] = PurchaseReturn(
         id: id, billNo: billNo, distributorName: party.name, 
         date: date, items: items, totalAmount: total, 
         extraDiscount: extraDiscount, roundOff: roundOff, status: "Active"
       );
 
-      // Step B: Atomic Save & Deep Rebuild
       await save();
       InventoryLogicCenter.rebuildAllInventory(
         medicines: medicines, batchHistory: batchHistory, 
@@ -620,11 +590,13 @@ class PharoahManager with ChangeNotifier {
       notifyListeners();
     }
   }
+
   void updateSystemUser(SystemUser u) { int i = systemUsers.indexWhere((x) => x.id == u.id); if(i != -1) { systemUsers[i] = u; save(); } }
   void updateNumberingSeries(NumberingSeries ns) { int i = numberingSeries.indexWhere((x) => x.id == ns.id); if(i != -1) { numberingSeries[i] = ns; save(); } }
   void updateAppConfig(AppConfig c) { config = c; save(); notifyListeners(); }
   void updateChequeStatus(String id, String s, String r) { int i = cheques.indexWhere((c) => c.id == id); if(i != -1) { cheques[i].status = s; cheques[i].remark = r; save(); } }
-void cancelReturn(String id, bool isSaleReturn) {
+  
+  void cancelReturn(String id, bool isSaleReturn) {
     if (isSaleReturn) {
       int i = saleReturns.indexWhere((r) => r.id == id);
       if (i != -1) saleReturns[i].status = "Cancelled";
@@ -634,13 +606,14 @@ void cancelReturn(String id, bool isSaleReturn) {
     }
     save().then((_) => loadAllData());
   }
+
   void deleteBill(String id) { try { final s = sales.firstWhere((x) => x.id == id); if (s.linkedChallanIds.isNotEmpty) { for (var cid in s.linkedChallanIds) { int i = saleChallans.indexWhere((c) => c.id == cid); if (i != -1) saleChallans[i].status = "Pending"; } } sales.removeWhere((x) => x.id == id); save().then((_) => loadAllData()); } catch (e) {} }
   void deletePurchase(String id) { purchases.removeWhere((p) => p.id == id); save().then((_) => loadAllData()); }
   void deleteSaleChallan(String id) { saleChallans.removeWhere((c) => c.id == id); save(); }
   void deletePurchaseChallan(String id) { purchaseChallans.removeWhere((c) => c.id == id); save(); }
   void deleteSaleReturn(String id) { saleReturns.removeWhere((r) => r.id == id); save().then((_) => loadAllData()); }
   void deletePurchaseReturn(String id) { purchaseReturns.removeWhere((r) => r.id == id); save().then((_) => loadAllData()); }
-// Note: Iska asli use UI (PartyMasterView) mein hoga, par Manager mein safety filter hai
+
   void deleteParty(String id) {
     try {
       final p = parties.firstWhere((pt) => pt.id == id);
@@ -655,7 +628,6 @@ void cancelReturn(String id, bool isSaleReturn) {
   void deleteShortage(String id) { shortages.removeWhere((s) => s.id == id); save(); }
   void deleteBank(String id) { banks.removeWhere((b) => b.id == id); save(); }
 
-  // --- 🔥 RESTORED COUNTER RESET ---
   void resetCounter(String t) { if (activeCompany != null) { String pfx = (t == "SALE_BILL") ? "INV-" : (t == "PUR_BILL" ? "PUR-" : "SCH-"); PharoahNumberingEngine.resetSeries(type: t.contains("SALE") ? "SALE" : "PURCHASE", companyID: activeCompany!.id, prefix: pfx); } notifyListeners(); }
 
   // ===========================================================================
@@ -663,17 +635,17 @@ void cancelReturn(String id, bool isSaleReturn) {
   // ===========================================================================
 
   Future<void> setupNewCompanyEnvironment(CompanyProfile p, String f) async { activeCompany = p; currentFY = f; numberingSeries = [NumberingSeries(id: 's1', name: "Standard Retail", type: "SALE", prefix: "INV-", isDefault: true)]; medicines = DemoData.getMedicines(); companies = MasterDataLibrary.getTopCompanies(); salts = MasterDataLibrary.getTopSalts(); drugTypes = MasterDataLibrary.getDrugTypes(); parties = [DemoData.getDemoParty(), Party(id: 'cash', name: "CASH", group: "Cash in Hand")]; await save(); if (!companiesRegistry.any((c) => c.id == p.id)) { companiesRegistry.add(p); await saveRegistry(); } notifyListeners(); }
- Future<bool> startNewFinancialYear(String n, {bool filterZeroStock = false, bool filterExpired = false}) async { 
+  
+  Future<bool> startNewFinancialYear(String n, {bool filterZeroStock = false, bool filterExpired = false}) async { 
     await save(); 
     
-    // NAYA: Multi-filtration parameters pass kiye
     bool ok = await FYTransferEngine.transferData(
       companyID: activeCompany!.id, 
       businessType: activeCompany!.businessType, 
       sourceFY: currentFY, 
       targetFY: n,
-      filterZeroStock: filterZeroStock, // Checkbox values
-      filterExpired: filterExpired,     // Checkbox values
+      filterZeroStock: filterZeroStock, 
+      filterExpired: filterExpired,     
     ); 
 
     if(ok) {
@@ -706,7 +678,6 @@ void cancelReturn(String id, bool isSaleReturn) {
       }
       currentFY = n; 
       
-      // Auto-lock the new FY counter namespace
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString('active_fy_${activeCompany!.id}', n);
       
@@ -714,11 +685,12 @@ void cancelReturn(String id, bool isSaleReturn) {
     } 
     return ok; 
   }
+
   Future<void> masterReset() async { final p = await getWorkingPath(); if(p.isNotEmpty) { final d = Directory(p); if(d.existsSync()) d.deleteSync(recursive: true); } await loadAllData(); }
+  
   // --- INTEGRITY CHECKERS ---
   
   bool isPartyInUse(String partyId, String partyName) {
-    // Check in Sales, Purchases and Vouchers
     bool inSales = sales.any((s) => s.partyId == partyId || s.partyName == partyName);
     bool inPurchases = purchases.any((p) => p.partyId == partyId || p.distributorName == partyName);
     bool inVouchers = vouchers.any((v) => v.partyId == partyId || v.partyName == partyName);
@@ -728,7 +700,6 @@ void cancelReturn(String id, bool isSaleReturn) {
   }
 
   bool isProductInUse(String medId) {
-    // Check if any bill has this product
     bool inSales = sales.any((s) => s.items.any((it) => it.medicineID == medId));
     bool inPurchases = purchases.any((p) => p.items.any((it) => it.medicineID == medId));
     return inSales || inPurchases;
@@ -741,14 +712,11 @@ void cancelReturn(String id, bool isSaleReturn) {
   NumberingSeries getDefaultSeries(String t) {
     final searchType = t.toUpperCase();
     try {
-      // 1. Pehle check karo agar aapne koi DEFAULT series banayi hai
       return numberingSeries.firstWhere((s) => s.type == searchType && s.isDefault && s.isActive);
     } catch (e) {
       try {
-        // 2. Agar default nahi mili, toh us type ki koi bhi ACTIVE series le lo
         return numberingSeries.firstWhere((s) => s.type == searchType && s.isActive);
       } catch (e) {
-        // 3. Agar kuch nahi mila, toh system ka apna smart default do
         String prefix = searchType == "RECEIPT" ? "RCT-" : (searchType == "PAYMENT" ? "PAY-" : "TXN-");
         return NumberingSeries(id: 'sys_$searchType', name: 'System Default', type: searchType, prefix: prefix, isDefault: true);
       }
@@ -768,11 +736,10 @@ void cancelReturn(String id, bool isSaleReturn) {
     return sorted;
   }
 
-// ===========================================================================
+  // ===========================================================================
   // 📊 ADVANCED STATEMENT ENGINE (FOR PARTY LEDGER & AUDIT)
   // ===========================================================================
 
-  /// Unified Ledger Logic: Merges 6 transaction types with Running Balance
   List<Map<String, dynamic>> getPartyStatementData({
     required String partyId,
     required DateTime fromDate,
@@ -781,7 +748,6 @@ void cancelReturn(String id, bool isSaleReturn) {
     double runningBal = 0.0;
     String pName = "";
 
-    // A. Party details fetch karein
     try {
       final p = parties.firstWhere((element) => element.id == partyId);
       runningBal = p.opBal;
@@ -790,23 +756,18 @@ void cancelReturn(String id, bool isSaleReturn) {
 
     List<Map<String, dynamic>> allTxns = [];
 
-    // 1. Sales (Debit)
     for (var s in sales.where((s) => s.partyId == partyId && s.status == "Active")) {
       allTxns.add({'date': s.date, 'ref': s.billNo, 'type': 'SALE', 'dr': s.totalAmount, 'cr': 0.0, 'obj': s});
     }
-    // 2. Purchases (Credit)
     for (var p in purchases.where((p) => p.partyId == partyId)) {
       allTxns.add({'date': p.date, 'ref': p.billNo, 'type': 'PURCHASE', 'dr': 0.0, 'cr': p.totalAmount, 'obj': p});
     }
-    // 3. Sale Returns / Credit Note (Credit)
     for (var sr in saleReturns.where((r) => r.partyName == pName && r.status == "Active")) {
       allTxns.add({'date': sr.date, 'ref': sr.billNo, 'type': 'CN', 'dr': 0.0, 'cr': sr.totalAmount, 'obj': sr});
     }
-    // 4. Purchase Returns / Debit Note (Debit)
     for (var pr in purchaseReturns.where((r) => r.distributorName == pName && r.status == "Active")) {
       allTxns.add({'date': pr.date, 'ref': pr.billNo, 'type': 'DN', 'dr': pr.totalAmount, 'cr': 0.0, 'obj': pr});
     }
-    // 5. Vouchers (Receipt/Payment)
     for (var v in vouchers.where((v) => v.partyId == partyId && v.status == "Active")) {
       bool isPay = v.type.toUpperCase() == "PAYMENT";
       allTxns.add({
@@ -817,10 +778,8 @@ void cancelReturn(String id, bool isSaleReturn) {
       });
     }
 
-    // B. Date sorting
     allTxns.sort((a, b) => a['date'].compareTo(b['date']));
 
-    // C. Period processing
     List<Map<String, dynamic>> filteredLedger = [];
     double periodOpBal = runningBal;
 
@@ -833,7 +792,6 @@ void cancelReturn(String id, bool isSaleReturn) {
       }
     }
 
-    // D. Final Result with Opening Row
     double currentRunning = periodOpBal;
     List<Map<String, dynamic>> finalResult = [];
     
@@ -865,7 +823,6 @@ void cancelReturn(String id, bool isSaleReturn) {
     try {
       final root = await getApplicationDocumentsDirectory();
       
-      // A. Smart Previous Year Calculation (e.g. 2025-26 -> 2024-25)
       String prevFY = "";
       try {
         List<String> parts = currentFY.split('-');
@@ -877,23 +834,19 @@ void cancelReturn(String id, bool isSaleReturn) {
         return false;
       }
 
-      // Base path targeting previous year's folder
       final prevPath = '${root.path}/Pharoah_Data/${activeCompany!.id}/${activeCompany!.businessType}/$prevFY';
       final prevDir = Directory(prevPath);
       
-      // Agar pichla saal system mein nahi hai, toh action abort karein
       if (!await prevDir.exists()) {
         debugPrint("Sync Error: Previous year directory $prevFY not found.");
         return false;
       }
 
-      // Helper to load old JSON database
       dynamic loadJsonPrev(String name) {
         final f = File('$prevPath/$name');
         return f.existsSync() ? jsonDecode(f.readAsStringSync()) : null;
       }
 
-      // 1. Read pichle saal ki memory files
       List<Medicine> prevMeds = (loadJsonPrev('meds.json') as List?)?.map((e) => Medicine.fromMap(e)).toList() ?? [];
       List<Party> prevParties = (loadJsonPrev('parts.json') as List?)?.map((e) => Party.fromMap(e)).toList() ?? [];
       List<Sale> prevSales = (loadJsonPrev('sales.json') as List?)?.map((e) => Sale.fromMap(e)).toList() ?? [];
@@ -902,33 +855,28 @@ void cancelReturn(String id, bool isSaleReturn) {
       List<Bank> prevBanks = (loadJsonPrev('banks.json') as List?)?.map((e) => Bank.fromMap(e)).toList() ?? [];
       Map<String, dynamic> prevBatchesRaw = loadJsonPrev('bats.json') ?? {};
 
-      // 2. Re-calculate Party Closing Balances (Debit/Credit logic of all transaction types)
       Map<String, double> recalculatedPartyBals = {};
       for (var p in prevParties) {
         if (p.name == "CASH") continue;
         double bal = p.opBal;
         
-        // Add Sales
         for (var s in prevSales.where((s) => s.partyName == p.name && s.status == "Active")) {
           bal += s.totalAmount;
         }
-        // Subtract Purchases
         for (var pr in prevPurc.where((pr) => pr.distributorName == p.name)) {
           bal -= pr.totalAmount;
         }
-        // Process Vouchers (Receipts, Payments, Expenses)
         for (var v in prevVouc.where((v) => v.partyName == p.name && v.status == "Active")) {
           String type = v.type.toUpperCase();
           if (type == "RECEIPT") {
-            runningBal -= v.amount;
+            bal -= v.amount; // FIXED: Changed runningBal to bal
           } else if (type == "PAYMENT" || type == "EXPENSE") {
-            runningBal += v.amount;
+            bal += v.amount; // FIXED: Changed runningBal to bal
           }
         }
         recalculatedPartyBals[p.id] = bal;
       }
 
-      // 3. Re-calculate Bank Balances (Opening + Receipts - Payments - Expenses)
       Map<String, double> recalculatedBankBals = {};
       for (var b in prevBanks) {
         double bal = b.openingBalance;
@@ -943,42 +891,36 @@ void cancelReturn(String id, bool isSaleReturn) {
         recalculatedBankBals[b.id] = bal;
       }
 
-      // 4. Re-calculate Batch Stocks (Previous Year Closing becomes New Year Opening)
       Map<String, List<BatchInfo>> recalculatedBatches = {};
       prevBatchesRaw.forEach((medKey, batchList) {
         List<dynamic> list = batchList as List;
         recalculatedBatches[medKey] = list.map((b) {
           BatchInfo bObj = BatchInfo.fromMap(b);
           if (bObj.qty < 0) bObj.qty = 0;
-          bObj.openingQty = bObj.qty; // Set new year opening as old year closing
-          bObj.adjustmentQty = 0;     // Reset adjustments
+          bObj.openingQty = bObj.qty; 
+          bObj.adjustmentQty = 0;     
           return bObj;
         }).toList();
       });
 
-      // 5. Apply new calculated opening values to active year's memory list
-      // A. Sync Party Balances
       for (int idx = 0; idx < parties.length; idx++) {
         String pId = parties[idx].id;
         if (recalculatedPartyBals.containsKey(pId)) {
           parties[idx].opBal = recalculatedPartyBals[pId]!;
         }
       }
-      // B. Sync Bank Balances
       for (int idx = 0; idx < banks.length; idx++) {
         String bId = banks[idx].id;
         if (recalculatedBankBals.containsKey(bId)) {
           banks[idx].openingBalance = recalculatedBankBals[bId]!;
         }
       }
-      // C. Sync Batch Balances
       recalculatedBatches.forEach((medKey, list) {
         batchHistory[medKey] = list;
       });
 
-      // 6. Save Updated data to Disk
       await save();
-      await loadAllData(); // Full refresh
+      await loadAllData(); 
 
       addLog("SYSTEM", "Provisional Sync complete. opening balances carried forward from $prevFY.");
       return true;
@@ -987,4 +929,91 @@ void cancelReturn(String id, bool isSaleReturn) {
       return false;
     }
   }
-}
+
+  // ===========================================================================
+  // ✍️ SIGNATURES & CHALLAN SECURITY (RESTORED & RESOLVED)
+  // ===========================================================================
+  
+  Future<void> addSignatureToChallan({
+    required String challanId, 
+    required String imagePath, 
+    required String code, 
+    required double amount, 
+    required double qty, 
+    required double x, 
+    required double y
+  }) async { 
+    int idx = saleChallans.indexWhere((c) => c.id == challanId); 
+    if (idx != -1) { 
+      final s = ChallanSignature(
+        id: DateTime.now().toString(), 
+        imagePath: imagePath, 
+        verificationCode: code, 
+        signedAmount: amount, 
+        signedQty: qty, 
+        signDate: DateTime.now(), 
+        signX: x, 
+        signY: y
+      ); 
+      List<ChallanSignature> h = List.from(saleChallans[idx].sigHistory); 
+      h.add(s); 
+      saleChallans[idx].sigHistory = h; 
+      saleChallans[idx].isSigned = true; 
+      await save(); 
+    } 
+  }
+
+  Future<String> saveSignatureFile(String cNo, Uint8List b) async { 
+    final r = await getApplicationDocumentsDirectory(); 
+    final d = Directory('${r.path}/Pharoah_Data/${activeCompany!.id}/Signatures'); 
+    if (!await d.exists()) await d.create(recursive: true); 
+    final f = File('${d.path}/Sign_${cNo}_${DateTime.now().millisecondsSinceEpoch}.png'); 
+    await f.writeAsBytes(b); 
+    return f.path; 
+  }
+
+  // ===========================================================================
+  // 📜 MEDICINE HISTORY ENGINE (RESTORED & RESOLVED)
+  // ===========================================================================
+
+  List<Map<String, dynamic>> getMedicineHistory({
+    required String partyId, 
+    required String medicineId, 
+    required bool isSale
+  }) {
+    List<Map<String, dynamic>> history = [];
+    if (isSale) {
+      for (var s in sales.where((s) => s.partyId == partyId && s.status == "Active")) {
+        for (var it in s.items.where((it) => it.medicineID == medicineId)) {
+          history.add({
+            'date': s.date, 
+            'billNo': s.billNo, 
+            'batch': it.batch, 
+            'qty': it.qty, 
+            'free': it.freeQty, 
+            'rate': it.rate, 
+            'mrp': it.mrp, 
+            'gst': it.gstRate
+          });
+        }
+      }
+    } else {
+      for (var p in purchases.where((p) => p.partyId == partyId)) {
+        for (var it in p.items.where((it) => it.medicineID == medicineId)) {
+          history.add({
+            'date': p.date, 
+            'billNo': p.billNo, 
+            'batch': it.batch, 
+            'qty': it.qty, 
+            'free': it.freeQty, 
+            'rate': it.purchaseRate, 
+            'mrp': it.mrp, 
+            'gst': it.gstRate
+          });
+        }
+      }
+    }
+    history.sort((a, b) => b['date'].compareTo(a['date']));
+    return history;
+  }
+} // <--- THE DEFINITIVE CLOSING BRACE FOR PHAROAHMANAGER CLASS
