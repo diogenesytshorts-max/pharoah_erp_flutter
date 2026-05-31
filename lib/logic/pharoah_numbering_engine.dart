@@ -1,11 +1,11 @@
-// FILE: lib/logic/pharoah_numbering_engine.dart
+// FILE: lib/logic/pharoah_numbering_engine.dart (UPGRADED FINANCIAL YEAR NAMESPACE)
 
 import 'package:shared_preferences/shared_preferences.dart';
 
 class PharoahNumberingEngine {
   
   // ===========================================================================
-  // 1. GET NEXT SMART NUMBER (Gap-Filling Sequential Engine)
+  // 1. GET NEXT SMART NUMBER (FY-Isolated, Gap-Filling Sequential Engine)
   // ===========================================================================
   static Future<String> getNextNumber({
     required String type,           // SALE, PURCHASE, PRODUCT, etc.
@@ -17,9 +17,9 @@ class PharoahNumberingEngine {
     
     final prefs = await SharedPreferences.getInstance();
     
-    // Pointer check in persistent storage
-    String counterKey = 'lastID_${type}_${prefix}_$companyID';
-    // Note: We don't rely only on the stored int because items might have been deleted/added
+    // --- NAYA: Active FY ko read karke namespace banana ---
+    String currentFY = prefs.getString('active_fy_$companyID') ?? "default_fy";
+    String counterKey = 'lastID_${type}_${prefix}_${companyID}_$currentFY';
     
     List<int> existingNumbers = [];
 
@@ -27,8 +27,6 @@ class PharoahNumberingEngine {
     for (var item in currentList) {
       String idToParse = "";
       
-     // loop ke andar jahan idToParse assign ho raha hai, wahan ye logic jodein:
-
       try {
         if (type == "PURCHASE" || type == "CHALLAN_PUR") {
           idToParse = item.internalNo;
@@ -36,11 +34,9 @@ class PharoahNumberingEngine {
         else if (type == "PRODUCT") {
           idToParse = item.systemId;
         } 
-        // --- NAYA LOGIC YAHAN JODEIN ---
         else if (type == "RECEIPT" || type == "PAYMENT") {
-          idToParse = item.voucherNo; // Kyunki Voucher model mein field ka naam voucherNo hai
+          idToParse = item.voucherNo; 
         }
-        // ------------------------------
         else {
           idToParse = item.billNo; 
         }
@@ -62,7 +58,7 @@ class PharoahNumberingEngine {
       // Look for the first available gap from startFrom
       for (int i = startFrom; i <= existingNumbers.last; i++) {
         if (!existingNumbers.contains(i)) {
-          return "$prefix$i"; // Found a missing number (e.g. 1, 2, [gap 3], 4)
+          return "$prefix$i"; // Found a missing number
         }
       }
       
@@ -75,7 +71,7 @@ class PharoahNumberingEngine {
   }
 
   // ===========================================================================
-  // 2. UPDATE PERSISTENT POINTER
+  // 2. UPDATE PERSISTENT POINTER (FY-Isolated)
   // ===========================================================================
   static Future<void> updateSeriesCounter({
     required String type,
@@ -86,14 +82,16 @@ class PharoahNumberingEngine {
     if (!usedNumber.startsWith(prefix)) return;
 
     final prefs = await SharedPreferences.getInstance();
-    String counterKey = 'lastID_${type}_${prefix}_$companyID';
+    
+    // Naya Year Namespace Key
+    String currentFY = prefs.getString('active_fy_$companyID') ?? "default_fy";
+    String counterKey = 'lastID_${type}_${prefix}_${companyID}_$currentFY';
     
     String numStr = usedNumber.replaceFirst(prefix, "");
     int? usedInt = int.tryParse(numStr);
     
     if (usedInt != null) {
       int currentSaved = prefs.getInt(counterKey) ?? 0;
-      // Sirf tabhi update karein jab naya number bada ho
       if (usedInt > currentSaved) {
         await prefs.setInt(counterKey, usedInt);
       }
@@ -101,7 +99,7 @@ class PharoahNumberingEngine {
   }
 
   // ===========================================================================
-  // 3. COUNTER RESET (DANGER ZONE)
+  // 3. COUNTER RESET (DANGER ZONE - Isolated to Active FY)
   // ===========================================================================
   static Future<void> resetSeries({
     required String type,
@@ -109,7 +107,9 @@ class PharoahNumberingEngine {
     required String prefix,
   }) async {
     final prefs = await SharedPreferences.getInstance();
-    String counterKey = 'lastID_${type}_${prefix}_$companyID';
+    
+    String currentFY = prefs.getString('active_fy_$companyID') ?? "default_fy";
+    String counterKey = 'lastID_${type}_${prefix}_${companyID}_$currentFY';
     await prefs.remove(counterKey);
   }
 }
