@@ -1,4 +1,4 @@
-// FILE: lib/product_master.dart
+// FILE: lib/product_master.dart (UPDATED VERSION)
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -27,12 +27,56 @@ class _ProductMasterViewState extends State<ProductMasterView> {
   @override
   void initState() {
     super.initState();
-    // Agar import review screen se data aaya hai toh seedha form kholo
     if (widget.preFillData != null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         _showProductForm();
       });
     }
+  }
+
+  // --- 🛡️ NAYA: DELETION PROTECTION LOGIC ---
+  void _confirmDelete(PharoahManager ph, Medicine med) {
+    // 1. Check Usage from Manager
+    bool inUse = ph.isProductInUse(med.id);
+
+    if (inUse) {
+      // Restricted Alert
+      showDialog(
+        context: context,
+        builder: (c) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+          title: const Row(children: [Icon(Icons.lock, color: Colors.red), SizedBox(width: 10), Text("Delete Restricted")]),
+          content: Text("Cannot delete '${med.name}' because it is linked to existing Sale or Purchase records in this year."),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(c), child: const Text("CLOSE")),
+          ],
+        ),
+      );
+      return;
+    }
+
+    // 2. Clear to Delete Dialog
+    showDialog(
+      context: context,
+      builder: (c) => AlertDialog(
+        title: const Text("Delete Product?"),
+        content: Text("Are you sure you want to remove '${med.name}' permanently?"),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(c), child: const Text("CANCEL")),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () {
+              ph.medicines.removeWhere((m) => m.id == med.id);
+              ph.save();
+              Navigator.pop(c);
+              setState(() {});
+              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Item Deleted!")));
+            }, 
+            child: const Text("YES, DELETE", style: TextStyle(color: Colors.white))
+          ),
+        ],
+      ),
+    );
   }
 
   // ===========================================================================
@@ -46,20 +90,15 @@ class _ProductMasterViewState extends State<ProductMasterView> {
 
     final nameC = TextEditingController(text: med?.name ?? pf?['name']?.toString().toUpperCase());
     final packC = TextEditingController(text: med?.packing ?? pf?['pack']?.toString().toUpperCase());
-    
-    // FIXED: Naming aligned with models.dart (hsnCode instead of hsn)
     final hsnC = TextEditingController(text: med?.hsnCode ?? pf?['hsn']?.toString());
-    
     final gstC = TextEditingController(text: med?.gst.toString() ?? pf?['gstPer']?.toString() ?? "12");
     final rackC = TextEditingController(text: med?.rackNo);
     final reorderC = TextEditingController(text: med?.reorderLevel.toString() ?? "0");
 
-    // Price Controllers
     final mrpC = TextEditingController(text: med?.mrp.toString() ?? pf?['mrp']?.toString() ?? "0");
     final purRateC = TextEditingController(text: med?.purRate.toString() ?? pf?['purRateInFile']?.toString() ?? "0");
     final rateAC = TextEditingController(text: med?.rateA.toString() ?? pf?['saleRateInFile']?.toString() ?? "0");
 
-    // SMART ID GENERATION (Sequential PH- Series)
     String sysIdDisplay = med?.systemId ?? "Generating...";
     if (med == null) {
       sysIdDisplay = await PharoahNumberingEngine.getNextNumber(
@@ -74,9 +113,7 @@ class _ProductMasterViewState extends State<ProductMasterView> {
     String selForm = med?.drugForm ?? pf?['form']?.toString().toUpperCase() ?? "TAB";
     bool naco = med?.isNarcotic ?? (pf?['isNaco'] == true);
     bool schH1 = med?.isScheduleH1 ?? (pf?['isH1'] == true);
-    String selStore = med?.storageCondition ?? "Room Temp";
 
-    // AUTO-LINK COMPANY & SALT BY NAME
     String? companyId = med?.companyId;
     String? saltId = med?.saltId;
     String companyName = "Tap to Select Company";
@@ -164,7 +201,6 @@ class _ProductMasterViewState extends State<ProductMasterView> {
               onPressed: () {
                 if(nameC.text.isEmpty || packC.text.isEmpty) return;
 
-                // Final Link Check
                 if (companyId == null && companyName != "Tap to Select Company") {
                   companyId = ph.getOrCreateCompany(companyName);
                 }
@@ -205,10 +241,6 @@ class _ProductMasterViewState extends State<ProductMasterView> {
     );
   }
 
-  // ===========================================================================
-  // UI HELPERS
-  // ===========================================================================
-
   @override Widget build(BuildContext context) {
     final ph = Provider.of<PharoahManager>(context);
     final list = ph.medicines.where((m) => m.name.toLowerCase().contains(searchQuery.toLowerCase())).toList();
@@ -227,8 +259,13 @@ class _ProductMasterViewState extends State<ProductMasterView> {
                 leading: CircleAvatar(backgroundColor: Colors.purple.shade50, child: Text(m.systemId.replaceAll("PH-", ""), style: const TextStyle(fontSize: 8, fontWeight: FontWeight.bold, color: Colors.purple))),
                 title: Text("${m.name} (${m.packing})", style: const TextStyle(fontWeight: FontWeight.bold)),
                 subtitle: Text("Stock: ${m.stock} | MRP: ₹${m.mrp}"),
-                trailing: const Icon(Icons.edit_note, color: Colors.grey),
-                onTap: () => _showProductForm(med: m),
+                trailing: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    IconButton(icon: const Icon(Icons.edit_note, color: Colors.blue), onPressed: () => _showProductForm(med: m)),
+                    IconButton(icon: const Icon(Icons.delete_outline, color: Colors.red), onPressed: () => _confirmDelete(ph, m)),
+                  ],
+                ),
             ));
         }))
       ]),
