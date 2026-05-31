@@ -627,7 +627,16 @@ void cancelReturn(String id, bool isSaleReturn) {
   void deletePurchaseChallan(String id) { purchaseChallans.removeWhere((c) => c.id == id); save(); }
   void deleteSaleReturn(String id) { saleReturns.removeWhere((r) => r.id == id); save().then((_) => loadAllData()); }
   void deletePurchaseReturn(String id) { purchaseReturns.removeWhere((r) => r.id == id); save().then((_) => loadAllData()); }
-  void deleteParty(String id) { parties.removeWhere((p) => p.id == id); save(); }
+// Note: Iska asli use UI (PartyMasterView) mein hoga, par Manager mein safety filter hai
+  void deleteParty(String id) {
+    try {
+      final p = parties.firstWhere((pt) => pt.id == id);
+      if (!isPartyInUse(p.id, p.name)) {
+        parties.removeWhere((pt) => pt.id == id);
+        save();
+      }
+    } catch (e) {}
+  }
   void deleteRoute(String id) { routes.removeWhere((r) => r.id == id); save(); }
   void deleteSystemUser(String id) { systemUsers.removeWhere((x) => x.id == id); save(); }
   void deleteShortage(String id) { shortages.removeWhere((s) => s.id == id); save(); }
@@ -687,6 +696,24 @@ void cancelReturn(String id, bool isSaleReturn) {
     return ok; 
   }
   Future<void> masterReset() async { final p = await getWorkingPath(); if(p.isNotEmpty) { final d = Directory(p); if(d.existsSync()) d.deleteSync(recursive: true); } await loadAllData(); }
+  // --- INTEGRITY CHECKERS ---
+  
+  bool isPartyInUse(String partyId, String partyName) {
+    // Check in Sales, Purchases and Vouchers
+    bool inSales = sales.any((s) => s.partyId == partyId || s.partyName == partyName);
+    bool inPurchases = purchases.any((p) => p.partyId == partyId || p.distributorName == partyName);
+    bool inVouchers = vouchers.any((v) => v.partyId == partyId || v.partyName == partyName);
+    bool inChallans = saleChallans.any((c) => c.partyId == partyId) || purchaseChallans.any((c) => c.partyId == partyId);
+    
+    return inSales || inPurchases || inVouchers || inChallans;
+  }
+
+  bool isProductInUse(String medId) {
+    // Check if any bill has this product
+    bool inSales = sales.any((s) => s.items.any((it) => it.medicineID == medId));
+    bool inPurchases = purchases.any((p) => p.items.any((it) => it.medicineID == medId));
+    return inSales || inPurchases;
+  }
 
   // ===========================================================================
   // 10. GETTERS & RECOVERY
