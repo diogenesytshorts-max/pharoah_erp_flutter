@@ -26,6 +26,9 @@ class PharoahManager with ChangeNotifier {
   // ===========================================================================
   
   String activeModule = "HOME"; 
+  // --- CONDITIONAL BATCH FILTER WATCHDOG (NEW) ---
+  // Yeh tabhi true dega jab company ke paas 1 se zyada Financial Years honge
+  bool get showBatchFilter => activeCompany != null && activeCompany!.fYears.length > 1;
   
   // --- 🛡️ NEW SECURITY & AUTO-LOCK STATE ---
   bool isAppLocked = false;           
@@ -233,9 +236,17 @@ class PharoahManager with ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> loginToCompany(CompanyProfile c, String fy) async { 
+Future<void> loginToCompany(CompanyProfile c, String fy) async { 
     activeCompany = c; 
     currentFY = fy; 
+    
+    // --- SMART NAMESPACING FOR FINANCIAL YEAR (NEW) ---
+    final prefs = await SharedPreferences.getInstance();
+    // 1. Numbering Engine ke liye active year lock kiya
+    await prefs.setString('active_fy_${c.id}', fy); 
+    // 2. Restart par system ko yaad rahe isliye saal save kiya
+    await prefs.setString('last_active_fy_for_${c.id}', fy); 
+    
     await loadAllData(); 
   }
 
@@ -650,24 +661,25 @@ void cancelReturn(String id, bool isSaleReturn) {
   // ===========================================================================
 
   Future<void> setupNewCompanyEnvironment(CompanyProfile p, String f) async { activeCompany = p; currentFY = f; numberingSeries = [NumberingSeries(id: 's1', name: "Standard Retail", type: "SALE", prefix: "INV-", isDefault: true)]; medicines = DemoData.getMedicines(); companies = MasterDataLibrary.getTopCompanies(); salts = MasterDataLibrary.getTopSalts(); drugTypes = MasterDataLibrary.getDrugTypes(); parties = [DemoData.getDemoParty(), Party(id: 'cash', name: "CASH", group: "Cash in Hand")]; await save(); if (!companiesRegistry.any((c) => c.id == p.id)) { companiesRegistry.add(p); await saveRegistry(); } notifyListeners(); }
-  Future<bool> startNewFinancialYear(String n) async { 
+ Future<bool> startNewFinancialYear(String n, {bool filterZeroStock = false, bool filterExpired = false}) async { 
     await save(); 
-    // 1. Data transfer process
+    
+    // NAYA: Multi-filtration parameters pass kiye
     bool ok = await FYTransferEngine.transferData(
       companyID: activeCompany!.id, 
       businessType: activeCompany!.businessType, 
       sourceFY: currentFY, 
-      targetFY: n
+      targetFY: n,
+      filterZeroStock: filterZeroStock, // Checkbox values
+      filterExpired: filterExpired,     // Checkbox values
     ); 
 
     if(ok) {
-      // 2. CRITICAL BUG FIX: Registry mein naya saal add karna taaki "Login to Work" mein dikhe
       int idx = companiesRegistry.indexWhere((c) => c.id == activeCompany!.id);
       if (idx != -1) {
         List<String> updatedYears = List.from(companiesRegistry[idx].fYears);
         if (!updatedYears.contains(n)) {
           updatedYears.add(n);
-          // Naya profile object banana kyunki CompanyProfile final fields use karta hai
           companiesRegistry[idx] = CompanyProfile(
             id: activeCompany!.id,
             name: activeCompany!.name,
@@ -684,13 +696,18 @@ void cancelReturn(String id, bool isSaleReturn) {
             isBiometricEnabled: activeCompany!.isBiometricEnabled,
             recoveryKey: activeCompany!.recoveryKey,
             autoLockMinutes: activeCompany!.autoLockMinutes,
-            fYears: updatedYears, // Nayi list yahan pass ki
+            fYears: updatedYears,
           );
           activeCompany = companiesRegistry[idx];
-          await saveRegistry(); // Registry file mein save kiya
+          await saveRegistry();
         }
       }
       currentFY = n; 
+      
+      // Auto-lock the new FY counter namespace
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('active_fy_${activeCompany!.id}', n);
+      
       await loadAllData(); 
     } 
     return ok; 
