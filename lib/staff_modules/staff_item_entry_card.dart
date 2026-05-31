@@ -1,4 +1,4 @@
-// FILE: lib/staff_modules/staff_item_entry_card.dart
+// FILE: lib/staff_modules/staff_item_entry_card.dart (UPGRADED DYNAMIC BATCH FILTER VERSION)
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -36,6 +36,9 @@ class _StaffItemEntryCardState extends State<StaffItemEntryCard> {
   final freeC = TextEditingController(text: "0");
   final gstC = TextEditingController();
   final normDiscC = TextEditingController(text: "0.0");
+
+  // --- NAYA: Dynamic Batch Filter Local State ---
+  bool hideZeroStock = true; // By default zero stock batches chhupayenge
 
   @override
   void initState() {
@@ -87,12 +90,23 @@ class _StaffItemEntryCardState extends State<StaffItemEntryCard> {
     final ph = Provider.of<PharoahManager>(context);
     final totals = _calcTotals();
 
-    // NAYA: Suggesions from Rahul Enterprise Master Registry (Sales safe)
-    final matchingBatches = BatchSyncEngine.getFilteredBatches(
+    // --- SMART BATCH SELECTION FILTER ENGINE (NEW) ---
+    final rawBatches = BatchSyncEngine.getFilteredBatches(
       ph: ph, 
       productKey: widget.med.identityKey,
       hideExpired: true // Staff ko expired batch nahi dikhna chahiye
-    ).where((b) => b.batch.toLowerCase().contains(batchC.text.toLowerCase())).toList();
+    );
+
+    final matchingBatches = rawBatches.where((b) {
+      bool matchesSearch = b.batch.toLowerCase().contains(batchC.text.toLowerCase());
+      if (!matchesSearch) return false;
+      
+      // Dynamic Filter Check
+      if (ph.showBatchFilter && hideZeroStock && b.qty <= 0) {
+        return false;
+      }
+      return true;
+    }).toList();
 
     // Expiry UI Status
     String expStr = expC.text;
@@ -118,7 +132,33 @@ class _StaffItemEntryCardState extends State<StaffItemEntryCard> {
             Expanded(child: _input(expC, "EXPIRY", Icons.event, color: statusColor, isNum: true, onChanged: _formatExpiry)),
           ]),
 
-          // BATCH CHIPS FOR STAFF (Simplified)
+          // --- NAYA: Conditional Batch Filter Header for Staff ---
+          if (ph.showBatchFilter && widget.existingItem == null)
+            Padding(
+              padding: const EdgeInsets.only(top: 10, left: 4, right: 4),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text("AVAILABLE BATCHES", style: TextStyle(fontSize: 8, fontWeight: FontWeight.bold, color: Colors.grey, letterSpacing: 0.5)),
+                  InkWell(
+                    onTap: () => setState(() => hideZeroStock = !hideZeroStock),
+                    child: Row(
+                      children: [
+                        Icon(
+                          hideZeroStock ? Icons.check_box : Icons.check_box_outline_blank, 
+                          size: 14, 
+                          color: Colors.teal
+                        ),
+                        const SizedBox(width: 4),
+                        const Text("Hide Zero Stock", style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.teal)),
+                      ],
+                    ),
+                  )
+                ],
+              ),
+            ),
+
+          // BATCH CHIPS FOR STAFF (Simplified & Upgraded with Stocks)
           if (matchingBatches.isNotEmpty && widget.existingItem == null)
             Container(height: 45, margin: const EdgeInsets.symmetric(vertical: 8),
               child: ListView(scrollDirection: Axis.horizontal, children: matchingBatches.map((b) {
@@ -126,7 +166,7 @@ class _StaffItemEntryCardState extends State<StaffItemEntryCard> {
                   return Padding(padding: const EdgeInsets.only(right: 8),
                     child: ActionChip(
                       backgroundColor: bColor.withOpacity(0.05),
-                      label: Text("${b.batch} (${b.exp})", style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: bColor)),
+                      label: Text("${b.batch} (${b.qty.toInt()})", style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: bColor)),
                       onPressed: () {
                         setState(() {
                           batchC.text = b.batch; expC.text = b.exp;
