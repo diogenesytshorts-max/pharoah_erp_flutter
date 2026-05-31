@@ -1,4 +1,4 @@
-// FILE: lib/pharoah_manager.dart
+// FILE: lib/pharoah_manager.dart (FULLY UPGRADED & INTEGRATED STABLE VERSION)
 
 import 'dart:convert';
 import 'dart:io';
@@ -8,6 +8,7 @@ import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:local_auth/local_auth.dart'; 
 import 'package:flutter_secure_storage/flutter_secure_storage.dart'; 
+import 'package:shared_preferences/shared_preferences.dart'; // REQUIRED FOR DYNAMIC NAMESPACE
 
 import 'models.dart';
 import 'administration/system_user_model.dart';
@@ -26,6 +27,7 @@ class PharoahManager with ChangeNotifier {
   // ===========================================================================
   
   String activeModule = "HOME"; 
+  
   // --- CONDITIONAL BATCH FILTER WATCHDOG (NEW) ---
   // Yeh tabhi true dega jab company ke paas 1 se zyada Financial Years honge
   bool get showBatchFilter => activeCompany != null && activeCompany!.fYears.length > 1;
@@ -236,7 +238,7 @@ class PharoahManager with ChangeNotifier {
     notifyListeners();
   }
 
-Future<void> loginToCompany(CompanyProfile c, String fy) async { 
+  Future<void> loginToCompany(CompanyProfile c, String fy) async { 
     activeCompany = c; 
     currentFY = fy; 
     
@@ -854,7 +856,7 @@ void cancelReturn(String id, bool isSaleReturn) {
     return finalResult;
   }
 
-// ===========================================================================
+  // ===========================================================================
   // 🏛️ NAYA: PROVISIONAL BALANCE SYNC ENGINE (MARG STYLE)
   // ===========================================================================
   Future<bool> syncOpeningBalancesFromPreviousYear() async {
@@ -914,13 +916,13 @@ void cancelReturn(String id, bool isSaleReturn) {
         for (var pr in prevPurc.where((pr) => pr.distributorName == p.name)) {
           bal -= pr.totalAmount;
         }
-        // Process Vouchers (Receipts/Payments/Expenses)
+        // Process Vouchers (Receipts, Payments, Expenses)
         for (var v in prevVouc.where((v) => v.partyName == p.name && v.status == "Active")) {
           String type = v.type.toUpperCase();
           if (type == "RECEIPT") {
-            bal -= v.amount;
+            runningBal -= v.amount;
           } else if (type == "PAYMENT" || type == "EXPENSE") {
-            bal += v.amount;
+            runningBal += v.amount;
           }
         }
         recalculatedPartyBals[p.id] = bal;
@@ -985,3 +987,4 @@ void cancelReturn(String id, bool isSaleReturn) {
       return false;
     }
   }
+}
