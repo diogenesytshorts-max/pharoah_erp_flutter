@@ -43,7 +43,43 @@ class _ImportReviewScreenState extends State<ImportReviewScreen> {
     final data = widget.csvData;
     if (data.length < 2) return;
     
-    var r1 = data[1];
+   var r1 = data[1];
+
+    // --- SMART DATE WATCHDOG START (NEW) ---
+    String rawCsvDate = r1[0]?.toString() ?? "";
+    DateTime finalAdjustedDate;
+    String dateAdjustmentNote = "";
+    bool isDateAdjusted = false;
+
+    // Active Financial Year Boundaries
+    DateTime fyStart = AppDateLogic.getFYStart(ph.currentFY);
+    DateTime fyEnd = AppDateLogic.getFYEnd(ph.currentFY);
+
+    try {
+      DateTime parsedDate = DateFormat('dd/MM/yyyy').parse(rawCsvDate.trim());
+      
+      if (parsedDate.isBefore(fyStart)) {
+        // Maal pichle saal ka hai -> Force to 1st April of current active year
+        finalAdjustedDate = fyStart;
+        isDateAdjusted = true;
+        dateAdjustmentNote = "[Date Adjusted: Original Csv Date $rawCsvDate]";
+      } else if (parsedDate.isAfter(fyEnd)) {
+        // Future date case -> Force to 31st March
+        finalAdjustedDate = fyEnd;
+        isDateAdjusted = true;
+        dateAdjustmentNote = "[Date Adjusted: Original Csv Date $rawCsvDate]";
+      } else {
+        // Sahi range mein hai -> Keep original
+        finalAdjustedDate = parsedDate;
+      }
+    } catch (e) {
+      // Parse error fallback -> Force to FY Start
+      finalAdjustedDate = fyStart;
+      isDateAdjusted = true;
+      dateAdjustmentNote = "[Date Adjusted: Parse Fail Fallback]";
+    }
+    // --- SMART DATE WATCHDOG END ---
+
     partyInfoInFile = {
       'name': r1[2]?.toString().trim().toUpperCase() ?? "UNKNOWN",
       'gst': r1[3]?.toString().trim().toUpperCase() ?? "",
@@ -55,7 +91,13 @@ class _ImportReviewScreenState extends State<ImportReviewScreen> {
       'city': r1[9]?.toString().trim().toUpperCase() ?? "",
       'state': r1[10]?.toString().trim() ?? "Rajasthan",
       'billNo': r1[1]?.toString() ?? "DRAFT",
-      'date': r1[0]?.toString() ?? DateFormat('dd/MM/yyyy').format(DateTime.now()),
+      
+      // Adjusted Date and Flags
+      'date': finalAdjustedDate, // Store as DateTime object directly
+      'isDateAdjusted': isDateAdjusted,
+      'dateAdjustmentNote': dateAdjustmentNote,
+      'rawCsvDate': rawCsvDate,
+
       'extraDisc': r1.length > 35 ? (double.tryParse(r1[35].toString()) ?? 0.0) : 0.0,
       'roundOff': r1.length > 36 ? (double.tryParse(r1[36].toString()) ?? 0.0) : 0.0,
     };
@@ -160,24 +202,54 @@ class _ImportReviewScreenState extends State<ImportReviewScreen> {
     );
   }
 
-  Widget _buildPartyCard() {
+ Widget _buildPartyCard() {
     bool isOk = matchedParty != null;
-    return InkWell(
-      onTap: () => _showPartyVerifySheet(),
-      child: Container(
-        margin: const EdgeInsets.all(12), padding: const EdgeInsets.all(15),
-        decoration: BoxDecoration(color: const Color(0xFF1E293B), borderRadius: BorderRadius.circular(15), border: Border.all(color: isOk ? Colors.blueAccent : Colors.redAccent)),
-        child: Row(children: [
-          CircleAvatar(backgroundColor: isOk ? Colors.blue : Colors.redAccent, child: const Icon(Icons.business, color: Colors.white)),
-          const SizedBox(width: 15),
-          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(partyInfoInFile['name'], style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15)),
-            Text("Mob: ${partyInfoInFile['phone']} | GST: ${partyInfoInFile['gst']}", style: const TextStyle(color: Colors.white54, fontSize: 10)),
-            const Text("VIEW & MANAGE DETAILS", style: TextStyle(color: Colors.blueAccent, fontSize: 9, fontWeight: FontWeight.bold)),
-          ])),
-          Icon(isOk ? Icons.verified : Icons.error_outline, color: isOk ? Colors.greenAccent : Colors.orange),
-        ]),
-      ),
+    bool wasDateAdjusted = partyInfoInFile['isDateAdjusted'] ?? false;
+    String rawDateStr = partyInfoInFile['rawCsvDate'] ?? "";
+    String adjustedDateStr = DateFormat('dd/MM/yyyy').format(partyInfoInFile['date'] as DateTime);
+
+    return Column(
+      children: [
+        InkWell(
+          onTap: () => _showPartyVerifySheet(),
+          child: Container(
+            margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 8), padding: const EdgeInsets.all(15),
+            decoration: BoxDecoration(color: const Color(0xFF1E293B), borderRadius: BorderRadius.circular(15), border: Border.all(color: isOk ? Colors.blueAccent : Colors.redAccent)),
+            child: Row(children: [
+              CircleAvatar(backgroundColor: isOk ? Colors.blue : Colors.redAccent, child: const Icon(Icons.business, color: Colors.white)),
+              const SizedBox(width: 15),
+              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(partyInfoInFile['name'], style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15)),
+                Text("Mob: ${partyInfoInFile['phone']} | GST: ${partyInfoInFile['gst']}", style: const TextStyle(color: Colors.white54, fontSize: 10)),
+                const Text("VIEW & MANAGE DETAILS", style: TextStyle(color: Colors.blueAccent, fontSize: 9, fontWeight: FontWeight.bold)),
+              ])),
+              Icon(isOk ? Icons.verified : Icons.error_outline, color: isOk ? Colors.greenAccent : Colors.orange),
+            ]),
+          ),
+        ),
+
+        // --- ⚠️ SMART DATE WARNING BADGE (NEW) ---
+        if (wasDateAdjusted)
+          Container(
+            margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: Colors.orange.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.orange.withOpacity(0.3))
+            ),
+            child: Row(children: [
+              const Icon(Icons.warning_amber_rounded, color: Colors.orange, size: 16),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  "Warning: Bill Date ($rawDateStr) was from different year. Forcing to 1st April ($adjustedDateStr) for compliance.",
+                  style: const TextStyle(color: Colors.orange, fontSize: 10, fontWeight: FontWeight.bold),
+                ),
+              ),
+            ]),
+          ),
+      ],
     );
   }
 
@@ -264,6 +336,16 @@ class _ImportReviewScreenState extends State<ImportReviewScreen> {
     double curST = reviewedItems.where((e)=>e['isSelected']).fold(0.0, (s, e)=>s+e['sysTotal']);
     bool isLoc = matchedParty!.state.toLowerCase() == (ph.activeCompany?.state.toLowerCase() ?? "rajasthan");
 
+   // Adjusted Date Fetch karna jo Step 1 mein set hui thi
+    DateTime adjustedBillDate = partyInfoInFile['date'] as DateTime;
+    String auditNote = partyInfoInFile['dateAdjustmentNote'] ?? "";
+    
+    // final import tag preparation
+    String finalSourceTag = widget.exchangeMode;
+    if (auditNote.isNotEmpty) {
+      finalSourceTag += " $auditNote"; // Append audit log to sourceTag
+    }
+
     if (widget.importType == "PURCHASE") {
       List<PurchaseItem> items = [];
       for (var it in reviewedItems.where((e) => e['isSelected'])) {
@@ -271,7 +353,19 @@ class _ImportReviewScreenState extends State<ImportReviewScreen> {
         ph.registerBatchActivity(productKey: m.identityKey, batchNo: it['batch'], exp: it['exp'], packing: m.packing, mrp: it['mrp'], rate: it['rate']);
         items.add(PurchaseItem(id: DateTime.now().toString() + m.id, srNo: items.length + 1, medicineID: m.id, name: m.name, packing: m.packing, batch: it['batch'], exp: it['exp'], hsn: it['hsn'], mrp: it['mrp'], qty: it['qty'], freeQty: it['free'], purchaseRate: it['rate'], gstRate: it['gstPer'], total: it['sysTotal'], discountPer: it['itemDiscPer'], discountRupees: it['discAmt']));
       }
-      ph.finalizePurchase(internalNo: "MIR-PUR-${DateTime.now().millisecondsSinceEpoch.toString().substring(7)}", billNo: partyInfoInFile['billNo'], date: DateFormat('dd/MM/yyyy').parse(partyInfoInFile['date']), entryDate: DateTime.now(), party: matchedParty!, items: items, total: items.fold(0, (s, e)=>s+e.total), mode: "CREDIT", sourceTag: widget.exchangeMode);
+      
+      // FIXED: Using already parsed and adjusted DateTime object (adjustedBillDate)
+      ph.finalizePurchase(
+        internalNo: "MIR-PUR-${DateTime.now().millisecondsSinceEpoch.toString().substring(7)}", 
+        billNo: partyInfoInFile['billNo'], 
+        date: adjustedBillDate, 
+        entryDate: DateTime.now(), 
+        party: matchedParty!, 
+        items: items, 
+        total: items.fold(0, (s, e)=>s+e.total), 
+        mode: "CREDIT", 
+        sourceTag: finalSourceTag
+      );
     } else {
       List<BillItem> items = [];
       for (var it in reviewedItems.where((e) => e['isSelected'])) {
@@ -279,7 +373,19 @@ class _ImportReviewScreenState extends State<ImportReviewScreen> {
         double tVal = it['taxable']; double tTax = it['sysTotal'] - tVal;
         items.add(BillItem(id: DateTime.now().toString() + m.id, srNo: items.length + 1, medicineID: m.id, name: m.name, packing: m.packing, batch: it['batch'], exp: it['exp'], hsn: it['hsn'], mrp: it['mrp'], qty: it['qty'], freeQty: it['free'], rate: it['rate'], gstRate: it['gstPer'], cgst: isLoc ? tTax/2 : 0, sgst: isLoc ? tTax/2 : 0, igst: isLoc ? 0 : tTax, total: it['sysTotal'], discountRupees: it['discAmt'], discountPer: it['itemDiscPer']));
       }
-      await ph.finalizeSale(billNo: partyInfoInFile['billNo'], date: DateFormat('dd/MM/yyyy').parse(partyInfoInFile['date']), party: matchedParty!, items: items, total: (curST - partyInfoInFile['extraDisc'] + partyInfoInFile['roundOff']), mode: "CREDIT", sourceTag: widget.exchangeMode, extraDiscount: partyInfoInFile['extraDisc'], roundOff: partyInfoInFile['roundOff']);
+      
+      // FIXED: Using adjustedBillDate
+      await ph.finalizeSale(
+        billNo: partyInfoInFile['billNo'], 
+        date: adjustedBillDate, 
+        party: matchedParty!, 
+        items: items, 
+        total: (curST - partyInfoInFile['extraDisc'] + partyInfoInFile['roundOff']), 
+        mode: "CREDIT", 
+        sourceTag: finalSourceTag, 
+        extraDiscount: partyInfoInFile['extraDisc'], 
+        roundOff: partyInfoInFile['roundOff']
+      );
     }
     Navigator.pop(context);
     ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("✅ C2C Data Sync Successful!"), backgroundColor: Colors.green));
