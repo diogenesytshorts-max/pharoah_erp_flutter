@@ -854,51 +854,134 @@ void cancelReturn(String id, bool isSaleReturn) {
     return finalResult;
   }
 
+// ===========================================================================
+  // 🏛️ NAYA: PROVISIONAL BALANCE SYNC ENGINE (MARG STYLE)
   // ===========================================================================
-  // ✍️ SIGNATURES & CHALLAN SECURITY
-  // ===========================================================================
-  
-  Future<void> addSignatureToChallan({required String challanId, required String imagePath, required String code, required double amount, required double qty, required double x, required double y}) async { 
-    int idx = saleChallans.indexWhere((c) => c.id == challanId); 
-    if (idx != -1) { 
-      final s = ChallanSignature(id: DateTime.now().toString(), imagePath: imagePath, verificationCode: code, signedAmount: amount, signedQty: qty, signDate: DateTime.now(), signX: x, signY: y); 
-      List<ChallanSignature> h = List.from(saleChallans[idx].sigHistory); 
-      h.add(s); 
-      saleChallans[idx].sigHistory = h; 
-      saleChallans[idx].isSigned = true; 
-      await save(); 
-    } 
-  }
+  Future<bool> syncOpeningBalancesFromPreviousYear() async {
+    if (activeCompany == null || currentFY.isEmpty) return false;
 
-  Future<String> saveSignatureFile(String cNo, Uint8List b) async { 
-    final r = await getApplicationDocumentsDirectory(); 
-    final d = Directory('${r.path}/Pharoah_Data/${activeCompany!.id}/Signatures'); 
-    if (!await d.exists()) await d.create(recursive: true); 
-    final f = File('${d.path}/Sign_${cNo}_${DateTime.now().millisecondsSinceEpoch}.png'); 
-    await f.writeAsBytes(b); 
-    return f.path; 
-  }
+    try {
+      final root = await getApplicationDocumentsDirectory();
+      
+      // A. Smart Previous Year Calculation (e.g. 2025-26 -> 2024-25)
+      String prevFY = "";
+      try {
+        List<String> parts = currentFY.split('-');
+        int startYear = int.parse(parts[0]);
+        if (startYear < 2000) startYear += 2000;
+        prevFY = "${startYear - 1}-${startYear.toString().substring(2)}";
+      } catch (e) {
+        debugPrint("FY calculation error inside sync: $e");
+        return false;
+      }
 
-  // ===========================================================================
-  // 📜 MEDICINE HISTORY ENGINE
-  // ===========================================================================
+      // Base path targeting previous year's folder
+      final prevPath = '${root.path}/Pharoah_Data/${activeCompany!.id}/${activeCompany!.businessType}/$prevFY';
+      final prevDir = Directory(prevPath);
+      
+      // Agar pichla saal system mein nahi hai, toh action abort karein
+      if (!await prevDir.exists()) {
+        debugPrint("Sync Error: Previous year directory $prevFY not found.");
+        return false;
+      }
 
-  List<Map<String, dynamic>> getMedicineHistory({required String partyId, required String medicineId, required bool isSale}) {
-    List<Map<String, dynamic>> history = [];
-    if (isSale) {
-      for (var s in sales.where((s) => s.partyId == partyId && s.status == "Active")) {
-        for (var it in s.items.where((it) => it.medicineID == medicineId)) {
-          history.add({'date': s.date, 'billNo': s.billNo, 'batch': it.batch, 'qty': it.qty, 'free': it.freeQty, 'rate': it.rate, 'mrp': it.mrp, 'gst': it.gstRate});
+      // Helper to load old JSON database
+      dynamic loadJsonPrev(String name) {
+        final f = File('$prevPath/$name');
+        return f.existsSync() ? jsonDecode(f.readAsStringSync()) : null;
+      }
+
+      // 1. Read pichle saal ki memory files
+      List<Medicine> prevMeds = (loadJsonPrev('meds.json') as List?)?.map((e) => Medicine.fromMap(e)).toList() ?? [];
+      List<Party> prevParties = (loadJsonPrev('parts.json') as List?)?.map((e) => Party.fromMap(e)).toList() ?? [];
+      List<Sale> prevSales = (loadJsonPrev('sales.json') as List?)?.map((e) => Sale.fromMap(e)).toList() ?? [];
+      List<Purchase> prevPurc = (loadJsonPrev('purc.json') as List?)?.map((e) => Purchase.fromMap(e)).toList() ?? [];
+      List<Voucher> prevVouc = (loadJsonPrev('vouc.json') as List?)?.map((e) => Voucher.fromMap(e)).toList() ?? [];
+      List<Bank> prevBanks = (loadJsonPrev('banks.json') as List?)?.map((e) => Bank.fromMap(e)).toList() ?? [];
+      Map<String, dynamic> prevBatchesRaw = loadJsonPrev('bats.json') ?? {};
+
+      // 2. Re-calculate Party Closing Balances (Debit/Credit logic of all transaction types)
+      Map<String, double> recalculatedPartyBals = {};
+      for (var p in prevParties) {
+        if (p.name == "CASH") continue;
+        double bal = p.opBal;
+        
+        // Add Sales
+        for (var s in prevSales.where((s) => s.partyName == p.name && s.status == "Active")) {
+          bal += s.totalAmount;
+        }
+        // Subtract Purchases
+        for (var pr in prevPurc.where((pr) => pr.distributorName == p.name)) {
+          bal -= pr.totalAmount;
+        }
+        // Process Vouchers (Receipts/Payments/Expenses)
+        for (var v in prevVouc.where((v) => v.partyName == p.name && v.status == "Active")) {
+          String type = v.type.toUpperCase();
+          if (type == "RECEIPT") {
+            bal -= v.amount;
+          } else if (type == "PAYMENT" || type == "EXPENSE") {
+            bal += v.amount;
+          }
+        }
+        recalculatedPartyBals[p.id] = bal;
+      }
+
+      // 3. Re-calculate Bank Balances (Opening + Receipts - Payments - Expenses)
+      Map<String, double> recalculatedBankBals = {};
+      for (var b in prevBanks) {
+        double bal = b.openingBalance;
+        for (var v in prevVouc.where((v) => v.depositedIn.toUpperCase() == b.name.toUpperCase() && v.status == "Active")) {
+          String type = v.type.toUpperCase();
+          if (type == "RECEIPT") {
+            bal += v.amount;
+          } else if (type == "PAYMENT" || type == "EXPENSE") {
+            bal -= v.amount;
+          }
+        }
+        recalculatedBankBals[b.id] = bal;
+      }
+
+      // 4. Re-calculate Batch Stocks (Previous Year Closing becomes New Year Opening)
+      Map<String, List<BatchInfo>> recalculatedBatches = {};
+      prevBatchesRaw.forEach((medKey, batchList) {
+        List<dynamic> list = batchList as List;
+        recalculatedBatches[medKey] = list.map((b) {
+          BatchInfo bObj = BatchInfo.fromMap(b);
+          if (bObj.qty < 0) bObj.qty = 0;
+          bObj.openingQty = bObj.qty; // Set new year opening as old year closing
+          bObj.adjustmentQty = 0;     // Reset adjustments
+          return bObj;
+        }).toList();
+      });
+
+      // 5. Apply new calculated opening values to active year's memory list
+      // A. Sync Party Balances
+      for (int idx = 0; idx < parties.length; idx++) {
+        String pId = parties[idx].id;
+        if (recalculatedPartyBals.containsKey(pId)) {
+          parties[idx].opBal = recalculatedPartyBals[pId]!;
         }
       }
-    } else {
-      for (var p in purchases.where((p) => p.partyId == partyId)) {
-        for (var it in p.items.where((it) => it.medicineID == medicineId)) {
-          history.add({'date': p.date, 'billNo': p.billNo, 'batch': it.batch, 'qty': it.qty, 'free': it.freeQty, 'rate': it.purchaseRate, 'mrp': it.mrp, 'gst': it.gstRate});
+      // B. Sync Bank Balances
+      for (int idx = 0; idx < banks.length; idx++) {
+        String bId = banks[idx].id;
+        if (recalculatedBankBals.containsKey(bId)) {
+          banks[idx].openingBalance = recalculatedBankBals[bId]!;
         }
       }
+      // C. Sync Batch Balances
+      recalculatedBatches.forEach((medKey, list) {
+        batchHistory[medKey] = list;
+      });
+
+      // 6. Save Updated data to Disk
+      await save();
+      await loadAllData(); // Full refresh
+
+      addLog("SYSTEM", "Provisional Sync complete. opening balances carried forward from $prevFY.");
+      return true;
+    } catch (e) {
+      debugPrint("Provisional Sync Failed: $e");
+      return false;
     }
-    history.sort((a, b) => b['date'].compareTo(a['date']));
-    return history;
   }
-} // <--- FILE KI AKHRI LINE PAR SIRF EK BRACE HONA CHAHIYE
