@@ -1,3 +1,5 @@
+// FILE: lib/fy_transfer_engine.dart (UPDATED VERSION)
+
 import 'dart:convert';
 import 'dart:io';
 import 'package:path_provider/path_provider.dart';
@@ -7,10 +9,10 @@ class FYTransferEngine {
   
   /// MAIN FUNCTION: Purane saal se naye saal mein data le jana (Multi-Company Ready)
   static Future<bool> transferData({
-    required String companyID,      // NAYA: Kaunsi dukan?
-    required String businessType,   // NAYA: Wholesale ya Retail?
-    required String sourceFY,       // Purana saal (e.g. 2024-25)
-    required String targetFY,       // Naya saal (e.g. 2025-26)
+    required String companyID,      
+    required String businessType,   
+    required String sourceFY,       
+    required String targetFY,       
   }) async {
     try {
       final root = await getApplicationDocumentsDirectory();
@@ -39,6 +41,7 @@ class FYTransferEngine {
       List<Sale> oldSales = (loadJson('sales.json') as List?)?.map((e) => Sale.fromMap(e)).toList() ?? [];
       List<Purchase> oldPurc = (loadJson('purc.json') as List?)?.map((e) => Purchase.fromMap(e)).toList() ?? [];
       List<Voucher> oldVouc = (loadJson('vouc.json') as List?)?.map((e) => Voucher.fromMap(e)).toList() ?? [];
+      Map<String, dynamic> oldBatchesRaw = loadJson('bats.json') ?? {};
 
       // 3. CALCULATE NEW PARTY BALANCES (Opening Balances for New Year)
       List<Party> newParties = oldParties.map((p) {
@@ -64,21 +67,43 @@ class FYTransferEngine {
         return p;
       }).toList();
 
-      // 4. SAVE TO NEW FY DIRECTORY (Naye saal ka folder bharo)
+      // 4. 🔥 NAYA: MEDICINE STOCK CORRECTION (Negative to 0)
+      List<Map<String, dynamic>> correctedMeds = oldMeds.map((m) {
+        // Business Rule: Agar stock negative hai toh naye saal mein 0 se shuru karein
+        if (m.stock < 0) m.stock = 0; 
+        return m.toMap();
+      }).toList();
+
+      // 5. 🔥 NAYA: BATCH HISTORY CORRECTION (Negative to 0)
+      Map<String, dynamic> correctedBatches = {};
+      oldBatchesRaw.forEach((medKey, batchList) {
+        List<dynamic> batches = batchList as List;
+        List<Map<String, dynamic>> processedBatches = batches.map((b) {
+          BatchInfo bObj = BatchInfo.fromMap(b);
+          // Batch level par bhi negative stock ko zero kar rahe hain consistency ke liye
+          if (bObj.qty < 0) bObj.qty = 0;
+          // Opening Qty ko update karna zaroori hai kyunki naya saal hai
+          bObj.openingQty = bObj.qty;
+          bObj.adjustmentQty = 0; // Adjustments reset
+          return bObj.toMap();
+        }).toList();
+        correctedBatches[medKey] = processedBatches;
+      });
+
+      // 6. SAVE TO NEW FY DIRECTORY
       Future saveToNew(String name, dynamic data) async {
         await File('$targetPath/$name').writeAsString(jsonEncode(data));
       }
 
-      // Masters Copy karna
-      await saveToNew('meds.json', oldMeds.map((e) => e.toMap()).toList());
+      await saveToNew('meds.json', correctedMeds);
       await saveToNew('parts.json', newParties.map((e) => e.toMap()).toList());
-      await saveToNew('bats.json', loadJson('bats.json') ?? {}); 
+      await saveToNew('bats.json', correctedBatches); 
       await saveToNew('routs.json', loadJson('routs.json') ?? []);
       await saveToNew('comps.json', loadJson('comps.json') ?? []);
       await saveToNew('salts.json', loadJson('salts.json') ?? []);
       await saveToNew('dtypes.json', loadJson('dtypes.json') ?? []);
 
-      // RESET TRANSACTIONS FOR NEW YEAR (Bill list khali rahegi)
+      // RESET TRANSACTIONS FOR NEW YEAR
       await saveToNew('sales.json', []);
       await saveToNew('purc.json', []);
       await saveToNew('vouc.json', []);
@@ -89,7 +114,7 @@ class FYTransferEngine {
         LogEntry(
           id: '1', 
           action: 'SYSTEM', 
-          details: 'Data Transferred from $sourceFY to $targetFY', 
+          details: 'Data Transferred from $sourceFY to $targetFY. Negative stocks reset to 0.', 
           time: DateTime.now()
         ).toMap()
       ]);
