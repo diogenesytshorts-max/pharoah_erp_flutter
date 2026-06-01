@@ -152,6 +152,9 @@ class FYTransferEngine {
       // -----------------------------------------------------------------------
       // 6. 🧹 NAYA: BATCH FILTRATION & PURGING (Zero Stock / Expired Cleanup)
       // -----------------------------------------------------------------------
+ // -----------------------------------------------------------------------
+      // 4. 🔥 BATCH HISTORY CORRECTION WITH ADVANCED FILTERS (NEW - PROCESSED FIRST)
+      // -----------------------------------------------------------------------
       Map<String, dynamic> correctedBatches = {};
       DateTime today = DateTime.now();
 
@@ -164,11 +167,12 @@ class FYTransferEngine {
           
           if (bObj.qty < 0) bObj.qty = 0;
 
-          // Advanced Filtration Check
+          // Filtration Check
           if (filterZeroStock && bObj.qty <= 0) {
-            continue; // Skip zero-stock batch completely
+            continue; // Skip zero-stock batches completely
           }
 
+          // Expired Check
           if (filterExpired) {
             try {
               List<String> parts = bObj.exp.split('/');
@@ -176,10 +180,10 @@ class FYTransferEngine {
               int y = 2000 + int.parse(parts[1]);
               DateTime lastDay = DateTime(y, m + 1, 0);
               if (lastDay.isBefore(today)) {
-                continue; // Skip expired batch completely
+                continue; // Skip expired batches completely
               }
             } catch (e) {
-              // If invalid format, we don't drop it (safety first)
+              // Safety: Parse fail hone par batch skip nahi hoga
             }
           }
 
@@ -192,6 +196,30 @@ class FYTransferEngine {
           correctedBatches[medKey] = processedBatches;
         }
       });
+
+      // -----------------------------------------------------------------------
+      // 5. 🔥 MEDICINE STOCK CORRECTION WITH ACTIVE PARENT-STOCK SYNC (NEW)
+      // -----------------------------------------------------------------------
+      List<Map<String, dynamic>> correctedMeds = oldMeds.map((m) {
+        String key = m.identityKey;
+        
+        // Agar medicine ke paas purane saal mein batches the, toh naye saal mein
+        // uske stock ko naye filtered batches ke total sum se sync karenge.
+        if (oldBatchesRaw.containsKey(key)) {
+          double totalStock = 0.0;
+          if (correctedBatches.containsKey(key)) {
+            List<dynamic> bList = correctedBatches[key];
+            for (var b in bList) {
+              totalStock += (b['qty'] ?? 0.0);
+            }
+          }
+          m.stock = totalStock; // Overwrite parent stock with actual active batches sum
+        } else {
+          // Loose Stock Guard: Agar batches nahi hain, toh original stock safe rakhein (Negative to 0 check ke sath)
+          if (m.stock < 0) m.stock = 0;
+        }
+        return m.toMap();
+      }).toList();
 
       // -----------------------------------------------------------------------
       // 7. SAVE TO NEW FY DIRECTORY (Atomic Writes)
