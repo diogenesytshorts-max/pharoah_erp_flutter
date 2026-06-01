@@ -361,18 +361,19 @@ class _PurchaseItemEntryCardState extends State<PurchaseItemEntryCard> {
                 const SizedBox(height: 25),
                 SizedBox(width: double.infinity, height: 60, child: ElevatedButton(style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFB45309), foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15))), 
                 onPressed: () {
-                   widget.onAdd(PurchaseItem(
-                      id: widget.existingItem?.id ?? DateTime.now().toString(),
-                      srNo: widget.srNo, medicineID: widget.med.id, name: widget.med.name, packing: widget.med.packing,
-                      batch: batchC.text.toUpperCase(), exp: expC.text, hsn: widget.med.hsnCode, mrp: double.tryParse(mrpC.text) ?? 0,
-                      qty: double.tryParse(qtyC.text) ?? 0, freeQty: double.tryParse(freeC.text) ?? 0,
-                      purchaseRate: double.tryParse(purRateC.text) ?? 0, gstRate: double.tryParse(gstC.text) ?? 0,
-                      total: netTotal, discountPer: double.tryParse(discPerC.text) ?? 0, discountRupees: dA,
-                      rateA: double.tryParse(rateAC.text) ?? 0, rateB: double.tryParse(rateBC.text) ?? 0, rateC: double.tryParse(rateCC.text) ?? 0,
-                      appliedRateType: selectedRateType, rateCFormula: double.tryParse(rateCDiscC.text) ?? 0.0,
-                      isBreakage: widget.allowExpired
-                   ));
-                }, child: const Text("FINALIZE ITEM", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16))))
+   widget.onAdd(PurchaseItem(
+      id: widget.existingItem?.id ?? DateTime.now().toString(),
+      srNo: widget.srNo, medicineID: widget.med.id, name: widget.med.name, packing: widget.med.packing,
+      batch: batchC.text.trim(), // 👈 NEW: trim() used to preserve original case (Capital & Small)
+      exp: expC.text, hsn: widget.med.hsnCode, mrp: double.tryParse(mrpC.text) ?? 0,
+      qty: double.tryParse(qtyC.text) ?? 0, freeQty: double.tryParse(freeC.text) ?? 0,
+      purchaseRate: double.tryParse(purRateC.text) ?? 0, gstRate: double.tryParse(gstC.text) ?? 0,
+      total: netTotal, discountPer: double.tryParse(discPerC.text) ?? 0, discountRupees: dA,
+      rateA: double.tryParse(rateAC.text) ?? 0, rateB: double.tryParse(rateBC.text) ?? 0, rateC: double.tryParse(rateCC.text) ?? 0,
+      appliedRateType: selectedRateType, rateCFormula: double.tryParse(rateCDiscC.text) ?? 0.0,
+      isBreakage: widget.allowExpired
+   ));
+}, child: const Text("FINALIZE ITEM", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16))))
               ])),
           )
         ]),
