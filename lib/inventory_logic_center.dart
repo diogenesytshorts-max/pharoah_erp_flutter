@@ -1,4 +1,4 @@
-// FILE: lib/inventory_logic_center.dart
+// FILE: lib/inventory_logic_center.dart (FULLY RESOLVED & COMPILE-SAFE)
 
 import 'models.dart';
 
@@ -27,14 +27,14 @@ class InventoryLogicCenter {
     return grandTotal;
   }
 
-  /// 2. THE GREAT INVENTORY REBUILD (CN/DN Impact Integrated)
+  /// 2. THE GREAT INVENTORY REBUILD (CN/DN Impact Integrated with Loose Stock Guard)
   static void rebuildAllInventory({
     required List<Medicine> medicines,
     required Map<String, List<BatchInfo>> batchHistory,
     required List<Purchase> purchases,
     required List<Sale> sales,
-    required List<SaleReturn> saleReturns,      // 🔥 NAYA
-    required List<PurchaseReturn> purchaseReturns // 🔥 NAYA
+    required List<SaleReturn> saleReturns,      
+    required List<PurchaseReturn> purchaseReturns 
   }) {
     // STEP A: RESET - Base Stock (Opening + Adjustments) par reset karein
     batchHistory.forEach((key, list) {
@@ -58,7 +58,6 @@ class InventoryLogicCenter {
     // STEP D: SALE RETURNS / CREDIT NOTES (Stock IN + ONLY IF SELLABLE)
     for (var ret in saleReturns.where((r) => r.status == "Active")) {
       for (var item in ret.items) {
-        // 🔥 Logic: Agar item Breakage (EXP) hai, toh sellable stock mein nahi jodenge
         if (item.isBreakage == false) {
           _updateStock(batchHistory, medicines, item.medicineID, item.name, item.batch, (item.qty + item.freeQty), true, item);
         }
@@ -68,12 +67,11 @@ class InventoryLogicCenter {
     // STEP E: PURCHASE RETURNS / DEBIT NOTES (Stock OUT -)
     for (var ret in purchaseReturns.where((r) => r.status == "Active")) {
       for (var item in ret.items) {
-        // Inward maal wapas gaya matlab dukan se kam hua
         _updateStock(batchHistory, medicines, item.medicineID, item.name, item.batch, (item.qty + item.freeQty), false, item);
       }
     }
 
-   // --- 🛡️ STEP F: FINAL SYNC WITH LOOSE STOCK GUARD (NEW) ---
+    // --- 🛡️ STEP F: FINAL SYNC WITH LOOSE STOCK GUARD (RESOLVED) ---
     // Agar kisi medicine ke batches bats.json mein nahi hain (Loose Stock),
     // toh uske stock ko zero (0) karne ke bajaye hum uska existing stock safe rakhenge.
     for (var med in medicines) {
@@ -86,6 +84,8 @@ class InventoryLogicCenter {
       }
       // If no batches exist, we PRESERVE the existing med.stock (Loose Stock Saved!)
     }
+  } // <--- REBUILDALLINVENTORY FUNCTION KA CLOSING BRACE (FIXED!)
+
   // Private Helper function for batch quantity adjustment
   static void _updateStock(Map<String, List<BatchInfo>> batchHistory, List<Medicine> medicines, String medId, String medName, String batchNo, double qty, bool isAdd, dynamic item) {
     try {
@@ -107,4 +107,4 @@ class InventoryLogicCenter {
       }
     } catch (e) {}
   }
-}
+} // <--- CLASS INVENTORYLOGICCENTER KA CLOSING BRACE
