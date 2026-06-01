@@ -1,4 +1,4 @@
-// FILE: lib/fy_transfer_engine.dart (ADVANCED MARG-LEVEL TRANSFER ENGINE)
+// FILE: lib/fy_transfer_engine.dart (FULLY RESOLVED COMPLETE VERSION)
 
 import 'dart:convert';
 import 'dart:io';
@@ -13,8 +13,8 @@ class FYTransferEngine {
     required String businessType,   
     required String sourceFY,       
     required String targetFY,       
-    bool filterZeroStock = false,   // NAYA: Database filtration option
-    bool filterExpired = false,     // NAYA: Database filtration option
+    bool filterZeroStock = false,   // Database filtration option
+    bool filterExpired = false,     // Database filtration option
   }) async {
     try {
       final root = await getApplicationDocumentsDirectory();
@@ -45,9 +45,7 @@ class FYTransferEngine {
       List<Bank> oldBanks = (loadJson('banks.json') as List?)?.map((e) => Bank.fromMap(e)).toList() ?? [];
       Map<String, dynamic> oldBatchesRaw = loadJson('bats.json') ?? {};
 
-      // -----------------------------------------------------------------------
       // 1. CALCULATE NEW PARTY BALANCES (Includes all Voucher Types)
-      // -----------------------------------------------------------------------
       List<Party> newParties = oldParties.map((p) {
         if (p.name == "CASH") return p;
 
@@ -60,7 +58,7 @@ class FYTransferEngine {
         for (var pr in oldPurc.where((pr) => pr.distributorName == p.name)) {
           runningBal -= pr.totalAmount;
         }
-        // Vouchers (Receipts, Payments, Contra & Expenses)
+        // Vouchers (Receipts, Payments, Expenses)
         for (var v in oldVouc.where((v) => v.partyName == p.name && v.status == "Active")) {
           String type = v.type.toUpperCase();
           if (type == "RECEIPT") {
@@ -74,9 +72,7 @@ class FYTransferEngine {
         return p;
       }).toList();
 
-      // -----------------------------------------------------------------------
-      // 2. 🏛️ NAYA: BANK CLOSING TO OPENING BALANCE (Advanced Carry Forward)
-      // -----------------------------------------------------------------------
+      // 2. 🏛️ BANK CLOSING TO OPENING BALANCE (Advanced Carry Forward)
       List<Bank> newBanks = oldBanks.map((b) {
         double currentBal = b.openingBalance;
 
@@ -93,9 +89,7 @@ class FYTransferEngine {
         return b;
       }).toList();
 
-      // -----------------------------------------------------------------------
-      // 3. 📝 NAYA: BILL-BY-BILL OUTSTANDING (Pending Invoices Database)
-      // -----------------------------------------------------------------------
+      // 3. 📝 BILL-BY-BILL OUTSTANDING (Pending Invoices Database)
       List<Map<String, dynamic>> pendingInvoices = [];
       
       // Collect all settled bill numbers across previous years
@@ -131,9 +125,7 @@ class FYTransferEngine {
         }
       }
 
-      // -----------------------------------------------------------------------
-      // 4. 📦 NAYA: PENDING CHALLANS CARRY-FORWARD (Continuity Guard)
-      // -----------------------------------------------------------------------
+      // 4. 📦 PENDING CHALLANS CARRY-FORWARD (Continuity Guard)
       List<SaleChallan> oldSaleChallans = (loadJson('s_challan.json') as List?)?.map((e) => SaleChallan.fromMap(e)).toList() ?? [];
       List<PurchaseChallan> oldPurChallans = (loadJson('p_challan.json') as List?)?.map((e) => PurchaseChallan.fromMap(e)).toList() ?? [];
 
@@ -141,20 +133,7 @@ class FYTransferEngine {
       List<SaleChallan> pendingSaleChallans = oldSaleChallans.where((c) => c.status == "Pending").toList();
       List<PurchaseChallan> pendingPurChallans = oldPurChallans.where((c) => c.status == "Pending").toList();
 
-      // -----------------------------------------------------------------------
-      // 5. MEDICINE STOCK CORRECTION (Negative to 0)
-      // -----------------------------------------------------------------------
-      List<Map<String, dynamic>> correctedMeds = oldMeds.map((m) {
-        if (m.stock < 0) m.stock = 0; 
-        return m.toMap();
-      }).toList();
-
-      // -----------------------------------------------------------------------
-      // 6. 🧹 NAYA: BATCH FILTRATION & PURGING (Zero Stock / Expired Cleanup)
-      // -----------------------------------------------------------------------
- // -----------------------------------------------------------------------
-      // 4. 🔥 BATCH HISTORY CORRECTION WITH ADVANCED FILTERS (NEW - PROCESSED FIRST)
-      // -----------------------------------------------------------------------
+      // 5. 🧹 BATCH HISTORY CORRECTION WITH ADVANCED FILTERS (PROCESSED FIRST)
       Map<String, dynamic> correctedBatches = {};
       DateTime today = DateTime.now();
 
@@ -197,14 +176,11 @@ class FYTransferEngine {
         }
       });
 
-      // -----------------------------------------------------------------------
-      // 5. 🔥 MEDICINE STOCK CORRECTION WITH ACTIVE PARENT-STOCK SYNC (NEW)
-      // -----------------------------------------------------------------------
+      // 6. 🛡️ MEDICINE STOCK CORRECTION WITH ACTIVE PARENT-STOCK SYNC
+      // (Isme correctedBatches list check hoti hai jisse parent meds and batches ka total perfectly match karega)
       List<Map<String, dynamic>> correctedMeds = oldMeds.map((m) {
         String key = m.identityKey;
         
-        // Agar medicine ke paas purane saal mein batches the, toh naye saal mein
-        // uske stock ko naye filtered batches ke total sum se sync karenge.
         if (oldBatchesRaw.containsKey(key)) {
           double totalStock = 0.0;
           if (correctedBatches.containsKey(key)) {
@@ -215,15 +191,12 @@ class FYTransferEngine {
           }
           m.stock = totalStock; // Overwrite parent stock with actual active batches sum
         } else {
-          // Loose Stock Guard: Agar batches nahi hain, toh original stock safe rakhein (Negative to 0 check ke sath)
           if (m.stock < 0) m.stock = 0;
         }
         return m.toMap();
       }).toList();
 
-      // -----------------------------------------------------------------------
       // 7. SAVE TO NEW FY DIRECTORY (Atomic Writes)
-      // -----------------------------------------------------------------------
       Future saveToNew(String name, dynamic data) async {
         await File('$targetPath/$name').writeAsString(jsonEncode(data));
       }
@@ -243,7 +216,6 @@ class FYTransferEngine {
       await saveToNew('salts.json', loadJson('salts.json') ?? []);
       await saveToNew('dtypes.json', loadJson('dtypes.json') ?? []);
 
-      // RESET OTHER TRANSACTIONS FOR NEW YEAR
       await saveToNew('sales.json', []);
       await saveToNew('purc.json', []);
       await saveToNew('vouc.json', []);
