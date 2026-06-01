@@ -94,33 +94,46 @@ class _CompanyControlPanelViewState extends State<CompanyControlPanelView> {
     if (mounted) setState(() => isMaintenanceRunning = false);
   }
 
-  // ===========================================================================
-  // 🏛️ 3. NAYA: PROVISIONAL BALANCE SYNC (Carry Balances Math)
-  // ===========================================================================
-// --- 🏛️ 3. NAYA: PROVISIONAL BALANCE SYNC (Carry Balances Math - UPGRADED) ---
-  void _runProvisionalSync(PharoahManager ph) async {
+// --- 🏛️ 3. NAYA: PROVISIONAL BALANCE SYNC (CASCADE COMPATIBLE) ---
+  void _runProvisionalSync(PharoahManager ph, String startYear) async {
     setState(() {
       isMaintenanceRunning = true;
       maintenanceProgress = 0.0;
-      maintenanceStatus = "Contacting previous year files...";
+      maintenanceStatus = "Initializing Cascade Sync...";
     });
 
     try {
-      // --- DYNAMIC TARGET & PREVIOUS FY SELECTION (NEW) ---
-      String targetFY = ph.activeCompany!.fYears.last;
-      String prevFY = ph.activeCompany!.fYears[ph.activeCompany!.fYears.length - 2];
+      // Real-time step by step callbacks ko direct UI curtain par drive karna
+      bool success = await ph.syncOpeningBalancesFromPreviousYear(
+        startYear: startYear,
+        onStepProgress: (p, s) {
+          if (mounted) {
+            setState(() {
+              maintenanceProgress = p;
+              maintenanceStatus = s;
+            });
+          }
+        }
+      );
 
-      setState(() { maintenanceProgress = 0.25; maintenanceStatus = "Re-calculating Party Opening Balances..."; });
-      await Future.delayed(const Duration(milliseconds: 400));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(success ? "✅ Cascade Sync Successful! Balances adjusted across all years." : "❌ Sync Failed! Please check year folders."),
+            backgroundColor: success ? Colors.green : Colors.red,
+          )
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Sync Error: $e"), backgroundColor: Colors.red)
+        );
+      }
+    }
 
-      setState(() { maintenanceProgress = 0.55; maintenanceStatus = "Auditing Bank & Cash flow..."; });
-      await Future.delayed(const Duration(milliseconds: 400));
-
-      setState(() { maintenanceProgress = 0.80; maintenanceStatus = "Applying carry-forward changes..."; });
-      await Future.delayed(const Duration(milliseconds: 200));
-
-      // Main sync engine call passing parameters directly on file-level
-      bool success = await ph.syncOpeningBalancesFromPreviousYear(targetFY: targetFY, prevFY: prevFY);
+    if (mounted) setState(() => isMaintenanceRunning = false);
+  }
       setState(() { maintenanceProgress = 1.0; maintenanceStatus = "Sync Completed!"; });
       await Future.delayed(const Duration(milliseconds: 400));
 
@@ -338,32 +351,60 @@ class _CompanyControlPanelViewState extends State<CompanyControlPanelView> {
     );
   }
 
-  // ===========================================================================
-  // 🏛️ 6. NAYA: PROVISIONAL SYNC BANNER WIDGET (MARG STYLE)
+// ===========================================================================
+  // 🏛️ 6. NAYA: PROVISIONAL SYNC BANNER WIDGET (MARG STYLE - CASCADE UPGRADE)
   // ===========================================================================
   Widget _buildProvisionalSyncBanner(PharoahManager ph) {
+    // Current year ke piche ke saare saal select karne ka list
+    List<String> sourceYears = ph.activeCompany!.fYears.sublist(0, ph.activeCompany!.fYears.length - 1);
+    String selectedSourceYear = sourceYears.last; // Default to immediate previous year
+
     return InkWell(
       onTap: () {
         showDialog(
           context: context,
-          builder: (c) => AlertDialog(
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-            title: const Text("Sync Previous Year Balances?"),
-            content: const Text(
-              "This will recalculate all closing ledger & stock balances from the previous financial year and carry them forward as opening balances in this year.\n\n"
-              "Your current year transactions will remain 100% untouched & safe."
-            ),
-            actions: [
-              TextButton(onPressed: () => Navigator.pop(c), child: const Text("CANCEL", style: TextStyle(color: Colors.grey))),
-              ElevatedButton(
-                style: ElevatedButton.styleFrom(backgroundColor: Colors.teal, foregroundColor: Colors.white),
-                onPressed: () {
-                  Navigator.pop(c);
-                  _runProvisionalSync(ph);
-                },
-                child: const Text("START SYNC"),
-              )
-            ],
+          builder: (c) => StatefulBuilder( // StatefulBuilder for dropdown updates
+            builder: (context, setDialogState) {
+              return AlertDialog(
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                title: const Row(children: [Icon(Icons.sync_alt_rounded, color: Colors.teal), SizedBox(width: 10), Text("Carry Balances")]),
+                content: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      "This will recalculate all closing ledger & stock balances from your chosen year, and cascade them forward to all subsequent years automatically.",
+                      style: TextStyle(fontSize: 12)
+                    ),
+                    const SizedBox(height: 15),
+                    const Text("Select starting year of modification:", style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.grey)),
+                    const SizedBox(height: 10),
+                    DropdownButtonFormField<String>(
+                      value: selectedSourceYear,
+                      decoration: const InputDecoration(border: OutlineInputBorder(), isDense: true),
+                      items: sourceYears.map((y) => DropdownMenuItem(value: y, child: Text(y))).toList(),
+                      onChanged: (v) => setDialogState(() => selectedSourceYear = v!),
+                    ),
+                    const SizedBox(height: 15),
+                    const Text(
+                      "Your active transactions in all years will remain 100% safe & untouched.",
+                      style: TextStyle(fontSize: 10, color: Colors.blueGrey, fontStyle: FontStyle.italic)
+                    ),
+                  ],
+                ),
+                actions: [
+                  TextButton(onPressed: () => Navigator.pop(c), child: const Text("CANCEL", style: TextStyle(color: Colors.grey))),
+                  ElevatedButton(
+                    style: ElevatedButton.styleFrom(backgroundColor: Colors.teal, foregroundColor: Colors.white),
+                    onPressed: () {
+                      Navigator.pop(c);
+                      _runProvisionalSync(ph, selectedSourceYear); // Pass the selected source year
+                    },
+                    child: const Text("START CASCADE SYNC"),
+                  )
+                ],
+              );
+            }
           )
         );
       },
@@ -392,7 +433,7 @@ class _CompanyControlPanelViewState extends State<CompanyControlPanelView> {
                 children: [
                   Text("CARRY BALANCES (PROVISIONAL)", style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold, letterSpacing: 0.5)),
                   SizedBox(height: 3),
-                  Text("Sync opening balances & stock from previous year", style: TextStyle(color: Colors.white70, fontSize: 10)),
+                  Text("Sync opening balances & stock from previous years", style: TextStyle(color: Colors.white70, fontSize: 10)),
                 ],
               ),
             ),
