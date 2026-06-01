@@ -339,28 +339,39 @@ class PharoahManager with ChangeNotifier {
   // 6. BUSINESS LOGIC (SALES, PURCHASES, STITCHER)
   // ===========================================================================
 
-  Future<void> finalizeSale({required String billNo, required DateTime date, required Party party, required List<BillItem> items, required double total, required String mode, List<String>? linkedIds, double extraDiscount = 0.0, double roundOff = 0.0, String sourceTag = ""}) async { 
+Future<void> finalizeSale({required String billNo, required DateTime date, required Party party, required List<BillItem> items, required double total, required String mode, List<String>? linkedIds, double extraDiscount = 0.0, double roundOff = 0.0, String sourceTag = ""}) async { 
     final p = parties.firstWhere((pt) => pt.id == party.id, orElse: () => party);
     sales.add(Sale(id: DateTime.now().toString(), billNo: billNo, partyId: p.id, date: date, partyName: p.name, partyGstin: p.gst, partyState: p.state, items: items, totalAmount: total, paymentMode: mode, linkedChallanIds: linkedIds ?? [], extraDiscount: extraDiscount, roundOff: roundOff, partyAddress: p.address, partyPhone: p.phone, partyEmail: p.email, partyDl: p.dl, partyPan: p.pan, partyCity: p.city, sourceTag: sourceTag)); 
     if (linkedIds != null) { for (var id in linkedIds) { int i = saleChallans.indexWhere((c) => c.id == id); if (i != -1) saleChallans[i].status = "Billed"; } }
     if (sourceTag.isEmpty && activeCompany != null) { String pfx = billNo.split(RegExp(r'\d')).first; await PharoahNumberingEngine.updateSeriesCounter(type: "SALE", companyID: activeCompany!.id, usedNumber: billNo, prefix: pfx); }
-    await save(); 
+    
+    // --- 🛡️ LIFECYCLE RESTRUCTURE: REBUILD FIRST, THEN SAVE (NEW) ---
     InventoryLogicCenter.rebuildAllInventory(medicines: medicines, batchHistory: batchHistory, purchases: purchases, sales: sales, saleReturns: saleReturns, purchaseReturns: purchaseReturns); 
+    await save(); // Correctly saves rebuilt batches with final stock to disk!
+    
     notifyListeners();
   }
 
-  void finalizePurchase({required String internalNo, required String billNo, required DateTime date, DateTime? entryDate, required Party party, required List<PurchaseItem> items, required double total, required String mode, List<String>? linkedChallanIds, String sourceTag = ""}) { 
+Future<void> finalizePurchase({required String internalNo, required String billNo, required DateTime date, DateTime? entryDate, required Party party, required List<PurchaseItem> items, required double total, required String mode, List<String>? linkedChallanIds, String sourceTag = ""}) async { 
     purchases.add(Purchase(id: DateTime.now().toString(), internalNo: internalNo, billNo: billNo, partyId: party.id, date: date, entryDate: entryDate ?? DateTime.now(), distributorName: party.name, items: items, totalAmount: total, paymentMode: mode, linkedChallanIds: linkedChallanIds ?? [], sourceTag: sourceTag)); 
     if (linkedChallanIds != null) { for (var id in linkedChallanIds) { int i = purchaseChallans.indexWhere((c) => c.id == id); if (i != -1) purchaseChallans[i].status = "Billed"; } }
-    if (sourceTag.isEmpty && activeCompany != null) { PharoahNumberingEngine.updateSeriesCounter(type: "PURCHASE", companyID: activeCompany!.id, usedNumber: internalNo, prefix: "PUR-"); }
-    save().then((_) => loadAllData()); 
+    if (sourceTag.isEmpty && activeCompany != null) { await PharoahNumberingEngine.updateSeriesCounter(type: "PURCHASE", companyID: activeCompany!.id, usedNumber: internalNo, prefix: "PUR-"); }
+    
+    // Rebuild first, then Save
+    InventoryLogicCenter.rebuildAllInventory(medicines: medicines, batchHistory: batchHistory, purchases: purchases, sales: sales, saleReturns: saleReturns, purchaseReturns: purchaseReturns); 
+    await save();
+    notifyListeners();
   }
-  void updatePurchase({required String id, required String internalNo, required String billNo, required DateTime date, DateTime? entryDate, required Party party, required List<PurchaseItem> items, required double total, required String mode, required List<String> linkedChallanIds}) { 
-    int i = purchases.indexWhere((p) => p.id == id); 
-    if (i == -1) return; 
-    String t = purchases[i].sourceTag; 
-    purchases[i] = Purchase(id: id, internalNo: internalNo, billNo: billNo, partyId: party.id, date: date, entryDate: entryDate ?? DateTime.now(), distributorName: party.name, items: items, totalAmount: total, paymentMode: mode, linkedChallanIds: linkedChallanIds, sourceTag: t); 
-    save().then((_) => loadAllData()); 
+ Future<void> updatePurchase({required String id, required String internalNo, required String billNo, required DateTime date, DateTime? entryDate, required Party party, required List<PurchaseItem> items, required double total, required String mode, required List<String> linkedChallanIds}) async { 
+    int idx = purchases.indexWhere((p) => p.id == id); 
+    if (idx == -1) return; 
+    String t = purchases[idx].sourceTag; 
+    purchases[idx] = Purchase(id: id, internalNo: internalNo, billNo: billNo, partyId: party.id, date: date, entryDate: entryDate ?? DateTime.now(), distributorName: party.name, items: items, totalAmount: total, paymentMode: mode, linkedChallanIds: linkedChallanIds, sourceTag: t); 
+    
+    // Rebuild first, then Save
+    InventoryLogicCenter.rebuildAllInventory(medicines: medicines, batchHistory: batchHistory, purchases: purchases, sales: sales, saleReturns: saleReturns, purchaseReturns: purchaseReturns); 
+    await save();
+    notifyListeners();
   }
 
   Future<void> finalizeBatchSales(List<Sale> batch) async { 
@@ -383,15 +394,22 @@ class PharoahManager with ChangeNotifier {
   void finalizeSaleChallan({required String billNo, required DateTime date, required Party party, required List<BillItem> items, required double total, String remarks = "", required String partyId}) { saleChallans.add(SaleChallan(id: DateTime.now().toString(), billNo: billNo, partyId: partyId, date: date, partyName: party.name, partyGstin: party.gst, partyState: party.state, items: items, totalAmount: total, remarks: remarks)); save(); }
   void finalizePurchaseChallan({required String billNo, required String internalNo, required DateTime date, required Party party, required List<PurchaseItem> items, required double total, String remarks = "", required String partyId}) { purchaseChallans.add(PurchaseChallan(id: DateTime.now().toString(), internalNo: internalNo, billNo: billNo, partyId: partyId, date: date, distributorName: party.name, items: items, totalAmount: total, remarks: remarks)); save(); }
   // --- NEW CODE ---
-  void finalizeSaleReturn({required String billNo, required DateTime date, required Party party, required List<BillItem> items, required double total, double extraDiscount = 0.0, double roundOff = 0.0, String type = "Mixed"}) async { 
+ Future<void> finalizeSaleReturn({required String billNo, required DateTime date, required Party party, required List<BillItem> items, required double total, double extraDiscount = 0.0, double roundOff = 0.0, String type = "Mixed"}) async { 
     saleReturns.add(SaleReturn(id: DateTime.now().toString(), billNo: billNo, date: date, partyName: party.name, items: items, totalAmount: total, returnType: type, extraDiscount: extraDiscount, roundOff: roundOff, status: "Active")); 
+    
+    // Rebuild first, then Save
+    InventoryLogicCenter.rebuildAllInventory(medicines: medicines, batchHistory: batchHistory, purchases: purchases, sales: sales, saleReturns: saleReturns, purchaseReturns: purchaseReturns); 
     await save();
-    await loadAllData(); 
+    notifyListeners();
   }
 
-  void finalizePurchaseReturn({required String billNo, required DateTime date, required Party party, required List<PurchaseItem> items, required double total, double extraDiscount = 0.0, double roundOff = 0.0, String type = "Mixed"}) { 
+ Future<void> finalizePurchaseReturn({required String billNo, required DateTime date, required Party party, required List<PurchaseItem> items, required double total, double extraDiscount = 0.0, double roundOff = 0.0, String type = "Mixed"}) async { 
     purchaseReturns.add(PurchaseReturn(id: DateTime.now().toString(), billNo: billNo, distributorName: party.name, date: date, items: items, totalAmount: total, status: "Active", returnType: type, extraDiscount: extraDiscount, roundOff: roundOff)); 
-    save().then((_) => loadAllData()); 
+    
+    // Rebuild first, then Save
+    InventoryLogicCenter.rebuildAllInventory(medicines: medicines, batchHistory: batchHistory, purchases: purchases, sales: sales, saleReturns: saleReturns, purchaseReturns: purchaseReturns); 
+    await save();
+    notifyListeners();
   }
   // ===========================================================================
   // 7. BATCH TOOLS & INVENTORY INTEL
