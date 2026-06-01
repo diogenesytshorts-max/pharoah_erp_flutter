@@ -73,16 +73,19 @@ class InventoryLogicCenter {
       }
     }
 
-    // STEP F: FINAL SYNC - Medicine Master stock field update
+   // --- 🛡️ STEP F: FINAL SYNC WITH LOOSE STOCK GUARD (NEW) ---
+    // Agar kisi medicine ke batches bats.json mein nahi hain (Loose Stock),
+    // toh uske stock ko zero (0) karne ke bajaye hum uska existing stock safe rakhenge.
     for (var med in medicines) {
-      double total = 0;
-      if (batchHistory.containsKey(med.identityKey)) {
-        for (var b in batchHistory[med.identityKey]!) { total += b.qty; }
+      if (batchHistory.containsKey(med.identityKey) && batchHistory[med.identityKey]!.isNotEmpty) {
+        double total = 0;
+        for (var b in batchHistory[med.identityKey]!) { 
+          total += b.qty; 
+        }
+        med.stock = total; // Overwrite only if active batches exist
       }
-      med.stock = total;
+      // If no batches exist, we PRESERVE the existing med.stock (Loose Stock Saved!)
     }
-  }
-
   // Private Helper function for batch quantity adjustment
   static void _updateStock(Map<String, List<BatchInfo>> batchHistory, List<Medicine> medicines, String medId, String medName, String batchNo, double qty, bool isAdd, dynamic item) {
     try {
