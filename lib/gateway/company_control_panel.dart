@@ -63,45 +63,34 @@ class _CompanyControlPanelViewState extends State<CompanyControlPanelView> {
   // ===========================================================================
   // 🛠️ 2. THE FILE MAINTENANCE PROCESS (WITH DETERMINATE PROGRESS)
   // ===========================================================================
+// --- MAINTENANCE ENGINE (Upgraded Silent Workload) ---
   void _runMaintenance(PharoahManager ph) async {
     String latestFY = ph.activeCompany?.fYears.last ?? "";
     if (latestFY.isEmpty) return;
 
-    // Start Immersive Determinate Loading Overlay
     setState(() {
       isMaintenanceRunning = true;
       maintenanceProgress = 0.0;
-      maintenanceStatus = "Waking up Database Doctor...";
+      maintenanceStatus = "Initializing Structural Audit...";
     });
 
-    try {
-      await ph.loginToCompany(ph.activeCompany!, latestFY);
-      String path = await ph.getWorkingPath();
+    // 1. SILENT LOAD: Bina notify kiye background data reload kiya
+    await ph.loadDataForMaintenanceSilently(latestFY);
+    String path = await ph.getWorkingPath();
 
-      final engine = MaintenanceService(ph, path);
-      
-      // Drive progress in real-time from actual calculated tasks
-      await engine.runFullMaintenance(onProgress: (p, s) {
-        if (mounted) {
-          setState(() {
-            maintenanceProgress = p;
-            maintenanceStatus = s;
-          });
-        }
-      });
-
-    } catch (e) {
+    final engine = MaintenanceService(ph, path);
+    await engine.runFullMaintenance(onProgress: (p, s) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Error: $e"), backgroundColor: Colors.red)
-        );
+        setState(() {
+          maintenanceProgress = p;
+          maintenanceStatus = s;
+        });
       }
-    }
+    });
 
-    ph.currentFY = ""; 
-    ph.notifyListeners();
+    // 2. SILENT RESET: Bina screen change kiye saal reset kiya
+    ph.resetYearSilently();
 
-    // Release Immersive Overlay
     if (mounted) setState(() => isMaintenanceRunning = false);
   }
 
