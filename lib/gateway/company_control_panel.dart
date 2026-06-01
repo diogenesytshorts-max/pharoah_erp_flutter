@@ -1,4 +1,4 @@
-// FILE: lib/gateway/company_control_panel.dart (Consolidated Advanced Version)
+// FILE: lib/gateway/company_control_panel.dart (FULLY INTEGRATED & COMPILE-SAFE)
 
 import 'dart:io';
 import 'package:flutter/material.dart';
@@ -9,7 +9,7 @@ import 'company_registry_model.dart';
 import 'maintenance_service.dart';
 import 'modify_company_view.dart';
 import 'export_service.dart';
-import '../app_date_logic.dart'; // Import to calculate smart next financial year
+import '../app_date_logic.dart'; // Naya import for FY logic
 
 class CompanyControlPanelView extends StatefulWidget {
   const CompanyControlPanelView({super.key});
@@ -61,9 +61,8 @@ class _CompanyControlPanelViewState extends State<CompanyControlPanelView> {
   }
 
   // ===========================================================================
-  // 🛠️ 2. THE FILE MAINTENANCE PROCESS (WITH DETERMINATE PROGRESS)
+  // 🛠️ 2. THE FILE MAINTENANCE PROCESS (WITH SILENT LOADING & NO-FLASH)
   // ===========================================================================
-// --- MAINTENANCE ENGINE (Upgraded Silent Workload) ---
   void _runMaintenance(PharoahManager ph) async {
     String latestFY = ph.activeCompany?.fYears.last ?? "";
     if (latestFY.isEmpty) return;
@@ -71,30 +70,48 @@ class _CompanyControlPanelViewState extends State<CompanyControlPanelView> {
     setState(() {
       isMaintenanceRunning = true;
       maintenanceProgress = 0.0;
-      maintenanceStatus = "Initializing Structural Audit...";
+      maintenanceStatus = "Waking up Database Doctor...";
     });
 
-    // 1. SILENT LOAD: Bina notify kiye background data reload kiya
-    await ph.loadDataForMaintenanceSilently(latestFY);
-    String path = await ph.getWorkingPath();
+    try {
+      // 1. SILENT LOAD: Bina notify kiye background data reload kiya
+      await ph.loadDataForMaintenanceSilently(latestFY);
+      String path = await ph.getWorkingPath();
 
-    final engine = MaintenanceService(ph, path);
-    await engine.runFullMaintenance(onProgress: (p, s) {
+      final engine = MaintenanceService(ph, path);
+      
+      // Drive progress in real-time from actual calculated tasks
+      await engine.runFullMaintenance(onProgress: (p, s) {
+        if (mounted) {
+          setState(() {
+            maintenanceProgress = p;
+            maintenanceStatus = s;
+          });
+        }
+      });
+
+    } catch (e) {
       if (mounted) {
-        setState(() {
-          maintenanceProgress = p;
-          maintenanceStatus = s;
-        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Error: $e"), backgroundColor: Colors.red)
+        );
       }
-    });
+    }
 
     // 2. SILENT RESET: Bina screen change kiye saal reset kiya
     ph.resetYearSilently();
 
-    if (mounted) setState(() => isMaintenanceRunning = false);
+    // Release Immersive Overlay
+    if (mounted) {
+      setState(() {
+        isMaintenanceRunning = false;
+      });
+    }
   }
 
-// --- 🏛️ 3. NAYA: PROVISIONAL BALANCE SYNC (CASCADE COMPATIBLE) ---
+  // ===========================================================================
+  // 🏛️ 3. NAYA: PROVISIONAL BALANCE SYNC (CASCADE COMPATIBLE - RESOLVED)
+  // ===========================================================================
   void _runProvisionalSync(PharoahManager ph, String startYear) async {
     setState(() {
       isMaintenanceRunning = true;
@@ -132,29 +149,11 @@ class _CompanyControlPanelViewState extends State<CompanyControlPanelView> {
       }
     }
 
-    if (mounted) setState(() => isMaintenanceRunning = false);
-  }
-      setState(() { maintenanceProgress = 1.0; maintenanceStatus = "Sync Completed!"; });
-      await Future.delayed(const Duration(milliseconds: 400));
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(success ? "✅ Opening balances & Stock synced from pichla saal!" : "❌ Sync Failed! Previous year folder missing."),
-            backgroundColor: success ? Colors.green : Colors.red,
-          )
-        );
-      }
-
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Sync Error: $e"), backgroundColor: Colors.red)
-        );
-      }
+    if (mounted) {
+      setState(() {
+        isMaintenanceRunning = false;
+      });
     }
-
-    if (mounted) setState(() => isMaintenanceRunning = false);
   }
 
   // ===========================================================================
@@ -285,7 +284,9 @@ class _CompanyControlPanelViewState extends State<CompanyControlPanelView> {
                     filterExpired: skipExpired,
                   );
 
-                  setState(() => isMaintenanceRunning = false);
+                  setState(() {
+                    isMaintenanceRunning = false;
+                  });
                   
                   if (ok && mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
@@ -351,7 +352,7 @@ class _CompanyControlPanelViewState extends State<CompanyControlPanelView> {
     );
   }
 
-// ===========================================================================
+  // ===========================================================================
   // 🏛️ 6. NAYA: PROVISIONAL SYNC BANNER WIDGET (MARG STYLE - CASCADE UPGRADE)
   // ===========================================================================
   Widget _buildProvisionalSyncBanner(PharoahManager ph) {
