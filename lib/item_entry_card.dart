@@ -1,4 +1,4 @@
-// FILE: lib/item_entry_card.dart (UPGRADED DYNAMIC BATCH FILTER VERSION)
+// FILE: lib/item_entry_card.dart (NEW COMPACT REDESIGNED VERSION)
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -32,22 +32,19 @@ class ItemEntryCard extends StatefulWidget {
 }
 
 class _ItemEntryCardState extends State<ItemEntryCard> {
-  // Logic Controllers
   final batchC = TextEditingController();
   final expC = TextEditingController();
   final mrpC = TextEditingController();
   final rateC = TextEditingController(); 
-  final rateCDiscC = TextEditingController(text: "0.0"); // Memory for C Formula
+  final rateCDiscC = TextEditingController(text: "0.0");
   final qtyC = TextEditingController();
   final freeC = TextEditingController(text: "0"); 
   final gstC = TextEditingController();
-  final normDiscC = TextEditingController(text: "0.0"); // Memory for Disc %
+  final normDiscC = TextEditingController(text: "0.0");
   final discAmtC = TextEditingController(text: "0.0"); 
 
-  String selectedRateType = "A"; // Choices Load Variable
-
-  // --- NAYA: Dynamic Batch Filter Local State ---
-  bool hideZeroStock = true; // By default zero stock batches chhupayenge
+  String selectedRateType = "A";
+  bool hideZeroStock = true; 
 
   @override
   void initState() {
@@ -78,9 +75,6 @@ class _ItemEntryCardState extends State<ItemEntryCard> {
     }
   }
 
-  // ===========================================================================
-  // RATE C SPECIAL FORMULA: MRP -> Tax Free -> Formula % = Rate
-  // ===========================================================================
   void _calculateRateC() {
     double mrp = double.tryParse(mrpC.text) ?? 0.0;
     double gst = double.tryParse(gstC.text) ?? 0.0;
@@ -91,9 +85,6 @@ class _ItemEntryCardState extends State<ItemEntryCard> {
     _syncBillDiscount(true);
   }
 
-  // ===========================================================================
-  // TWO-WAY DISCOUNT SYNC: % <-> ₹
-  // ===========================================================================
   void _syncBillDiscount(bool isPercentSource) {
     double q = double.tryParse(qtyC.text) ?? 0;
     double r = double.tryParse(rateC.text) ?? 0;
@@ -150,7 +141,6 @@ class _ItemEntryCardState extends State<ItemEntryCard> {
     final ph = Provider.of<PharoahManager>(context);
     final totals = _calcTotals();
 
-    // --- SMART BATCH SELECTION FILTER ENGINE (NEW) ---
     final rawBatches = BatchSyncEngine.getFilteredBatches(
       ph: ph, 
       productKey: widget.med.identityKey, 
@@ -160,8 +150,6 @@ class _ItemEntryCardState extends State<ItemEntryCard> {
     final matchingBatches = rawBatches.where((b) {
       bool matchesSearch = b.batch.toLowerCase().contains(batchC.text.toLowerCase());
       if (!matchesSearch) return false;
-      
-      // Dynamic Filter Check
       if (ph.showBatchFilter && hideZeroStock && b.qty <= 0) {
         return false; 
       }
@@ -170,156 +158,308 @@ class _ItemEntryCardState extends State<ItemEntryCard> {
 
     return Dialog(
       backgroundColor: Colors.transparent,
+      insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
       child: Container(
-        width: 500, decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(28)),
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
-          // Elegant Header
-          Container(
-            padding: const EdgeInsets.all(20), width: double.infinity, color: const Color(0xFFF8FAFC),
-            child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                const Text("ITEM MASTER CONFIG", style: TextStyle(color: Color(0xFF64748B), fontWeight: FontWeight.w900, fontSize: 9, letterSpacing: 2)),
-                Text("${widget.srNo}. ${widget.med.name}", style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: Color(0xFF0F172A)), overflow: TextOverflow.ellipsis),
-              ])),
-              IconButton(icon: const Icon(Icons.close_rounded), onPressed: widget.onCancel)
-            ]),
-          ),
-
-          Flexible(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(25.0),
-              child: Column(children: [
-                Row(children: [
-                  Expanded(child: _modernInput("BATCH", batchC, onChanged: (v)=>setState((){}))),
-                  const SizedBox(width: 12),
-                  Expanded(child: _modernInput("EXPIRY (MM/YY)", expC, isNum: true, onChanged: _formatExpiry)),
-                ]),
-
-                // --- NAYA: Conditional Batch Filter Header ---
-                if (ph.showBatchFilter && widget.existingItem == null)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 15, left: 4),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        width: 440,
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(24),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.15),
+              blurRadius: 25,
+              offset: const Offset(0, 10),
+            )
+          ],
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Header
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: const BoxDecoration(
+                color: Color(0xFFF8FAFC),
+                borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text("AVAILABLE BATCHES", style: TextStyle(fontSize: 8, fontWeight: FontWeight.bold, color: Colors.grey, letterSpacing: 0.5)),
-                        InkWell(
-                          onTap: () => setState(() => hideZeroStock = !hideZeroStock),
-                          child: Row(
-                            children: [
-                              Icon(
-                                hideZeroStock ? Icons.check_box : Icons.check_box_outline_blank, 
-                                size: 14, 
-                                color: Colors.blueAccent
-                              ),
-                              const SizedBox(width: 4),
-                              const Text("Hide Zero Stock", style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.blueAccent)),
-                            ],
+                        const Text(
+                          "ITEM MASTER CONFIG",
+                          style: TextStyle(
+                            color: Color(0xFF64748B),
+                            fontWeight: FontWeight.w900,
+                            fontSize: 9,
+                            letterSpacing: 1.5,
                           ),
-                        )
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          "${widget.srNo}. ${widget.med.name}",
+                          style: const TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w900,
+                            color: Color(0xFF0F172A),
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
                       ],
                     ),
                   ),
-
-                if (matchingBatches.isNotEmpty && widget.existingItem == null)
-                  Container(
-                    height: 45, 
-                    margin: const EdgeInsets.only(top: 10), 
-                    child: ListView(
-                      scrollDirection: Axis.horizontal, 
-                      children: matchingBatches.map((b) => Padding(
-                        padding: const EdgeInsets.only(right: 8), 
-                        child: ActionChip(
-                          label: Text("${b.batch} (${b.qty.toInt()})"), // Dynamic stock indicator
-                          onPressed: () {
-                            setState(() { 
-                              batchC.text = b.batch; expC.text = b.exp; 
-                              mrpC.text = b.mrp.toString(); rateC.text = b.rate.toString(); 
-                              _updateRateLogic();
-                            });
-                          }
-                        )
-                      )).toList()
-                    )
-                  ),
-
-                const SizedBox(height: 25),
-                SegmentedButton<String>(
-                  segments: const [
-                    ButtonSegment(value: "A", label: Text("Rate A")),
-                    ButtonSegment(value: "B", label: Text("Rate B")),
-                    ButtonSegment(value: "C", label: Text("Rate C")),
-                  ],
-                  selected: {selectedRateType},
-                  onSelectionChanged: (v) { setState(() { selectedRateType = v.first; _updateRateLogic(); }); },
-                ),
-
-                const SizedBox(height: 25),
-                Row(children: [
-                  if (selectedRateType == "C") ...[
-                    Expanded(child: _modernInput("C FORMULA %", rateCDiscC, isNum: true, onChanged: (v) => _calculateRateC())),
-                    const SizedBox(width: 12),
-                  ],
-                  Expanded(child: _modernInput("MRP", mrpC, isNum: true, onChanged: (v) { if(selectedRateType=="C") _calculateRateC(); })),
-                  const SizedBox(width: 12),
-                  Expanded(child: _modernInput("UNIT RATE", rateC, isNum: true, isReadOnly: selectedRateType == "C", onChanged: (v) => _syncBillDiscount(true))),
-                ]),
-
-                const SizedBox(height: 20),
-                Row(children: [
-                  Expanded(child: _modernInput("QUANTITY", qtyC, isNum: true, onChanged: (v) => _syncBillDiscount(true))),
-                  const SizedBox(width: 12),
-                  Expanded(child: _modernInput("FREE QTY", freeC, isNum: true)),
-                ]),
-
-                const SizedBox(height: 20),
-                Row(children: [
-                  Expanded(child: _modernInput("DISCOUNT %", normDiscC, isNum: true, onChanged: (v) => _syncBillDiscount(true))),
-                  const SizedBox(width: 12),
-                  Expanded(child: _modernInput("DISCOUNT ₹", discAmtC, isNum: true, onChanged: (v) => _syncBillDiscount(false))),
-                ]),
-
-                const SizedBox(height: 35),
-                Container(padding: const EdgeInsets.all(20), decoration: BoxDecoration(color: const Color(0xFF0F172A), borderRadius: BorderRadius.circular(20)), child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-                  const Text("NET ITEM TOTAL", style: TextStyle(color: Colors.white70, fontSize: 10, fontWeight: FontWeight.bold)),
-                  Text("₹${totals['total']!.toStringAsFixed(2)}", style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w900, color: Colors.white)),
-                ])),
-
-                const SizedBox(height: 25),
-                SizedBox(width: double.infinity, height: 60, child: ElevatedButton(style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF2563EB), foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15))), 
-                onPressed: () {
-                   widget.onAdd(BillItem(
-                      id: widget.existingItem?.id ?? DateTime.now().toString(),
-                      srNo: widget.srNo, medicineID: widget.med.id, name: widget.med.name, packing: widget.med.packing,
-                      batch: batchC.text.trim(), exp: expC.text, hsn: widget.med.hsnCode, mrp: double.tryParse(mrpC.text) ?? 0,
-                      qty: double.tryParse(qtyC.text) ?? 0, freeQty: double.tryParse(freeC.text) ?? 0,
-                      rate: double.tryParse(rateC.text) ?? 0, gstRate: double.tryParse(gstC.text) ?? 0,
-                      cgst: totals['cgst']!, sgst: totals['sgst']!, igst: totals['igst']!, total: totals['total']!,
-                      discountRupees: totals['discountAmt']!, 
-                      discountPer: double.tryParse(normDiscC.text) ?? 0.0,
-                      appliedRateType: selectedRateType, 
-                      rateCFormula: double.tryParse(rateCDiscC.text) ?? 0.0, 
-                      isBreakage: widget.allowExpired
-                   ));
-                }, child: const Text("UPDATE ITEM", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, letterSpacing: 1))))
-              ]),
+                  IconButton(
+                    style: IconButton.styleFrom(backgroundColor: const Color(0xFFF1F5F9)),
+                    icon: const Icon(Icons.close_rounded, size: 20, color: Color(0xFF64748B)),
+                    onPressed: widget.onCancel,
+                  )
+                ],
+              ),
             ),
-          )
-        ]),
+
+            Flexible(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(20.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Row 1: Batch & Expiry
+                    Row(
+                      children: [
+                        Expanded(child: _modernInput("BATCH (Random Case)", batchC, onChanged: (v) => setState(() {}))),
+                        const SizedBox(width: 12),
+                        Expanded(child: _modernInput("EXPIRY (MM/YY)", expC, isNum: true, onChanged: _formatExpiry)),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+
+                    // Conditional Batch Filter Header
+                    if (ph.showBatchFilter && widget.existingItem == null) ...[
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text("AVAILABLE BATCHES", style: TextStyle(fontSize: 8, fontWeight: FontWeight.bold, color: Color(0xFF94A3B8))),
+                          InkWell(
+                            onTap: () => setState(() => hideZeroStock = !hideZeroStock),
+                            child: Row(
+                              children: [
+                                Icon(
+                                  hideZeroStock ? Icons.check_box : Icons.check_box_outline_blank, 
+                                  size: 14, 
+                                  color: const Color(0xFF2563EB),
+                                ),
+                                const SizedBox(width: 4),
+                                const Text("Hide Zero Stock", style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Color(0xFF2563EB))),
+                              ],
+                            ),
+                          )
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                    ],
+
+                    if (matchingBatches.isNotEmpty && widget.existingItem == null) ...[
+                      SizedBox(
+                        height: 36,
+                        child: ListView(
+                          scrollDirection: Axis.horizontal, 
+                          children: matchingBatches.map((b) => Padding(
+                            padding: const EdgeInsets.only(right: 8), 
+                            child: ActionChip(
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                              backgroundColor: const Color(0xFFEFF6FF),
+                              side: const BorderSide(color: Color(0xFFBFDBFE)),
+                              label: Text(
+                                "${b.batch} (${b.qty.toInt()} Tab)",
+                                style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF1D4ED8)),
+                              ),
+                              onPressed: () {
+                                setState(() { 
+                                  batchC.text = b.batch; expC.text = b.exp; 
+                                  mrpC.text = b.mrp.toString(); rateC.text = b.rate.toString(); 
+                                  _updateRateLogic();
+                                });
+                              }
+                            )
+                          )).toList()
+                        )
+                      ),
+                      const SizedBox(height: 16),
+                    ],
+
+                    // Segmented Selector
+                    SizedBox(
+                      width: double.infinity,
+                      child: SegmentedButton<String>(
+                        style: SegmentedButton.styleFrom(
+                          selectedBackgroundColor: const Color(0xFF0F172A),
+                          selectedForegroundColor: Colors.white,
+                        ),
+                        segments: const [
+                          ButtonSegment(value: "A", label: Text("Rate A", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12))),
+                          ButtonSegment(value: "B", label: Text("Rate B", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12))),
+                          ButtonSegment(value: "C", label: Text("Rate C", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12))),
+                        ],
+                        selected: {selectedRateType},
+                        onSelectionChanged: (v) { setState(() { selectedRateType = v.first; _updateRateLogic(); }); },
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Inputs Row
+                    Row(
+                      children: [
+                        if (selectedRateType == "C") ...[
+                          Expanded(child: _modernInput("C DISC%", rateCDiscC, isNum: true, onChanged: (v) => _calculateRateC())),
+                          const SizedBox(width: 12),
+                        ],
+                        Expanded(child: _modernInput("MRP", mrpC, isNum: true, onChanged: (v) { if(selectedRateType=="C") _calculateRateC(); })),
+                        const SizedBox(width: 12),
+                        Expanded(child: _modernInput("UNIT RATE", rateC, isNum: true, isReadOnly: selectedRateType == "C", onChanged: (v) => _syncBillDiscount(true))),
+                        const SizedBox(width: 12),
+                        Expanded(child: _modernInput("GST %", gstC, isReadOnly: true)),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+
+                    Row(
+                      children: [
+                        Expanded(child: _modernInput("QUANTITY", qtyC, isNum: true, onChanged: (v) => _syncBillDiscount(true))),
+                        const SizedBox(width: 12),
+                        Expanded(child: _modernInput("FREE QTY", freeC, isNum: true)),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+
+                    Row(
+                      children: [
+                        Expanded(child: _modernInput("DISCOUNT %", normDiscC, isNum: true, onChanged: (v) => _syncBillDiscount(true))),
+                        const SizedBox(width: 12),
+                        Expanded(child: _modernInput("DISCOUNT ₹", discAmtC, isNum: true, onChanged: (v) => _syncBillDiscount(false))),
+                      ],
+                    ),
+                    const SizedBox(height: 20),
+
+                    // Net Total Badge
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF0F172A),
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text(
+                            "NET ITEM TOTAL",
+                            style: TextStyle(
+                              color: Color(0xFF94A3B8),
+                              fontSize: 10,
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: 1.0,
+                            ),
+                          ),
+                          Text(
+                            "₹ ${totals['total']!.toStringAsFixed(2)}",
+                            style: TextStyle(
+                              fontSize: 22,
+                              fontWeight: FontWeight.w900,
+                              color: Colors.greenAccent.shade400,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Submit Button
+                    SizedBox(
+                      width: double.infinity,
+                      height: 48,
+                      child: ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF2563EB),
+                          foregroundColor: Colors.white,
+                          elevation: 0,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        ), 
+                        onPressed: () {
+                           widget.onAdd(BillItem(
+                              id: widget.existingItem?.id ?? DateTime.now().toString(),
+                              srNo: widget.srNo, medicineID: widget.med.id, name: widget.med.name, packing: widget.med.packing,
+                              batch: batchC.text.trim(), 
+                              exp: expC.text, hsn: widget.med.hsnCode, mrp: double.tryParse(mrpC.text) ?? 0,
+                              qty: double.tryParse(qtyC.text) ?? 0, freeQty: double.tryParse(freeC.text) ?? 0,
+                              rate: double.tryParse(rateC.text) ?? 0, gstRate: double.tryParse(gstC.text) ?? 0,
+                              cgst: totals['cgst']!, sgst: totals['sgst']!, igst: totals['igst']!, total: totals['total']!,
+                              discountRupees: totals['discountAmt']!, 
+                              discountPer: double.tryParse(normDiscC.text) ?? 0.0,
+                              appliedRateType: selectedRateType, 
+                              rateCFormula: double.tryParse(rateCDiscC.text) ?? 0.0, 
+                              isBreakage: widget.allowExpired
+                           ));
+                        }, 
+                        child: const Text("CONFIRM & ADD", style: TextStyle(fontWeight: FontWeight.w900, fontSize: 14, letterSpacing: 1.0))
+                      ),
+                    )
+                  ],
+                ),
+              ),
+            )
+          ],
+        ),
       ),
     );
   }
 
-  Widget _modernInput(String label, TextEditingController ctrl, {bool isNum = false, Function(String)? onChanged, bool isReadOnly = false}) {
-    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Text(label, style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w900, color: Color(0xFF64748B))),
-      const SizedBox(height: 5),
-      TextField(
-        controller: ctrl, readOnly: isReadOnly, onChanged: onChanged,
-        keyboardType: isNum ? const TextInputType.numberWithOptions(decimal: true) : TextInputType.text,
-        style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
-        decoration: InputDecoration(isDense: true, contentPadding: const EdgeInsets.all(12), filled: true, fillColor: isReadOnly ? Colors.grey.shade100 : const Color(0xFFF8FAFC), border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFFE2E8F0)))),
-      ),
-    ]);
+  Widget _modernInput(
+    String label,
+    TextEditingController ctrl, {
+    bool isNum = false,
+    bool isReadOnly = false,
+    Function(String)? onChanged,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label.toUpperCase(),
+          style: const TextStyle(
+            fontSize: 9,
+            fontWeight: FontWeight.w900,
+            color: Color(0xFF64748B),
+            letterSpacing: 0.5,
+          ),
+        ),
+        const SizedBox(height: 4),
+        TextField(
+          controller: ctrl,
+          readOnly: isReadOnly,
+          onChanged: onChanged,
+          keyboardType: isNum ? const TextInputType.numberWithOptions(decimal: true) : TextInputType.text,
+          style: TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w900,
+            color: isReadOnly ? const Color(0xFF64748B) : const Color(0xFF0F172A),
+          ),
+          decoration: InputDecoration(
+            isDense: true,
+            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            filled: true,
+            fillColor: isReadOnly ? const Color(0xFFF1F5F9) : const Color(0xFFF8FAFC),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: const BorderSide(color: Color(0xFFE2E8F0), width: 1),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: const BorderSide(color: Color(0xFF3B82F6), width: 1.5),
+            ),
+          ),
+        ),
+      ],
+    );
   }
 }
