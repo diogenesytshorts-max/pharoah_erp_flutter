@@ -872,7 +872,7 @@ Future<void> finalizePurchase({required String internalNo, required String billN
   }
 
 // ===========================================================================
-  // 🏛️ NAYA: CASCADE PROVISIONAL BALANCE SYNC (MARG STYLE - CASCADE LOOP)
+  // 🏛️ NAYA: CASCADE PROVISIONAL BALANCE SYNC (CASCADE LOOP - NO NESTING)
   // ===========================================================================
   Future<bool> syncOpeningBalancesFromPreviousYear({
     required String startYear, 
@@ -893,17 +893,15 @@ Future<void> finalizePurchase({required String internalNo, required String billN
       int totalSteps = (years.length - 1) - startIndex;
       int completedSteps = 0;
 
-      // chronological chain of years par cascade loop chalana
+      // Chronological loop through years
       for (int i = startIndex; i < years.length - 1; i++) {
         String prevFY = years[i];
         String targetFY = years[i + 1];
         completedSteps++;
 
-        // UI progress calculation
         double stepProgress = (completedSteps / totalSteps);
         onStepProgress(stepProgress, "Syncing: $prevFY -> $targetFY");
 
-        // Base paths for this step
         final prevPath = '${root.path}/Pharoah_Data/${activeCompany!.id}/${activeCompany!.businessType}/$prevFY';
         final targetPath = '${root.path}/Pharoah_Data/${activeCompany!.id}/${activeCompany!.businessType}/$targetFY';
         
@@ -915,174 +913,194 @@ Future<void> finalizePurchase({required String internalNo, required String billN
           return false;
         }
 
-        // Helper to load specific JSON files
-        dynamic loadJsonPath(String dirPath, String name) {
-          final f = File('$dirPath/$name');
-          return f.existsSync() ? jsonDecode(f.readAsStringSync()) : null;
+        // 1. Read previous year databases directly from disk files
+        File fMeds = File('$prevPath/meds.json');
+        List<Medicine> prevMeds = fMeds.existsSync() ? (jsonDecode(fMeds.readAsStringSync()) as List).map((e) => Medicine.fromMap(e)).toList() : [];
+
+        File fParts = File('$prevPath/parts.json');
+        List<Party> prevParties = fParts.existsSync() ? (jsonDecode(fParts.readAsStringSync()) as List).map((e) => Party.fromMap(e)).toList() : [];
+
+        File fSales = File('$prevPath/sales.json');
+        List<Sale> prevSales = fSales.existsSync() ? (jsonDecode(fSales.readAsStringSync()) as List).map((e) => Sale.fromMap(e)).toList() : [];
+
+        File fPurc = File('$prevPath/purc.json');
+        List<Purchase> prevPurc = fPurc.existsSync() ? (jsonDecode(fPurc.readAsStringSync()) as List).map((e) => Purchase.fromMap(e)).toList() : [];
+
+        File fVouc = File('$prevPath/vouc.json');
+        List<Voucher> prevVouc = fVouc.existsSync() ? (jsonDecode(fVouc.readAsStringSync()) as List).map((e) => Voucher.fromMap(e)).toList() : [];
+
+        File fBanks = File('$prevPath/banks.json');
+        List<Bank> prevBanks = fBanks.existsSync() ? (jsonDecode(fBanks.readAsStringSync()) as List).map((e) => Bank.fromMap(e)).toList() : [];
+
+        File fBats = File('$prevPath/bats.json');
+        Map<String, dynamic> prevBatchesRaw = fBats.existsSync() ? jsonDecode(fBats.readAsStringSync()) : {};
+
+        // 2. Read target year databases
+        File fTargetParts = File('$targetPath/parts.json');
+        List<Party> targetParties = fTargetParts.existsSync() ? (jsonDecode(fTargetParts.readAsStringSync()) as List).map((e) => Party.fromMap(e)).toList() : [];
+
+        File fTargetBanks = File('$targetPath/banks.json');
+        List<Bank> targetBanks = fTargetBanks.existsSync() ? (jsonDecode(fTargetBanks.readAsStringSync()) as List).map((e) => Bank.fromMap(e)).toList() : [];
+
+        File fTargetMeds = File('$targetPath/meds.json');
+        List<Medicine> targetMeds = fTargetMeds.existsSync() ? (jsonDecode(fTargetMeds.readAsStringSync()) as List).map((e) => Medicine.fromMap(e)).toList() : [];
+
+        File fTargetBats = File('$targetPath/bats.json');
+        Map<String, dynamic> targetBatchesRaw = fTargetBats.existsSync() ? jsonDecode(fTargetBats.readAsStringSync()) : {};
+
+        // 3. Re-calculate Party Closing Balances
+        Map<String, double> recalculatedPartyBals = {};
+        for (var p in prevParties) {
+          if (p.name == "CASH") continue;
+          double bal = p.opBal;
+          
+          for (var s in prevSales.where((s) => s.partyName == p.name && s.status == "Active")) {
+            bal += s.totalAmount;
+          }
+          for (var pr in prevPurc.where((pr) => pr.distributorName == p.name)) {
+            bal -= pr.totalAmount;
+          }
+          for (var v in prevVouc.where((v) => v.partyName == p.name && v.status == "Active")) {
+            String type = v.type.toUpperCase();
+            if (type == "RECEIPT") {
+              bal -= v.amount;
+            } else if (type == "PAYMENT" || type == "EXPENSE") {
+              bal += v.amount;
+            }
+          }
+          recalculatedPartyBals[p.id] = bal;
         }
 
-   // 1. Read pichle saal ki memory files (Load All Masters)
-      List<Medicine> prevMeds = (loadJsonPrev('meds.json') as List?)?.map((e) => Medicine.fromMap(e)).toList() ?? [];
-      List<Party> prevParties = (loadJsonPrev('parts.json') as List?)?.map((e) => Party.fromMap(e)).toList() ?? [];
-      List<Sale> prevSales = (loadJsonPrev('sales.json') as List?)?.map((e) => Sale.fromMap(e)).toList() ?? [];
-      List<Purchase> prevPurc = (loadJsonPrev('purc.json') as List?)?.map((e) => Purchase.fromMap(e)).toList() ?? [];
-      List<Voucher> prevVouc = (loadJsonPrev('vouc.json') as List?)?.map((e) => Voucher.fromMap(e)).toList() ?? [];
-      List<Bank> prevBanks = (loadJsonPrev('banks.json') as List?)?.map((e) => Bank.fromMap(e)).toList() ?? [];
-      Map<String, dynamic> prevBatchesRaw = loadJsonPrev('bats.json') ?? {};
-
-      // 2. Read target year databases
-      List<Medicine> targetMeds = (loadJsonPath(targetPath, 'meds.json') as List?)?.map((e) => Medicine.fromMap(e)).toList() ?? [];
-      List<Party> targetParties = (loadJsonPath(targetPath, 'parts.json') as List?)?.map((e) => Party.fromMap(e)).toList() ?? [];
-      List<Bank> targetBanks = (loadJsonPath(targetPath, 'banks.json') as List?)?.map((e) => Bank.fromMap(e)).toList() ?? [];
-      Map<String, dynamic> targetBatchesRaw = loadJsonPath(targetPath, 'bats.json') ?? {};
-
-      // 3. Re-calculate Party Closing Balances
-      Map<String, double> recalculatedPartyBals = {};
-      for (var p in prevParties) {
-        if (p.name == "CASH") continue;
-        double bal = p.opBal;
-        
-        for (var s in prevSales.where((s) => s.partyName == p.name && s.status == "Active")) {
-          bal += s.totalAmount;
+        // 4. Re-calculate Bank Balances
+        Map<String, double> recalculatedBankBals = {};
+        for (var b in prevBanks) {
+          double bal = b.openingBalance;
+          for (var v in prevVouc.where((v) => v.depositedIn.toUpperCase() == b.name.toUpperCase() && v.status == "Active")) {
+            String type = v.type.toUpperCase();
+            if (type == "RECEIPT") {
+              bal += v.amount;
+            } else if (type == "PAYMENT" || type == "EXPENSE") {
+              bal -= v.amount;
+            }
+          }
+          recalculatedBankBals[b.id] = bal;
         }
-        for (var pr in prevPurc.where((pr) => pr.distributorName == p.name)) {
-          bal -= pr.totalAmount;
-        }
-        for (var v in prevVouc.where((v) => v.partyName == p.name && v.status == "Active")) {
-          String type = v.type.toUpperCase();
-          if (type == "RECEIPT") {
-            bal -= v.amount;
-          } else if (type == "PAYMENT" || type == "EXPENSE") {
-            bal += v.amount;
+
+        // 5. Re-calculate Batch Stocks
+        Map<String, List<BatchInfo>> recalculatedBatches = {};
+        prevBatchesRaw.forEach((medKey, batchList) {
+          List<dynamic> list = batchList as List;
+          recalculatedBatches[medKey] = list.map((b) {
+            BatchInfo bObj = BatchInfo.fromMap(b);
+            if (bObj.qty < 0) bObj.qty = 0;
+            bObj.openingQty = bObj.qty; 
+            bObj.adjustmentQty = 0;     
+            return bObj;
+          }).toList();
+        });
+
+        // 6. DELTA MASTERS EXPORT (Masters Sync)
+        Set<String> targetPartyIds = targetParties.map((p) => p.id).toSet();
+        List<Party> missingParties = [];
+        for (var p in prevParties) {
+          if (!targetPartyIds.contains(p.id)) {
+            p.opBal = recalculatedPartyBals[p.id] ?? p.opBal;
+            missingParties.add(p);
           }
         }
-        recalculatedPartyBals[p.id] = bal;
-      }
 
-      // 4. Re-calculate Bank Balances
-      Map<String, double> recalculatedBankBals = {};
-      for (var b in prevBanks) {
-        double bal = b.openingBalance;
-        for (var v in prevVouc.where((v) => v.depositedIn.toUpperCase() == b.name.toUpperCase() && v.status == "Active")) {
-          String type = v.type.toUpperCase();
-          if (type == "RECEIPT") {
-            bal += v.amount;
-          } else if (type == "PAYMENT" || type == "EXPENSE") {
-            bal -= v.amount;
+        List<Party> updatedParties = targetParties.map((p) {
+          if (recalculatedPartyBals.containsKey(p.id)) {
+            p.opBal = recalculatedPartyBals[p.id]!;
           }
-        }
-        recalculatedBankBals[b.id] = bal;
-      }
-
-      // 5. Re-calculate Batch Stocks (Previous Year Closing becomes New Year Opening)
-      Map<String, List<BatchInfo>> recalculatedBatches = {};
-      prevBatchesRaw.forEach((medKey, batchList) {
-        List<dynamic> list = batchList as List;
-        recalculatedBatches[medKey] = list.map((b) {
-          BatchInfo bObj = BatchInfo.fromMap(b);
-          if (bObj.qty < 0) bObj.qty = 0;
-          bObj.openingQty = bObj.qty; 
-          bObj.adjustmentQty = 0;     
-          return bObj;
+          return p;
         }).toList();
-      });
+        updatedParties.addAll(missingParties);
 
-      // 6. 🔥 DELTA MASTERS EXPORT (Automatic Insert & Copy Missing Parties/Meds)
-      
-      // A. Parties Delta Sync
-      Set<String> targetPartyIds = targetParties.map((p) => p.id).toSet();
-      List<Party> missingParties = [];
-      for (var p in prevParties) {
-        if (!targetPartyIds.contains(p.id)) {
-          p.opBal = recalculatedPartyBals[p.id] ?? p.opBal; // Set new balance
-          missingParties.add(p);
-        }
-      }
-
-      List<Party> updatedParties = targetParties.map((p) {
-        if (recalculatedPartyBals.containsKey(p.id)) {
-          p.opBal = recalculatedPartyBals[p.id]!;
-        }
-        return p;
-      }).toList();
-      updatedParties.addAll(missingParties); // Append new parties on-the-fly!
-
-      // B. Medicines Delta Sync (Active Parent-Stock Sync included)
-      Set<String> targetMedKeys = targetMeds.map((m) => m.identityKey).toSet();
-      List<Medicine> missingMeds = [];
-      
-      for (var m in prevMeds) {
-        if (!targetMedKeys.contains(m.identityKey)) {
-          double totalStock = 0.0;
-          if (recalculatedBatches.containsKey(m.identityKey)) {
-            for (var b in recalculatedBatches[m.identityKey]!) {
-              totalStock += b.qty;
+        Set<String> targetMedKeys = targetMeds.map((m) => m.identityKey).toSet();
+        List<Medicine> missingMeds = [];
+        
+        for (var m in prevMeds) {
+          if (!targetMedKeys.contains(m.identityKey)) {
+            double totalStock = 0.0;
+            if (recalculatedBatches.containsKey(m.identityKey)) {
+              for (var b in recalculatedBatches[m.identityKey]!) {
+                totalStock += b.qty;
+              }
             }
+            m.stock = totalStock;
+            missingMeds.add(m);
           }
-          m.stock = totalStock;
-          missingMeds.add(m);
         }
-      }
 
-      List<Medicine> updatedMeds = targetMeds.map((m) {
-        String key = m.identityKey;
-        if (prevBatchesRaw.containsKey(key)) {
-          double totalStock = 0.0;
-          if (recalculatedBatches.containsKey(key)) {
-            for (var b in recalculatedBatches[key]!) {
-              totalStock += b.qty;
+        List<Medicine> updatedMeds = targetMeds.map((m) {
+          String key = m.identityKey;
+          if (prevBatchesRaw.containsKey(key)) {
+            double totalStock = 0.0;
+            if (recalculatedBatches.containsKey(key)) {
+              for (var b in recalculatedBatches[key]!) {
+                totalStock += b.qty;
+              }
             }
+            m.stock = totalStock;
           }
-          m.stock = totalStock; // Update parent stock to match filtered batches
-        }
-        return m;
-      }).toList();
-      updatedMeds.addAll(missingMeds); // Append new medicines on-the-fly!
+          return m;
+        }).toList();
+        updatedMeds.addAll(missingMeds);
 
-      // C. Other Masters Delta Sync (Routes, Companies, Salts)
-      List<RouteArea> prevRouts = (loadJsonPrev('routs.json') as List?)?.map((e) => RouteArea.fromMap(e)).toList() ?? [];
-      List<RouteArea> targetRouts = (loadJsonPath(targetPath, 'routs.json') as List?)?.map((e) => RouteArea.fromMap(e)).toList() ?? [];
-      Set<String> targetRouteIds = targetRouts.map((r) => r.id).toSet();
-      targetRouts.addAll(prevRouts.where((r) => !targetRouteIds.contains(r.id)));
+        // Delta for other static files
+        File fPrevRouts = File('$prevPath/routs.json');
+        List<RouteArea> prevRouts = fPrevRouts.existsSync() ? (jsonDecode(fPrevRouts.readAsStringSync()) as List).map((e) => RouteArea.fromMap(e)).toList() : [];
+        File fTargetRouts = File('$targetPath/routs.json');
+        List<RouteArea> targetRouts = fTargetRouts.existsSync() ? (jsonDecode(fTargetRouts.readAsStringSync()) as List).map((e) => RouteArea.fromMap(e)).toList() : [];
+        Set<String> targetRouteIds = targetRouts.map((r) => r.id).toSet();
+        targetRouts.addAll(prevRouts.where((r) => !targetRouteIds.contains(r.id)));
 
-      List<Company> prevComps = (loadJsonPrev('comps.json') as List?)?.map((e) => Company.fromMap(e)).toList() ?? [];
-      List<Company> targetComps = (loadJsonPath(targetPath, 'comps.json') as List?)?.map((e) => Company.fromMap(e)).toList() ?? [];
-      Set<String> targetCompIds = targetComps.map((c) => c.id).toSet();
-      targetComps.addAll(prevComps.where((c) => !targetCompIds.contains(c.id)));
+        File fPrevComps = File('$prevPath/comps.json');
+        List<Company> prevComps = fPrevComps.existsSync() ? (jsonDecode(fPrevComps.readAsStringSync()) as List).map((e) => Company.fromMap(e)).toList() : [];
+        File fTargetComps = File('$targetPath/comps.json');
+        List<Company> targetComps = fTargetComps.existsSync() ? (jsonDecode(fTargetComps.readAsStringSync()) as List).map((e) => Company.fromMap(e)).toList() : [];
+        Set<String> targetCompIds = targetComps.map((c) => c.id).toSet();
+        targetComps.addAll(prevComps.where((c) => !targetCompIds.contains(c.id)));
 
-      List<Salt> prevSalts = (loadJsonPrev('salts.json') as List?)?.map((e) => Salt.fromMap(e)).toList() ?? [];
-      List<Salt> targetSalts = (loadJsonPath(targetPath, 'salts.json') as List?)?.map((e) => Salt.fromMap(e)).toList() ?? [];
-      Set<String> targetSaltIds = targetSalts.map((s) => s.id).toSet();
-      targetSalts.addAll(prevSalts.where((s) => !targetSaltIds.contains(s.id)));
+        File fPrevSalts = File('$prevPath/salts.json');
+        List<Salt> prevSalts = fPrevSalts.existsSync() ? (jsonDecode(fPrevSalts.readAsStringSync()) as List).map((e) => Salt.fromMap(e)).toList() : [];
+        File fTargetSalts = File('$targetPath/salts.json');
+        List<Salt> targetSalts = fTargetSalts.existsSync() ? (jsonDecode(fTargetSalts.readAsStringSync()) as List).map((e) => Salt.fromMap(e)).toList() : [];
+        Set<String> targetSaltIds = targetSalts.map((s) => s.id).toSet();
+        targetSalts.addAll(prevSalts.where((s) => !targetSaltIds.contains(s.id)));
 
-      // D. Banks
-      List<Bank> updatedBanks = targetBanks.map((b) {
-        if (recalculatedBankBals.containsKey(b.id)) {
-          b.openingBalance = recalculatedBankBals[b.id]!;
-        }
-        return b;
-      }).toList();
+        List<Bank> updatedBanks = targetBanks.map((b) {
+          if (recalculatedBankBals.containsKey(b.id)) {
+            b.openingBalance = recalculatedBankBals[b.id]!;
+          }
+          return b;
+        }).toList();
 
-      // E. Batches Map
-      recalculatedBatches.forEach((medKey, list) {
-        targetBatchesRaw[medKey] = list.map((e) => e.toMap()).toList();
-      });
+        recalculatedBatches.forEach((medKey, list) {
+          targetBatchesRaw[medKey] = list.map((e) => e.toMap()).toList();
+        });
 
-      // 7. Save directly to target year folder on disk
-      Future saveToTargetPath(String name, dynamic data) async {
-        await File('$targetPath/$name').writeAsString(jsonEncode(data));
+        // Save straight to disk
+        await File('$targetPath/meds.json').writeAsString(jsonEncode(updatedMeds.map((e) => e.toMap()).toList()));
+        await File('$targetPath/parts.json').writeAsString(jsonEncode(updatedParties.map((e) => e.toMap()).toList()));
+        await File('$targetPath/banks.json').writeAsString(jsonEncode(updatedBanks.map((e) => e.toMap()).toList()));
+        await File('$targetPath/bats.json').writeAsString(jsonEncode(targetBatchesRaw));
+        await File('$targetPath/routs.json').writeAsString(jsonEncode(targetRouts.map((e) => e.toMap()).toList()));
+        await File('$targetPath/comps.json').writeAsString(jsonEncode(targetComps.map((e) => e.toMap()).toList()));
+        await File('$targetPath/salts.json').writeAsString(jsonEncode(targetSalts.map((e) => e.toMap()).toList()));
+
+        addLog("SYSTEM", "Provisional Cascade: synced opening balances from $prevFY to $targetFY.");
+        await Future.delayed(const Duration(milliseconds: 100));
       }
 
-      await saveToTargetPath('meds.json', updatedMeds.map((e) => e.toMap()).toList());
-      await saveToTargetPath('parts.json', updatedParties.map((e) => e.toMap()).toList());
-      await saveToTargetPath('banks.json', updatedBanks.map((e) => e.toMap()).toList());
-      await saveToTargetPath('bats.json', targetBatchesRaw);
-      await saveToTargetPath('routs.json', targetRouts.map((e) => e.toMap()).toList());
-      await saveToTargetPath('comps.json', targetComps.map((e) => e.toMap()).toList());
-      await saveToTargetPath('salts.json', targetSalts.map((e) => e.toMap()).toList());
-
-      addLog("SYSTEM", "Provisional Sync complete. opening balances & new masters carried forward from $prevFY to $targetFY.");
+      if (currentFY.isNotEmpty) {
+        await loadAllData(); 
+      }
       return true;
+    } catch (e) {
+      debugPrint("Provisional Cascade Sync Failed: $e");
+      return false;
     }
   }
 
