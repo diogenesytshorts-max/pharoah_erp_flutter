@@ -1,5 +1,6 @@
-// FILE: lib/item_entry_card.dart (NEW COMPACT REDESIGNED VERSION)
+// FILE: lib/item_entry_card.dart (ROYAL COBALT + BACKDROP BLUR)
 
+import 'dart:ui'; // Backdrop Filter के ब्लर इफ़ेक्ट के लिए अनिवार्य
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'models.dart';
@@ -32,6 +33,7 @@ class ItemEntryCard extends StatefulWidget {
 }
 
 class _ItemEntryCardState extends State<ItemEntryCard> {
+  // लॉजिक कंट्रोलर्स (यथावत)
   final batchC = TextEditingController();
   final expC = TextEditingController();
   final mrpC = TextEditingController();
@@ -141,6 +143,12 @@ class _ItemEntryCardState extends State<ItemEntryCard> {
     final ph = Provider.of<PharoahManager>(context);
     final totals = _calcTotals();
 
+    // थीम कलर्स (Vibrant Royal Cobalt Theme)
+    const Color brandDark = Color(0xFF1E1B4B); 
+    const Color accentElectric = Color(0xFF3B82F6); 
+    const Color neonGreen = Color(0xFF10B981); 
+    const Color coralWarn = Color(0xFFEF4444);
+
     final rawBatches = BatchSyncEngine.getFilteredBatches(
       ph: ph, 
       productKey: widget.med.identityKey, 
@@ -156,269 +164,266 @@ class _ItemEntryCardState extends State<ItemEntryCard> {
       return true;
     }).toList();
 
-    return Dialog(
-      backgroundColor: Colors.transparent,
-      insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
-      child: Container(
-        width: 440,
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(24),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.15),
-              blurRadius: 25,
-              offset: const Offset(0, 10),
-            )
-          ],
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // Header
-            Container(
-              padding: const EdgeInsets.all(20),
-              decoration: const BoxDecoration(
-                color: Color(0xFFF8FAFC),
-                borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-              ),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          "ITEM MASTER CONFIG",
-                          style: TextStyle(
-                            color: Color(0xFF64748B),
-                            fontWeight: FontWeight.w900,
-                            fontSize: 9,
-                            letterSpacing: 1.5,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          "${widget.srNo}. ${widget.med.name}",
-                          style: const TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w900,
-                            color: Color(0xFF0F172A),
-                          ),
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ],
-                    ),
+    // 🌫️ BackdropFilter का उपयोग करके फ्रॉस्टेड बैकग्राउंड डायलॉग
+    return BackdropFilter(
+      filter: ImageFilter.blur(sigmaX: 5.0, sigmaY: 5.0),
+      child: Dialog(
+        backgroundColor: Colors.transparent,
+        insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+        child: Container(
+          width: 440,
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(color: accentElectric.withOpacity(0.4), width: 1.5),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.15),
+                blurRadius: 25,
+                offset: const Offset(0, 10),
+              )
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Vibrant Royal Cobalt Header
+              Container(
+                padding: const EdgeInsets.all(20),
+                decoration: const BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [brandDark, Color(0xFF312E81)],
+                    begin: Alignment.topLeft, end: Alignment.bottomRight,
                   ),
-                  IconButton(
-                    style: IconButton.styleFrom(backgroundColor: const Color(0xFFF1F5F9)),
-                    icon: const Icon(Icons.close_rounded, size: 20, color: Color(0xFF64748B)),
-                    onPressed: widget.onCancel,
-                  )
-                ],
-              ),
-            ),
-
-            Flexible(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.all(20.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                  borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
+                ),
+                child: Row(
                   children: [
-                    // Row 1: Batch & Expiry
-                    Row(
-                      children: [
-                        Expanded(child: _modernInput("BATCH (Random Case)", batchC, onChanged: (v) => setState(() {}))),
-                        const SizedBox(width: 12),
-                        Expanded(child: _modernInput("EXPIRY (MM/YY)", expC, isNum: true, onChanged: _formatExpiry)),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-
-                    // Conditional Batch Filter Header
-                    if (ph.showBatchFilter && widget.existingItem == null) ...[
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          const Text("AVAILABLE BATCHES", style: TextStyle(fontSize: 8, fontWeight: FontWeight.bold, color: Color(0xFF94A3B8))),
-                          InkWell(
-                            onTap: () => setState(() => hideZeroStock = !hideZeroStock),
-                            child: Row(
-                              children: [
-                                Icon(
-                                  hideZeroStock ? Icons.check_box : Icons.check_box_outline_blank, 
-                                  size: 14, 
-                                  color: const Color(0xFF2563EB),
-                                ),
-                                const SizedBox(width: 4),
-                                const Text("Hide Zero Stock", style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Color(0xFF2563EB))),
-                              ],
-                            ),
-                          )
-                        ],
-                      ),
-                      const SizedBox(height: 6),
-                    ],
-
-                    if (matchingBatches.isNotEmpty && widget.existingItem == null) ...[
-                      SizedBox(
-                        height: 36,
-                        child: ListView(
-                          scrollDirection: Axis.horizontal, 
-                          children: matchingBatches.map((b) => Padding(
-                            padding: const EdgeInsets.only(right: 8), 
-                            child: ActionChip(
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                              backgroundColor: const Color(0xFFEFF6FF),
-                              side: const BorderSide(color: Color(0xFFBFDBFE)),
-                              label: Text(
-                                "${b.batch} (${b.qty.toInt()} Tab)",
-                                style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF1D4ED8)),
-                              ),
-                              onPressed: () {
-                                setState(() { 
-                                  batchC.text = b.batch; expC.text = b.exp; 
-                                  mrpC.text = b.mrp.toString(); rateC.text = b.rate.toString(); 
-                                  _updateRateLogic();
-                                });
-                              }
-                            )
-                          )).toList()
-                        )
-                      ),
-                      const SizedBox(height: 16),
-                    ],
-
-                    // Segmented Selector
-                    SizedBox(
-                      width: double.infinity,
-                      child: SegmentedButton<String>(
-                        style: SegmentedButton.styleFrom(
-                          selectedBackgroundColor: const Color(0xFF0F172A),
-                          selectedForegroundColor: Colors.white,
-                        ),
-                        segments: const [
-                          ButtonSegment(value: "A", label: Text("Rate A", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12))),
-                          ButtonSegment(value: "B", label: Text("Rate B", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12))),
-                          ButtonSegment(value: "C", label: Text("Rate C", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12))),
-                        ],
-                        selected: {selectedRateType},
-                        onSelectionChanged: (v) { setState(() { selectedRateType = v.first; _updateRateLogic(); }); },
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-
-                    // Inputs Row
-                    Row(
-                      children: [
-                        if (selectedRateType == "C") ...[
-                          Expanded(child: _modernInput("C DISC%", rateCDiscC, isNum: true, onChanged: (v) => _calculateRateC())),
-                          const SizedBox(width: 12),
-                        ],
-                        Expanded(child: _modernInput("MRP", mrpC, isNum: true, onChanged: (v) { if(selectedRateType=="C") _calculateRateC(); })),
-                        const SizedBox(width: 12),
-                        Expanded(child: _modernInput("UNIT RATE", rateC, isNum: true, isReadOnly: selectedRateType == "C", onChanged: (v) => _syncBillDiscount(true))),
-                        const SizedBox(width: 12),
-                        Expanded(child: _modernInput("GST %", gstC, isReadOnly: true)),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-
-                    Row(
-                      children: [
-                        Expanded(child: _modernInput("QUANTITY", qtyC, isNum: true, onChanged: (v) => _syncBillDiscount(true))),
-                        const SizedBox(width: 12),
-                        Expanded(child: _modernInput("FREE QTY", freeC, isNum: true)),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-
-                    Row(
-                      children: [
-                        Expanded(child: _modernInput("DISCOUNT %", normDiscC, isNum: true, onChanged: (v) => _syncBillDiscount(true))),
-                        const SizedBox(width: 12),
-                        Expanded(child: _modernInput("DISCOUNT ₹", discAmtC, isNum: true, onChanged: (v) => _syncBillDiscount(false))),
-                      ],
-                    ),
-                    const SizedBox(height: 20),
-
-                    // Net Total Badge
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF0F172A),
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           const Text(
-                            "NET ITEM TOTAL",
+                            "ROYAL COBALT CONFIG",
                             style: TextStyle(
-                              color: Color(0xFF94A3B8),
-                              fontSize: 10,
+                              color: Color(0xFF818CF8),
                               fontWeight: FontWeight.w900,
-                              letterSpacing: 1.0,
+                              fontSize: 9,
+                              letterSpacing: 1.5,
                             ),
                           ),
+                          const SizedBox(height: 4),
                           Text(
-                            "₹ ${totals['total']!.toStringAsFixed(2)}",
-                            style: TextStyle(
-                              fontSize: 22,
+                            "${widget.srNo}. ${widget.med.name}",
+                            style: const TextStyle(
+                              fontSize: 18,
                               fontWeight: FontWeight.w900,
-                              color: Colors.greenAccent.shade400,
+                              color: Colors.white,
                             ),
+                            overflow: TextOverflow.ellipsis,
                           ),
                         ],
                       ),
                     ),
-                    const SizedBox(height: 16),
-
-                    // Submit Button
-                    SizedBox(
-                      width: double.infinity,
-                      height: 48,
-                      child: ElevatedButton(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF2563EB),
-                          foregroundColor: Colors.white,
-                          elevation: 0,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                        ), 
-                        onPressed: () {
-                           widget.onAdd(BillItem(
-                              id: widget.existingItem?.id ?? DateTime.now().toString(),
-                              srNo: widget.srNo, medicineID: widget.med.id, name: widget.med.name, packing: widget.med.packing,
-                              batch: batchC.text.trim(), 
-                              exp: expC.text, hsn: widget.med.hsnCode, mrp: double.tryParse(mrpC.text) ?? 0,
-                              qty: double.tryParse(qtyC.text) ?? 0, freeQty: double.tryParse(freeC.text) ?? 0,
-                              rate: double.tryParse(rateC.text) ?? 0, gstRate: double.tryParse(gstC.text) ?? 0,
-                              cgst: totals['cgst']!, sgst: totals['sgst']!, igst: totals['igst']!, total: totals['total']!,
-                              discountRupees: totals['discountAmt']!, 
-                              discountPer: double.tryParse(normDiscC.text) ?? 0.0,
-                              appliedRateType: selectedRateType, 
-                              rateCFormula: double.tryParse(rateCDiscC.text) ?? 0.0, 
-                              isBreakage: widget.allowExpired
-                           ));
-                        }, 
-                        child: const Text("CONFIRM & ADD", style: TextStyle(fontWeight: FontWeight.w900, fontSize: 14, letterSpacing: 1.0))
-                      ),
+                    IconButton(
+                      style: IconButton.styleFrom(backgroundColor: Colors.white.withOpacity(0.1)),
+                      icon: const Icon(Icons.close_rounded, size: 20, color: Colors.white70),
+                      onPressed: widget.onCancel,
                     )
                   ],
                 ),
               ),
-            )
-          ],
+
+              Flexible(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.all(20.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Row 1: Batch & Expiry
+                      Row(
+                        children: [
+                          Expanded(child: _vibrantInput("BATCH (Case-Sensitive)", batchC, accentElectric, false, onChanged: (v) => setState(() {}))),
+                          const SizedBox(width: 12),
+                          Expanded(child: _vibrantInput("EXPIRY (MM/YY)", expC, accentElectric, false, isNum: true, onChanged: _formatExpiry)),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+
+                      // Conditional Batch Filter Header
+                      if (ph.showBatchFilter && widget.existingItem == null) ...[
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            const Text("AVAILABLE BATCHES", style: TextStyle(fontSize: 8, fontWeight: FontWeight.bold, color: Color(0xFF94A3B8))),
+                            InkWell(
+                              onTap: () => setState(() => hideZeroStock = !hideZeroStock),
+                              child: Row(
+                                children: [
+                                  Icon(
+                                    hideZeroStock ? Icons.check_box : Icons.check_box_outline_blank, 
+                                    size: 14, 
+                                    color: accentElectric,
+                                  ),
+                                  const SizedBox(width: 4),
+                                  const Text("Hide Zero Stock", style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: accentElectric)),
+                                ],
+                              ),
+                            )
+                          ],
+                        ),
+                        const SizedBox(height: 6),
+                      ],
+
+                      if (matchingBatches.isNotEmpty && widget.existingItem == null) ...[
+                        SizedBox(
+                          height: 36,
+                          child: ListView(
+                            scrollDirection: Axis.horizontal, 
+                            children: matchingBatches.map((b) => Padding(
+                              padding: const EdgeInsets.only(right: 8), 
+                              child: ActionChip(
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                backgroundColor: const Color(0xFFEFF6FF),
+                                side: const BorderSide(color: Color(0xFFBFDBFE)),
+                                label: Text(
+                                  "${b.batch} (${b.qty.toInt()} Tab)",
+                                  style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF1D4ED8)),
+                                ),
+                                onPressed: () {
+                                  setState(() { 
+                                    batchC.text = b.batch; expC.text = b.exp; 
+                                    mrpC.text = b.mrp.toString(); rateC.text = b.rate.toString(); 
+                                    _updateRateLogic();
+                                  });
+                                }
+                              )
+                            )).toList()
+                          )
+                        ),
+                        const SizedBox(height: 16),
+                      ],
+
+                      // High Contrast Segmented Buttons
+                      Row(
+                        children: [
+                          _segmentTab("RATE A", selectedRateType == "A", accentElectric, () { setState(() { selectedRateType = "A"; _updateRateLogic(); }); }),
+                          _segmentTab("RATE B", selectedRateType == "B", accentElectric, () { setState(() { selectedRateType = "B"; _updateRateLogic(); }); }),
+                          _segmentTab("RATE C", selectedRateType == "C", accentElectric, () { setState(() { selectedRateType = "C"; _updateRateLogic(); }); }),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+
+                      // Price inputs row
+                      Row(
+                        children: [
+                          if (selectedRateType == "C") ...[
+                            Expanded(child: _vibrantInput("C DISC%", rateCDiscC, accentElectric, false, isNum: true, onChanged: (v) => _calculateRateC())),
+                            const SizedBox(width: 12),
+                          ],
+                          Expanded(child: _vibrantInput("MRP", mrpC, accentElectric, false, isNum: true, onChanged: (v) { if(selectedRateType=="C") _calculateRateC(); })),
+                          const SizedBox(width: 12),
+                          Expanded(child: _vibrantInput("UNIT RATE", rateC, accentElectric, selectedRateType == "C", isNum: true, labelColor: selectedRateType == "C" ? Colors.purple : null, onChanged: (v) => _syncBillDiscount(true))),
+                          const SizedBox(width: 12),
+                          Expanded(child: _vibrantInput("GST %", gstC, accentElectric, true)),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+
+                      Row(
+                        children: [
+                          Expanded(child: _vibrantInput("QUANTITY", qtyC, accentElectric, false, isNum: true, highlight: true, onChanged: (v) => _syncBillDiscount(true))),
+                          const SizedBox(width: 12),
+                          Expanded(child: _vibrantInput("FREE QTY", freeC, accentElectric, false, isNum: true)),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+
+                      Row(
+                        children: [
+                          Expanded(child: _vibrantInput("DISCOUNT %", normDiscC, accentElectric, false, isNum: true, onChanged: (v) => _syncBillDiscount(true))),
+                          const SizedBox(width: 12),
+                          Expanded(child: _vibrantInput("DISCOUNT ₹", discAmtC, accentElectric, false, isNum: true, onChanged: (v) => _syncBillDiscount(false))),
+                        ],
+                      ),
+                      const SizedBox(height: 20),
+
+                      // Glowing Neon Emerald Total Box
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                        decoration: BoxDecoration(
+                          color: brandDark,
+                          borderRadius: BorderRadius.circular(16),
+                          boxShadow: [
+                            BoxShadow(color: neonGreen.withOpacity(0.3), blurRadius: 10, offset: const Offset(0, 4))
+                          ]
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            const Text(
+                              "NET ITEM TOTAL",
+                              style: TextStyle(color: Color(0xFFC7D2FE), fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 1),
+                            ),
+                            Text(
+                              "₹ ${totals['total']!.toStringAsFixed(2)}",
+                              style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: neonGreen),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+
+                      // Elegant Solid Confirm Button
+                      SizedBox(
+                        width: double.infinity,
+                        height: 48,
+                        child: ElevatedButton(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: accentElectric,
+                            foregroundColor: Colors.white,
+                            elevation: 0,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          ), 
+                          onPressed: () {
+                             if (qtyC.text.isEmpty || qtyC.text == "0") return;
+                             widget.onAdd(BillItem(
+                                id: widget.existingItem?.id ?? DateTime.now().toString(),
+                                srNo: widget.srNo, medicineID: widget.med.id, name: widget.med.name, packing: widget.med.packing,
+                                batch: batchC.text.trim(), // 👈 Case Preserved
+                                exp: expC.text, hsn: widget.med.hsnCode, mrp: double.tryParse(mrpC.text) ?? 0,
+                                qty: double.tryParse(qtyC.text) ?? 0, freeQty: double.tryParse(freeC.text) ?? 0,
+                                rate: double.tryParse(rateC.text) ?? 0, gstRate: double.tryParse(gstC.text) ?? 0,
+                                cgst: totals['cgst']!, sgst: totals['sgst']!, igst: totals['igst']!, total: totals['total']!,
+                                discountRupees: totals['discountAmt']!, 
+                                discountPer: double.tryParse(normDiscC.text) ?? 0.0,
+                                appliedRateType: selectedRateType, 
+                                rateCFormula: double.tryParse(rateCDiscC.text) ?? 0.0, 
+                                isBreakage: widget.allowExpired
+                             ));
+                          }, 
+                          child: const Text("CONFIRM & ADD", style: TextStyle(fontWeight: FontWeight.w900, fontSize: 14, letterSpacing: 1.0))
+                        ),
+                      )
+                    ],
+                  ),
+                ),
+              )
+            ],
+          ),
         ),
       ),
     );
   }
 
-  Widget _modernInput(
+  Widget _vibrantInput(
     String label,
-    TextEditingController ctrl, {
+    TextEditingController ctrl,
+    Color activeColor,
+    bool isReadOnly, {
+    Color? labelColor,
+    bool highlight = false,
     bool isNum = false,
-    bool isReadOnly = false,
     Function(String)? onChanged,
   }) {
     return Column(
@@ -426,40 +431,68 @@ class _ItemEntryCardState extends State<ItemEntryCard> {
       children: [
         Text(
           label.toUpperCase(),
-          style: const TextStyle(
+          style: TextStyle(
             fontSize: 9,
             fontWeight: FontWeight.w900,
-            color: Color(0xFF64748B),
-            letterSpacing: 0.5,
+            color: labelColor ?? const Color(0xFF64748B),
+            letterSpacing: 1.0,
           ),
         ),
-        const SizedBox(height: 4),
-        TextField(
-          controller: ctrl,
-          readOnly: isReadOnly,
-          onChanged: onChanged,
-          keyboardType: isNum ? const TextInputType.numberWithOptions(decimal: true) : TextInputType.text,
-          style: TextStyle(
-            fontSize: 13,
-            fontWeight: FontWeight.w900,
-            color: isReadOnly ? const Color(0xFF64748B) : const Color(0xFF0F172A),
-          ),
-          decoration: InputDecoration(
-            isDense: true,
-            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-            filled: true,
-            fillColor: isReadOnly ? const Color(0xFFF1F5F9) : const Color(0xFFF8FAFC),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(10),
-              borderSide: const BorderSide(color: Color(0xFFE2E8F0), width: 1),
+        const SizedBox(height: 5),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          decoration: BoxDecoration(
+            color: highlight ? activeColor.withOpacity(0.05) : (isReadOnly ? const Color(0xFFF1F5F9) : Colors.white),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(
+              color: highlight ? activeColor : (isReadOnly ? const Color(0xFFE2E8F0) : activeColor.withOpacity(0.3)),
+              width: highlight ? 1.8 : 1.0,
             ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(10),
-              borderSide: const BorderSide(color: Color(0xFF3B82F6), width: 1.5),
+          ),
+          child: TextField(
+            controller: ctrl,
+            readOnly: isReadOnly,
+            onChanged: onChanged,
+            keyboardType: isNum ? const TextInputType.numberWithOptions(decimal: true) : TextInputType.text,
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w900,
+              color: isReadOnly ? const Color(0xFF64748B) : const Color(0xFF0F172A),
+            ),
+            decoration: const InputDecoration(
+              isDense: true,
+              contentPadding: EdgeInsets.symmetric(vertical: 10),
+              border: InputBorder.none,
             ),
           ),
         ),
       ],
+    );
+  }
+
+  Widget _segmentTab(String label, bool isSelected, Color themeColor, VoidCallback onTap) {
+    return Expanded(
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          margin: const EdgeInsets.symmetric(horizontal: 4),
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          decoration: BoxDecoration(
+            color: isSelected ? themeColor : const Color(0xFFF1F5F9),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: isSelected ? themeColor : const Color(0xFFE2E8F0)),
+          ),
+          child: Text(
+            label,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w900,
+              color: isSelected ? Colors.white : const Color(0xFF64748B),
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
