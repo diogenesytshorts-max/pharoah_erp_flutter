@@ -818,48 +818,83 @@ class PharoahManager with ChangeNotifier {
 
     return finalResult;
   }
+  // --- 🛡️ SILENT MAINTENANCE LOADERS (NEW) ---
+  // Yeh system ko bina notify kiye (bina screen flash kiye) memory reload karne ki permission dete hain.
+  Future<void> loadDataForMaintenanceSilently(String year) async {
+    currentFY = year; 
+    final dir = await getWorkingPath(); 
+    if (dir.isEmpty) return;
+    dynamic load(String n) { final f = File('$dir/$n'); return f.existsSync() ? jsonDecode(f.readAsStringSync()) : null; }
+    
+    medicines = (load('meds.json') as List?)?.map((e) => Medicine.fromMap(e)).toList() ?? DemoData.getMedicines();
+    parties = (load('parts.json') as List?)?.map((e) => Party.fromMap(e)).toList() ?? [Party(id:'cash',name:"CASH",group:"Cash in Hand")];
+    companies = (load('comps.json') as List?)?.map((e) => Company.fromMap(e)).toList() ?? MasterDataLibrary.getTopCompanies();
+    salts = (load('salts.json') as List?)?.map((e) => Salt.fromMap(e)).toList() ?? MasterDataLibrary.getTopSalts();
+    drugTypes = (load('dtypes.json') as List?)?.map((e) => DrugType.fromMap(e)).toList() ?? MasterDataLibrary.getDrugTypes();
+    sales = (load('sales.json') as List?)?.map((e) => Sale.fromMap(e)).toList() ?? [];
+    purchases = (load('purc.json') as List?)?.map((e) => Purchase.fromMap(e)).toList() ?? [];
+    vouchers = (load('vouc.json') as List?)?.map((e) => Voucher.fromMap(e)).toList() ?? [];
+    saleChallans = (load('s_challan.json') as List?)?.map((e) => SaleChallan.fromMap(e)).toList() ?? [];
+    purchaseChallans = (load('p_challan.json') as List?)?.map((e) => PurchaseChallan.fromMap(e)).toList() ?? [];
+    saleReturns = (load('s_return.json') as List?)?.map((e) => SaleReturn.fromMap(e)).toList() ?? [];
+    purchaseReturns = (load('p_return.json') as List?)?.map((e) => PurchaseReturn.fromMap(e)).toList() ?? [];
+    cheques = (load('cheques.json') as List?)?.map((e) => ChequeEntry.fromMap(e)).toList() ?? [];
+    shortages = (load('shortage.json') as List?)?.map((e) => ShortageItem.fromMap(e)).toList() ?? [];
+    logs = (load('logs.json') as List?)?.map((e) => LogEntry.fromMap(e)).toList() ?? [];
+    routes = (load('routs.json') as List?)?.map((e) => RouteArea.fromMap(e)).toList() ?? [];
+    banks = (load('banks.json') as List?)?.map((e) => Bank.fromMap(e)).toList() ?? [];
+    
+    var sD = load('series.json'); if (sD!=null) numberingSeries = (sD as List).map((e)=>NumberingSeries.fromMap(e)).toList();
+    var uD = load('sys_users.json'); if (uD!=null) systemUsers = (uD as List).map((e)=>SystemUser.fromMap(e)).toList();
+    var bD = load('bats.json'); if (bD!=null) { batchHistory.clear(); (bD as Map).forEach((k,v)=>batchHistory[k]=(v as List).map((b)=>BatchInfo.fromMap(b)).toList()); }
+  }
+
+  void resetYearSilently() {
+    currentFY = ""; // Clear silently without notifyListeners
+  }
 
   // ===========================================================================
-  // 🏛️ NAYA: PROVISIONAL BALANCE SYNC ENGINE (MARG STYLE)
+  // 🏛️ NAYA: PROVISIONAL BALANCE SYNC ENGINE (MARG STYLE - FILE DIRECT MODE)
   // ===========================================================================
-  Future<bool> syncOpeningBalancesFromPreviousYear() async {
-    if (activeCompany == null || currentFY.isEmpty) return false;
+  Future<bool> syncOpeningBalancesFromPreviousYear({required String targetFY, required String prevFY}) async {
+    if (activeCompany == null) return false;
 
     try {
       final root = await getApplicationDocumentsDirectory();
       
-      String prevFY = "";
-      try {
-        List<String> parts = currentFY.split('-');
-        int startYear = int.parse(parts[0]);
-        if (startYear < 2000) startYear += 2000;
-        prevFY = "${startYear - 1}-${startYear.toString().substring(2)}";
-      } catch (e) {
-        debugPrint("FY calculation error inside sync: $e");
-        return false;
-      }
-
+      // Target and Previous Paths setup on file level
       final prevPath = '${root.path}/Pharoah_Data/${activeCompany!.id}/${activeCompany!.businessType}/$prevFY';
-      final prevDir = Directory(prevPath);
+      final targetPath = '${root.path}/Pharoah_Data/${activeCompany!.id}/${activeCompany!.businessType}/$targetFY';
       
-      if (!await prevDir.exists()) {
-        debugPrint("Sync Error: Previous year directory $prevFY not found.");
+      final prevDir = Directory(prevPath);
+      final targetDir = Directory(targetPath);
+      
+      if (!await prevDir.exists() || !await targetDir.exists()) {
+        debugPrint("Sync Error: previous or target directories missing.");
         return false;
       }
 
-      dynamic loadJsonPrev(String name) {
-        final f = File('$prevPath/$name');
+      // Helper to load specific JSON files directly from paths
+      dynamic loadJsonPath(String dirPath, String name) {
+        final f = File('$dirPath/$name');
         return f.existsSync() ? jsonDecode(f.readAsStringSync()) : null;
       }
 
-      List<Medicine> prevMeds = (loadJsonPrev('meds.json') as List?)?.map((e) => Medicine.fromMap(e)).toList() ?? [];
-      List<Party> prevParties = (loadJsonPrev('parts.json') as List?)?.map((e) => Party.fromMap(e)).toList() ?? [];
-      List<Sale> prevSales = (loadJsonPrev('sales.json') as List?)?.map((e) => Sale.fromMap(e)).toList() ?? [];
-      List<Purchase> prevPurc = (loadJsonPrev('purc.json') as List?)?.map((e) => Purchase.fromMap(e)).toList() ?? [];
-      List<Voucher> prevVouc = (loadJsonPrev('vouc.json') as List?)?.map((e) => Voucher.fromMap(e)).toList() ?? [];
-      List<Bank> prevBanks = (loadJsonPrev('banks.json') as List?)?.map((e) => Bank.fromMap(e)).toList() ?? [];
-      Map<String, dynamic> prevBatchesRaw = loadJsonPrev('bats.json') ?? {};
+      // 1. Read previous year databases
+      List<Medicine> prevMeds = (loadJsonPath(prevPath, 'meds.json') as List?)?.map((e) => Medicine.fromMap(e)).toList() ?? [];
+      List<Party> prevParties = (loadJsonPath(prevPath, 'parts.json') as List?)?.map((e) => Party.fromMap(e)).toList() ?? [];
+      List<Sale> prevSales = (loadJsonPath(prevPath, 'sales.json') as List?)?.map((e) => Sale.fromMap(e)).toList() ?? [];
+      List<Purchase> prevPurc = (loadJsonPath(prevPath, 'purc.json') as List?)?.map((e) => Purchase.fromMap(e)).toList() ?? [];
+      List<Voucher> prevVouc = (loadJsonPath(prevPath, 'vouc.json') as List?)?.map((e) => Voucher.fromMap(e)).toList() ?? [];
+      List<Bank> prevBanks = (loadJsonPath(prevPath, 'banks.json') as List?)?.map((e) => Bank.fromMap(e)).toList() ?? [];
+      Map<String, dynamic> prevBatchesRaw = loadJsonPath(prevPath, 'bats.json') ?? {};
 
+      // 2. Read target year databases
+      List<Party> targetParties = (loadJsonPath(targetPath, 'parts.json') as List?)?.map((e) => Party.fromMap(e)).toList() ?? [];
+      List<Bank> targetBanks = (loadJsonPath(targetPath, 'banks.json') as List?)?.map((e) => Bank.fromMap(e)).toList() ?? [];
+      Map<String, dynamic> targetBatchesRaw = loadJsonPath(targetPath, 'bats.json') ?? {};
+
+      // 3. Re-calculate Party Closing Balances
       Map<String, double> recalculatedPartyBals = {};
       for (var p in prevParties) {
         if (p.name == "CASH") continue;
@@ -874,14 +909,15 @@ class PharoahManager with ChangeNotifier {
         for (var v in prevVouc.where((v) => v.partyName == p.name && v.status == "Active")) {
           String type = v.type.toUpperCase();
           if (type == "RECEIPT") {
-            bal -= v.amount; // FIXED: Changed runningBal to bal
+            bal -= v.amount;
           } else if (type == "PAYMENT" || type == "EXPENSE") {
-            bal += v.amount; // FIXED: Changed runningBal to bal
+            bal += v.amount;
           }
         }
         recalculatedPartyBals[p.id] = bal;
       }
 
+      // 4. Re-calculate Bank Balances
       Map<String, double> recalculatedBankBals = {};
       for (var b in prevBanks) {
         double bal = b.openingBalance;
@@ -896,6 +932,7 @@ class PharoahManager with ChangeNotifier {
         recalculatedBankBals[b.id] = bal;
       }
 
+      // 5. Re-calculate Batch Stocks
       Map<String, List<BatchInfo>> recalculatedBatches = {};
       prevBatchesRaw.forEach((medKey, batchList) {
         List<dynamic> list = batchList as List;
@@ -908,26 +945,35 @@ class PharoahManager with ChangeNotifier {
         }).toList();
       });
 
-      for (int idx = 0; idx < parties.length; idx++) {
-        String pId = parties[idx].id;
-        if (recalculatedPartyBals.containsKey(pId)) {
-          parties[idx].opBal = recalculatedPartyBals[pId]!;
+      // 6. Apply newly calculated data to target year lists on file-level
+      List<Party> updatedParties = targetParties.map((p) {
+        if (recalculatedPartyBals.containsKey(p.id)) {
+          p.opBal = recalculatedPartyBals[p.id]!;
         }
-      }
-      for (int idx = 0; idx < banks.length; idx++) {
-        String bId = banks[idx].id;
-        if (recalculatedBankBals.containsKey(bId)) {
-          banks[idx].openingBalance = recalculatedBankBals[bId]!;
+        return p;
+      }).toList();
+
+      List<Bank> updatedBanks = targetBanks.map((b) {
+        if (recalculatedBankBals.containsKey(b.id)) {
+          b.openingBalance = recalculatedBankBals[b.id]!;
         }
-      }
+        return b;
+      }).toList();
+
       recalculatedBatches.forEach((medKey, list) {
-        batchHistory[medKey] = list;
+        targetBatchesRaw[medKey] = list.map((e) => e.toMap()).toList();
       });
 
-      await save();
-      await loadAllData(); 
+      // Save directly to target year folder on disk
+      Future saveToTargetPath(String name, dynamic data) async {
+        await File('$targetPath/$name').writeAsString(jsonEncode(data));
+      }
 
-      addLog("SYSTEM", "Provisional Sync complete. opening balances carried forward from $prevFY.");
+      await saveToTargetPath('parts.json', updatedParties.map((e) => e.toMap()).toList());
+      await saveToTargetPath('banks.json', updatedBanks.map((e) => e.toMap()).toList());
+      await saveToTargetPath('bats.json', targetBatchesRaw);
+
+      addLog("SYSTEM", "Provisional Sync complete. opening balances carried forward from $prevFY to $targetFY.");
       return true;
     } catch (e) {
       debugPrint("Provisional Sync Failed: $e");
