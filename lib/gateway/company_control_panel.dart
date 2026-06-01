@@ -97,6 +97,7 @@ class _CompanyControlPanelViewState extends State<CompanyControlPanelView> {
   // ===========================================================================
   // 🏛️ 3. NAYA: PROVISIONAL BALANCE SYNC (Carry Balances Math)
   // ===========================================================================
+// --- 🏛️ 3. NAYA: PROVISIONAL BALANCE SYNC (Carry Balances Math - UPGRADED) ---
   void _runProvisionalSync(PharoahManager ph) async {
     setState(() {
       isMaintenanceRunning = true;
@@ -105,7 +106,10 @@ class _CompanyControlPanelViewState extends State<CompanyControlPanelView> {
     });
 
     try {
-      // Dynamic Progress Simulation based on safe yielding
+      // --- DYNAMIC TARGET & PREVIOUS FY SELECTION (NEW) ---
+      String targetFY = ph.activeCompany!.fYears.last;
+      String prevFY = ph.activeCompany!.fYears[ph.activeCompany!.fYears.length - 2];
+
       setState(() { maintenanceProgress = 0.25; maintenanceStatus = "Re-calculating Party Opening Balances..."; });
       await Future.delayed(const Duration(milliseconds: 400));
 
@@ -115,9 +119,8 @@ class _CompanyControlPanelViewState extends State<CompanyControlPanelView> {
       setState(() { maintenanceProgress = 0.80; maintenanceStatus = "Applying carry-forward changes..."; });
       await Future.delayed(const Duration(milliseconds: 200));
 
-      // Main sync engine call
-      bool success = await ph.syncOpeningBalancesFromPreviousYear();
-      
+      // Main sync engine call passing parameters directly on file-level
+      bool success = await ph.syncOpeningBalancesFromPreviousYear(targetFY: targetFY, prevFY: prevFY);
       setState(() { maintenanceProgress = 1.0; maintenanceStatus = "Sync Completed!"; });
       await Future.delayed(const Duration(milliseconds: 400));
 
