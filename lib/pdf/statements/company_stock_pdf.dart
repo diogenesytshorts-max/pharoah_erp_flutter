@@ -1,4 +1,4 @@
-// FILE: lib/pdf/statements/company_stock_pdf.dart (FULLY SYNCED WITH VALUE CALCULATOR)
+// FILE: lib/pdf/statements/company_stock_pdf.dart (FULLY SYNCED ADVANCED VERSION)
 
 import 'dart:io';
 import 'package:pdf/pdf.dart';
@@ -117,13 +117,13 @@ class CompanyStockPdf {
     required DateTime to,
     required String valuationBasis,
     required PharoahManager ph,
-    required String companySelectionType,
-    required Set<String> selectedCompanyIds,
-    required String partySelectionType,
-    required String selectedParty,
-    required String selectedPartyId,
-    required bool deductCN,
-    required bool deductDN,
+    String companySelectionType = "All",
+    Set<String>? selectedCompanyIds,
+    String partySelectionType = "All",
+    String selectedParty = "",
+    String selectedPartyId = "",
+    bool deductCN = false,
+    bool deductDN = false,
   }) async {
     final pdf = pw.Document();
 
@@ -133,12 +133,11 @@ class CompanyStockPdf {
     String colIssueVal = deductCN ? "NET ISSUE\nVALUE" : "ISSUE\nVALUE";
 
     for (var companyName in groupedData.keys) {
-      // If single company selected, skip other companies on PDF
+      // Exclude logic
       if (companySelectionType == "Single" && companyName != ph.companies.firstWhere((c) => c.name == companyName, orElse: () => Company(id: '', name: 'OTHERS')).name) {
         continue;
       }
-      // If multi-select is active, skip excluded companies
-      if (companySelectionType == "All" && !selectedCompanyIds.contains(companyName)) {
+      if (companySelectionType == "All" && selectedCompanyIds != null && !selectedCompanyIds.contains(companyName)) {
         continue;
       }
 
@@ -199,7 +198,7 @@ class CompanyStockPdf {
               ]);
             }
 
-            // Append Grand Total Row at bottom of list
+            // Append Grand Total Row
             tableRows.add([
               "TOTAL",
               "-",
@@ -235,13 +234,13 @@ class CompanyStockPdf {
     required DateTime to,
     required String valuationBasis,
     required PharoahManager ph,
-    required String companySelectionType,
-    required Set<String> selectedCompanyIds,
-    required String partySelectionType,
-    required String selectedParty,
-    required String selectedPartyId,
-    required bool deductCN,
-    required bool deductDN,
+    String companySelectionType = "All",
+    Set<String>? selectedCompanyIds,
+    String partySelectionType = "All",
+    String selectedParty = "",
+    String selectedPartyId = "",
+    bool deductCN = false,
+    bool deductDN = false,
   }) async {
     final pdf = pw.Document();
 
@@ -254,7 +253,7 @@ class CompanyStockPdf {
       if (companySelectionType == "Single" && companyName != ph.companies.firstWhere((c) => c.name == companyName, orElse: () => Company(id: '', name: 'OTHERS')).name) {
         continue;
       }
-      if (companySelectionType == "All" && !selectedCompanyIds.contains(companyName)) {
+      if (companySelectionType == "All" && selectedCompanyIds != null && !selectedCompanyIds.contains(companyName)) {
         continue;
       }
 
