@@ -1,4 +1,4 @@
-// FILE: lib/finance/company_stock_view.dart (FULLY INTEGRATED COMPLETED VERSION)
+// FILE: lib/finance/company_stock_view.dart (FULLY SYNCED COMPLETED VERSION)
 
 import 'dart:async';
 import 'dart:ui'; // ImageFilter के लिए अनिवार्य
@@ -7,6 +7,7 @@ import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import '../pharoah_manager.dart';
 import '../models.dart';
+import 'stock_flow_engine.dart';
 import '../pharoah_date_controller.dart';
 import '../app_date_logic.dart';
 import '../../pdf/statements/company_stock_pdf.dart';
@@ -89,126 +90,90 @@ class _CompanyStockViewState extends State<CompanyStockView> {
     return "${pad(d.day)}/${pad(d.month)}/${d.year}";
   }
 
-  // Live progress simulation
-  void _startSmartReportGeneration() {
-    setState(() {
-      currentStep = ReportStep.processingLoader;
-      processingProgress = 0.0;
-      processingStatusText = "Connecting with DB Engine...";
-    });
-
-    final List<String> phases = [
-      "Scanning meds.json database...",
-      "Filtering Excluded Companies list...",
-      "Filtering Excluded Parties list...",
-      "Analyzing Return (CN/DN) Reversals...",
-      "Mapping product-batch indices...",
-      "Summing Net Inflow & Net Outflow...",
-      "Applying Manual Rate Valuation algorithms...",
-      "Compiling Grand Totals..."
-    ];
-
-    int step = 0;
-    Timer.periodic(const Duration(milliseconds: 300), (timer) {
-      if (processingProgress >= 1.0) {
-        timer.cancel();
-        _showSuccessMiddleDialog();
-      } else {
-        setState(() {
-          processingProgress += 0.15;
-          if (processingProgress > 1.0) processingProgress = 1.0;
-          
-          if (step < phases.length) {
-            processingStatusText = phases[step];
-            step++;
-          }
-        });
-      }
-    });
-  }
-
-  // Middle Success Dialog (Buffer)
-  void _showSuccessMiddleDialog() {
-    final ph = Provider.of<PharoahManager>(context, listen: false);
-    List<String> excludedParties = ph.parties.where((p) => p.name != "CASH" && !selectedPartyIds.contains(p.name)).map((e) => e.name).toList();
-    List<String> excludedCompanies = ph.companies.where((c) => !selectedCompanyIds.contains(c.name)).map((e) => e.name).toList();
-
+  // Search Picker Bottom Sheet
+  void _openSearchableSinglePicker(String title, List<String> items, String currentSelection, ValueChanged<String> onSelected) {
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (c) => BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 5.0, sigmaY: 5.0),
-        child: AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-          title: const Row(
-            children: [
-              Icon(Icons.verified_rounded, color: neonEmerald, size: 24),
-              SizedBox(width: 10),
-              Text("PROCESS COMPLETE", style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
-            ],
-          ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                "Your Statement has been processed in a safe memory container.",
-                style: TextStyle(fontSize: 12, color: Colors.blueGrey),
-              ),
-              const SizedBox(height: 15),
-              _bulletPoint("Companies: ${companySelectionType == "All" ? "${selectedCompanyIds.length} Active" : selectedCompany}"),
-              if (companySelectionType == "All" && excludedCompanies.isNotEmpty)
-                Padding(
-                  padding: const EdgeInsets.only(left: 14, bottom: 4),
-                  child: Text("Excluded: ${excludedCompanies.join(', ')}", style: const TextStyle(fontSize: 9, color: Colors.red, fontWeight: FontWeight.bold)),
-                ),
-              _bulletPoint("Parties: ${partySelectionType == "All" ? "${selectedPartyIds.length} Active" : selectedParty}"),
-              if (partySelectionType == "All" && excludedParties.isNotEmpty)
-                Padding(
-                  padding: const EdgeInsets.only(left: 14, bottom: 4),
-                  child: Text("Excluded: ${excludedParties.join(', ')}", style: const TextStyle(fontSize: 9, color: Colors.red, fontWeight: FontWeight.bold)),
-                ),
-              _bulletPoint("Deductions Applied: ${deductCN ? 'CN (Sales)' : 'None'} ${deductDN ? '& DN (Purchases)' : ''}"),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.pop(c);
-                setState(() {
-                  currentStep = ReportStep.selectionForm;
-                });
-              },
-              child: const Text("GO BACK", style: TextStyle(color: Colors.grey, fontWeight: FontWeight.bold)),
-            ),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(backgroundColor: accentElectric, foregroundColor: Colors.white),
-              onPressed: () {
-                Navigator.pop(c);
-                setState(() {
-                  currentStep = ReportStep.showReportGrid;
-                });
-              },
-              child: const Text("VIEW STATEMENT", style: TextStyle(fontWeight: FontWeight.bold)),
-            )
-          ],
-        ),
-      ),
-    );
-  }
+      builder: (c) {
+        String searchVal = "";
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            final filtered = items.where((element) => element.toLowerCase().contains(searchVal.toLowerCase())).toList();
+            return BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 5.0, sigmaY: 5.0),
+              child: Dialog(
+                backgroundColor: Colors.transparent,
+                child: Container(
+                  width: 400,
+                  height: 500,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF0F172A),
+                    borderRadius: BorderRadius.circular(24),
+                    border: Border.all(color: accentElectric.withAlpha(100), width: 1.5),
+                  ),
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    children: [
+                      // Header
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text("SEARCH $title", style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 13, letterSpacing: 1)),
+                          IconButton(
+                            icon: const Icon(Icons.close, color: Colors.white70, size: 20),
+                            onPressed: () => Navigator.pop(c),
+                          ),
+                        ],
+                      ),
+                      const Divider(color: Colors.white10),
+                      const SizedBox(height: 5),
 
-  Widget _bulletPoint(String text) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 6),
-      child: Row(
-        children: [
-          const Icon(Icons.circle, size: 6, color: accentElectric),
-          const SizedBox(width: 8),
-          Expanded(child: Text(text, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold))),
-        ],
-      ),
-    );
-  }
+                      TextField(
+                        style: const TextStyle(color: Colors.white, fontSize: 12),
+                        decoration: InputDecoration(
+                          isDense: true,
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                          hintText: "Type to search...",
+                          hintStyle: const TextStyle(color: Colors.white38, fontSize: 12),
+                          prefixIcon: const Icon(Icons.search, color: accentElectric, size: 16),
+                          filled: true,
+                          fillColor: Colors.white.withAlpha(20),
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
+                        ),
+                        onChanged: (v) => setDialogState(() => searchVal = v),
+                      ),
+                      const SizedBox(height: 15),
+
+                      Expanded(
+                        child: filtered.isEmpty
+                            ? const Center(child: Text("No records found.", style: TextStyle(color: Colors.white38, fontSize: 12)))
+                            : ListView.builder(
+                                  itemCount: filtered.length,
+                                  itemBuilder: (context, idx) {
+                                    final item = filtered[idx];
+                                    bool isSelected = item == currentSelection;
+                                    return ListTile(
+                                      leading: Icon(Icons.check_circle_rounded, color: isSelected ? neonEmerald : Colors.transparent, size: 18),
+                                      title: Text(item, style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: isSelected ? FontWeight.bold : FontWeight.normal)),
+                                      onTap: () {
+                                        onSelected(item);
+                                        Navigator.pop(c);
+                                      },
+                                    );
+                                  },
+                                ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            },
+          );
+        },
+      );
+    }
 
   // SEARCHABLE MULTI-SELECT POPUP FOR EXCLUSIONS
   void _openAdvancedExclusionDialog({
@@ -318,7 +283,7 @@ class _CompanyStockViewState extends State<CompanyStockView> {
                                       activeColor: accentElectric,
                                       checkColor: Colors.white,
                                       dense: true,
-                                      title: Text(item, style: TextStyle(color: isChecked ? Colors.white : Colors.white60, fontWeight: isChecked ? FontWeight.bold : FontWeight.normal, fontSize: 13)),
+                                      title: Text(item, style: TextStyle(color: isChecked ? Colors.white : Colors.white54, fontWeight: isChecked ? FontWeight.bold : FontWeight.normal, fontSize: 13)),
                                       value: isChecked,
                                       onChanged: (val) {
                                         setDialogState(() {
@@ -359,90 +324,125 @@ class _CompanyStockViewState extends State<CompanyStockView> {
     );
   }
 
-  // SEARCHABLE SINGLE PICKER (For Single Mode Selection)
-  void _openSearchableSinglePicker(String title, List<String> items, String currentSelection, ValueChanged<String> onSelected) {
+  // Simulating deep inventory scan phases step-by-step
+  void _startSmartReportGeneration() {
+    setState(() {
+      currentStep = ReportStep.processingLoader;
+      processingProgress = 0.0;
+      processingStatusText = "Connecting with DB Engine...";
+    });
+
+    final List<String> phases = [
+      "Scanning meds.json database...",
+      "Filtering Excluded Companies list...",
+      "Filtering Excluded Parties list...",
+      "Analyzing Return (CN/DN) Reversals...",
+      "Mapping product-batch indices...",
+      "Summing Net Inflow & Net Outflow...",
+      "Applying Manual Rate Valuation algorithms...",
+      "Compiling Grand Totals..."
+    ];
+
+    int step = 0;
+    Timer.periodic(const Duration(milliseconds: 200), (timer) {
+      if (processingProgress >= 1.0) {
+        timer.cancel();
+        _showSuccessMiddleDialog();
+      } else {
+        setState(() {
+          processingProgress += 0.15;
+          if (processingProgress > 1.0) processingProgress = 1.0;
+          
+          if (step < phases.length) {
+            processingStatusText = phases[step];
+            step++;
+          }
+        });
+      }
+    });
+  }
+
+  void _showSuccessMiddleDialog() {
+    final ph = Provider.of<PharoahManager>(context, listen: false);
+    List<String> excludedParties = ph.parties.where((p) => p.name != "CASH" && !selectedPartyIds.contains(p.name)).map((e) => e.name).toList();
+    List<String> excludedCompanies = ph.companies.where((c) => !selectedCompanyIds.contains(c.name)).map((e) => e.name).toList();
+
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (c) {
-        String searchVal = "";
-        return StatefulBuilder(
-          builder: (context, setDialogState) {
-            final filtered = items.where((element) => element.toLowerCase().contains(searchVal.toLowerCase())).toList();
-            return BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: 5.0, sigmaY: 5.0),
-              child: Dialog(
-                backgroundColor: Colors.transparent,
-                child: Container(
-                  width: 400,
-                  height: 500,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF0F172A),
-                    borderRadius: BorderRadius.circular(24),
-                    border: Border.all(color: accentElectric.withAlpha(100), width: 1.5),
-                  ),
-                  padding: const EdgeInsets.all(20),
-                  child: Column(
-                    children: [
-                      // Header
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text("SEARCH $title", style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 13, letterSpacing: 1)),
-                          IconButton(
-                            icon: const Icon(Icons.close, color: Colors.white70, size: 20),
-                            onPressed: () => Navigator.pop(c),
-                          ),
-                        ],
-                      ),
-                      const Divider(color: Colors.white10),
-                      const SizedBox(height: 5),
-
-                      TextField(
-                        style: const TextStyle(color: Colors.white, fontSize: 12),
-                        decoration: InputDecoration(
-                          isDense: true,
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                          hintText: "Type to search...",
-                          hintStyle: const TextStyle(color: Colors.white38, fontSize: 12),
-                          prefixIcon: const Icon(Icons.search, color: accentElectric, size: 16),
-                          filled: true,
-                          fillColor: Colors.white.withAlpha(20),
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
-                        ),
-                        onChanged: (v) => setDialogState(() => searchVal = v),
-                      ),
-                      const SizedBox(height: 15),
-
-                      Expanded(
-                        child: filtered.isEmpty
-                            ? const Center(child: Text("No records found.", style: TextStyle(color: Colors.white38, fontSize: 12)))
-                            : ListView.builder(
-                                  itemCount: filtered.length,
-                                  itemBuilder: (context, idx) {
-                                    final item = filtered[idx];
-                                    bool isSelected = item == currentSelection;
-                                    return ListTile(
-                                      leading: Icon(Icons.check_circle_rounded, color: isSelected ? neonEmerald : Colors.transparent, size: 18),
-                                      title: Text(item, style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: isSelected ? FontWeight.bold : FontWeight.normal)),
-                                      onTap: () {
-                                        onSelected(item);
-                                        Navigator.pop(c);
-                                      },
-                                    );
-                                  },
-                                ),
-                        ),
-                      ],
-                    ),
-                  ),
+      builder: (c) => BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 5.0, sigmaY: 5.0),
+        child: AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: const Row(
+            children: [
+              Icon(Icons.verified_rounded, color: neonEmerald, size: 24),
+              SizedBox(width: 10),
+              Text("PROCESS COMPLETE", style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                "Your Statement has been processed in a safe memory container.",
+                style: TextStyle(fontSize: 12, color: Colors.blueGrey),
+              ),
+              const SizedBox(height: 15),
+              _bulletPoint("Companies: ${companySelectionType == "All" ? "${selectedCompanyIds.length} Active" : selectedCompany}"),
+              if (companySelectionType == "All" && excludedCompanies.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(left: 14, bottom: 4),
+                  child: Text("Excluded: ${excludedCompanies.join(', ')}", style: const TextStyle(fontSize: 9, color: Colors.red, fontWeight: FontWeight.bold)),
                 ),
-              );
-            },
-          );
-        },
-      );
-    }
+              _bulletPoint("Parties: ${partySelectionType == "All" ? "${selectedPartyIds.length} Active" : selectedParty}"),
+              if (partySelectionType == "All" && excludedParties.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(left: 14, bottom: 4),
+                  child: Text("Excluded: ${excludedParties.join(', ')}", style: const TextStyle(fontSize: 9, color: Colors.red, fontWeight: FontWeight.bold)),
+                ),
+              _bulletPoint("Deductions Applied: ${deductCN ? 'CN (Sales)' : 'None'} ${deductDN ? '& DN (Purchases)' : ''}"),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(c);
+                setState(() {
+                  currentStep = ReportStep.selectionForm;
+                });
+              },
+              child: const Text("GO BACK", style: TextStyle(color: Colors.grey, fontWeight: FontWeight.bold)),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: accentElectric, foregroundColor: Colors.white),
+              onPressed: () {
+                Navigator.pop(c);
+                setState(() {
+                  currentStep = ReportStep.showReportGrid;
+                });
+              },
+              child: const Text("VIEW STATEMENT", style: TextStyle(fontWeight: FontWeight.bold)),
+            )
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _bulletPoint(String text) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6),
+      child: Row(
+        children: [
+          const Icon(Icons.circle, size: 6, color: accentElectric),
+          const SizedBox(width: 8),
+          Expanded(child: Text(text, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold))),
+        ],
+      ),
+    );
+  }
 
   // STRICT CALENDAR LOCK TO ACTIVE FINANCIAL YEAR
   Future<void> _pickDateRangeWithinFY() async {
@@ -870,13 +870,280 @@ class _CompanyStockViewState extends State<CompanyStockView> {
     );
   }
 
+  // ===========================================================================
+  // SCREEN 3: PROCESSING IMMERSIVE LOADER (DEFINED FULLY)
+  // ===========================================================================
+  Widget _buildProcessingLoader() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Icon(Icons.sync_rounded, color: Colors.orangeAccent, size: 60),
+          const SizedBox(height: 25),
+          Text(
+            "${(processingProgress * 100).toInt()}%",
+            style: const TextStyle(color: Colors.white, fontSize: 36, fontWeight: FontWeight.w900, letterSpacing: 1),
+          ),
+          const SizedBox(height: 10),
+          SizedBox(
+            width: 250,
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: LinearProgressIndicator(
+                value: processingProgress,
+                color: Colors.orangeAccent,
+                backgroundColor: Colors.white10,
+                minHeight: 8,
+              ),
+            ),
+          ),
+          const SizedBox(height: 20),
+          Text(
+            processingStatusText.toUpperCase(),
+            style: const TextStyle(color: Colors.white70, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1.5),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ===========================================================================
+  // SCREEN 5: COMPREHENSIVE 10-COLUMN REPORT GRID
+  // ===========================================================================
+  Widget _buildReportGrid(PharoahManager ph) {
+    String colReceiveQty = deductDN ? "NET RECEIVE\nQTY" : "RECEIVE\nQUANTITY";
+    String colReceiveVal = deductDN ? "NET RECEIVE\nVALUE (₹)" : "RECEIVE\nVALUE (₹)";
+    String colIssueQty = deductCN ? "NET ISSUE\nQTY" : "ISSUE\nQUANTITY";
+    String colIssueVal = deductCN ? "NET ISSUE\nVALUE (₹)" : "ISSUE\nVALUE (₹)";
+
+    // Filtering medications list dynamically based on exclusions
+    List<Medicine> activeMeds = ph.medicines.where((m) {
+      String cName = ph.companies.firstWhere((c) => c.id == m.companyId, orElse: () => Company(id: '', name: 'OTHERS')).name;
+      if (companySelectionType == "Single") {
+        return cName == selectedCompany;
+      }
+      return selectedCompanyIds.contains(cName);
+    }).toList();
+
+    double totalOpStock = 0; double totalOpVal = 0;
+    double totalRecQty = 0; double totalRecVal = 0;
+    double totalIssueQty = 0; double totalIssueVal = 0;
+    double totalCloStock = 0; double totalCloVal = 0;
+
+    List<TableRow> tableRows = [];
+
+    // Header Row
+    tableRows.add(TableRow(
+      decoration: const BoxDecoration(color: tableHeaderColor),
+      children: [
+        _th("PRODUCT DESCRIPTION", isLeft: true),
+        _th("UNIT"),
+        _th("OPENING\nSTOCK"),
+        _th("OPENING\nVALUE (₹)"),
+        _th(colReceiveQty),
+        _th(colReceiveVal),
+        _th(colIssueQty),
+        _th(colIssueVal),
+        _th("CLOSING\nSTOCK"),
+        _th("CLOSING\nVALUE (₹)"),
+      ],
+    ));
+
+    // Dynamic calculations
+    for (int idx = 0; idx < activeMeds.length; idx++) {
+      final m = activeMeds[idx];
+      final flow = _calculateCustomItemFlow(med: m, from: fyDateRange.start, to: fyDateRange.end, ph: ph);
+      double rate = (valuationBasis == "PURCHASE") ? m.purRate : (valuationBasis == "SALE" ? m.rateA : m.mrp);
+
+      double opStock = (flow['opening'] ?? 0.0);
+      double recQty = (flow['received'] ?? 0.0);
+      double issueQty = (flow['sale'] ?? 0.0);
+      double cloStock = (flow['closing'] ?? 0.0);
+
+      double opVal = opStock * rate;
+      double recVal = recQty * rate;
+      double issueVal = issueQty * rate;
+      double cloVal = cloStock * rate;
+
+      totalOpStock += opStock; totalOpVal += opVal;
+      totalRecQty += recQty; totalRecVal += recVal;
+      totalIssueQty += issueQty; totalIssueVal += issueVal;
+      totalCloStock += cloStock; totalCloVal += cloVal;
+
+      bool isShaded = idx % 2 != 0;
+
+      tableRows.add(TableRow(
+        decoration: BoxDecoration(color: isShaded ? const Color(0xFFF8FAFC) : Colors.white),
+        children: [
+          _td(m.name, isLeft: true, isBold: true),
+          _td(m.packing),
+          _td(opStock.toInt().toString()),
+          _td(opVal.toStringAsFixed(2)),
+          _td(recQty.toInt().toString()),
+          _td(recVal.toStringAsFixed(2)),
+          _td(issueQty.toInt().toString()),
+          _td(issueVal.toStringAsFixed(2)),
+          _td(cloStock.toInt().toString(), textColor: neonEmerald),
+          _td(cloVal.toStringAsFixed(2), textColor: neonEmerald),
+        ],
+      ));
+    }
+
+    // Grand totals row
+    tableRows.add(TableRow(
+      decoration: const BoxDecoration(color: Color(0xFFECFDF5)),
+      children: [
+        _td("TOTAL", isLeft: true, isBold: true, textColor: const Color(0xFF047857)),
+        _td("-", isBold: true),
+        _td(totalOpStock.toInt().toString(), isBold: true, textColor: const Color(0xFF047857)),
+        _td("₹${totalOpVal.toStringAsFixed(2)}", isBold: true, textColor: const Color(0xFF047857)),
+        _td(totalRecQty.toInt().toString(), isBold: true, textColor: const Color(0xFF047857)),
+        _td("₹${totalRecVal.toStringAsFixed(2)}", isBold: true, textColor: const Color(0xFF047857)),
+        _td(totalIssueQty.toInt().toString(), isBold: true, textColor: const Color(0xFF047857)),
+        _td("₹${totalIssueVal.toStringAsFixed(2)}", isBold: true, textColor: const Color(0xFF047857)),
+        _td(totalCloStock.toInt().toString(), isBold: true, textColor: const Color(0xFF047857)),
+        _td("₹${totalCloVal.toStringAsFixed(2)}", isBold: true, textColor: const Color(0xFF047857)),
+      ],
+    ));
+
+    return Scaffold(
+      backgroundColor: const Color(0xFFF5F6F9),
+      body: Center(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(24.0),
+          child: Container(
+            width: 1000,
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(20),
+            ),
+            padding: const EdgeInsets.all(25.0),
+            child: Column(
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    OutlinedButton.icon(
+                      onPressed: () => setState(() => currentStep = ReportStep.selectionForm),
+                      icon: const Icon(Icons.arrow_back),
+                      label: const Text("RE-CONFIGURE"),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                      decoration: BoxDecoration(color: Colors.indigo.shade50, borderRadius: BorderRadius.circular(8)),
+                      child: Text(
+                        "VALUATION: $valuationBasis RATE",
+                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 10, color: brandDark),
+                      ),
+                    )
+                  ],
+                ),
+                const SizedBox(height: 20),
+                _buildMockReportHeader(ph),
+                const SizedBox(height: 20),
+                
+                // Horizontal scrolling Table
+                SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Container(
+                    width: 950,
+                    decoration: BoxDecoration(
+                      border: Border.all(color: const Color(0xFFCBD5E1), width: 1),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(11),
+                      child: Table(
+                        columnWidths: const {
+                          0: FixedColumnWidth(180),
+                          1: FixedColumnWidth(60),
+                          2: FixedColumnWidth(80),
+                          3: FixedColumnWidth(100),
+                          4: FixedColumnWidth(80),
+                          5: FixedColumnWidth(100),
+                          6: FixedColumnWidth(80),
+                          7: FixedColumnWidth(100),
+                          8: FixedColumnWidth(80),
+                          9: FixedColumnWidth(100),
+                        },
+                        border: TableBorder.all(color: const Color(0xFFE2E8F0), width: 1),
+                        children: tableRows,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 25),
+                _buildLegislationDisclaimer(),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMockReportHeader(PharoahManager ph) {
+    return Center(
+      child: Column(
+        children: [
+          Text(ph.activeCompany?.name ?? "DWARIKA MEDICALS", style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: brandDark, letterSpacing: 1)),
+          const SizedBox(height: 2),
+          Text("D.L. No. : ${ph.activeCompany?.dlNo ?? 'N/A'} | GST: ${ph.activeCompany?.gstin ?? 'N/A'}", style: const TextStyle(fontSize: 8.5, fontWeight: FontWeight.bold, color: Colors.grey)),
+          const SizedBox(height: 8),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: brandDark.withAlpha(20), 
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Text(
+              "DIOS LIFESCIENCE FLOW REPORT (${_formatDate(fyDateRange.start)} to ${_formatDate(fyDateRange.end)})",
+              style: const TextStyle(fontSize: 8.5, fontWeight: FontWeight.w900, color: brandDark),
+            ),
+          )
+        ],
+      ),
+    );
+  }
+
+  // --- REUSABLE SUBWIDGETS ---
+
+  Widget _sectionLabel(String t) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6, left: 4),
+      child: Text(t, style: const TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.blueGrey, letterSpacing: 0.5)),
+    );
+  }
+
+  Widget _formSegment(String label, bool active, VoidCallback onTap) {
+    return Expanded(
+      child: InkWell(
+        onTap: onTap,
+        child: Container(
+          margin: const EdgeInsets.symmetric(horizontal: 4),
+          padding: const EdgeInsets.symmetric(vertical: 10),
+          decoration: BoxDecoration(
+            color: active ? brandDark : const Color(0xFFF1F5F9),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: active ? brandDark : const Color(0xFFE2E8F0)),
+          ),
+          child: Text(
+            label,
+            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: active ? Colors.white : const Color(0xFF64748B)),
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _th(String text, {bool isLeft = false}) {
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
       alignment: isLeft ? Alignment.centerLeft : Alignment.center,
       child: Text(
         text,
-        textAlign: isLeft ? TextAlign.left : TextAlign.center, // FIXED: Corrected Alignment.center to TextAlign.center
+        textAlign: isLeft ? TextAlign.left : TextAlign.center, // FIXED
         style: const TextStyle(fontSize: 7.5, fontWeight: FontWeight.w900, color: Colors.white, letterSpacing: 0.5),
       ),
     );
@@ -897,11 +1164,11 @@ class _CompanyStockViewState extends State<CompanyStockView> {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(color: const Color(0xFFF8FAFC), borderRadius: BorderRadius.circular(10), border: Border.all(color: const Color(0xFFE2E8F0))),
-      child: Row( // FIXED: Removed illegal const prefix on Row
+      child: Row( // FIXED
         children: [
           const Icon(Icons.gavel_rounded, color: Colors.blueGrey, size: 16),
           const SizedBox(width: 10),
-          Expanded( // FIXED: Kept Expanded as non-const
+          Expanded( // FIXED
             child: Text(
               "Note: This audit is locked to active Financial Year parameters. Processing is completely sandboxed on local resources to prevent leaks.",
               style: const TextStyle(fontSize: 8, color: Colors.blueGrey, fontStyle: FontStyle.italic, fontWeight: FontWeight.bold),
