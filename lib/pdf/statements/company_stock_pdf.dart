@@ -1,4 +1,4 @@
-// FILE: lib/pdf/statements/company_stock_pdf.dart (FULLY SYNCED ADVANCED VERSION)
+// FILE: lib/pdf/statements/company_stock_pdf.dart (FULLY SYNCED COMPLETED VERSION)
 
 import 'dart:io';
 import 'package:pdf/pdf.dart';
