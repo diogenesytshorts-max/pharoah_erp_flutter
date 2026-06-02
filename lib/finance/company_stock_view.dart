@@ -1,4 +1,4 @@
-// FILE: lib/finance/company_stock_view.dart (FULLY INTEGRATED COMPLETED VERSION)
+// FILE: lib/finance/company_stock_view.dart (PRISTINE STABLE VERSION - FULL)
 
 import 'dart:async';
 import 'dart:ui'; // ImageFilter के लिए अनिवार्य
@@ -73,7 +73,7 @@ class _CompanyStockViewState extends State<CompanyStockView> {
       end: smartDate,
     );
 
-    // Load initial databases
+    // Load initial active databases from PharoahManager
     selectedCompanyIds = ph.companies.map((c) => c.name).toSet();
     selectedPartyIds = ph.parties.where((p) => p.name != "CASH").map((p) => p.name).toSet();
 
@@ -90,128 +90,7 @@ class _CompanyStockViewState extends State<CompanyStockView> {
     return "${pad(d.day)}/${pad(d.month)}/${d.year}";
   }
 
-  // Live progress simulation
-  void _startSmartReportGeneration() {
-    setState(() {
-      currentStep = ReportStep.processingLoader;
-      processingProgress = 0.0;
-      processingStatusText = "Connecting with DB Engine...";
-    });
-
-    final List<String> phases = [
-      "Scanning meds.json database...",
-      "Filtering Excluded Companies list...",
-      "Filtering Excluded Parties list...",
-      "Analyzing Return (CN/DN) Reversals...",
-      "Mapping product-batch indices...",
-      "Summing Net Inflow & Net Outflow...",
-      "Applying Manual Rate Valuation algorithms...",
-      "Compiling Grand Totals..."
-    ];
-
-    int step = 0;
-    Timer.periodic(const Duration(milliseconds: 200), (timer) {
-      if (processingProgress >= 1.0) {
-        timer.cancel();
-        _showSuccessMiddleDialog();
-      } else {
-        setState(() {
-          processingProgress += 0.15;
-          if (processingProgress > 1.0) processingProgress = 1.0;
-          
-          if (step < phases.length) {
-            processingStatusText = phases[step];
-            step++;
-          }
-        });
-      }
-    });
-  }
-
-  // Middle Success Dialog (Buffer)
-  void _showSuccessMiddleDialog() {
-    final ph = Provider.of<PharoahManager>(context, listen: false);
-    List<String> excludedParties = ph.parties.where((p) => p.name != "CASH" && !selectedPartyIds.contains(p.name)).map((e) => e.name).toList();
-    List<String> excludedCompanies = ph.companies.where((c) => !selectedCompanyIds.contains(c.name)).map((e) => e.name).toList();
-
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (c) => BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 5.0, sigmaY: 5.0),
-        child: AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-          title: const Row(
-            children: [
-              Icon(Icons.verified_rounded, color: neonEmerald, size: 24),
-              SizedBox(width: 10),
-              Text("PROCESS COMPLETE", style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
-            ],
-          ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                "Your Statement has been processed in a safe memory container.",
-                style: TextStyle(fontSize: 12, color: Colors.blueGrey),
-              ),
-              const SizedBox(height: 15),
-              _bulletPoint("Companies: ${companySelectionType == "All" ? "${selectedCompanyIds.length} Active" : selectedCompany}"),
-              if (companySelectionType == "All" && excludedCompanies.isNotEmpty)
-                Padding(
-                  padding: const EdgeInsets.only(left: 14, bottom: 4),
-                  child: Text("Excluded: ${excludedCompanies.join(', ')}", style: const TextStyle(fontSize: 9, color: Colors.red, fontWeight: FontWeight.bold)),
-                ),
-              _bulletPoint("Parties: ${partySelectionType == "All" ? "${selectedPartyIds.length} Active" : selectedParty}"),
-              if (partySelectionType == "All" && excludedParties.isNotEmpty)
-                Padding(
-                  padding: const EdgeInsets.only(left: 14, bottom: 4),
-                  child: Text("Excluded: ${excludedParties.join(', ')}", style: const TextStyle(fontSize: 9, color: Colors.red, fontWeight: FontWeight.bold)),
-                ),
-              _bulletPoint("Deductions Applied: ${deductCN ? 'CN (Sales)' : 'None'} ${deductDN ? '& DN (Purchases)' : ''}"),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.pop(c);
-                setState(() {
-                  currentStep = ReportStep.selectionForm;
-                });
-              },
-              child: const Text("GO BACK", style: TextStyle(color: Colors.grey, fontWeight: FontWeight.bold)),
-            ),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(backgroundColor: accentElectric, foregroundColor: Colors.white),
-              onPressed: () {
-                Navigator.pop(c);
-                setState(() {
-                  currentStep = ReportStep.showReportGrid;
-                });
-              },
-              child: const Text("VIEW STATEMENT", style: TextStyle(fontWeight: FontWeight.bold)),
-            )
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _bulletPoint(String text) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 6),
-      child: Row(
-        children: [
-          const Icon(Icons.circle, size: 6, color: accentElectric),
-          const SizedBox(width: 8),
-          Expanded(child: Text(text, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold))),
-        ],
-      ),
-    );
-  }
-
-  // SEARCHABLE MULTI-SELECT POPUP FOR EXCLUSIONS
+  // SEARCHABLE MULTI-SELECT FLOATING WINDOW (WITH LIVE SEARCH & EXCLUSION)
   void _openAdvancedExclusionDialog({
     required String title,
     required List<String> allItems,
@@ -245,10 +124,11 @@ class _CompanyStockViewState extends State<CompanyStockView> {
                   padding: const EdgeInsets.all(20),
                   child: Column(
                     children: [
+                      // Header Row
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Text("SELECT $title", style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 13, letterSpacing: 1)),
+                          Text("SELECT $title", style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13, letterSpacing: 1)),
                           IconButton(
                             icon: const Icon(Icons.close, color: Colors.white70, size: 20),
                             onPressed: () => Navigator.pop(c),
@@ -256,7 +136,9 @@ class _CompanyStockViewState extends State<CompanyStockView> {
                         ],
                       ),
                       const Divider(color: Colors.white10),
-                      
+                      const SizedBox(height: 5),
+
+                      // Search & Select All Row
                       Row(
                         children: [
                           Expanded(
@@ -305,6 +187,7 @@ class _CompanyStockViewState extends State<CompanyStockView> {
                       ),
                       const SizedBox(height: 15),
 
+                      // Scrollable Checkbox List
                       Expanded(
                         child: filtered.isEmpty
                             ? const Center(child: Text("No records match.", style: TextStyle(color: Colors.white38, fontSize: 12)))
@@ -337,6 +220,7 @@ class _CompanyStockViewState extends State<CompanyStockView> {
                       ),
                       const SizedBox(height: 15),
 
+                      // Save Selection
                       SizedBox(
                         width: double.infinity,
                         height: 44,
@@ -593,7 +477,7 @@ class _CompanyStockViewState extends State<CompanyStockView> {
       finalReceived -= dnInPeriod;
     }
     if (deductCN) {
-      finalIssued -= cnInPeriod;
+      finalSold -= cnInPeriod;
     }
 
     // True Closing Stock for the selected period (Allows negatives safely!)
@@ -678,9 +562,10 @@ class _CompanyStockViewState extends State<CompanyStockView> {
                       const SizedBox(height: 10),
                       if (companySelectionType == "All") ...[
                         _buildGatewayTrigger("Companies Included", "${selectedCompanyIds.length} Brands Selected", () {
+                          final List<String> allCompaniesList = ph.companies.map((c) => c.name).toList();
                           _openAdvancedExclusionDialog(
                             title: "COMPANIES", 
-                            allItems: ph.companies.map((c) => c.name).toList(), 
+                            allItems: allCompaniesList, 
                             currentlySelected: selectedCompanyIds, 
                             onConfirmed: (v) => setState(() => selectedCompanyIds = v),
                           );
@@ -704,9 +589,10 @@ class _CompanyStockViewState extends State<CompanyStockView> {
                       const SizedBox(height: 10),
                       if (partySelectionType == "All") ...[
                         _buildGatewayTrigger("Parties Included", "${selectedPartyIds.length} Parties Selected", () {
+                          final List<String> allPartiesList = ph.parties.where((p) => p.name != "CASH").map((p) => p.name).toList();
                           _openAdvancedExclusionDialog(
                             title: "PARTIES", 
-                            allItems: ph.parties.where((p) => p.name != "CASH").map((p) => p.name).toList(), 
+                            allItems: allPartiesList, 
                             currentlySelected: selectedPartyIds, 
                             onConfirmed: (v) => setState(() => selectedPartyIds = v),
                           );
@@ -782,84 +668,6 @@ class _CompanyStockViewState extends State<CompanyStockView> {
             ),
           ),
         ),
-      ),
-    );
-  }
-
-  // Multi-select view with "Select All" and "Exclusion" logic
-  Widget _buildMultiSelectExclusionCard() {
-    bool isAllSelected = selectedPartyIds.length == masterParties.length;
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF8FAFC),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Text("Party Selection (Exclusions)", style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.blueGrey)),
-              InkWell(
-                onTap: () {
-                  setState(() {
-                    if (isAllSelected) {
-                      selectedPartyIds.clear();
-                    } else {
-                      selectedPartyIds = Set.from(masterParties);
-                    }
-                  });
-                },
-                child: Row(
-                  children: [
-                    Icon(isAllSelected ? Icons.check_box_rounded : Icons.check_box_outline_blank_rounded, size: 16, color: accentElectric),
-                    const SizedBox(width: 4),
-                    const Text("Select All", style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: accentElectric)),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const Divider(height: 15),
-          Container(
-            height: 120,
-            child: ListView.builder(
-              itemCount: masterParties.length,
-              itemBuilder: (context, idx) {
-                final party = masterParties[idx];
-                final isSelected = selectedPartyIds.contains(party);
-                return Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 4),
-                  child: InkWell(
-                    onTap: () {
-                      setState(() {
-                        if (isSelected) {
-                          selectedPartyIds.remove(party);
-                        } else {
-                          selectedPartyIds.add(party);
-                        }
-                      });
-                    },
-                    child: Row(
-                      children: [
-                        Icon(
-                          isSelected ? Icons.check_box_rounded : Icons.check_box_outline_blank_rounded, 
-                          size: 18, 
-                          color: isSelected ? Colors.green : Colors.grey,
-                        ),
-                        const SizedBox(width: 10),
-                        Text(party, style: TextStyle(fontSize: 12, fontWeight: isSelected ? FontWeight.bold : FontWeight.normal, color: isSelected ? Colors.black : Colors.black54)),
-                      ],
-                    ),
-                  ),
-                );
-              },
-            ),
-          )
-        ],
       ),
     );
   }
@@ -1123,7 +931,79 @@ class _CompanyStockViewState extends State<CompanyStockView> {
     ));
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F6F9),
+      backgroundColor: const Color(0xFF0F172A), // Dark slate cohesive background
+      appBar: AppBar(
+        title: Text(ph.activeCompany?.name ?? "DWARIKA MEDICALS", style: const TextStyle(fontWeight: FontWeight.bold)),
+        backgroundColor: brandDark,
+        foregroundColor: Colors.white,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => setState(() => currentStep = ReportStep.selectionForm),
+        ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.picture_as_pdf),
+            tooltip: "Export PDF",
+            onPressed: () async {
+              await CompanyStockPdf.generate(
+                shop: ph.activeCompany!,
+                groupedData: {
+                  for (var name in ph.companies.map((c) => c.name))
+                    name: ph.medicines.where((m) {
+                      String cName = ph.companies.firstWhere((c) => c.id == m.companyId, orElse: () => Company(id: '', name: 'OTHERS')).name;
+                      return cName == name;
+                    }).toList()
+                },
+                from: fyDateRange.start,
+                to: fyDateRange.end,
+                valuationBasis: valuationBasis,
+                ph: ph,
+                companySelectionType: companySelectionType,
+                selectedCompanyIds: selectedCompanyIds,
+                partySelectionType: partySelectionType,
+                selectedParty: selectedParty,
+                selectedPartyId: selectedPartyId,
+                deductCN: deductCN,
+                deductDN: deductDN,
+              );
+            },
+          ),
+          if (ph.config.isMailActive)
+            IconButton(
+              icon: Icon(
+                ph.config.isAuditMode ? Icons.forward_to_inbox_rounded : Icons.alternate_email,
+              ),
+              tooltip: ph.config.isAuditMode ? "Forward to CA" : "Send Mail",
+              onPressed: () {
+                PdfRouterService.emailDocument(
+                  context: context,
+                  doc: {
+                    'grouped': {
+                      for (var name in ph.companies.map((c) => c.name))
+                        name: ph.medicines.where((m) {
+                          String cName = ph.companies.firstWhere((c) => c.id == m.companyId, orElse: () => Company(id: '', name: 'OTHERS')).name;
+                          return cName == name;
+                        }).toList()
+                    },
+                    'from': fyDateRange.start,
+                    'to': fyDateRange.end,
+                    'basis': valuationBasis,
+                    'companySelectionType': companySelectionType,
+                    'selectedCompanyIds': selectedCompanyIds,
+                    'partySelectionType': partySelectionType,
+                    'selectedParty': selectedParty,
+                    'selectedPartyId': selectedPartyId,
+                    'deductCN': deductCN,
+                    'deductDN': deductDN,
+                  },
+                  party: Party(id: 'internal', name: ph.config.isAuditMode ? 'Inward Audit' : 'Internal Stock Audit'),
+                  ph: ph,
+                  type: "STOCK",
+                );
+              },
+            ),
+        ],
+      ),
       body: Center(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(24.0),
@@ -1136,25 +1016,6 @@ class _CompanyStockViewState extends State<CompanyStockView> {
             padding: const EdgeInsets.all(25.0),
             child: Column(
               children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    OutlinedButton.icon(
-                      onPressed: () => setState(() => currentStep = ReportStep.selectionForm),
-                      icon: const Icon(Icons.arrow_back),
-                      label: const Text("RE-CONFIGURE"),
-                    ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                      decoration: BoxDecoration(color: Colors.indigo.shade50, borderRadius: BorderRadius.circular(8)),
-                      child: Text(
-                        "VALUATION: $valuationBasis RATE",
-                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 10, color: brandDark),
-                      ),
-                    )
-                  ],
-                ),
-                const SizedBox(height: 20),
                 _buildMockReportHeader(ph),
                 const SizedBox(height: 20),
                 
