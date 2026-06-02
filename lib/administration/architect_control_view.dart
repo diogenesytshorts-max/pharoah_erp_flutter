@@ -1,4 +1,4 @@
-// FILE: lib/administration/architect_control_view.dart (FULLY RESOLVED PRODUCTION CODE - ADVANCED DASHBOARD)
+// FILE: lib/administration/architect_control_view.dart (FULLY RESOLVED PRODUCTION CODE)
 
 import 'dart:io';
 import 'package:flutter/material.dart';
@@ -59,9 +59,6 @@ class _ArchitectControlViewState extends State<ArchitectControlView> with Single
     super.dispose();
   }
 
-  // ===========================================================================
-  // SMTP DISPATCH HELPERS
-  // ===========================================================================
   Future<void> _launchGmailSecurity() async {
     final Uri url = Uri.parse('https://myaccount.google.com/apppasswords');
     if (!await launchUrl(url, mode: LaunchMode.externalApplication)) {
@@ -107,9 +104,6 @@ class _ArchitectControlViewState extends State<ArchitectControlView> with Single
     ]),
   );
 
-  // ===========================================================================
-  // MASTER SAVE & IMAGE PICKER INTERFACE
-  // ===========================================================================
   void _saveSettings(PharoahManager ph) {
     final updated = ph.config;
     updated.signLabel = labelC.text.trim();
@@ -173,12 +167,10 @@ class _ArchitectControlViewState extends State<ArchitectControlView> with Single
       ),
       body: Row(
         children: [
-          // Left Settings Tab bar Panels (Takes full space on narrow screens)
           Expanded(
             flex: isWide ? 6 : 10,
             child: _buildSettingsHub(ph),
           ),
-          // Right Live Interactive Preview Panel (Only on Wide Screens)
           if (isWide)
             Expanded(
               flex: 4,
@@ -190,9 +182,6 @@ class _ArchitectControlViewState extends State<ArchitectControlView> with Single
     );
   }
 
-  // ===========================================================================
-  // ⚙️ LEFT PANEL: SETTINGS TABS
-  // ===========================================================================
   Widget _buildSettingsHub(PharoahManager ph) {
     return Column(
       children: [
@@ -226,7 +215,6 @@ class _ArchitectControlViewState extends State<ArchitectControlView> with Single
     );
   }
 
-  // --- TAB 1: BRANDING & LAYOUT ---
   Widget _buildBrandingTab(PharoahManager ph) {
     return ListView(
       padding: const EdgeInsets.all(20),
@@ -257,13 +245,17 @@ class _ArchitectControlViewState extends State<ArchitectControlView> with Single
     );
   }
 
-  // --- TAB 2: SIGNATURES & SERIES ---
   Widget _buildSignaturesTab(PharoahManager ph) {
     return ListView(
       padding: const EdgeInsets.all(20),
       children: [
         _buildCardHeader("SIGNATURE & SERIES AUDIT", Icons.security, Colors.blue),
-        _buildSwitchTile("Show Authorised Signatory Block", "Requires receiver's stamp area", ph.config.showStaffSign, (v) {
+        // Switch 1: showCustomerSignChallan (Challan Signature Step)
+        _buildSwitchTile("Enable Staff Signature", "Toggles signature drawing screen in challans", ph.config.showCustomerSignChallan, (v) {
+          ph.config.showCustomerSignChallan = v; ph.updateAppConfig(ph.config);
+        }),
+        // Switch 2: showStaffSign (Authorised Signatory Block)
+        _buildSwitchTile("Show Authorised Signatory Block", "Requires receiver's stamp area on bills", ph.config.showStaffSign, (v) {
           ph.config.showStaffSign = v; ph.updateAppConfig(ph.config);
         }),
         const SizedBox(height: 15),
@@ -280,7 +272,6 @@ class _ArchitectControlViewState extends State<ArchitectControlView> with Single
     );
   }
 
-  // --- TAB 3: FINANCE & PAYMENT QR ---
   Widget _buildFinanceTab(PharoahManager ph) {
     return ListView(
       padding: const EdgeInsets.all(20),
@@ -307,7 +298,6 @@ class _ArchitectControlViewState extends State<ArchitectControlView> with Single
     );
   }
 
-  // --- TAB 4: SMTP MAIL AUTOMATION ---
   Widget _buildMailSetupTab(PharoahManager ph) {
     return ListView(
       padding: const EdgeInsets.all(20),
@@ -338,9 +328,6 @@ class _ArchitectControlViewState extends State<ArchitectControlView> with Single
     );
   }
 
-  // ===========================================================================
-  // 📊 RIGHT PANEL: LIVE INTERACTIVE PREVIEW
-  // ===========================================================================
   Widget _buildLiveInvoicePreview(PharoahManager ph) {
     bool isThermal = ph.config.printFormat == "Thermal";
 
@@ -360,7 +347,6 @@ class _ArchitectControlViewState extends State<ArchitectControlView> with Single
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Logo Block (Reactive)
               if (ph.config.showLogo)
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -377,12 +363,10 @@ class _ArchitectControlViewState extends State<ArchitectControlView> with Single
               const Text("Date: 02/06/2026", style: TextStyle(fontSize: 9, color: Colors.grey)),
               const Spacer(),
 
-              // Items Mock
               _previewItemRow("DOLO 650 MG", "10 Tab", "₹30.00"),
               _previewItemRow("PAN 40 MG", "15 Tab", "₹120.00"),
               const Divider(thickness: 0.5),
 
-              // Total Block
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: const [
@@ -392,7 +376,6 @@ class _ArchitectControlViewState extends State<ArchitectControlView> with Single
               ),
               const SizedBox(height: 15),
 
-              // UPI QR block & Bank Details (Reactive)
               if (ph.config.showQrCode)
                 Row(
                   children: [
@@ -415,7 +398,6 @@ class _ArchitectControlViewState extends State<ArchitectControlView> with Single
               
               const SizedBox(height: 10),
 
-              // Terms & Conditions Block (Reactive)
               if (ph.config.showTerms)
                 Container(
                   width: double.infinity,
@@ -426,7 +408,6 @@ class _ArchitectControlViewState extends State<ArchitectControlView> with Single
 
               const Spacer(),
 
-              // Signatory Block (Reactive)
               if (ph.config.showStaffSign)
                 Align(
                   alignment: Alignment.centerRight,
@@ -461,9 +442,6 @@ class _ArchitectControlViewState extends State<ArchitectControlView> with Single
     );
   }
 
-  // ===========================================================================
-  // ATOMIC WIDGET LAYOUTS
-  // ===========================================================================
   Widget _buildCardHeader(String title, IconData icon, Color color) {
     return Row(
       children: [
