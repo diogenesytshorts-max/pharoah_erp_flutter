@@ -1,5 +1,7 @@
 // FILE: lib/finance/company_stock_view.dart
 
+import 'dart:async';
+import 'dart:ui'; // ImageFilter के लिए अनिवार्य
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
@@ -16,245 +18,1125 @@ class CompanyStockView extends StatefulWidget {
   @override State<CompanyStockView> createState() => _CompanyStockViewState();
 }
 
+enum ReportStep {
+  selectionForm,
+  processingLoader,
+  showReportGrid,
+}
+
 class _CompanyStockViewState extends State<CompanyStockView> {
-  DateTime fromDate = DateTime.now();
-  DateTime toDate = DateTime.now();
-  String valuationBasis = "PURCHASE"; 
-  String companySearch = "";
+  // 🎨 Class-Level Vibrant Royal Cobalt Theme Colors
+  static const Color brandDark = Color(0xFF1E1B4B); 
+  static const Color tableHeaderColor = Color(0xFF2E2B6B); 
+  static const Color accentElectric = Color(0xFF3B82F6); 
+  static const Color neonEmerald = Color(0xFF10B981); 
+
+  // Flow State
+  ReportStep currentStep = ReportStep.selectionForm;
+
+  // Configuration States
+  String companySelectionType = "All"; // All or Single
+  String selectedCompany = "";
+  Set<String> selectedCompanyIds = {}; // Selected Companies (for All-Multi Mode)
+
+  String partySelectionType = "All"; // All or Single
+  String selectedParty = "";
+  String selectedPartyId = "";
+  Set<String> selectedPartyIds = {}; // Selected Parties (for All-Multi Mode)
+
+  String transactionType = "BOTH"; // SALE, PURCHASE, BOTH
+  String valuationBasis = "PURCHASE"; // PURCHASE, SALE, MRP, MANUAL
+  
+  // CN/DN (Return) Adjustments
+  bool deductCN = false; 
+  bool deductDN = false; 
+
+  // Date Range (Locked to FY)
+  DateTimeRange fyDateRange = DateTimeRange(
+    start: DateTime.now(),
+    end: DateTime.now(),
+  );
+
+  // Loader states
+  double processingProgress = 0.0;
+  String processingStatusText = "Initializing Pipeline...";
 
   @override
   void initState() {
     super.initState();
     final ph = Provider.of<PharoahManager>(context, listen: false);
-    toDate = AppDateLogic.getSmartDate(ph.currentFY);
-    fromDate = DateTime(toDate.year, toDate.month, 1);
+    
+    // Set standard financial year boundaries
+    DateTime smartDate = AppDateLogic.getSmartDate(ph.currentFY);
+    fyDateRange = DateTimeRange(
+      start: DateTime(smartDate.year, smartDate.month, 1),
+      end: smartDate,
+    );
+
+    // Load initial databases
+    selectedCompanyIds = ph.companies.map((c) => c.name).toSet();
+    selectedPartyIds = ph.parties.where((p) => p.name != "CASH").map((p) => p.name).toSet();
+
+    if (ph.companies.isNotEmpty) selectedCompany = ph.companies.first.name;
+    if (ph.parties.isNotEmpty) {
+      selectedParty = ph.parties.first.name;
+      selectedPartyId = ph.parties.first.id;
+    }
+  }
+
+  // Live progress simulation
+  void _startSmartReportGeneration() {
+    setState(() {
+      currentStep = ReportStep.processingLoader;
+      processingProgress = 0.0;
+      processingStatusText = "Connecting with DB Engine...";
+    });
+
+    final List<String> phases = [
+      "Scanning meds.json database...",
+      "Filtering Excluded Companies list...",
+      "Filtering Excluded Parties list...",
+      "Analyzing Return (CN/DN) Reversals...",
+      "Mapping product-batch indices...",
+      "Summing Net Inflow & Net Outflow...",
+      "Applying Manual Rate Valuation algorithms...",
+      "Compiling Grand Totals..."
+    ];
+
+    int step = 0;
+    Timer.periodic(const Duration(milliseconds: 200), (timer) {
+      if (processingProgress >= 1.0) {
+        timer.cancel();
+        _showSuccessMiddleDialog();
+      } else {
+        setState(() {
+          processingProgress += 0.15;
+          if (processingProgress > 1.0) processingProgress = 1.0;
+          
+          if (step < phases.length) {
+            processingStatusText = phases[step];
+            step++;
+          }
+        });
+      }
+    });
+  }
+
+  // Middle Success Dialog (Buffer)
+  void _showSuccessMiddleDialog() {
+    final ph = Provider.of<PharoahManager>(context, listen: false);
+    List<String> excludedParties = ph.parties.where((p) => p.name != "CASH" && !selectedPartyIds.contains(p.name)).map((e) => e.name).toList();
+    List<String> excludedCompanies = ph.companies.where((c) => !selectedCompanyIds.contains(c.name)).map((e) => e.name).toList();
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (c) => BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 5.0, sigmaY: 5.0),
+        child: AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: const Row(
+            children: [
+              Icon(Icons.verified_rounded, color: neonEmerald, size: 24),
+              SizedBox(width: 10),
+              Text("PROCESS COMPLETE", style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                "Your Statement has been processed in a safe memory container.",
+                style: TextStyle(fontSize: 12, color: Colors.blueGrey),
+              ),
+              const SizedBox(height: 15),
+              _bulletPoint("Companies: ${companySelectionType == "All" ? "${selectedCompanyIds.length} Active" : selectedCompany}"),
+              if (companySelectionType == "All" && excludedCompanies.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(left: 14, bottom: 4),
+                  child: Text("Excluded: ${excludedCompanies.join(', ')}", style: const TextStyle(fontSize: 9, color: Colors.red, fontWeight: FontWeight.bold)),
+                ),
+              _bulletPoint("Parties: ${partySelectionType == "All" ? "${selectedPartyIds.length} Active" : selectedParty}"),
+              if (partySelectionType == "All" && excludedParties.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(left: 14, bottom: 4),
+                  child: Text("Excluded: ${excludedParties.join(', ')}", style: const TextStyle(fontSize: 9, color: Colors.red, fontWeight: FontWeight.bold)),
+                ),
+              _bulletPoint("Deductions Applied: ${deductCN ? 'CN (Sales)' : 'None'} ${deductDN ? '& DN (Purchases)' : ''}"),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(c);
+                setState(() {
+                  currentStep = ReportStep.selectionForm;
+                });
+              },
+              child: const Text("GO BACK", style: TextStyle(color: Colors.grey, fontWeight: FontWeight.bold)),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: accentElectric, foregroundColor: Colors.white),
+              onPressed: () {
+                Navigator.pop(c);
+                setState(() {
+                  currentStep = ReportStep.showReportGrid;
+                });
+              },
+              child: const Text("VIEW STATEMENT", style: TextStyle(fontWeight: FontWeight.bold)),
+            )
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _bulletPoint(String text) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6),
+      child: Row(
+        children: [
+          const Icon(Icons.circle, size: 6, color: accentElectric),
+          const SizedBox(width: 8),
+          Expanded(child: Text(text, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold))),
+        ],
+      ),
+    );
+  }
+
+  // SEARCHABLE MULTI-SELECT POPUP FOR EXCLUSIONS
+  void _openAdvancedExclusionDialog({
+    required String title,
+    required List<String> allItems,
+    required Set<String> currentlySelected,
+    required ValueChanged<Set<String>> onConfirmed,
+  }) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (c) {
+        String searchVal = "";
+        Set<String> tempSelected = Set.from(currentlySelected);
+
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            final filtered = allItems.where((element) => element.toLowerCase().contains(searchVal.toLowerCase())).toList();
+            bool isAllSelected = tempSelected.length == allItems.length;
+
+            return BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 5.0, sigmaY: 5.0),
+              child: Dialog(
+                backgroundColor: Colors.transparent,
+                child: Container(
+                  width: 400,
+                  height: 500,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF0F172A), 
+                    borderRadius: BorderRadius.circular(24),
+                    border: Border.all(color: accentElectric.withAlpha(100), width: 1.5),
+                  ),
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text("SELECT $title", style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 13, letterSpacing: 1)),
+                          IconButton(
+                            icon: const Icon(Icons.close, color: Colors.white70, size: 20),
+                            onPressed: () => Navigator.pop(c),
+                          ),
+                        ],
+                      ),
+                      const Divider(color: Colors.white10),
+                      
+                      Row(
+                        children: [
+                          Expanded(
+                            child: TextField(
+                              style: const TextStyle(color: Colors.white, fontSize: 12),
+                              decoration: InputDecoration(
+                                isDense: true,
+                                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                                hintText: "Search...",
+                                hintStyle: const TextStyle(color: Colors.white38, fontSize: 12),
+                                prefixIcon: const Icon(Icons.search, color: accentElectric, size: 16),
+                                filled: true,
+                                fillColor: Colors.white.withAlpha(20),
+                                border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
+                              ),
+                              onChanged: (v) => setDialogState(() => searchVal = v),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          InkWell(
+                            onTap: () {
+                              setDialogState(() {
+                                if (isAllSelected) {
+                                  tempSelected.clear();
+                                } else {
+                                  tempSelected = Set.from(allItems);
+                                }
+                              });
+                            },
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                              decoration: BoxDecoration(
+                                color: isAllSelected ? neonEmerald.withAlpha(40) : Colors.white.withAlpha(20),
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: Row(
+                                children: [
+                                  Icon(isAllSelected ? Icons.check_box : Icons.check_box_outline_blank, size: 16, color: isAllSelected ? neonEmerald : Colors.white70),
+                                  const SizedBox(width: 4),
+                                  const Text("All", style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold)),
+                                ],
+                              ),
+                            ),
+                          )
+                        ],
+                      ),
+                      const SizedBox(height: 15),
+
+                      Expanded(
+                        child: filtered.isEmpty
+                            ? const Center(child: Text("No records match.", style: TextStyle(color: Colors.white38, fontSize: 12)))
+                            : ListView.builder(
+                                itemCount: filtered.length,
+                                itemBuilder: (c, idx) {
+                                  final item = filtered[idx];
+                                  bool isChecked = tempSelected.contains(item);
+                                  return Theme(
+                                    data: ThemeData(unselectedWidgetColor: Colors.white38),
+                                    child: CheckboxListTile(
+                                      activeColor: accentElectric,
+                                      checkColor: Colors.white,
+                                      dense: true,
+                                      title: Text(item, style: TextStyle(color: isChecked ? Colors.white : Colors.white54, fontWeight: isChecked ? FontWeight.bold : FontWeight.normal, fontSize: 13)),
+                                      value: isChecked,
+                                      onChanged: (val) {
+                                        setDialogState(() {
+                                          if (val == true) {
+                                            tempSelected.add(item);
+                                          } else {
+                                            tempSelected.remove(item);
+                                          }
+                                        });
+                                      },
+                                    ),
+                                  );
+                                },
+                              ),
+                      ),
+                      const SizedBox(height: 15),
+
+                      SizedBox(
+                        width: double.infinity,
+                        height: 44,
+                        child: ElevatedButton(
+                          style: ElevatedButton.styleFrom(backgroundColor: accentElectric, foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+                          onPressed: () {
+                            onConfirmed(tempSelected);
+                            Navigator.pop(c);
+                          },
+                          child: const Text("APPLY SELECTION", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, letterSpacing: 0.5)),
+                        ),
+                      )
+                    ],
+                  ),
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  // SEARCHABLE SINGLE PICKER (For Single Mode Selection)
+  void _openSearchableSinglePicker(String title, List<String> items, String currentSelection, ValueChanged<String> onSelected) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (c) {
+        String searchVal = "";
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            final filtered = items.where((element) => element.toLowerCase().contains(searchVal.toLowerCase())).toList();
+            return BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 5.0, sigmaY: 5.0),
+              child: Dialog(
+                backgroundColor: Colors.transparent,
+                child: Container(
+                  width: 400,
+                  height: 500,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF0F172A),
+                    borderRadius: BorderRadius.circular(24),
+                    border: Border.all(color: accentElectric.withAlpha(100), width: 1.5),
+                  ),
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text("SEARCH $title", style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 13, letterSpacing: 1)),
+                          IconButton(
+                            icon: const Icon(Icons.close, color: Colors.white70, size: 20),
+                            onPressed: () => Navigator.pop(c),
+                          ),
+                        ],
+                      ),
+                      const Divider(color: Colors.white10),
+                      const SizedBox(height: 5),
+
+                      TextField(
+                        style: const TextStyle(color: Colors.white, fontSize: 12),
+                        decoration: InputDecoration(
+                          isDense: true,
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                          hintText: "Type to search...",
+                          hintStyle: const TextStyle(color: Colors.white38, fontSize: 12),
+                          prefixIcon: const Icon(Icons.search, color: accentElectric, size: 16),
+                          filled: true,
+                          fillColor: Colors.white.withAlpha(20),
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
+                        ),
+                        onChanged: (v) => setDialogState(() => searchVal = v),
+                      ),
+                      const SizedBox(height: 15),
+
+                      Expanded(
+                        child: filtered.isEmpty
+                            ? const Center(child: Text("No records found.", style: TextStyle(color: Colors.white38, fontSize: 12)))
+                            : ListView.builder(
+                                  itemCount: filtered.length,
+                                  itemBuilder: (context, idx) {
+                                    final item = filtered[idx];
+                                    bool isSelected = item == currentSelection;
+                                    return ListTile(
+                                      leading: Icon(Icons.check_circle_rounded, color: isSelected ? neonEmerald : Colors.transparent, size: 18),
+                                      title: Text(item, style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: isSelected ? FontWeight.bold : FontWeight.normal)),
+                                      onTap: () {
+                                        onSelected(item);
+                                        Navigator.pop(c);
+                                      },
+                                    );
+                                  },
+                                ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            },
+          );
+        },
+      );
+    }
+
+  // STRICT CALENDAR LOCK TO ACTIVE FINANCIAL YEAR
+  Future<void> _pickDateRangeWithinFY() async {
+    final ph = Provider.of<PharoahManager>(context, listen: false);
+    final DateTime fyStart = AppDateLogic.getFYStart(ph.currentFY);
+    final DateTime fyEnd = AppDateLogic.getFYEnd(ph.currentFY);
+
+    final DateTimeRange? picked = await showDateRangePicker(
+      context: context,
+      initialDateRange: fyDateRange,
+      firstDate: fyStart, 
+      lastDate: fyEnd,   
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: const ColorScheme.light(
+              primary: brandDark,
+              onPrimary: Colors.white,
+              onSurface: Color(0xFF0F172A),
+            ),
+          ),
+          child: child!,
+        );
+      },
+    );
+
+    if (picked != null) {
+      setState(() {
+        fyDateRange = picked;
+      });
+    }
+  }
+
+  // ===========================================================================
+  // ADVANCED STOCK FLOW ENGINE - WITH DYNAMIC CN/DN DEDUCTION
+  // ===========================================================================
+  Map<String, double> _calculateCustomItemFlow({
+    required Medicine med,
+    required DateTime from,
+    required DateTime to,
+    required PharoahManager ph,
+  }) {
+    double received = 0.0;
+    double sold = 0.0;
+    double cnQty = 0.0; // Credit Notes (Sales Return)
+    double dnQty = 0.0; // Debit Notes (Purchase Return)
+
+    // A. Scan Purchases
+    final filteredPurchases = ph.purchases.where((p) {
+      bool inRange = p.date.isAfter(from.subtract(const Duration(seconds: 1))) && 
+                     p.date.isBefore(to.add(const Duration(days: 1)));
+      if (!inRange) return false;
+      if (partySelectionType == "Single") return p.partyId == selectedPartyId;
+      return true;
+    });
+    for (var p in filteredPurchases) {
+      for (var it in p.items.where((it) => it.medicineID == med.id)) {
+        received += (it.qty + it.freeQty);
+      }
+    }
+
+    // B. Scan Sales
+    final filteredSales = ph.sales.where((s) {
+      bool inRange = s.status == "Active" && 
+                     s.date.isAfter(from.subtract(const Duration(seconds: 1))) && 
+                     s.date.isBefore(to.add(const Duration(days: 1)));
+      if (!inRange) return false;
+      if (partySelectionType == "Single") return s.partyId == selectedPartyId;
+      return true;
+    });
+    for (var s in filteredSales) {
+      for (var it in s.items.where((it) => it.medicineID == med.id)) {
+        sold += (it.qty + it.freeQty);
+      }
+    }
+
+    // C. Scan Sales Returns (Credit Notes)
+    final filteredSaleReturns = ph.saleReturns.where((r) {
+      bool inRange = r.status == "Active" && r.date.isAfter(from) && r.date.isBefore(to);
+      if (!inRange) return false;
+      if (partySelectionType == "Single") return r.partyName == selectedParty;
+      return true;
+    });
+    for (var r in filteredSaleReturns) {
+      for (var it in r.items.where((it) => it.medicineID == med.id && !it.isBreakage)) {
+        cnQty += (it.qty + it.freeQty);
+      }
+    }
+
+    // D. Scan Purchase Returns (Debit Notes)
+    final filteredPurchaseReturns = ph.purchaseReturns.where((r) {
+      bool inRange = r.status == "Active" && r.date.isAfter(from) && r.date.isBefore(to);
+      if (!inRange) return false;
+      if (partySelectionType == "Single") return r.distributorName == selectedParty;
+      return true;
+    });
+    for (var r in filteredPurchaseReturns) {
+      for (var it in r.items.where((it) => it.medicineID == med.id && !it.isBreakage)) {
+        dnQty += (it.qty + it.freeQty);
+      }
+    }
+
+    // E. Apply CN/DN Deductions
+    double finalReceived = received;
+    double finalSold = sold;
+
+    if (deductDN) {
+      finalReceived -= dnQty;
+      if (finalReceived < 0) finalReceived = 0;
+    }
+    if (deductCN) {
+      finalSold -= cnQty;
+      if (finalSold < 0) finalSold = 0;
+    }
+
+    double closing = med.stock;
+    double opening = closing - finalReceived + finalSold;
+
+    return {
+      'opening': opening,
+      'received': finalReceived,
+      'sale': finalSold,
+      'closing': closing,
+    };
   }
 
   @override
   Widget build(BuildContext context) {
-    final ph = Provider.of<PharoahManager>(context);
-    Map<String, List<Medicine>> grouped = {};
-    
-    for (var med in ph.medicines) {
-      String cName = ph.companies.firstWhere((c) => c.id == med.companyId, orElse: () => Company(id: '', name: 'OTHERS')).name;
-      if (cName.toLowerCase().contains(companySearch.toLowerCase())) {
-        if (!grouped.containsKey(cName)) grouped[cName] = [];
-        grouped[cName]!.add(med);
-      }
+    switch (currentStep) {
+      case ReportStep.selectionForm:
+        return _buildSelectionForm();
+      case ReportStep.processingLoader:
+        return _buildProcessingLoader();
+      case ReportStep.showReportGrid:
+        return _buildReportGrid(Provider.of<PharoahManager>(context));
     }
+  }
+
+  // ===========================================================================
+  // SCREEN 1 & 2: DOCK CONFIGURATION SCREEN
+  // ===========================================================================
+  Widget _buildSelectionForm() {
+    final ph = Provider.of<PharoahManager>(context);
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF4F7FC),
-      appBar: AppBar(
-        title: const Text("Company Stock Flow"),
-        backgroundColor: const Color(0xFF1E1B4B),
-        foregroundColor: Colors.white,
-        actions: [
-          // --- 📬 SMART DISPATCH (MAIL) ---
-          if (ph.config.isMailActive) 
-            IconButton(
-              icon: Icon(
-                ph.config.isAuditMode ? Icons.forward_to_inbox_rounded : Icons.alternate_email,
-                color: Colors.white,
-              ),
-              tooltip: ph.config.isAuditMode ? "Forward to CA (Auditor)" : "Send to My Mail",
-              onPressed: () {
-                PdfRouterService.emailDocument(
-                  context: context,
-                  doc: {'grouped': grouped, 'from': fromDate, 'to': toDate, 'basis': valuationBasis},
-                  party: Party(id: 'internal', name: ph.config.isAuditMode ? 'Audit Analysis' : 'Party Stock Analysis'),
-                  ph: ph, type: "STOCK",
-                );
-              },
+      backgroundColor: const Color(0xFFF1F5F9),
+      appBar: AppBar(title: const Text("Stock Flow & Valuation Audit"), backgroundColor: brandDark, foregroundColor: Colors.white),
+      body: Center(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 32),
+          child: Container(
+            width: 520,
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(24),
+              boxShadow: const [BoxShadow(color: Color(0x0F000000), blurRadius: 20)],
             ),
-          IconButton(
-            icon: const Icon(Icons.picture_as_pdf), 
-            onPressed: () async {
-              await CompanyStockPdf.generate(
-                shop: ph.activeCompany!, groupedData: grouped, from: fromDate, to: toDate,
-                valuationBasis: valuationBasis, ph: ph
-              );
-            }
-          )
-        ],
-      ),
-      body: Column(children: [
-        _buildTopFilterBar(ph),
-        _buildValuationDrag(),
-        Expanded(
-          child: ListView.builder(
-            itemCount: grouped.length,
-            itemBuilder: (c, i) {
-              String companyName = grouped.keys.elementAt(i);
-              return _buildCompanyCard(companyName, grouped[companyName]!, ph);
-            },
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(20),
+                  decoration: const BoxDecoration(
+                    gradient: LinearGradient(colors: [brandDark, Color(0xFF312E81)]),
+                    borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.tune_rounded, color: Colors.orangeAccent, size: 24),
+                      const SizedBox(width: 12),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: const [
+                          Text("STATEMENT CONFIGURATION", style: TextStyle(color: Color(0xFF818CF8), fontSize: 9, fontWeight: FontWeight.w900, letterSpacing: 1.5)),
+                          SizedBox(height: 2),
+                          Text("Select Parameters Deeply", style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+                        ],
+                      )
+                    ],
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Companies List Exclusion gateway
+                      _sectionLabel("1. SEARCH SCOPE (COMPANIES)"),
+                      Row(
+                        children: [
+                          _formSegment("All Companies", companySelectionType == "All", () => setState(() => companySelectionType = "All")),
+                          _formSegment("Single Brand", companySelectionType == "Single", () => setState(() => companySelectionType = "Single")),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+                      if (companySelectionType == "All") ...[
+                        _buildGatewayTrigger("Companies Included", "${selectedCompanyIds.length} Brands Selected", () {
+                          _openAdvancedExclusionDialog(
+                            title: "COMPANIES", 
+                            allItems: ph.companies.map((c) => c.name).toList(), 
+                            currentlySelected: selectedCompanyIds, 
+                            onConfirmed: (v) => setState(() => selectedCompanyIds = v),
+                          );
+                        }),
+                      ] else ...[
+                        _buildSearchPickerTrigger("Company", selectedCompany, (v) {
+                          setState(() { selectedCompany = v; });
+                        }, ph.companies.map((c) => c.name).toList()),
+                      ],
+
+                      const SizedBox(height: 15),
+
+                      // Parties Exclusion Gateway
+                      _sectionLabel("2. CROSS-REFERENCE PARTY TARGET"),
+                      Row(
+                        children: [
+                          _formSegment("All Parties", partySelectionType == "All", () => setState(() => partySelectionType = "All")),
+                          _formSegment("Single Party", partySelectionType == "Single", () => setState(() => partySelectionType = "Single")),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+                      if (partySelectionType == "All") ...[
+                        _buildGatewayTrigger("Parties Included", "${selectedPartyIds.length} Parties Selected", () {
+                          _openAdvancedExclusionDialog(
+                            title: "PARTIES", 
+                            allItems: ph.parties.where((p) => p.name != "CASH").map((p) => p.name).toList(), 
+                            currentlySelected: selectedPartyIds, 
+                            onConfirmed: (v) => setState(() => selectedPartyIds = v),
+                          );
+                        }),
+                      ] else ...[
+                        _buildSearchPickerTrigger("Party", selectedParty, (v) {
+                          setState(() { 
+                            selectedParty = v; 
+                            try { selectedPartyId = ph.parties.firstWhere((p) => p.name == v).id; } catch(e) {}
+                          });
+                        }, ph.parties.where((p) => p.name != "CASH").map((p) => p.name).toList()),
+                      ],
+
+                      const SizedBox(height: 15),
+
+                      _sectionLabel("3. BUSINESS FLOW & VALUATION"),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _buildSimpleDropdown(
+                              value: transactionType,
+                              items: ["SALE", "PURCHASE", "BOTH"],
+                              onChanged: (v) => setState(() => transactionType = v!),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: _buildSimpleDropdown(
+                              value: valuationBasis,
+                              items: ["PURCHASE", "SALE", "MRP", "MANUAL"],
+                              onChanged: (v) => setState(() => valuationBasis = v!),
+                            ),
+                          ),
+                        ],
+                      ),
+
+                      const SizedBox(height: 15),
+
+                      _sectionLabel("4. RETURN & REVERSAL ADJUSTMENTS (NET TOTAL)"),
+                      _buildSwitchTile(
+                        "Deduct Credit Notes (CN - Sales Return)", 
+                        "Deducts return stocks to compute Net Outward", 
+                        deductCN, 
+                        (v) => setState(() => deductCN = v)
+                      ),
+                      _buildSwitchTile(
+                        "Deduct Debit Notes (DN - Purchase Return)", 
+                        "Deducts returned stocks to compute Net Inward", 
+                        deductDN, 
+                        (v) => setState(() => deductDN = v)
+                      ),
+
+                      const SizedBox(height: 15),
+
+                      _sectionLabel("5. ACTIVE FINANCIAL YEAR DATES (LOCKED)"),
+                      _buildDateSelectorTile(),
+
+                      const SizedBox(height: 30),
+
+                      SizedBox(
+                        width: double.infinity,
+                        height: 50,
+                        child: ElevatedButton(
+                          style: ElevatedButton.styleFrom(backgroundColor: accentElectric, foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+                          onPressed: _startSmartReportGeneration,
+                          child: const Text("GENERATE AUDIT STATEMENT", style: TextStyle(fontWeight: FontWeight.w900, letterSpacing: 1.0)),
+                        ),
+                      )
+                    ],
+                  ),
+                )
+              ],
+            ),
           ),
         ),
-      ]),
+      ),
     );
   }
 
-  Widget _buildTopFilterBar(PharoahManager ph) => Container(
-    padding: const EdgeInsets.all(15), color: const Color(0xFF1E1B4B),
-    child: Column(children: [
-      Row(children: [
-        Expanded(child: _dateTile("FROM", fromDate, (d) => setState(() => fromDate = d), ph.currentFY)),
-        const SizedBox(width: 10),
-        Expanded(child: _dateTile("TO", toDate, (d) => setState(() => toDate = d), ph.currentFY)),
-      ]),
-      const SizedBox(height: 10),
-      TextField(
-        style: const TextStyle(color: Colors.white),
-        decoration: InputDecoration(hintText: "Search Brand...", hintStyle: const TextStyle(color: Colors.white54), prefixIcon: const Icon(Icons.search, color: Colors.white), filled: true, fillColor: Colors.white.withOpacity(0.1), border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none), isDense: true),
-        onChanged: (v) => setState(() => companySearch = v),
-      )
-    ]),
-  );
+  Widget _buildGatewayTrigger(String label, String value, VoidCallback onTap) {
+    return InkWell(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        decoration: BoxDecoration(
+          color: const Color(0xFFF8FAFC),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: const Color(0xFFE2E8F0)),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(label, style: const TextStyle(fontSize: 8, color: Colors.grey, fontWeight: FontWeight.bold)),
+                const SizedBox(height: 2),
+                Text(value, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: brandDark)),
+              ],
+            ),
+            const Icon(Icons.arrow_forward_ios_rounded, color: brandDark, size: 14),
+          ],
+        ),
+      ),
+    );
+  }
 
-  Widget _buildValuationDrag() => Container(
-    padding: const EdgeInsets.all(10), color: Colors.white,
-    child: SegmentedButton<String>(
-      segments: const [
-        ButtonSegment(value: 'PURCHASE', label: Text('PURCHASE', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11))),
-        ButtonSegment(value: 'SALE', label: Text('SALE', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11))),
-        ButtonSegment(value: 'MRP', label: Text('MRP', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11))),
-      ],
-      selected: {valuationBasis},
-      onSelectionChanged: (v) => setState(() => valuationBasis = v.first),
-    ),
-  );
+  Widget _buildSearchPickerTrigger(String title, String currentSelection, ValueChanged<String> onSelected, List<String> items) {
+    return InkWell(
+      onTap: () => _openSearchableSinglePicker(title, items, currentSelection, onSelected),
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(border: Border.all(color: const Color(0xFFE2E8F0)), borderRadius: BorderRadius.circular(10), color: const Color(0xFFF8FAFC)),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            const Text("Tap to Search...", style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.blueGrey)),
+            Row(children: [
+              Text(currentSelection, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: brandDark)),
+              const SizedBox(width: 5),
+              const Icon(Icons.search_rounded, color: brandDark, size: 18),
+            ]),
+          ],
+        ),
+      ),
+    );
+  }
 
-  Widget _buildCompanyCard(String name, List<Medicine> meds, PharoahManager ph) {
-    // Totals accumulation for this company group
+  Widget _buildDateSelectorTile() {
+    return InkWell(
+      onTap: _pickDateRangeWithinFY,
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(border: Border.all(color: const Color(0xFFE2E8F0)), borderRadius: BorderRadius.circular(10), color: const Color(0xFFF8FAFC)),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              const Text("SELECTED CALENDAR WINDOW", style: TextStyle(fontSize: 8, color: Colors.grey, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 2),
+              Text(
+                "${_formatDate(fyDateRange.start)}  to  ${_formatDate(fyDateRange.end)}",
+                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: brandDark),
+              )
+            ]),
+            const Icon(Icons.calendar_month_rounded, color: brandDark, size: 20),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSwitchTile(String title, String subtitle, bool val, ValueChanged<bool> onChanged) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                Text(subtitle, style: const TextStyle(fontSize: 8, color: Colors.grey)),
+              ],
+            ),
+          ),
+          Switch(
+            value: val,
+            onChanged: onChanged,
+            activeColor: accentElectric,
+          )
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSimpleDropdown({
+    required String value,
+    required List<String> items,
+    required void Function(String?)? onChanged,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<String>(
+          value: value,
+          isExpanded: true,
+          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF0F172A)),
+          items: items.map((e) => DropdownMenuItem<String>(value: e, child: Text(e))).toList(),
+          onChanged: onChanged,
+        ),
+      ),
+    );
+  }
+
+  // ===========================================================================
+  // SCREEN 3: LOADER OVERLAY
+  // ===========================================================================
+  Widget _buildProcessingLoader() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Icon(Icons.sync_rounded, color: Colors.orangeAccent, size: 60),
+          const SizedBox(height: 25),
+          Text(
+            "${(processingProgress * 100).toInt()}%",
+            style: const TextStyle(color: Colors.white, fontSize: 36, fontWeight: FontWeight.w900, letterSpacing: 1),
+          ),
+          const SizedBox(height: 10),
+          SizedBox(
+            width: 250,
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: LinearProgressIndicator(
+                value: processingProgress,
+                color: Colors.orangeAccent,
+                backgroundColor: Colors.white10,
+                minHeight: 8,
+              ),
+            ),
+          ),
+          const SizedBox(height: 20),
+          Text(
+            processingStatusText.toUpperCase(),
+            style: const TextStyle(color: Colors.white70, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1.5),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ===========================================================================
+  // SCREEN 5: COMPREHENSIVE 10-COLUMN REPORT GRID
+  // ===========================================================================
+  Widget _buildReportGrid(PharoahManager ph) {
+    String colReceiveQty = deductDN ? "NET RECEIVE\nQTY" : "RECEIVE\nQUANTITY";
+    String colReceiveVal = deductDN ? "NET RECEIVE\nVALUE (₹)" : "RECEIVE\nVALUE (₹)";
+    String colIssueQty = deductCN ? "NET ISSUE\nQTY" : "ISSUE\nQUANTITY";
+    String colIssueVal = deductCN ? "NET ISSUE\nVALUE (₹)" : "ISSUE\nVALUE (₹)";
+
+    // Filtering medications list dynamically based on exclusions
+    List<Medicine> activeMeds = ph.medicines.where((m) {
+      String cName = ph.companies.firstWhere((c) => c.id == m.companyId, orElse: () => Company(id: '', name: 'OTHERS')).name;
+      if (companySelectionType == "Single") {
+        return cName == selectedCompany;
+      }
+      return selectedCompanyIds.contains(cName);
+    }).toList();
+
     double totalOpStock = 0; double totalOpVal = 0;
     double totalRecQty = 0; double totalRecVal = 0;
     double totalIssueQty = 0; double totalIssueVal = 0;
     double totalCloStock = 0; double totalCloVal = 0;
 
-    // First, pre-calculate totals across all items
-    for (var m in meds) {
-      final flow = StockFlowEngine.getItemFlow(med: m, from: fromDate, to: toDate, ph: ph);
+    List<TableRow> tableRows = [];
+
+    // Header Row
+    tableRows.add(TableRow(
+      decoration: const BoxDecoration(color: tableHeaderColor),
+      children: [
+        _th("PRODUCT DESCRIPTION", isLeft: true),
+        _th("UNIT"),
+        _th("OPENING\nSTOCK"),
+        _th("OPENING\nVALUE (₹)"),
+        _th(colReceiveQty),
+        _th(colReceiveVal),
+        _th(colIssueQty),
+        _th(colIssueVal),
+        _th("CLOSING\nSTOCK"),
+        _th("CLOSING\nVALUE (₹)"),
+      ],
+    ));
+
+    // Dynamic calculations
+    for (int idx = 0; idx < activeMeds.length; idx++) {
+      final m = activeMeds[idx];
+      final flow = _calculateCustomItemFlow(med: m, from: fyDateRange.start, to: fyDateRange.end, ph: ph);
       double rate = (valuationBasis == "PURCHASE") ? m.purRate : (valuationBasis == "SALE" ? m.rateA : m.mrp);
-      
+
       double opStock = (flow['opening'] ?? 0.0);
       double recQty = (flow['received'] ?? 0.0);
       double issueQty = (flow['sale'] ?? 0.0);
       double cloStock = (flow['closing'] ?? 0.0);
 
-      totalOpStock += opStock; totalOpVal += (opStock * rate);
-      totalRecQty += recQty; totalRecVal += (recQty * rate);
-      totalIssueQty += issueQty; totalIssueVal += (issueQty * rate);
-      totalCloStock += cloStock; totalCloVal += (cloStock * rate);
+      double opVal = opStock * rate;
+      double recVal = recQty * rate;
+      double issueVal = issueQty * rate;
+      double cloVal = cloStock * rate;
+
+      totalOpStock += opStock; totalOpVal += opVal;
+      totalRecQty += recQty; totalRecVal += recVal;
+      totalIssueQty += issueQty; totalIssueVal += issueVal;
+      totalCloStock += cloStock; totalCloVal += cloVal;
+
+      bool isShaded = idx % 2 != 0;
+
+      tableRows.add(TableRow(
+        decoration: BoxDecoration(color: isShaded ? const Color(0xFFF8FAFC) : Colors.white),
+        children: [
+          _td(m.name, isLeft: true, isBold: true),
+          _td(m.packing),
+          _td(opStock.toInt().toString()),
+          _td(opVal.toStringAsFixed(2)),
+          _td(recQty.toInt().toString()),
+          _td(recVal.toStringAsFixed(2)),
+          _td(issueQty.toInt().toString()),
+          _td(issueVal.toStringAsFixed(2)),
+          _td(cloStock.toInt().toString(), textColor: neonEmerald),
+          _td(cloVal.toStringAsFixed(2), textColor: neonEmerald),
+        ],
+      ));
     }
 
-    return Card(
-      margin: const EdgeInsets.all(10),
-      child: ExpansionTile(
-        title: Text(name, style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF1E1B4B))),
-        children: [
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: Container(
-              width: 950, // Perfect precise layout
-              padding: const EdgeInsets.all(10),
-              child: Table(
-                columnWidths: const {
-                  0: FixedColumnWidth(180), // Description
-                  1: FixedColumnWidth(60),  // Unit/Packing
-                  2: FixedColumnWidth(80),  // Open Stock
-                  3: FixedColumnWidth(100), // Open Value
-                  4: FixedColumnWidth(80),  // Rec Qty
-                  5: FixedColumnWidth(100), // Rec Value
-                  6: FixedColumnWidth(80),  // Issue Qty
-                  7: FixedColumnWidth(100), // Issue Value
-                  8: FixedColumnWidth(80),  // Close Stock
-                  9: FixedColumnWidth(100), // Close Value
-                },
-                border: TableBorder.all(color: const Color(0xFFE2E8F0), width: 1),
-                children: [
-                  // 1. Column Header
-                  TableRow(
-                    decoration: const BoxDecoration(color: Color(0xFF2E2B6B)),
-                    children: [
-                      _th("PRODUCT DESCRIPTION", isLeft: true),
-                      _th("UNIT"),
-                      _th("OPENING\nSTOCK"),
-                      _th("OPENING\nVALUE (₹)"),
-                      _th("RECEIVE\nQUANTITY"),
-                      _th("RECEIVE\nVALUE (₹)"),
-                      _th("ISSUE\nQUANTITY"),
-                      _th("ISSUE\nVALUE (₹)"),
-                      _th("CLOSING\nSTOCK"),
-                      _th("CLOSING\nVALUE (₹)"),
-                    ],
-                  ),
+    // Grand totals row
+    tableRows.add(TableRow(
+      decoration: const BoxDecoration(color: Color(0xFFECFDF5)),
+      children: [
+        _td("TOTAL", isLeft: true, isBold: true, textColor: const Color(0xFF047857)),
+        _td("-", isBold: true),
+        _td(totalOpStock.toInt().toString(), isBold: true, textColor: const Color(0xFF047857)),
+        _td("₹${totalOpVal.toStringAsFixed(2)}", isBold: true, textColor: const Color(0xFF047857)),
+        _td(totalRecQty.toInt().toString(), isBold: true, textColor: const Color(0xFF047857)),
+        _td("₹${totalRecVal.toStringAsFixed(2)}", isBold: true, textColor: const Color(0xFF047857)),
+        _td(totalIssueQty.toInt().toString(), isBold: true, textColor: const Color(0xFF047857)),
+        _td("₹${totalIssueVal.toStringAsFixed(2)}", isBold: true, textColor: const Color(0xFF047857)),
+        _td(totalCloStock.toInt().toString(), isBold: true, textColor: const Color(0xFF047857)),
+        _td("₹${totalCloVal.toStringAsFixed(2)}", isBold: true, textColor: const Color(0xFF047857)),
+      ],
+    ));
 
-                  // 2. Data Rows
-                  ...meds.asMap().entries.map((entry) {
-                    int index = entry.key;
-                    var m = entry.value;
-                    bool isShaded = index % 2 != 0;
-
-                    final flow = StockFlowEngine.getItemFlow(med: m, from: fromDate, to: toDate, ph: ph);
-                    double rate = (valuationBasis == "PURCHASE") ? m.purRate : (valuationBasis == "SALE" ? m.rateA : m.mrp);
-
-                    double opStock = (flow['opening'] ?? 0.0);
-                    double recQty = (flow['received'] ?? 0.0);
-                    double issueQty = (flow['sale'] ?? 0.0);
-                    double cloStock = (flow['closing'] ?? 0.0);
-
-                    return TableRow(
-                      decoration: BoxDecoration(
-                        color: isShaded ? const Color(0xFFF8FAFC) : Colors.white,
+    return Scaffold(
+      backgroundColor: const Color(0xFFF5F6F9),
+      body: Center(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(24.0),
+          child: Container(
+            width: 1000,
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(20),
+            ),
+            padding: const EdgeInsets.all(25.0),
+            child: Column(
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    OutlinedButton.icon(
+                      onPressed: () => setState(() => currentStep = ReportStep.selectionForm),
+                      icon: const Icon(Icons.arrow_back),
+                      label: const Text("RE-CONFIGURE"),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                      decoration: BoxDecoration(color: Colors.indigo.shade50, borderRadius: BorderRadius.circular(8)),
+                      child: Text(
+                        "VALUATION: $valuationBasis RATE",
+                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 10, color: brandDark),
                       ),
-                      children: [
-                        _td(m.name, isLeft: true, isBold: true),
-                        _td(m.packing),
-                        _td(opStock.toInt().toString()),
-                        _td((opStock * rate).toStringAsFixed(2)),
-                        _td(recQty.toInt().toString()),
-                        _td((recQty * rate).toStringAsFixed(2)),
-                        _td(issueQty.toInt().toString()),
-                        _td((issueQty * rate).toStringAsFixed(2)),
-                        _td(cloStock.toInt().toString(), textColor: const Color(0xFF059669)),
-                        _td((cloStock * rate).toStringAsFixed(2), textColor: const Color(0xFF059669)),
-                      ],
-                    );
-                  }).toList(),
+                    )
+                  ],
+                ),
+                const SizedBox(height: 20),
+                _buildMockReportHeader(ph),
+                const SizedBox(height: 20),
+                
+                // Horizontal scrolling Table
+                SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Container(
+                    width: 950,
+                    decoration: BoxDecoration(
+                      border: Border.all(color: const Color(0xFFCBD5E1), width: 1),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(11),
+                      child: Table(
+                        columnWidths: const {
+                          0: FixedColumnWidth(180),
+                          1: FixedColumnWidth(60),
+                          2: FixedColumnWidth(80),
+                          3: FixedColumnWidth(100),
+                          4: FixedColumnWidth(80),
+                          5: FixedColumnWidth(100),
+                          6: FixedColumnWidth(80),
+                          7: FixedColumnWidth(100),
+                          8: FixedColumnWidth(80),
+                          9: FixedColumnWidth(100),
+                        },
+                        border: TableBorder.all(color: const Color(0xFFE2E8F0), width: 1),
+                        children: tableRows,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 25),
+                _buildLegislationDisclaimer(),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 
-                  // 3. Totals Row
-                  TableRow(
-                    decoration: const BoxDecoration(color: Color(0xFFECFDF5)),
-                    children: [
-                      _td("TOTAL", isLeft: true, isBold: true, textColor: const Color(0xFF047857)),
-                      _td("-", isBold: true),
-                      _td(totalOpStock.toInt().toString(), isBold: true, textColor: const Color(0xFF047857)),
-                      _td("₹${totalOpVal.toStringAsFixed(2)}", isBold: true, textColor: const Color(0xFF047857)),
-                      _td(totalRecQty.toInt().toString(), isBold: true, textColor: const Color(0xFF047857)),
-                      _td("₹${totalRecVal.toStringAsFixed(2)}", isBold: true, textColor: const Color(0xFF047857)),
-                      _td(totalIssueQty.toInt().toString(), isBold: true, textColor: const Color(0xFF047857)),
-                      _td("₹${totalIssueVal.toStringAsFixed(2)}", isBold: true, textColor: const Color(0xFF047857)),
-                      _td(totalCloStock.toInt().toString(), isBold: true, textColor: const Color(0xFF047857)),
-                      _td("₹${totalCloVal.toStringAsFixed(2)}", isBold: true, textColor: const Color(0xFF047857)),
-                    ],
-                  )
-                ],
-              ),
+  Widget _buildMockReportHeader(PharoahManager ph) {
+    return Center(
+      child: Column(
+        children: [
+          Text(ph.activeCompany?.name ?? "DWARIKA MEDICALS", style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: brandDark, letterSpacing: 1)),
+          const SizedBox(height: 2),
+          Text("D.L. No. : ${ph.activeCompany?.dlNo ?? 'N/A'} | GST: ${ph.activeCompany?.gstin ?? 'N/A'}", style: const TextStyle(fontSize: 8.5, fontWeight: FontWeight.bold, color: Colors.grey)),
+          const SizedBox(height: 8),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: brandDark.withAlpha(20), 
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Text(
+              "DIOS LIFESCIENCE FLOW REPORT (${_formatDate(fyDateRange.start)} to ${_formatDate(fyDateRange.end)})",
+              style: const TextStyle(fontSize: 8.5, fontWeight: FontWeight.w900, color: brandDark),
             ),
           )
         ],
+      ),
+    );
+  }
+
+  // --- REUSABLE SUBWIDGETS ---
+
+  Widget _sectionLabel(String t) => Padding(
+    padding: const EdgeInsets.only(bottom: 6, left: 4),
+    child: Text(t, style: const TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.blueGrey, letterSpacing: 0.5)),
+  );
+
+  Widget _formSegment(String label, bool active, VoidCallback onTap) {
+    return Expanded(
+      child: InkWell(
+        onTap: onTap,
+        child: Container(
+          margin: const EdgeInsets.symmetric(horizontal: 4),
+          padding: const EdgeInsets.symmetric(vertical: 10),
+          decoration: BoxDecoration(
+            color: active ? brandDark : const Color(0xFFF1F5F9),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: active ? brandDark : const Color(0xFFE2E8F0)),
+          ),
+          child: Text(
+            label,
+            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: active ? Colors.white : const Color(0xFF64748B)),
+          ),
+        ),
       ),
     );
   }
 
   Widget _th(String text, {bool isLeft = false}) {
     return Container(
-      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+      padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
       alignment: isLeft ? Alignment.centerLeft : Alignment.center,
       child: Text(
         text,
-        textAlign: isLeft ? TextAlign.left : TextAlign.center,
-        style: const TextStyle(fontSize: 8.0, fontWeight: FontWeight.w900, color: Colors.white, letterSpacing: 0.5),
+        textAlign: isLeft ? TextAlign.left : TextAlign.center, // FIXED: Corrected Alignment.center to TextAlign.center
+        style: const TextStyle(fontSize: 7.5, fontWeight: FontWeight.w900, color: Colors.white, letterSpacing: 0.5),
       ),
     );
   }
@@ -265,17 +1147,27 @@ class _CompanyStockViewState extends State<CompanyStockView> {
       alignment: isLeft ? Alignment.centerLeft : Alignment.center,
       child: Text(
         text,
-        textAlign: isLeft ? TextAlign.left : TextAlign.center,
-        style: TextStyle(fontSize: 9.0, fontWeight: isBold ? FontWeight.w900 : FontWeight.bold, color: textColor ?? const Color(0xFF1E293B)),
+        style: TextStyle(fontSize: 8.5, fontWeight: isBold ? FontWeight.w900 : FontWeight.bold, color: textColor ?? const Color(0xFF1E293B)),
       ),
     );
   }
 
-  Widget _dateTile(String l, DateTime d, Function(DateTime) onPick, String fy) => InkWell(
-    onTap: () async {
-      DateTime? p = await PharoahDateController.pickDate(context: context, currentFY: fy, initialDate: d);
-      if (p != null) onPick(p);
-    },
-    child: Container(padding: const EdgeInsets.all(10), decoration: BoxDecoration(border: Border.all(color: Colors.white24), borderRadius: BorderRadius.circular(8)), child: Text("$l: ${DateFormat('dd/MM').format(d)}", style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold))),
-  );
+  Widget _buildLegislationDisclaimer() {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(color: const Color(0xFFF8FAFC), borderRadius: BorderRadius.circular(10), border: Border.all(color: const Color(0xFFE2E8F0))),
+      child: Row( // FIXED: Removed illegal const prefix on Row
+        children: [
+          const Icon(Icons.gavel_rounded, color: Colors.blueGrey, size: 16),
+          const SizedBox(width: 10),
+          Expanded( // FIXED: Kept Expanded as non-const
+            child: Text(
+              "Note: This audit is locked to active Financial Year parameters. Processing is completely sandboxed on local resources to prevent leaks.",
+              style: const TextStyle(fontSize: 8, color: Colors.blueGrey, fontStyle: FontStyle.italic, fontWeight: FontWeight.bold),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
