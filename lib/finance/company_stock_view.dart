@@ -1,13 +1,12 @@
-// FILE: lib/finance/company_stock_view.dart (PRISTINE STABLE VERSION - FULL)
+// FILE: lib/finance/company_stock_view.dart (FULLY UPDATED - STABLE PROGRESSIVE METHOD)
 
 import 'dart:async';
-import 'dart:ui'; // ImageFilter के लिए अनिवार्य
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import '../pharoah_manager.dart';
 import '../models.dart';
-import 'stock_flow_engine.dart';
 import '../pharoah_date_controller.dart';
 import '../app_date_logic.dart';
 import '../../pdf/statements/company_stock_pdf.dart';
@@ -25,39 +24,33 @@ class CompanyStockView extends StatefulWidget {
 }
 
 class _CompanyStockViewState extends State<CompanyStockView> {
-  // 🎨 Class-Level Vibrant Royal Cobalt Theme Colors
   static const Color brandDark = Color(0xFF1E1B4B); 
   static const Color tableHeaderColor = Color(0xFF2E2B6B); 
   static const Color accentElectric = Color(0xFF3B82F6); 
   static const Color neonEmerald = Color(0xFF10B981); 
 
-  // Flow State
   ReportStep currentStep = ReportStep.selectionForm;
 
-  // Configuration States
-  String companySelectionType = "All"; // All or Single
+  String companySelectionType = "All"; 
   String selectedCompany = "";
-  Set<String> selectedCompanyIds = {}; // Selected Companies (for All-Multi Mode)
+  Set<String> selectedCompanyIds = {}; 
 
-  String partySelectionType = "All"; // All or Single
+  String partySelectionType = "All"; 
   String selectedParty = "";
   String selectedPartyId = "";
-  Set<String> selectedPartyIds = {}; // Selected Parties (for All-Multi Mode)
+  Set<String> selectedPartyIds = {}; 
 
-  String transactionType = "BOTH"; // SALE, PURCHASE, BOTH
-  String valuationBasis = "PURCHASE"; // PURCHASE, SALE, MRP, MANUAL
+  String transactionType = "BOTH"; 
+  String valuationBasis = "PURCHASE"; 
   
-  // CN/DN (Return) Adjustments
   bool deductCN = false; 
   bool deductDN = false; 
 
-  // Date Range (Locked to FY)
   DateTimeRange fyDateRange = DateTimeRange(
     start: DateTime.now(),
     end: DateTime.now(),
   );
 
-  // Loader states
   double processingProgress = 0.0;
   String processingStatusText = "Initializing Pipeline...";
 
@@ -65,15 +58,12 @@ class _CompanyStockViewState extends State<CompanyStockView> {
   void initState() {
     super.initState();
     final ph = Provider.of<PharoahManager>(context, listen: false);
-    
-    // Set standard financial year boundaries
     DateTime smartDate = AppDateLogic.getSmartDate(ph.currentFY);
     fyDateRange = DateTimeRange(
       start: DateTime(smartDate.year, smartDate.month, 1),
       end: smartDate,
     );
 
-    // Load initial active databases from PharoahManager
     selectedCompanyIds = ph.companies.map((c) => c.name).toSet();
     selectedPartyIds = ph.parties.where((p) => p.name != "CASH").map((p) => p.name).toSet();
 
@@ -84,13 +74,147 @@ class _CompanyStockViewState extends State<CompanyStockView> {
     }
   }
 
-  // Simple In-Built Date Formatter
   String _formatDate(DateTime d) {
     String pad(int n) => n.toString().padLeft(2, '0');
     return "${pad(d.day)}/${pad(d.month)}/${d.year}";
   }
 
-  // SEARCHABLE MULTI-SELECT FLOATING WINDOW (WITH LIVE SEARCH & EXCLUSION)
+  // ===========================================================================
+  // PROGRESSIVE ENGINE: STOCK CALCULATION
+  // ===========================================================================
+  Map<String, double> _calculateCustomItemFlow({
+    required Medicine med,
+    required DateTime from,
+    required DateTime to,
+    required PharoahManager ph,
+  }) {
+    double baseOpening = 0.0;
+    
+    if (partySelectionType == "Single") {
+      baseOpening = 0.0;
+    } else {
+      final batches = ph.batchHistory[med.identityKey] ?? [];
+      if (batches.isNotEmpty) {
+        baseOpening = batches.fold(0.0, (sum, b) => sum + b.openingQty + b.adjustmentQty);
+      } else {
+        double totalPur = 0.0;
+        double totalSale = 0.0;
+        double totalCN = 0.0;
+        double totalDN = 0.0;
+        
+        for (var p in ph.purchases) {
+          for (var it in p.items.where((it) => it.medicineID == med.id)) {
+            totalPur += (it.qty + it.freeQty);
+          }
+        }
+        for (var s in ph.sales.where((s) => s.status == "Active")) {
+          for (var it in s.items.where((it) => it.medicineID == med.id)) {
+            totalSale += (it.qty + it.freeQty);
+          }
+        }
+        for (var r in ph.saleReturns.where((r) => r.status == "Active")) {
+          for (var it in r.items.where((it) => it.medicineID == med.id && !it.isBreakage)) {
+            totalCN += (it.qty + it.freeQty);
+          }
+        }
+        for (var r in ph.purchaseReturns.where((r) => r.status == "Active")) {
+          for (var it in r.items.where((it) => it.medicineID == med.id && !it.isBreakage)) {
+            totalDN += (it.qty + it.freeQty);
+          }
+        }
+        baseOpening = med.stock - totalPur + totalSale - totalCN + totalDN;
+      }
+    }
+
+    double purBefore = 0.0;
+    double saleBefore = 0.0;
+    double cnBefore = 0.0;
+    double dnBefore = 0.0;
+
+    for (var p in ph.purchases.where((p) => p.date.isBefore(from))) {
+      if (partySelectionType == "Single" && p.partyId != selectedPartyId) continue;
+      for (var it in p.items.where((it) => it.medicineID == med.id)) {
+        purBefore += (it.qty + it.freeQty);
+      }
+    }
+    for (var s in ph.sales.where((s) => s.status == "Active" && s.date.isBefore(from))) {
+      if (partySelectionType == "Single" && s.partyId != selectedPartyId) continue;
+      for (var it in s.items.where((it) => it.medicineID == med.id)) {
+        saleBefore += (it.qty + it.freeQty);
+      }
+    }
+    for (var r in ph.saleReturns.where((r) => r.status == "Active" && r.date.isBefore(from))) {
+      if (partySelectionType == "Single" && r.partyName != selectedParty) continue;
+      for (var it in r.items.where((it) => it.medicineID == med.id && !it.isBreakage)) {
+        cnBefore += (it.qty + it.freeQty);
+      }
+    }
+    for (var r in ph.purchaseReturns.where((r) => r.status == "Active" && r.date.isBefore(from))) {
+      if (partySelectionType == "Single" && r.distributorName != selectedParty) continue;
+      for (var it in r.items.where((it) => it.medicineID == med.id && !it.isBreakage)) {
+        dnBefore += (it.qty + it.freeQty);
+      }
+    }
+
+    double opening = baseOpening + purBefore - saleBefore + cnBefore - dnBefore;
+
+    double purInPeriod = 0.0;
+    double saleInPeriod = 0.0;
+    double cnInPeriod = 0.0;
+    double dnInPeriod = 0.0;
+
+    DateTime fromLimit = from.subtract(const Duration(seconds: 1));
+    DateTime toLimit = to.add(const Duration(days: 1));
+
+    for (var p in ph.purchases.where((p) => p.date.isAfter(fromLimit) && p.date.isBefore(toLimit))) {
+      if (partySelectionType == "Single" && p.partyId != selectedPartyId) continue;
+      for (var it in p.items.where((it) => it.medicineID == med.id)) {
+        purInPeriod += (it.qty + it.freeQty);
+      }
+    }
+    for (var s in ph.sales.where((s) => s.status == "Active" && s.date.isAfter(fromLimit) && s.date.isBefore(toLimit))) {
+      if (partySelectionType == "Single" && s.partyId != selectedPartyId) continue;
+      for (var it in s.items.where((it) => it.medicineID == med.id)) {
+        saleInPeriod += (it.qty + it.freeQty);
+      }
+    }
+    for (var r in ph.saleReturns.where((r) => r.status == "Active" && r.date.isAfter(fromLimit) && r.date.isBefore(toLimit))) {
+      if (partySelectionType == "Single" && r.partyName != selectedParty) continue;
+      for (var it in r.items.where((it) => it.medicineID == med.id && !it.isBreakage)) {
+        cnInPeriod += (it.qty + it.freeQty);
+      }
+    }
+    for (var r in ph.purchaseReturns.where((r) => r.status == "Active" && r.date.isAfter(fromLimit) && r.date.isBefore(toLimit))) {
+      if (partySelectionType == "Single" && r.distributorName != selectedParty) continue;
+      for (var it in r.items.where((it) => it.medicineID == med.id && !it.isBreakage)) {
+        dnInPeriod += (it.qty + it.freeQty);
+      }
+    }
+
+    double received = purInPeriod;
+    double issued = saleInPeriod;
+
+    if (deductDN) {
+      received -= dnInPeriod;
+    } else {
+      issued += dnInPeriod; 
+    }
+    if (deductCN) {
+      issued -= cnInPeriod;
+    } else {
+      received += cnInPeriod; 
+    }
+
+    double closing = opening + received - issued;
+
+    return {
+      'opening': opening,
+      'received': received,
+      'sale': issued,
+      'closing': closing,
+    };
+  }
+
   void _openAdvancedExclusionDialog({
     required String title,
     required List<String> allItems,
@@ -119,12 +243,11 @@ class _CompanyStockViewState extends State<CompanyStockView> {
                   decoration: BoxDecoration(
                     color: const Color(0xFF0F172A), 
                     borderRadius: BorderRadius.circular(24),
-                    border: Border.all(color: accentElectric.withAlpha(100), width: 1.5),
+                    border: Border.all(color: accentElectric.withOpacity(0.4), width: 1.5),
                   ),
                   padding: const EdgeInsets.all(20),
                   child: Column(
                     children: [
-                      // Header Row
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
@@ -137,8 +260,6 @@ class _CompanyStockViewState extends State<CompanyStockView> {
                       ),
                       const Divider(color: Colors.white10),
                       const SizedBox(height: 5),
-
-                      // Search & Select All Row
                       Row(
                         children: [
                           Expanded(
@@ -151,7 +272,7 @@ class _CompanyStockViewState extends State<CompanyStockView> {
                                 hintStyle: const TextStyle(color: Colors.white38, fontSize: 12),
                                 prefixIcon: const Icon(Icons.search, color: accentElectric, size: 16),
                                 filled: true,
-                                fillColor: Colors.white.withAlpha(20),
+                                fillColor: Colors.white.withOpacity(0.08),
                                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
                               ),
                               onChanged: (v) => setDialogState(() => searchVal = v),
@@ -171,7 +292,7 @@ class _CompanyStockViewState extends State<CompanyStockView> {
                             child: Container(
                               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                               decoration: BoxDecoration(
-                                color: isAllSelected ? neonEmerald.withAlpha(40) : Colors.white.withAlpha(20),
+                                color: isAllSelected ? neonEmerald.withOpacity(0.15) : Colors.white.withOpacity(0.08),
                                 borderRadius: BorderRadius.circular(10),
                               ),
                               child: Row(
@@ -186,8 +307,6 @@ class _CompanyStockViewState extends State<CompanyStockView> {
                         ],
                       ),
                       const SizedBox(height: 15),
-
-                      // Scrollable Checkbox List (Searchable)
                       Expanded(
                         child: filtered.isEmpty
                             ? const Center(child: Text("No records match.", style: TextStyle(color: Colors.white38, fontSize: 12)))
@@ -196,31 +315,26 @@ class _CompanyStockViewState extends State<CompanyStockView> {
                                 itemBuilder: (c, idx) {
                                   final item = filtered[idx];
                                   bool isChecked = tempSelected.contains(item);
-                                  return Theme(
-                                    data: ThemeData(unselectedWidgetColor: Colors.white38),
-                                    child: CheckboxListTile(
-                                      activeColor: accentElectric,
-                                      checkColor: Colors.white,
-                                      dense: true,
-                                      title: Text(item, style: TextStyle(color: isChecked ? Colors.white : Colors.white54, fontWeight: isChecked ? FontWeight.bold : FontWeight.normal, fontSize: 13)),
-                                      value: isChecked,
-                                      onChanged: (val) {
-                                        setDialogState(() {
-                                          if (val == true) {
-                                            tempSelected.add(item);
-                                          } else {
-                                            tempSelected.remove(item);
-                                          }
-                                        });
-                                      },
-                                    ),
+                                  return CheckboxListTile(
+                                    activeColor: accentElectric,
+                                    checkColor: Colors.white,
+                                    dense: true,
+                                    title: Text(item, style: TextStyle(color: isChecked ? Colors.white : Colors.white54, fontWeight: isChecked ? FontWeight.bold : FontWeight.normal, fontSize: 13)),
+                                    value: isChecked,
+                                    onChanged: (val) {
+                                      setDialogState(() {
+                                        if (val == true) {
+                                          tempSelected.add(item);
+                                        } else {
+                                          tempSelected.remove(item);
+                                        }
+                                      });
+                                    },
                                   );
                                 },
                               ),
                       ),
                       const SizedBox(height: 15),
-
-                      // Save Selection
                       SizedBox(
                         width: double.infinity,
                         height: 44,
@@ -244,7 +358,6 @@ class _CompanyStockViewState extends State<CompanyStockView> {
     );
   }
 
-  // SEARCHABLE SINGLE PICKER (For Single Mode Selection)
   void _openSearchableSinglePicker(String title, List<String> items, String currentSelection, ValueChanged<String> onSelected) {
     showDialog(
       context: context,
@@ -264,12 +377,11 @@ class _CompanyStockViewState extends State<CompanyStockView> {
                   decoration: BoxDecoration(
                     color: const Color(0xFF0F172A),
                     borderRadius: BorderRadius.circular(24),
-                    border: Border.all(color: accentElectric.withAlpha(100), width: 1.5),
+                    border: Border.all(color: accentElectric.withOpacity(0.4), width: 1.5),
                   ),
                   padding: const EdgeInsets.all(20),
                   child: Column(
                     children: [
-                      // Header
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
@@ -282,7 +394,6 @@ class _CompanyStockViewState extends State<CompanyStockView> {
                       ),
                       const Divider(color: Colors.white10),
                       const SizedBox(height: 5),
-
                       TextField(
                         style: const TextStyle(color: Colors.white, fontSize: 12),
                         decoration: InputDecoration(
@@ -292,13 +403,12 @@ class _CompanyStockViewState extends State<CompanyStockView> {
                           hintStyle: const TextStyle(color: Colors.white38, fontSize: 12),
                           prefixIcon: const Icon(Icons.search, color: accentElectric, size: 16),
                           filled: true,
-                          fillColor: Colors.white.withAlpha(20),
+                          fillColor: Colors.white.withOpacity(0.08),
                           border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
                         ),
                         onChanged: (v) => setDialogState(() => searchVal = v),
                       ),
                       const SizedBox(height: 15),
-
                       Expanded(
                         child: filtered.isEmpty
                             ? const Center(child: Text("No records found.", style: TextStyle(color: Colors.white38, fontSize: 12)))
@@ -329,7 +439,6 @@ class _CompanyStockViewState extends State<CompanyStockView> {
       );
     }
 
-  // STRICT CALENDAR LOCK TO ACTIVE FINANCIAL YEAR
   Future<void> _pickDateRangeWithinFY() async {
     final ph = Provider.of<PharoahManager>(context, listen: false);
     final DateTime fyStart = AppDateLogic.getFYStart(ph.currentFY);
@@ -361,137 +470,6 @@ class _CompanyStockViewState extends State<CompanyStockView> {
     }
   }
 
-  // ===========================================================================
-  // ADVANCED RETROSPECTIVE STOCK FLOW ENGINE - WITH DYNAMIC CN/DN DEDUCTION
-  // ===========================================================================
-  Map<String, double> _calculateCustomItemFlow({
-    required Medicine med,
-    required DateTime from,
-    required DateTime to,
-    required PharoahManager ph,
-  }) {
-    double received = 0.0;
-    double sold = 0.0;
-    double cnQty = 0.0; // Credit Notes (Sales Return)
-    double dnQty = 0.0; // Debit Notes (Purchase Return)
-
-    // A. Retrospective Stock Calculations for true Period-Opening Stock
-    double receivedSinceFrom = 0.0;
-    double issuedSinceFrom = 0.0;
-    DateTime todayEnd = DateTime.now().add(const Duration(days: 1));
-
-    // Purchases from 'from' to today
-    for (var p in ph.purchases.where((p) => p.date.isAfter(from.subtract(const Duration(seconds: 1))) && p.date.isBefore(todayEnd))) {
-      for (var it in p.items.where((it) => it.medicineID == med.id)) {
-        receivedSinceFrom += (it.qty + it.freeQty);
-      }
-    }
-    // DN from 'from' to today
-    for (var r in ph.purchaseReturns.where((r) => r.status == "Active" && r.date.isAfter(from.subtract(const Duration(seconds: 1))) && r.date.isBefore(todayEnd))) {
-      for (var it in r.items.where((it) => it.medicineID == med.id && !it.isBreakage)) {
-        receivedSinceFrom -= (it.qty + it.freeQty);
-      }
-    }
-
-    // Sales from 'from' to today
-    for (var s in ph.sales.where((s) => s.status == "Active" && s.date.isAfter(from.subtract(const Duration(seconds: 1))) && s.date.isBefore(todayEnd))) {
-      for (var it in s.items.where((it) => it.medicineID == med.id)) {
-        issuedSinceFrom += (it.qty + it.freeQty);
-      }
-    }
-    // CN from 'from' to today
-    for (var r in ph.saleReturns.where((r) => r.status == "Active" && r.date.isAfter(from.subtract(const Duration(seconds: 1))) && r.date.isBefore(todayEnd))) {
-      for (var it in r.items.where((it) => it.medicineID == med.id && !it.isBreakage)) {
-        issuedSinceFrom -= (it.qty + it.freeQty);
-      }
-    }
-
-    // True retrospective Opening Stock at From Date
-    double opening = med.stock - receivedSinceFrom + issuedSinceFrom;
-
-    // B. Calculate Inwards and Outwards strictly WITHIN the selected period (from -> to)
-    double receivedInPeriod = 0.0;
-    double issuedInPeriod = 0.0;
-    double dnInPeriod = 0.0;
-    double cnInPeriod = 0.0;
-
-    // Purchases in period
-    final filteredPurchases = ph.purchases.where((p) {
-      bool inRange = p.date.isAfter(from.subtract(const Duration(seconds: 1))) && 
-                     p.date.isBefore(to.add(const Duration(days: 1)));
-      if (!inRange) return false;
-      if (partySelectionType == "Single") return p.partyId == selectedPartyId;
-      return true;
-    });
-    for (var p in filteredPurchases) {
-      for (var it in p.items.where((it) => it.medicineID == med.id)) {
-        receivedInPeriod += (it.qty + it.freeQty);
-      }
-    }
-
-    // DN in period
-    final filteredPurchaseReturns = ph.purchaseReturns.where((r) {
-      bool inRange = r.status == "Active" && r.date.isAfter(from.subtract(const Duration(seconds: 1))) && r.date.isBefore(to.add(const Duration(days: 1)));
-      if (!inRange) return false;
-      if (partySelectionType == "Single") return r.distributorName == selectedParty;
-      return true;
-    });
-    for (var r in filteredPurchaseReturns) {
-      for (var it in r.items.where((it) => it.medicineID == med.id && !it.isBreakage)) {
-        dnInPeriod += (it.qty + it.freeQty);
-      }
-    }
-
-    // Sales in period
-    final filteredSales = ph.sales.where((s) {
-      bool inRange = s.status == "Active" && 
-                     s.date.isAfter(from.subtract(const Duration(seconds: 1))) && 
-                     s.date.isBefore(to.add(const Duration(days: 1)));
-      if (!inRange) return false;
-      if (partySelectionType == "Single") return s.partyId == selectedPartyId;
-      return true;
-    });
-    for (var s in filteredSales) {
-      for (var it in s.items.where((it) => it.medicineID == med.id)) {
-        issuedInPeriod += (it.qty + it.freeQty);
-      }
-    }
-
-    // CN in period
-    final filteredSaleReturns = ph.saleReturns.where((r) {
-      bool inRange = r.status == "Active" && r.date.isAfter(from.subtract(const Duration(seconds: 1))) && r.date.isBefore(to.add(const Duration(days: 1)));
-      if (!inRange) return false;
-      if (partySelectionType == "Single") return r.partyName == selectedParty;
-      return true;
-    });
-    for (var r in filteredSaleReturns) {
-      for (var it in r.items.where((it) => it.medicineID == med.id && !it.isBreakage)) {
-        cnInPeriod += (it.qty + it.freeQty);
-      }
-    }
-
-    double finalReceived = receivedInPeriod;
-    double finalIssued = issuedInPeriod;
-
-    if (deductDN) {
-      finalReceived -= dnInPeriod;
-    }
-    if (deductCN) {
-      finalIssued -= cnInPeriod; // FIXED: Changed finalSold to finalIssued
-    }
-
-    // True Closing Stock for the selected period (Allows negatives safely!)
-    double closing = opening + finalReceived - finalIssued;
-
-    return {
-      'opening': opening,
-      'received': finalReceived,
-      'sale': finalIssued,
-      'closing': closing,
-    };
-  }
-
-  // Pipeline execution core
   void _startSmartReportGeneration() {
     setState(() {
       currentStep = ReportStep.processingLoader;
@@ -511,7 +489,7 @@ class _CompanyStockViewState extends State<CompanyStockView> {
     ];
 
     int step = 0;
-    Timer.periodic(const Duration(milliseconds: 300), (timer) {
+    Timer.periodic(const Duration(milliseconds: 250), (timer) {
       if (processingProgress >= 1.0) {
         timer.cancel();
         _showSuccessMiddleDialog();
@@ -545,7 +523,7 @@ class _CompanyStockViewState extends State<CompanyStockView> {
             children: [
               Icon(Icons.verified_rounded, color: neonEmerald, size: 24),
               SizedBox(width: 10),
-              Text("PROCESS COMPLETE", style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
+              Text("PROCESS COMPLETE", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
             ],
           ),
           content: Column(
@@ -611,21 +589,252 @@ class _CompanyStockViewState extends State<CompanyStockView> {
     );
   }
 
-  @override
-  Widget build(BuildContext context) {
-    switch (currentStep) {
-      case ReportStep.selectionForm:
-        return _buildSelectionForm();
-      case ReportStep.processingLoader:
-        return _buildProcessingLoader();
-      case ReportStep.showReportGrid:
-        return _buildReportGrid(Provider.of<PharoahManager>(context));
-    }
+  Widget _buildProcessingLoader() {
+    return Scaffold(
+      backgroundColor: const Color(0xFF0F172A),
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.sync_rounded, color: Colors.orangeAccent, size: 60),
+            const SizedBox(height: 25),
+            Text(
+              "${(processingProgress * 100).toInt()}%",
+              style: const TextStyle(color: Colors.white, fontSize: 36, fontWeight: FontWeight.w900, letterSpacing: 1),
+            ),
+            const SizedBox(height: 10),
+            SizedBox(
+              width: 250,
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: LinearProgressIndicator(
+                  value: processingProgress,
+                  color: Colors.orangeAccent,
+                  backgroundColor: Colors.white10,
+                  minHeight: 8,
+                ),
+              ),
+            ),
+            const SizedBox(height: 20),
+            Text(
+              processingStatusText.toUpperCase(),
+              style: const TextStyle(color: Colors.white70, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1.5),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
-  // ===========================================================================
-  // SCREEN 1 & 2: DOCK CONFIGURATION SCREEN
-  // ===========================================================================
+  Widget _buildReportGrid(PharoahManager ph) {
+    String colReceiveQty = deductDN ? "NET RECEIVE\nQTY" : "RECEIVE\nQTY";
+    String colReceiveVal = deductDN ? "NET RECEIVE\nVALUE (₹)" : "RECEIVE\nVALUE (₹)";
+    String colIssueQty = deductCN ? "NET ISSUE\nQTY" : "ISSUE\nQTY";
+    String colIssueVal = deductCN ? "NET ISSUE\nVALUE (₹)" : "ISSUE\nVALUE (₹)";
+
+    List<Medicine> activeMeds = ph.medicines.where((m) {
+      String cName = ph.companies.firstWhere((c) => c.id == m.companyId, orElse: () => Company(id: '', name: 'OTHERS')).name;
+      if (companySelectionType == "Single") {
+        return cName == selectedCompany;
+      }
+      return selectedCompanyIds.contains(cName);
+    }).toList();
+
+    double totalOpStock = 0; double totalOpVal = 0;
+    double totalRecQty = 0; double totalRecVal = 0;
+    double totalIssueQty = 0; double totalIssueVal = 0;
+    double totalCloStock = 0; double totalCloVal = 0;
+
+    List<TableRow> tableRows = [];
+
+    tableRows.add(TableRow(
+      decoration: const BoxDecoration(color: tableHeaderColor),
+      children: [
+        _th("PRODUCT DESCRIPTION", isLeft: true),
+        _th("UNIT"),
+        _th("OPENING\nSTOCK"),
+        _th("OPENING\nVALUE (₹)"),
+        _th(colReceiveQty),
+        _th(colReceiveVal),
+        _th(colIssueQty),
+        _th(colIssueVal),
+        _th("CLOSING\nSTOCK"),
+        _th("CLOSING\nVALUE (₹)"),
+      ],
+    ));
+
+    for (int idx = 0; idx < activeMeds.length; idx++) {
+      final m = activeMeds[idx];
+      final flow = _calculateCustomItemFlow(med: m, from: fyDateRange.start, to: fyDateRange.end, ph: ph);
+      double rate = (valuationBasis == "PURCHASE") ? m.purRate : (valuationBasis == "SALE" ? m.rateA : m.mrp);
+
+      double opStock = (flow['opening'] ?? 0.0);
+      double recQty = (flow['received'] ?? 0.0);
+      double issueQty = (flow['sale'] ?? 0.0);
+      double cloStock = (flow['closing'] ?? 0.0);
+
+      double opVal = opStock * rate;
+      double recVal = recQty * rate;
+      double issueVal = issueQty * rate;
+      double cloVal = cloStock * rate;
+
+      totalOpStock += opStock; totalOpVal += opVal;
+      totalRecQty += recQty; totalRecVal += recVal;
+      totalIssueQty += issueQty; totalIssueVal += issueVal;
+      totalCloStock += cloStock; totalCloVal += cloVal;
+
+      bool isShaded = idx % 2 != 0;
+
+      tableRows.add(TableRow(
+        decoration: BoxDecoration(color: isShaded ? const Color(0xFFF8FAFC) : Colors.white),
+        children: [
+          _td(m.name, isLeft: true, isBold: true),
+          _td(m.packing),
+          _td(opStock.toInt().toString()),
+          _td(opVal.toStringAsFixed(2)),
+          _td(recQty.toInt().toString()),
+          _td(recVal.toStringAsFixed(2)),
+          _td(issueQty.toInt().toString()),
+          _td(issueVal.toStringAsFixed(2)),
+          _td(cloStock.toInt().toString(), textColor: neonEmerald),
+          _td(cloVal.toStringAsFixed(2), textColor: neonEmerald),
+        ],
+      ));
+    }
+
+    tableRows.add(TableRow(
+      decoration: const BoxDecoration(color: Color(0xFFECFDF5)),
+      children: [
+        _td("TOTAL", isLeft: true, isBold: true, textColor: const Color(0xFF047857)),
+        _td("-", isBold: true),
+        _td(totalOpStock.toInt().toString(), isBold: true, textColor: const Color(0xFF047857)),
+        _td("₹${totalOpVal.toStringAsFixed(2)}", isBold: true, textColor: const Color(0xFF047857)),
+        _td(totalRecQty.toInt().toString(), isBold: true, textColor: const Color(0xFF047857)),
+        _td("₹${totalRecVal.toStringAsFixed(2)}", isBold: true, textColor: const Color(0xFF047857)),
+        _td(totalIssueQty.toInt().toString(), isBold: true, textColor: const Color(0xFF047857)),
+        _td("₹${totalIssueVal.toStringAsFixed(2)}", isBold: true, textColor: const Color(0xFF047857)),
+        _td(totalCloStock.toInt().toString(), isBold: true, textColor: const Color(0xFF047857)),
+        _td("₹${totalCloVal.toStringAsFixed(2)}", isBold: true, textColor: const Color(0xFF047857)),
+      ],
+    ));
+
+    return Scaffold(
+      backgroundColor: const Color(0xFF0F172A), 
+      appBar: AppBar(
+        title: Text(ph.activeCompany?.name ?? "DWARIKA MEDICALS", style: const TextStyle(fontWeight: FontWeight.bold)),
+        backgroundColor: brandDark,
+        foregroundColor: Colors.white,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => setState(() => currentStep = ReportStep.selectionForm),
+        ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.picture_as_pdf),
+            tooltip: "Export PDF",
+            onPressed: () async {
+              await CompanyStockPdf.generate(
+                shop: ph.activeCompany!,
+                groupedData: {
+                  for (var name in ph.companies.map((c) => c.name))
+                    name: ph.medicines.where((m) {
+                      String cName = ph.companies.firstWhere((c) => c.id == m.companyId, orElse: () => Company(id: '', name: 'OTHERS')).name;
+                      return cName == name;
+                    }).toList()
+                },
+                from: fyDateRange.start,
+                to: fyDateRange.end,
+                valuationBasis: valuationBasis,
+                ph: ph,
+                companySelectionType: companySelectionType,
+                selectedCompanyIds: selectedCompanyIds,
+                partySelectionType: partySelectionType,
+                selectedParty: selectedParty,
+                selectedPartyId: selectedPartyId,
+                deductCN: deductCN,
+                deductDN: deductDN,
+              );
+            },
+          ),
+        ],
+      ),
+      body: Center(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(24.0),
+          child: Container(
+            width: 1000,
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(20),
+            ),
+            padding: const EdgeInsets.all(25.0),
+            child: Column(
+              children: [
+                _buildMockReportHeader(ph),
+                const SizedBox(height: 20),
+                SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Container(
+                    width: 950,
+                    decoration: BoxDecoration(
+                      border: Border.all(color: const Color(0xFFCBD5E1), width: 1),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(11),
+                      child: Table(
+                        columnWidths: const {
+                          0: FixedColumnWidth(180),
+                          1: FixedColumnWidth(60),
+                          2: FixedColumnWidth(80),
+                          3: FixedColumnWidth(100),
+                          4: FixedColumnWidth(80),
+                          5: FixedColumnWidth(100),
+                          6: FixedColumnWidth(80),
+                          7: FixedColumnWidth(100),
+                          8: FixedColumnWidth(80),
+                          9: FixedColumnWidth(100),
+                        },
+                        border: TableBorder.all(color: const Color(0xFFE2E8F0), width: 1),
+                        children: tableRows,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 25),
+                _buildLegislationDisclaimer(),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMockReportHeader(PharoahManager ph) {
+    return Center(
+      child: Column(
+        children: [
+          Text(ph.activeCompany?.name ?? "DWARIKA MEDICALS", style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: brandDark, letterSpacing: 1)),
+          const SizedBox(height: 2),
+          Text("D.L. No. : ${ph.activeCompany?.dlNo ?? 'N/A'} | GST: ${ph.activeCompany?.gstin ?? 'N/A'}", style: const TextStyle(fontSize: 8.5, fontWeight: FontWeight.bold, color: Colors.grey)),
+          const SizedBox(height: 8),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: brandDark.withOpacity(0.08), 
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Text(
+              "DYNAMIC COMPILATION FLOW REPORT (${_formatDate(fyDateRange.start)} to ${_formatDate(fyDateRange.end)})",
+              style: const TextStyle(fontSize: 8.5, fontWeight: FontWeight.w900, color: brandDark),
+            ),
+          )
+        ],
+      ),
+    );
+  }
+
   Widget _buildSelectionForm() {
     final ph = Provider.of<PharoahManager>(context);
 
@@ -671,7 +880,6 @@ class _CompanyStockViewState extends State<CompanyStockView> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Companies List Exclusion gateway
                       _sectionLabel("1. SEARCH SCOPE (COMPANIES)"),
                       Row(
                         children: [
@@ -695,10 +903,7 @@ class _CompanyStockViewState extends State<CompanyStockView> {
                           setState(() { selectedCompany = v; });
                         }, ph.companies.map((c) => c.name).toList()),
                       ],
-
                       const SizedBox(height: 15),
-
-                      // Parties Exclusion Gateway
                       _sectionLabel("2. CROSS-REFERENCE PARTY TARGET"),
                       Row(
                         children: [
@@ -725,9 +930,7 @@ class _CompanyStockViewState extends State<CompanyStockView> {
                           });
                         }, ph.parties.where((p) => p.name != "CASH").map((p) => p.name).toList()),
                       ],
-
                       const SizedBox(height: 15),
-
                       _sectionLabel("3. BUSINESS FLOW & VALUATION"),
                       Row(
                         children: [
@@ -748,9 +951,7 @@ class _CompanyStockViewState extends State<CompanyStockView> {
                           ),
                         ],
                       ),
-
                       const SizedBox(height: 15),
-
                       _sectionLabel("4. RETURN & REVERSAL ADJUSTMENTS (NET TOTAL)"),
                       _buildSwitchTile(
                         "Deduct Credit Notes (CN - Sales Return)", 
@@ -764,14 +965,10 @@ class _CompanyStockViewState extends State<CompanyStockView> {
                         deductDN, 
                         (v) => setState(() => deductDN = v)
                       ),
-
                       const SizedBox(height: 15),
-
                       _sectionLabel("5. ACTIVE FINANCIAL YEAR DATES (LOCKED)"),
                       _buildDateSelectorTile(),
-
                       const SizedBox(height: 30),
-
                       SizedBox(
                         width: double.infinity,
                         height: 50,
@@ -914,297 +1111,6 @@ class _CompanyStockViewState extends State<CompanyStockView> {
     );
   }
 
-  // ===========================================================================
-  // SCREEN 3: PROCESSING IMMERSIVE LOADER (DEFINED FULLY)
-  // ===========================================================================
-  Widget _buildProcessingLoader() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          const Icon(Icons.sync_rounded, color: Colors.orangeAccent, size: 60),
-          const SizedBox(height: 25),
-          Text(
-            "${(processingProgress * 100).toInt()}%",
-            style: const TextStyle(color: Colors.white, fontSize: 36, fontWeight: FontWeight.w900, letterSpacing: 1),
-          ),
-          const SizedBox(height: 10),
-          SizedBox(
-            width: 250,
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(8),
-              child: LinearProgressIndicator(
-                value: processingProgress,
-                color: Colors.orangeAccent,
-                backgroundColor: Colors.white10,
-                minHeight: 8,
-              ),
-            ),
-          ),
-          const SizedBox(height: 20),
-          Text(
-            processingStatusText.toUpperCase(),
-            style: const TextStyle(color: Colors.white70, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1.5),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // ===========================================================================
-  // SCREEN 5: COMPREHENSIVE 10-COLUMN REPORT GRID
-  // ===========================================================================
-  Widget _buildReportGrid(PharoahManager ph) {
-    String colReceiveQty = deductDN ? "NET RECEIVE\nQTY" : "RECEIVE\nQUANTITY";
-    String colReceiveVal = deductDN ? "NET RECEIVE\nVALUE (₹)" : "RECEIVE\nVALUE (₹)";
-    String colIssueQty = deductCN ? "NET ISSUE\nQTY" : "ISSUE\nQUANTITY";
-    String colIssueVal = deductCN ? "NET ISSUE\nVALUE (₹)" : "ISSUE\nVALUE (₹)";
-
-    // Filtering medications list dynamically based on exclusions
-    List<Medicine> activeMeds = ph.medicines.where((m) {
-      String cName = ph.companies.firstWhere((c) => c.id == m.companyId, orElse: () => Company(id: '', name: 'OTHERS')).name;
-      if (companySelectionType == "Single") {
-        return cName == selectedCompany;
-      }
-      return selectedCompanyIds.contains(cName);
-    }).toList();
-
-    double totalOpStock = 0; double totalOpVal = 0;
-    double totalRecQty = 0; double totalRecVal = 0;
-    double totalIssueQty = 0; double totalIssueVal = 0;
-    double totalCloStock = 0; double totalCloVal = 0;
-
-    List<TableRow> tableRows = [];
-
-    // Header Row
-    tableRows.add(TableRow(
-      decoration: const BoxDecoration(color: tableHeaderColor),
-      children: [
-        _th("PRODUCT DESCRIPTION", isLeft: true),
-        _th("UNIT"),
-        _th("OPENING\nSTOCK"),
-        _th("OPENING\nVALUE (₹)"),
-        _th(colReceiveQty),
-        _th(colReceiveVal),
-        _th(colIssueQty),
-        _th(colIssueVal),
-        _th("CLOSING\nSTOCK"),
-        _th("CLOSING\nVALUE (₹)"),
-      ],
-    ));
-
-    // Dynamic calculations
-    for (int idx = 0; idx < activeMeds.length; idx++) {
-      final m = activeMeds[idx];
-      final flow = _calculateCustomItemFlow(med: m, from: fyDateRange.start, to: fyDateRange.end, ph: ph);
-      double rate = (valuationBasis == "PURCHASE") ? m.purRate : (valuationBasis == "SALE" ? m.rateA : m.mrp);
-
-      double opStock = (flow['opening'] ?? 0.0);
-      double recQty = (flow['received'] ?? 0.0);
-      double issueQty = (flow['sale'] ?? 0.0);
-      double cloStock = (flow['closing'] ?? 0.0);
-
-      double opVal = opStock * rate;
-      double recVal = recQty * rate;
-      double issueVal = issueQty * rate;
-      double cloVal = cloStock * rate;
-
-      totalOpStock += opStock; totalOpVal += opVal;
-      totalRecQty += recQty; totalRecVal += recVal;
-      totalIssueQty += issueQty; totalIssueVal += issueVal;
-      totalCloStock += cloStock; totalCloVal += cloVal;
-
-      bool isShaded = idx % 2 != 0;
-
-      tableRows.add(TableRow(
-        decoration: BoxDecoration(color: isShaded ? const Color(0xFFF8FAFC) : Colors.white),
-        children: [
-          _td(m.name, isLeft: true, isBold: true),
-          _td(m.packing),
-          _td(opStock.toInt().toString()),
-          _td(opVal.toStringAsFixed(2)),
-          _td(recQty.toInt().toString()),
-          _td(recVal.toStringAsFixed(2)),
-          _td(issueQty.toInt().toString()),
-          _td(issueVal.toStringAsFixed(2)),
-          _td(cloStock.toInt().toString(), textColor: neonEmerald),
-          _td(cloVal.toStringAsFixed(2), textColor: neonEmerald),
-        ],
-      ));
-    }
-
-    // Grand totals row
-    tableRows.add(TableRow(
-      decoration: const BoxDecoration(color: Color(0xFFECFDF5)),
-      children: [
-        _td("TOTAL", isLeft: true, isBold: true, textColor: const Color(0xFF047857)),
-        _td("-", isBold: true),
-        _td(totalOpStock.toInt().toString(), isBold: true, textColor: const Color(0xFF047857)),
-        _td("₹${totalOpVal.toStringAsFixed(2)}", isBold: true, textColor: const Color(0xFF047857)),
-        _td(totalRecQty.toInt().toString(), isBold: true, textColor: const Color(0xFF047857)),
-        _td("₹${totalRecVal.toStringAsFixed(2)}", isBold: true, textColor: const Color(0xFF047857)),
-        _td(totalIssueQty.toInt().toString(), isBold: true, textColor: const Color(0xFF047857)),
-        _td("₹${totalIssueVal.toStringAsFixed(2)}", isBold: true, textColor: const Color(0xFF047857)),
-        _td(totalCloStock.toInt().toString(), isBold: true, textColor: const Color(0xFF047857)),
-        _td("₹${totalCloVal.toStringAsFixed(2)}", isBold: true, textColor: const Color(0xFF047857)),
-      ],
-    ));
-
-    return Scaffold(
-      backgroundColor: const Color(0xFF0F172A), // Dark slate cohesive background
-      appBar: AppBar(
-        title: Text(ph.activeCompany?.name ?? "DWARIKA MEDICALS", style: const TextStyle(fontWeight: FontWeight.bold)),
-        backgroundColor: brandDark,
-        foregroundColor: Colors.white,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () => setState(() => currentStep = ReportStep.selectionForm),
-        ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.picture_as_pdf),
-            tooltip: "Export PDF",
-            onPressed: () async {
-              await CompanyStockPdf.generate(
-                shop: ph.activeCompany!,
-                groupedData: {
-                  for (var name in ph.companies.map((c) => c.name))
-                    name: ph.medicines.where((m) {
-                      String cName = ph.companies.firstWhere((c) => c.id == m.companyId, orElse: () => Company(id: '', name: 'OTHERS')).name;
-                      return cName == name;
-                    }).toList()
-                },
-                from: fyDateRange.start,
-                to: fyDateRange.end,
-                valuationBasis: valuationBasis,
-                ph: ph,
-                companySelectionType: companySelectionType,
-                selectedCompanyIds: selectedCompanyIds,
-                partySelectionType: partySelectionType,
-                selectedParty: selectedParty,
-                selectedPartyId: selectedPartyId,
-                deductCN: deductCN,
-                deductDN: deductDN,
-              );
-            },
-          ),
-          if (ph.config.isMailActive)
-            IconButton(
-              icon: Icon(
-                ph.config.isAuditMode ? Icons.forward_to_inbox_rounded : Icons.alternate_email,
-              ),
-              tooltip: ph.config.isAuditMode ? "Forward to CA" : "Send Mail",
-              onPressed: () {
-                PdfRouterService.emailDocument(
-                  context: context,
-                  doc: {
-                    'grouped': {
-                      for (var name in ph.companies.map((c) => c.name))
-                        name: ph.medicines.where((m) {
-                          String cName = ph.companies.firstWhere((c) => c.id == m.companyId, orElse: () => Company(id: '', name: 'OTHERS')).name;
-                          return cName == name;
-                        }).toList()
-                    },
-                    'from': fyDateRange.start,
-                    'to': fyDateRange.end,
-                    'basis': valuationBasis,
-                    'companySelectionType': companySelectionType,
-                    'selectedCompanyIds': selectedCompanyIds,
-                    'partySelectionType': partySelectionType,
-                    'selectedParty': selectedParty,
-                    'selectedPartyId': selectedPartyId,
-                    'deductCN': deductCN,
-                    'deductDN': deductDN,
-                  },
-                  party: Party(id: 'internal', name: ph.config.isAuditMode ? 'Inward Audit' : 'Internal Stock Audit'),
-                  ph: ph,
-                  type: "STOCK",
-                );
-              },
-            ),
-        ],
-      ),
-      body: Center(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24.0),
-          child: Container(
-            width: 1000,
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(20),
-            ),
-            padding: const EdgeInsets.all(25.0),
-            child: Column(
-              children: [
-                _buildMockReportHeader(ph),
-                const SizedBox(height: 20),
-                
-                // Horizontal scrolling Table
-                SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: Container(
-                    width: 950,
-                    decoration: BoxDecoration(
-                      border: Border.all(color: const Color(0xFFCBD5E1), width: 1),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(11),
-                      child: Table(
-                        columnWidths: const {
-                          0: FixedColumnWidth(180),
-                          1: FixedColumnWidth(60),
-                          2: FixedColumnWidth(80),
-                          3: FixedColumnWidth(100),
-                          4: FixedColumnWidth(80),
-                          5: FixedColumnWidth(100),
-                          6: FixedColumnWidth(80),
-                          7: FixedColumnWidth(100),
-                          8: FixedColumnWidth(80),
-                          9: FixedColumnWidth(100),
-                        },
-                        border: TableBorder.all(color: const Color(0xFFE2E8F0), width: 1),
-                        children: tableRows,
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 25),
-                _buildLegislationDisclaimer(),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildMockReportHeader(PharoahManager ph) {
-    return Center(
-      child: Column(
-        children: [
-          Text(ph.activeCompany?.name ?? "DWARIKA MEDICALS", style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: brandDark, letterSpacing: 1)),
-          const SizedBox(height: 2),
-          Text("D.L. No. : ${ph.activeCompany?.dlNo ?? 'N/A'} | GST: ${ph.activeCompany?.gstin ?? 'N/A'}", style: const TextStyle(fontSize: 8.5, fontWeight: FontWeight.bold, color: Colors.grey)),
-          const SizedBox(height: 8),
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: brandDark.withAlpha(20), 
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Text(
-              "DIOS LIFESCIENCE FLOW REPORT (${_formatDate(fyDateRange.start)} to ${_formatDate(fyDateRange.end)})",
-              style: const TextStyle(fontSize: 8.5, fontWeight: FontWeight.w900, color: brandDark),
-            ),
-          )
-        ],
-      ),
-    );
-  }
-
-  // --- REUSABLE SUBWIDGETS ---
-
   Widget _sectionLabel(String t) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 6, left: 4),
@@ -1240,8 +1146,8 @@ class _CompanyStockViewState extends State<CompanyStockView> {
       alignment: isLeft ? Alignment.centerLeft : Alignment.center,
       child: Text(
         text,
-        textAlign: isLeft ? TextAlign.left : TextAlign.center, // FIXED: Corrected Alignment.center to TextAlign.center
-        style: const TextStyle(fontSize: 7.5, fontWeight: FontWeight.w900, color: Colors.white, letterSpacing: 0.5),
+        textAlign: TextAlign.center,
+        style: const TextStyle(fontSize: 7.5, fontWeight: FontWeight.bold, color: Colors.white, letterSpacing: 0.5),
       ),
     );
   }
@@ -1252,7 +1158,7 @@ class _CompanyStockViewState extends State<CompanyStockView> {
       alignment: isLeft ? Alignment.centerLeft : Alignment.center,
       child: Text(
         text,
-        style: TextStyle(fontSize: 8.5, fontWeight: isBold ? FontWeight.w900 : FontWeight.bold, color: textColor ?? const Color(0xFF1E293B)),
+        style: TextStyle(fontSize: 8.5, fontWeight: isBold ? FontWeight.bold : FontWeight.normal, color: textColor ?? const Color(0xFF1E293B)),
       ),
     );
   }
@@ -1261,11 +1167,11 @@ class _CompanyStockViewState extends State<CompanyStockView> {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(color: const Color(0xFFF8FAFC), borderRadius: BorderRadius.circular(10), border: Border.all(color: const Color(0xFFE2E8F0))),
-      child: Row( // FIXED: Removed illegal const prefix on Row
+      child: Row(
         children: [
           const Icon(Icons.gavel_rounded, color: Colors.blueGrey, size: 16),
           const SizedBox(width: 10),
-          Expanded( // FIXED: Kept Expanded as non-const
+          Expanded(
             child: Text(
               "Note: This audit is locked to active Financial Year parameters. Processing is completely sandboxed on local resources to prevent leaks.",
               style: const TextStyle(fontSize: 8, color: Colors.blueGrey, fontStyle: FontStyle.italic, fontWeight: FontWeight.bold),
