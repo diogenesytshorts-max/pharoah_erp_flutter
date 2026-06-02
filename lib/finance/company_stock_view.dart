@@ -1,4 +1,4 @@
-// FILE: lib/finance/company_stock_view.dart (FULLY UPDATED - STABLE PROGRESSIVE METHOD)
+// FILE: lib/finance/company_stock_view.dart (FULLY RESOLVED COMPLETE COMPILE-SAFE VERSION)
 
 import 'dart:async';
 import 'dart:ui';
@@ -24,13 +24,16 @@ class CompanyStockView extends StatefulWidget {
 }
 
 class _CompanyStockViewState extends State<CompanyStockView> {
+  // Theme Colors
   static const Color brandDark = Color(0xFF1E1B4B); 
   static const Color tableHeaderColor = Color(0xFF2E2B6B); 
   static const Color accentElectric = Color(0xFF3B82F6); 
   static const Color neonEmerald = Color(0xFF10B981); 
 
+  // Flow State
   ReportStep currentStep = ReportStep.selectionForm;
 
+  // Configuration States
   String companySelectionType = "All"; 
   String selectedCompany = "";
   Set<String> selectedCompanyIds = {}; 
@@ -43,14 +46,17 @@ class _CompanyStockViewState extends State<CompanyStockView> {
   String transactionType = "BOTH"; 
   String valuationBasis = "PURCHASE"; 
   
+  // CN/DN (Return) Adjustments
   bool deductCN = false; 
   bool deductDN = false; 
 
+  // Date Range (Locked to FY)
   DateTimeRange fyDateRange = DateTimeRange(
     start: DateTime.now(),
     end: DateTime.now(),
   );
 
+  // Loader states
   double processingProgress = 0.0;
   String processingStatusText = "Initializing Pipeline...";
 
@@ -58,12 +64,15 @@ class _CompanyStockViewState extends State<CompanyStockView> {
   void initState() {
     super.initState();
     final ph = Provider.of<PharoahManager>(context, listen: false);
+    
+    // Set standard financial year boundaries
     DateTime smartDate = AppDateLogic.getSmartDate(ph.currentFY);
     fyDateRange = DateTimeRange(
       start: DateTime(smartDate.year, smartDate.month, 1),
       end: smartDate,
     );
 
+    // Load initial active databases from PharoahManager
     selectedCompanyIds = ph.companies.map((c) => c.name).toSet();
     selectedPartyIds = ph.parties.where((p) => p.name != "CASH").map((p) => p.name).toSet();
 
@@ -80,7 +89,7 @@ class _CompanyStockViewState extends State<CompanyStockView> {
   }
 
   // ===========================================================================
-  // PROGRESSIVE ENGINE: STOCK CALCULATION
+  // PROGRESSIVE (FORWARD-CALCULATION) STOCK FLOW ENGINE
   // ===========================================================================
   Map<String, double> _calculateCustomItemFlow({
     required Medicine med,
@@ -101,7 +110,6 @@ class _CompanyStockViewState extends State<CompanyStockView> {
         double totalSale = 0.0;
         double totalCN = 0.0;
         double totalDN = 0.0;
-        
         for (var p in ph.purchases) {
           for (var it in p.items.where((it) => it.medicineID == med.id)) {
             totalPur += (it.qty + it.freeQty);
@@ -137,18 +145,21 @@ class _CompanyStockViewState extends State<CompanyStockView> {
         purBefore += (it.qty + it.freeQty);
       }
     }
+
     for (var s in ph.sales.where((s) => s.status == "Active" && s.date.isBefore(from))) {
       if (partySelectionType == "Single" && s.partyId != selectedPartyId) continue;
       for (var it in s.items.where((it) => it.medicineID == med.id)) {
         saleBefore += (it.qty + it.freeQty);
       }
     }
+
     for (var r in ph.saleReturns.where((r) => r.status == "Active" && r.date.isBefore(from))) {
       if (partySelectionType == "Single" && r.partyName != selectedParty) continue;
       for (var it in r.items.where((it) => it.medicineID == med.id && !it.isBreakage)) {
         cnBefore += (it.qty + it.freeQty);
       }
     }
+
     for (var r in ph.purchaseReturns.where((r) => r.status == "Active" && r.date.isBefore(from))) {
       if (partySelectionType == "Single" && r.distributorName != selectedParty) continue;
       for (var it in r.items.where((it) => it.medicineID == med.id && !it.isBreakage)) {
@@ -172,18 +183,21 @@ class _CompanyStockViewState extends State<CompanyStockView> {
         purInPeriod += (it.qty + it.freeQty);
       }
     }
+
     for (var s in ph.sales.where((s) => s.status == "Active" && s.date.isAfter(fromLimit) && s.date.isBefore(toLimit))) {
       if (partySelectionType == "Single" && s.partyId != selectedPartyId) continue;
       for (var it in s.items.where((it) => it.medicineID == med.id)) {
         saleInPeriod += (it.qty + it.freeQty);
       }
     }
+
     for (var r in ph.saleReturns.where((r) => r.status == "Active" && r.date.isAfter(fromLimit) && r.date.isBefore(toLimit))) {
       if (partySelectionType == "Single" && r.partyName != selectedParty) continue;
       for (var it in r.items.where((it) => it.medicineID == med.id && !it.isBreakage)) {
         cnInPeriod += (it.qty + it.freeQty);
       }
     }
+
     for (var r in ph.purchaseReturns.where((r) => r.status == "Active" && r.date.isAfter(fromLimit) && r.date.isBefore(toLimit))) {
       if (partySelectionType == "Single" && r.distributorName != selectedParty) continue;
       for (var it in r.items.where((it) => it.medicineID == med.id && !it.isBreakage)) {
@@ -215,380 +229,181 @@ class _CompanyStockViewState extends State<CompanyStockView> {
     };
   }
 
-  void _openAdvancedExclusionDialog({
-    required String title,
-    required List<String> allItems,
-    required Set<String> currentlySelected,
-    required ValueChanged<Set<String>> onConfirmed,
-  }) {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (c) {
-        String searchVal = "";
-        Set<String> tempSelected = Set.from(currentlySelected);
+  // ===========================================================================
+  // MASTER WIDGET BUILDER
+  // ===========================================================================
+  @override
+  Widget build(BuildContext context) {
+    switch (currentStep) {
+      case ReportStep.selectionForm:
+        return _buildSelectionForm();
+      case ReportStep.processingLoader:
+        return _buildProcessingLoader();
+      case ReportStep.showReportGrid:
+        return _buildReportGrid(Provider.of<PharoahManager>(context));
+    }
+  }
 
-        return StatefulBuilder(
-          builder: (context, setDialogState) {
-            final filtered = allItems.where((element) => element.toLowerCase().contains(searchVal.toLowerCase())).toList();
-            bool isAllSelected = tempSelected.length == allItems.length;
+  // ===========================================================================
+  // SCREEN 1: FORM WIDGET
+  // ===========================================================================
+  Widget _buildSelectionForm() {
+    final ph = Provider.of<PharoahManager>(context);
 
-            return BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: 5.0, sigmaY: 5.0),
-              child: Dialog(
-                backgroundColor: Colors.transparent,
-                child: Container(
-                  width: 400,
-                  height: 500,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF0F172A), 
-                    borderRadius: BorderRadius.circular(24),
-                    border: Border.all(color: accentElectric.withOpacity(0.4), width: 1.5),
-                  ),
+    return Scaffold(
+      backgroundColor: const Color(0xFFF1F5F9),
+      appBar: AppBar(title: const Text("Stock Flow & Valuation Audit"), backgroundColor: brandDark, foregroundColor: Colors.white),
+      body: Center(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 32),
+          child: Container(
+            width: 520,
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(24),
+              boxShadow: const [BoxShadow(color: Color(0x0F000000), blurRadius: 20)],
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
                   padding: const EdgeInsets.all(20),
-                  child: Column(
+                  decoration: const BoxDecoration(
+                    gradient: LinearGradient(colors: [brandDark, Color(0xFF312E81)]),
+                    borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+                  ),
+                  child: Row(
                     children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text("SELECT $title", style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13, letterSpacing: 1)),
-                          IconButton(
-                            icon: const Icon(Icons.close, color: Colors.white70, size: 20),
-                            onPressed: () => Navigator.pop(c),
-                          ),
+                      const Icon(Icons.tune_rounded, color: Colors.orangeAccent, size: 24),
+                      const SizedBox(width: 12),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: const [
+                          Text("STATEMENT CONFIGURATION", style: TextStyle(color: Color(0xFF818CF8), fontSize: 9, fontWeight: FontWeight.bold, letterSpacing: 1.5)),
+                          SizedBox(height: 2),
+                          Text("Select Parameters Deeply", style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
                         ],
-                      ),
-                      const Divider(color: Colors.white10),
-                      const SizedBox(height: 5),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: TextField(
-                              style: const TextStyle(color: Colors.white, fontSize: 12),
-                              decoration: InputDecoration(
-                                isDense: true,
-                                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                                hintText: "Search...",
-                                hintStyle: const TextStyle(color: Colors.white38, fontSize: 12),
-                                prefixIcon: const Icon(Icons.search, color: accentElectric, size: 16),
-                                filled: true,
-                                fillColor: Colors.white.withOpacity(0.08),
-                                border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
-                              ),
-                              onChanged: (v) => setDialogState(() => searchVal = v),
-                            ),
-                          ),
-                          const SizedBox(width: 10),
-                          InkWell(
-                            onTap: () {
-                              setDialogState(() {
-                                if (isAllSelected) {
-                                  tempSelected.clear();
-                                } else {
-                                  tempSelected = Set.from(allItems);
-                                }
-                              });
-                            },
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                              decoration: BoxDecoration(
-                                color: isAllSelected ? neonEmerald.withOpacity(0.15) : Colors.white.withOpacity(0.08),
-                                borderRadius: BorderRadius.circular(10),
-                              ),
-                              child: Row(
-                                children: [
-                                  Icon(isAllSelected ? Icons.check_box : Icons.check_box_outline_blank, size: 16, color: isAllSelected ? neonEmerald : Colors.white70),
-                                  const SizedBox(width: 4),
-                                  const Text("All", style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold)),
-                                ],
-                              ),
-                            ),
-                          )
-                        ],
-                      ),
-                      const SizedBox(height: 15),
-                      Expanded(
-                        child: filtered.isEmpty
-                            ? const Center(child: Text("No records match.", style: TextStyle(color: Colors.white38, fontSize: 12)))
-                            : ListView.builder(
-                                itemCount: filtered.length,
-                                itemBuilder: (c, idx) {
-                                  final item = filtered[idx];
-                                  bool isChecked = tempSelected.contains(item);
-                                  return CheckboxListTile(
-                                    activeColor: accentElectric,
-                                    checkColor: Colors.white,
-                                    dense: true,
-                                    title: Text(item, style: TextStyle(color: isChecked ? Colors.white : Colors.white54, fontWeight: isChecked ? FontWeight.bold : FontWeight.normal, fontSize: 13)),
-                                    value: isChecked,
-                                    onChanged: (val) {
-                                      setDialogState(() {
-                                        if (val == true) {
-                                          tempSelected.add(item);
-                                        } else {
-                                          tempSelected.remove(item);
-                                        }
-                                      });
-                                    },
-                                  );
-                                },
-                              ),
-                      ),
-                      const SizedBox(height: 15),
-                      SizedBox(
-                        width: double.infinity,
-                        height: 44,
-                        child: ElevatedButton(
-                          style: ElevatedButton.styleFrom(backgroundColor: accentElectric, foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
-                          onPressed: () {
-                            onConfirmed(tempSelected);
-                            Navigator.pop(c);
-                          },
-                          child: const Text("APPLY SELECTION", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, letterSpacing: 0.5)),
-                        ),
                       )
                     ],
                   ),
                 ),
-              ),
-            );
-          },
-        );
-      },
-    );
-  }
-
-  void _openSearchableSinglePicker(String title, List<String> items, String currentSelection, ValueChanged<String> onSelected) {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (c) {
-        String searchVal = "";
-        return StatefulBuilder(
-          builder: (context, setDialogState) {
-            final filtered = items.where((element) => element.toLowerCase().contains(searchVal.toLowerCase())).toList();
-            return BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: 5.0, sigmaY: 5.0),
-              child: Dialog(
-                backgroundColor: Colors.transparent,
-                child: Container(
-                  width: 400,
-                  height: 500,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF0F172A),
-                    borderRadius: BorderRadius.circular(24),
-                    border: Border.all(color: accentElectric.withOpacity(0.4), width: 1.5),
-                  ),
+                Padding(
                   padding: const EdgeInsets.all(20),
                   child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      _sectionLabel("1. SEARCH SCOPE (COMPANIES)"),
                       Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Text("SEARCH $title", style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 13, letterSpacing: 1)),
-                          IconButton(
-                            icon: const Icon(Icons.close, color: Colors.white70, size: 20),
-                            onPressed: () => Navigator.pop(c),
+                          _formSegment("All Companies", companySelectionType == "All", () => setState(() => companySelectionType = "All")),
+                          _formSegment("Single Brand", companySelectionType == "Single", () => setState(() => companySelectionType = "Single")),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+                      if (companySelectionType == "All") ...[
+                        _buildGatewayTrigger("Companies Included", "${selectedCompanyIds.length} Brands Selected", () {
+                          final List<String> allCompaniesList = ph.companies.map((c) => c.name).toList();
+                          _openAdvancedExclusionDialog(
+                            title: "COMPANIES", 
+                            allItems: allCompaniesList, 
+                            currentlySelected: selectedCompanyIds, 
+                            onConfirmed: (v) => setState(() => selectedCompanyIds = v),
+                          );
+                        }),
+                      ] else ...[
+                        _buildSearchPickerTrigger("Company", selectedCompany, (v) {
+                          setState(() { selectedCompany = v; });
+                        }, ph.companies.map((c) => c.name).toList()),
+                      ],
+                      const SizedBox(height: 15),
+                      _sectionLabel("2. CROSS-REFERENCE PARTY TARGET"),
+                      Row(
+                        children: [
+                          _formSegment("All Parties", partySelectionType == "All", () => setState(() => partySelectionType = "All")),
+                          _formSegment("Single Party", partySelectionType == "Single", () => setState(() => partySelectionType = "Single")),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+                      if (partySelectionType == "All") ...[
+                        _buildGatewayTrigger("Parties Included", "${selectedPartyIds.length} Parties Selected", () {
+                          final List<String> allPartiesList = ph.parties.where((p) => p.name != "CASH").map((p) => p.name).toList();
+                          _openAdvancedExclusionDialog(
+                            title: "PARTIES", 
+                            allItems: allPartiesList, 
+                            currentlySelected: selectedPartyIds, 
+                            onConfirmed: (v) => setState(() => selectedPartyIds = v),
+                          );
+                        }),
+                      ] else ...[
+                        _buildSearchPickerTrigger("Party", selectedParty, (v) {
+                          setState(() { 
+                            selectedParty = v; 
+                            try { selectedPartyId = ph.parties.firstWhere((p) => p.name == v).id; } catch(e) {}
+                          });
+                        }, ph.parties.where((p) => p.name != "CASH").map((p) => p.name).toList()),
+                      ],
+                      const SizedBox(height: 15),
+                      _sectionLabel("3. BUSINESS FLOW & VALUATION"),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _buildSimpleDropdown(
+                              value: transactionType,
+                              items: ["SALE", "PURCHASE", "BOTH"],
+                              onChanged: (v) => setState(() => transactionType = v!),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: _buildSimpleDropdown(
+                              value: valuationBasis,
+                              items: ["PURCHASE", "SALE", "MRP", "MANUAL"],
+                              onChanged: (v) => setState(() => valuationBasis = v!),
+                            ),
                           ),
                         ],
                       ),
-                      const Divider(color: Colors.white10),
-                      const SizedBox(height: 5),
-                      TextField(
-                        style: const TextStyle(color: Colors.white, fontSize: 12),
-                        decoration: InputDecoration(
-                          isDense: true,
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                          hintText: "Type to search...",
-                          hintStyle: const TextStyle(color: Colors.white38, fontSize: 12),
-                          prefixIcon: const Icon(Icons.search, color: accentElectric, size: 16),
-                          filled: true,
-                          fillColor: Colors.white.withOpacity(0.08),
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
-                        ),
-                        onChanged: (v) => setDialogState(() => searchVal = v),
+                      const SizedBox(height: 15),
+                      _sectionLabel("4. RETURN & REVERSAL ADJUSTMENTS (NET TOTAL)"),
+                      _buildSwitchTile(
+                        "Deduct Credit Notes (CN - Sales Return)", 
+                        "Deducts return stocks to compute Net Outward", 
+                        deductCN, 
+                        (v) => setState(() => deductCN = v)
+                      ),
+                      _buildSwitchTile(
+                        "Deduct Debit Notes (DN - Purchase Return)", 
+                        "Deducts returned stocks to compute Net Inward", 
+                        deductDN, 
+                        (v) => setState(() => deductDN = v)
                       ),
                       const SizedBox(height: 15),
-                      Expanded(
-                        child: filtered.isEmpty
-                            ? const Center(child: Text("No records found.", style: TextStyle(color: Colors.white38, fontSize: 12)))
-                            : ListView.builder(
-                                  itemCount: filtered.length,
-                                  itemBuilder: (context, idx) {
-                                    final item = filtered[idx];
-                                    bool isSelected = item == currentSelection;
-                                    return ListTile(
-                                      leading: Icon(Icons.check_circle_rounded, color: isSelected ? neonEmerald : Colors.transparent, size: 18),
-                                      title: Text(item, style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: isSelected ? FontWeight.bold : FontWeight.normal)),
-                                      onTap: () {
-                                        onSelected(item);
-                                        Navigator.pop(c);
-                                      },
-                                    );
-                                  },
-                                ),
+                      _sectionLabel("5. ACTIVE FINANCIAL YEAR DATES (LOCKED)"),
+                      _buildDateSelectorTile(),
+                      const SizedBox(height: 30),
+                      SizedBox(
+                        width: double.infinity,
+                        height: 50,
+                        child: ElevatedButton(
+                          style: ElevatedButton.styleFrom(backgroundColor: accentElectric, foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+                          onPressed: _startSmartReportGeneration,
+                          child: const Text("GENERATE AUDIT STATEMENT", style: TextStyle(fontWeight: FontWeight.bold, letterSpacing: 1.0)),
                         ),
-                      ],
-                    ),
+                      )
+                    ],
                   ),
-                ),
-              );
-            },
-          );
-        },
-      );
-    }
-
-  Future<void> _pickDateRangeWithinFY() async {
-    final ph = Provider.of<PharoahManager>(context, listen: false);
-    final DateTime fyStart = AppDateLogic.getFYStart(ph.currentFY);
-    final DateTime fyEnd = AppDateLogic.getFYEnd(ph.currentFY);
-
-    final DateTimeRange? picked = await showDateRangePicker(
-      context: context,
-      initialDateRange: fyDateRange,
-      firstDate: fyStart, 
-      lastDate: fyEnd,   
-      builder: (context, child) {
-        return Theme(
-          data: Theme.of(context).copyWith(
-            colorScheme: const ColorScheme.light(
-              primary: brandDark,
-              onPrimary: Colors.white,
-              onSurface: Color(0xFF0F172A),
+                )
+              ],
             ),
           ),
-          child: child!,
-        );
-      },
-    );
-
-    if (picked != null) {
-      setState(() {
-        fyDateRange = picked;
-      });
-    }
-  }
-
-  void _startSmartReportGeneration() {
-    setState(() {
-      currentStep = ReportStep.processingLoader;
-      processingProgress = 0.0;
-      processingStatusText = "Connecting with DB Engine...";
-    });
-
-    final List<String> phases = [
-      "Scanning meds.json database...",
-      "Filtering Excluded Companies list...",
-      "Filtering Excluded Parties list...",
-      "Analyzing Return (CN/DN) Reversals...",
-      "Mapping product-batch indices...",
-      "Summing Net Inflow & Net Outflow...",
-      "Applying Manual Rate Valuation algorithms...",
-      "Compiling Grand Totals..."
-    ];
-
-    int step = 0;
-    Timer.periodic(const Duration(milliseconds: 250), (timer) {
-      if (processingProgress >= 1.0) {
-        timer.cancel();
-        _showSuccessMiddleDialog();
-      } else {
-        setState(() {
-          processingProgress += 0.15;
-          if (processingProgress > 1.0) processingProgress = 1.0;
-          
-          if (step < phases.length) {
-            processingStatusText = phases[step];
-            step++;
-          }
-        });
-      }
-    });
-  }
-
-  void _showSuccessMiddleDialog() {
-    final ph = Provider.of<PharoahManager>(context, listen: false);
-    List<String> excludedParties = ph.parties.where((p) => p.name != "CASH" && !selectedPartyIds.contains(p.name)).map((e) => e.name).toList();
-    List<String> excludedCompanies = ph.companies.where((c) => !selectedCompanyIds.contains(c.name)).map((e) => e.name).toList();
-
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (c) => BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 5.0, sigmaY: 5.0),
-        child: AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-          title: const Row(
-            children: [
-              Icon(Icons.verified_rounded, color: neonEmerald, size: 24),
-              SizedBox(width: 10),
-              Text("PROCESS COMPLETE", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-            ],
-          ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                "Your Statement has been processed in a safe memory container.",
-                style: TextStyle(fontSize: 12, color: Colors.blueGrey),
-              ),
-              const SizedBox(height: 15),
-              _bulletPoint("Companies: ${companySelectionType == "All" ? "${selectedCompanyIds.length} Active" : selectedCompany}"),
-              if (companySelectionType == "All" && excludedCompanies.isNotEmpty)
-                Padding(
-                  padding: const EdgeInsets.only(left: 14, bottom: 4),
-                  child: Text("Excluded: ${excludedCompanies.join(', ')}", style: const TextStyle(fontSize: 9, color: Colors.red, fontWeight: FontWeight.bold)),
-                ),
-              _bulletPoint("Parties: ${partySelectionType == "All" ? "${selectedPartyIds.length} Active" : selectedParty}"),
-              if (partySelectionType == "All" && excludedParties.isNotEmpty)
-                Padding(
-                  padding: const EdgeInsets.only(left: 14, bottom: 4),
-                  child: Text("Excluded: ${excludedParties.join(', ')}", style: const TextStyle(fontSize: 9, color: Colors.red, fontWeight: FontWeight.bold)),
-                ),
-              _bulletPoint("Deductions Applied: ${deductCN ? 'CN (Sales)' : 'None'} ${deductDN ? '& DN (Purchases)' : ''}"),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.pop(c);
-                setState(() {
-                  currentStep = ReportStep.selectionForm;
-                });
-              },
-              child: const Text("GO BACK", style: TextStyle(color: Colors.grey, fontWeight: FontWeight.bold)),
-            ),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(backgroundColor: accentElectric, foregroundColor: Colors.white),
-              onPressed: () {
-                Navigator.pop(c);
-                setState(() {
-                  currentStep = ReportStep.showReportGrid;
-                });
-              },
-              child: const Text("VIEW STATEMENT", style: TextStyle(fontWeight: FontWeight.bold)),
-            )
-          ],
         ),
       ),
     );
   }
 
-  Widget _bulletPoint(String text) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 6),
-      child: Row(
-        children: [
-          const Icon(Icons.circle, size: 6, color: accentElectric),
-          const SizedBox(width: 8),
-          Expanded(child: Text(text, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold))),
-        ],
-      ),
-    );
-  }
-
+  // ===========================================================================
+  // SCREEN 2: PROGRESS LOADER
+  // ===========================================================================
   Widget _buildProcessingLoader() {
     return Scaffold(
       backgroundColor: const Color(0xFF0F172A),
@@ -600,7 +415,7 @@ class _CompanyStockViewState extends State<CompanyStockView> {
             const SizedBox(height: 25),
             Text(
               "${(processingProgress * 100).toInt()}%",
-              style: const TextStyle(color: Colors.white, fontSize: 36, fontWeight: FontWeight.w900, letterSpacing: 1),
+              style: const TextStyle(color: Colors.white, fontSize: 36, fontWeight: FontWeight.bold, letterSpacing: 1),
             ),
             const SizedBox(height: 10),
             SizedBox(
@@ -626,6 +441,9 @@ class _CompanyStockViewState extends State<CompanyStockView> {
     );
   }
 
+  // ===========================================================================
+  // SCREEN 3: GRID TABLE REPORT
+  // ===========================================================================
   Widget _buildReportGrid(PharoahManager ph) {
     String colReceiveQty = deductDN ? "NET RECEIVE\nQTY" : "RECEIVE\nQTY";
     String colReceiveVal = deductDN ? "NET RECEIVE\nVALUE (₹)" : "RECEIVE\nVALUE (₹)";
@@ -815,7 +633,7 @@ class _CompanyStockViewState extends State<CompanyStockView> {
     return Center(
       child: Column(
         children: [
-          Text(ph.activeCompany?.name ?? "DWARIKA MEDICALS", style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: brandDark, letterSpacing: 1)),
+          Text(ph.activeCompany?.name ?? "DWARIKA MEDICALS", style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: brandDark, letterSpacing: 1)),
           const SizedBox(height: 2),
           Text("D.L. No. : ${ph.activeCompany?.dlNo ?? 'N/A'} | GST: ${ph.activeCompany?.gstin ?? 'N/A'}", style: const TextStyle(fontSize: 8.5, fontWeight: FontWeight.bold, color: Colors.grey)),
           const SizedBox(height: 8),
@@ -827,7 +645,7 @@ class _CompanyStockViewState extends State<CompanyStockView> {
             ),
             child: Text(
               "DYNAMIC COMPILATION FLOW REPORT (${_formatDate(fyDateRange.start)} to ${_formatDate(fyDateRange.end)})",
-              style: const TextStyle(fontSize: 8.5, fontWeight: FontWeight.w900, color: brandDark),
+              style: const TextStyle(fontSize: 8.5, fontWeight: FontWeight.bold, color: brandDark),
             ),
           )
         ],
@@ -835,281 +653,9 @@ class _CompanyStockViewState extends State<CompanyStockView> {
     );
   }
 
-  Widget _buildSelectionForm() {
-    final ph = Provider.of<PharoahManager>(context);
-
-    return Scaffold(
-      backgroundColor: const Color(0xFFF1F5F9),
-      appBar: AppBar(title: const Text("Stock Flow & Valuation Audit"), backgroundColor: brandDark, foregroundColor: Colors.white),
-      body: Center(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 32),
-          child: Container(
-            width: 520,
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(24),
-              boxShadow: const [BoxShadow(color: Color(0x0F000000), blurRadius: 20)],
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(20),
-                  decoration: const BoxDecoration(
-                    gradient: LinearGradient(colors: [brandDark, Color(0xFF312E81)]),
-                    borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-                  ),
-                  child: Row(
-                    children: [
-                      const Icon(Icons.tune_rounded, color: Colors.orangeAccent, size: 24),
-                      const SizedBox(width: 12),
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: const [
-                          Text("STATEMENT CONFIGURATION", style: TextStyle(color: Color(0xFF818CF8), fontSize: 9, fontWeight: FontWeight.w900, letterSpacing: 1.5)),
-                          SizedBox(height: 2),
-                          Text("Select Parameters Deeply", style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
-                        ],
-                      )
-                    ],
-                  ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.all(20),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _sectionLabel("1. SEARCH SCOPE (COMPANIES)"),
-                      Row(
-                        children: [
-                          _formSegment("All Companies", companySelectionType == "All", () => setState(() => companySelectionType = "All")),
-                          _formSegment("Single Brand", companySelectionType == "Single", () => setState(() => companySelectionType = "Single")),
-                        ],
-                      ),
-                      const SizedBox(height: 10),
-                      if (companySelectionType == "All") ...[
-                        _buildGatewayTrigger("Companies Included", "${selectedCompanyIds.length} Brands Selected", () {
-                          final List<String> allCompaniesList = ph.companies.map((c) => c.name).toList();
-                          _openAdvancedExclusionDialog(
-                            title: "COMPANIES", 
-                            allItems: allCompaniesList, 
-                            currentlySelected: selectedCompanyIds, 
-                            onConfirmed: (v) => setState(() => selectedCompanyIds = v),
-                          );
-                        }),
-                      ] else ...[
-                        _buildSearchPickerTrigger("Company", selectedCompany, (v) {
-                          setState(() { selectedCompany = v; });
-                        }, ph.companies.map((c) => c.name).toList()),
-                      ],
-                      const SizedBox(height: 15),
-                      _sectionLabel("2. CROSS-REFERENCE PARTY TARGET"),
-                      Row(
-                        children: [
-                          _formSegment("All Parties", partySelectionType == "All", () => setState(() => partySelectionType = "All")),
-                          _formSegment("Single Party", partySelectionType == "Single", () => setState(() => partySelectionType = "Single")),
-                        ],
-                      ),
-                      const SizedBox(height: 10),
-                      if (partySelectionType == "All") ...[
-                        _buildGatewayTrigger("Parties Included", "${selectedPartyIds.length} Parties Selected", () {
-                          final List<String> allPartiesList = ph.parties.where((p) => p.name != "CASH").map((p) => p.name).toList();
-                          _openAdvancedExclusionDialog(
-                            title: "PARTIES", 
-                            allItems: allPartiesList, 
-                            currentlySelected: selectedPartyIds, 
-                            onConfirmed: (v) => setState(() => selectedPartyIds = v),
-                          );
-                        }),
-                      ] else ...[
-                        _buildSearchPickerTrigger("Party", selectedParty, (v) {
-                          setState(() { 
-                            selectedParty = v; 
-                            try { selectedPartyId = ph.parties.firstWhere((p) => p.name == v).id; } catch(e) {}
-                          });
-                        }, ph.parties.where((p) => p.name != "CASH").map((p) => p.name).toList()),
-                      ],
-                      const SizedBox(height: 15),
-                      _sectionLabel("3. BUSINESS FLOW & VALUATION"),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: _buildSimpleDropdown(
-                              value: transactionType,
-                              items: ["SALE", "PURCHASE", "BOTH"],
-                              onChanged: (v) => setState(() => transactionType = v!),
-                            ),
-                          ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: _buildSimpleDropdown(
-                              value: valuationBasis,
-                              items: ["PURCHASE", "SALE", "MRP", "MANUAL"],
-                              onChanged: (v) => setState(() => valuationBasis = v!),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 15),
-                      _sectionLabel("4. RETURN & REVERSAL ADJUSTMENTS (NET TOTAL)"),
-                      _buildSwitchTile(
-                        "Deduct Credit Notes (CN - Sales Return)", 
-                        "Deducts return stocks to compute Net Outward", 
-                        deductCN, 
-                        (v) => setState(() => deductCN = v)
-                      ),
-                      _buildSwitchTile(
-                        "Deduct Debit Notes (DN - Purchase Return)", 
-                        "Deducts returned stocks to compute Net Inward", 
-                        deductDN, 
-                        (v) => setState(() => deductDN = v)
-                      ),
-                      const SizedBox(height: 15),
-                      _sectionLabel("5. ACTIVE FINANCIAL YEAR DATES (LOCKED)"),
-                      _buildDateSelectorTile(),
-                      const SizedBox(height: 30),
-                      SizedBox(
-                        width: double.infinity,
-                        height: 50,
-                        child: ElevatedButton(
-                          style: ElevatedButton.styleFrom(backgroundColor: accentElectric, foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
-                          onPressed: _startSmartReportGeneration,
-                          child: const Text("GENERATE AUDIT STATEMENT", style: TextStyle(fontWeight: FontWeight.w900, letterSpacing: 1.0)),
-                        ),
-                      )
-                    ],
-                  ),
-                )
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildGatewayTrigger(String label, String value, VoidCallback onTap) {
-    return InkWell(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        decoration: BoxDecoration(
-          color: const Color(0xFFF8FAFC),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: const Color(0xFFE2E8F0)),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(label, style: const TextStyle(fontSize: 8, color: Colors.grey, fontWeight: FontWeight.bold)),
-                const SizedBox(height: 2),
-                Text(value, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: brandDark)),
-              ],
-            ),
-            const Icon(Icons.arrow_forward_ios_rounded, color: brandDark, size: 14),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildSearchPickerTrigger(String title, String currentSelection, ValueChanged<String> onSelected, List<String> items) {
-    return InkWell(
-      onTap: () => _openSearchableSinglePicker(title, items, currentSelection, onSelected),
-      child: Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(border: Border.all(color: const Color(0xFFE2E8F0)), borderRadius: BorderRadius.circular(10), color: const Color(0xFFF8FAFC)),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            const Text("Tap to Search...", style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.blueGrey)),
-            Row(children: [
-              Text(currentSelection, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: brandDark)),
-              const SizedBox(width: 5),
-              const Icon(Icons.search_rounded, color: brandDark, size: 18),
-            ]),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildDateSelectorTile() {
-    return InkWell(
-      onTap: _pickDateRangeWithinFY,
-      child: Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(border: Border.all(color: const Color(0xFFE2E8F0)), borderRadius: BorderRadius.circular(10), color: const Color(0xFFF8FAFC)),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              const Text("SELECTED CALENDAR WINDOW", style: TextStyle(fontSize: 8, color: Colors.grey, fontWeight: FontWeight.bold)),
-              const SizedBox(height: 2),
-              Text(
-                "${_formatDate(fyDateRange.start)}  to  ${_formatDate(fyDateRange.end)}",
-                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: brandDark),
-              )
-            ]),
-            const Icon(Icons.calendar_month_rounded, color: brandDark, size: 20),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildSwitchTile(String title, String subtitle, bool val, ValueChanged<bool> onChanged) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(title, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
-                Text(subtitle, style: const TextStyle(fontSize: 8, color: Colors.grey)),
-              ],
-            ),
-          ),
-          Switch(
-            value: val,
-            onChanged: onChanged,
-            activeColor: accentElectric,
-          )
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSimpleDropdown({
-    required String value,
-    required List<String> items,
-    required void Function(String?)? onChanged,
-  }) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF8FAFC),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
-      ),
-      child: DropdownButtonHideUnderline(
-        child: DropdownButton<String>(
-          value: value,
-          isExpanded: true,
-          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF0F172A)),
-          items: items.map((e) => DropdownMenuItem<String>(value: e, child: Text(e))).toList(),
-          onChanged: onChanged,
-        ),
-      ),
-    );
-  }
+  // ===========================================================================
+  // SUB-WIDGET UTILITIES
+  // ===========================================================================
 
   Widget _sectionLabel(String t) {
     return Padding(
