@@ -1,4 +1,4 @@
-// FILE: lib/finance/company_stock_view.dart (UPDATED DISPATCH LOGIC)
+// FILE: lib/finance/company_stock_view.dart
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -47,10 +47,11 @@ class _CompanyStockViewState extends State<CompanyStockView> {
       backgroundColor: const Color(0xFFF4F7FC),
       appBar: AppBar(
         title: const Text("Company Stock Flow"),
-        backgroundColor: Colors.purple.shade900,
+        backgroundColor: const Color(0xFF1E1B4B),
+        foregroundColor: Colors.white,
         actions: [
           // --- 📬 SMART DISPATCH (MAIL) ---
-          if (ph.config.isMailActive) // Updated variable
+          if (ph.config.isMailActive) 
             IconButton(
               icon: Icon(
                 ph.config.isAuditMode ? Icons.forward_to_inbox_rounded : Icons.alternate_email,
@@ -61,9 +62,8 @@ class _CompanyStockViewState extends State<CompanyStockView> {
                 PdfRouterService.emailDocument(
                   context: context,
                   doc: {'grouped': grouped, 'from': fromDate, 'to': toDate, 'basis': valuationBasis},
-                  party: Party(id: 'internal', name: ph.config.isAuditMode ? 'Inward Audit' : 'Internal Stock Audit'),
-                  ph: ph,
-                  type: "STOCK",
+                  party: Party(id: 'internal', name: ph.config.isAuditMode ? 'Audit Analysis' : 'Party Stock Analysis'),
+                  ph: ph, type: "STOCK",
                 );
               },
             ),
@@ -95,7 +95,7 @@ class _CompanyStockViewState extends State<CompanyStockView> {
   }
 
   Widget _buildTopFilterBar(PharoahManager ph) => Container(
-    padding: const EdgeInsets.all(15), color: Colors.purple.shade900,
+    padding: const EdgeInsets.all(15), color: const Color(0xFF1E1B4B),
     child: Column(children: [
       Row(children: [
         Expanded(child: _dateTile("FROM", fromDate, (d) => setState(() => fromDate = d), ph.currentFY)),
@@ -115,9 +115,9 @@ class _CompanyStockViewState extends State<CompanyStockView> {
     padding: const EdgeInsets.all(10), color: Colors.white,
     child: SegmentedButton<String>(
       segments: const [
-        ButtonSegment(value: 'PURCHASE', label: Text('PURCHASE')),
-        ButtonSegment(value: 'SALE', label: Text('SALE')),
-        ButtonSegment(value: 'MRP', label: Text('MRP')),
+        ButtonSegment(value: 'PURCHASE', label: Text('PURCHASE', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11))),
+        ButtonSegment(value: 'SALE', label: Text('SALE', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11))),
+        ButtonSegment(value: 'MRP', label: Text('MRP', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11))),
       ],
       selected: {valuationBasis},
       onSelectionChanged: (v) => setState(() => valuationBasis = v.first),
@@ -125,32 +125,148 @@ class _CompanyStockViewState extends State<CompanyStockView> {
   );
 
   Widget _buildCompanyCard(String name, List<Medicine> meds, PharoahManager ph) {
+    // Totals accumulation for this company group
+    double totalOpStock = 0; double totalOpVal = 0;
+    double totalRecQty = 0; double totalRecVal = 0;
+    double totalIssueQty = 0; double totalIssueVal = 0;
+    double totalCloStock = 0; double totalCloVal = 0;
+
+    // First, pre-calculate totals across all items
+    for (var m in meds) {
+      final flow = StockFlowEngine.getItemFlow(med: m, from: fromDate, to: toDate, ph: ph);
+      double rate = (valuationBasis == "PURCHASE") ? m.purRate : (valuationBasis == "SALE" ? m.rateA : m.mrp);
+      
+      double opStock = (flow['opening'] ?? 0.0);
+      double recQty = (flow['received'] ?? 0.0);
+      double issueQty = (flow['sale'] ?? 0.0);
+      double cloStock = (flow['closing'] ?? 0.0);
+
+      totalOpStock += opStock; totalOpVal += (opStock * rate);
+      totalRecQty += recQty; totalRecVal += (recQty * rate);
+      totalIssueQty += issueQty; totalIssueVal += (issueQty * rate);
+      totalCloStock += cloStock; totalCloVal += (cloStock * rate);
+    }
+
     return Card(
       margin: const EdgeInsets.all(10),
       child: ExpansionTile(
-        title: Text(name, style: const TextStyle(fontWeight: FontWeight.bold)),
+        title: Text(name, style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF1E1B4B))),
         children: [
           SingleChildScrollView(
             scrollDirection: Axis.horizontal,
-            child: DataTable(
-              columns: const [
-                DataColumn(label: Text("NAME")), DataColumn(label: Text("OPEN")),
-                DataColumn(label: Text("REC")), DataColumn(label: Text("SALE")),
-                DataColumn(label: Text("CLO")),
-              ],
-              rows: meds.map((m) {
-                final flow = StockFlowEngine.getItemFlow(med: m, from: fromDate, to: toDate, ph: ph);
-                return DataRow(cells: [
-                  DataCell(Text(m.name, style: const TextStyle(fontSize: 10))),
-                  DataCell(Text(flow['opening']!.toStringAsFixed(1))),
-                  DataCell(Text(flow['received']!.toStringAsFixed(1))),
-                  DataCell(Text(flow['sale']!.toStringAsFixed(1))),
-                  DataCell(Text(flow['closing']!.toStringAsFixed(1))),
-                ]);
-              }).toList(),
+            child: Container(
+              width: 950, // Perfect precise layout
+              padding: const EdgeInsets.all(10),
+              child: Table(
+                columnWidths: const {
+                  0: FixedColumnWidth(180), // Description
+                  1: FixedColumnWidth(60),  // Unit/Packing
+                  2: FixedColumnWidth(80),  // Open Stock
+                  3: FixedColumnWidth(100), // Open Value
+                  4: FixedColumnWidth(80),  // Rec Qty
+                  5: FixedColumnWidth(100), // Rec Value
+                  6: FixedColumnWidth(80),  // Issue Qty
+                  7: FixedColumnWidth(100), // Issue Value
+                  8: FixedColumnWidth(80),  // Close Stock
+                  9: FixedColumnWidth(100), // Close Value
+                },
+                border: TableBorder.all(color: const Color(0xFFE2E8F0), width: 1),
+                children: [
+                  // 1. Column Header
+                  TableRow(
+                    decoration: const BoxDecoration(color: Color(0xFF2E2B6B)),
+                    children: [
+                      _th("PRODUCT DESCRIPTION", isLeft: true),
+                      _th("UNIT"),
+                      _th("OPENING\nSTOCK"),
+                      _th("OPENING\nVALUE (₹)"),
+                      _th("RECEIVE\nQUANTITY"),
+                      _th("RECEIVE\nVALUE (₹)"),
+                      _th("ISSUE\nQUANTITY"),
+                      _th("ISSUE\nVALUE (₹)"),
+                      _th("CLOSING\nSTOCK"),
+                      _th("CLOSING\nVALUE (₹)"),
+                    ],
+                  ),
+
+                  // 2. Data Rows
+                  ...meds.asMap().entries.map((entry) {
+                    int index = entry.key;
+                    var m = entry.value;
+                    bool isShaded = index % 2 != 0;
+
+                    final flow = StockFlowEngine.getItemFlow(med: m, from: fromDate, to: toDate, ph: ph);
+                    double rate = (valuationBasis == "PURCHASE") ? m.purRate : (valuationBasis == "SALE" ? m.rateA : m.mrp);
+
+                    double opStock = (flow['opening'] ?? 0.0);
+                    double recQty = (flow['received'] ?? 0.0);
+                    double issueQty = (flow['sale'] ?? 0.0);
+                    double cloStock = (flow['closing'] ?? 0.0);
+
+                    return TableRow(
+                      decoration: BoxDecoration(
+                        color: isShaded ? const Color(0xFFF8FAFC) : Colors.white,
+                      ),
+                      children: [
+                        _td(m.name, isLeft: true, isBold: true),
+                        _td(m.packing),
+                        _td(opStock.toInt().toString()),
+                        _td((opStock * rate).toStringAsFixed(2)),
+                        _td(recQty.toInt().toString()),
+                        _td((recQty * rate).toStringAsFixed(2)),
+                        _td(issueQty.toInt().toString()),
+                        _td((issueQty * rate).toStringAsFixed(2)),
+                        _td(cloStock.toInt().toString(), textColor: const Color(0xFF059669)),
+                        _td((cloStock * rate).toStringAsFixed(2), textColor: const Color(0xFF059669)),
+                      ],
+                    );
+                  }).toList(),
+
+                  // 3. Totals Row
+                  TableRow(
+                    decoration: const BoxDecoration(color: Color(0xFFECFDF5)),
+                    children: [
+                      _td("TOTAL", isLeft: true, isBold: true, textColor: const Color(0xFF047857)),
+                      _td("-", isBold: true),
+                      _td(totalOpStock.toInt().toString(), isBold: true, textColor: const Color(0xFF047857)),
+                      _td("₹${totalOpVal.toStringAsFixed(2)}", isBold: true, textColor: const Color(0xFF047857)),
+                      _td(totalRecQty.toInt().toString(), isBold: true, textColor: const Color(0xFF047857)),
+                      _td("₹${totalRecVal.toStringAsFixed(2)}", isBold: true, textColor: const Color(0xFF047857)),
+                      _td(totalIssueQty.toInt().toString(), isBold: true, textColor: const Color(0xFF047857)),
+                      _td("₹${totalIssueVal.toStringAsFixed(2)}", isBold: true, textColor: const Color(0xFF047857)),
+                      _td(totalCloStock.toInt().toString(), isBold: true, textColor: const Color(0xFF047857)),
+                      _td("₹${totalCloVal.toStringAsFixed(2)}", isBold: true, textColor: const Color(0xFF047857)),
+                    ],
+                  )
+                ],
+              ),
             ),
           )
         ],
+      ),
+    );
+  }
+
+  Widget _th(String text, {bool isLeft = false}) {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+      alignment: isLeft ? Alignment.centerLeft : Alignment.center,
+      child: Text(
+        text,
+        textAlign: isLeft ? TextAlign.left : TextAlign.center,
+        style: const TextStyle(fontSize: 8.0, fontWeight: FontWeight.w900, color: Colors.white, letterSpacing: 0.5),
+      ),
+    );
+  }
+
+  Widget _td(String text, {bool isLeft = false, bool isBold = false, Color? textColor}) {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+      alignment: isLeft ? Alignment.centerLeft : Alignment.center,
+      child: Text(
+        text,
+        textAlign: isLeft ? TextAlign.left : TextAlign.center,
+        style: TextStyle(fontSize: 9.0, fontWeight: isBold ? FontWeight.w900 : FontWeight.bold, color: textColor ?? const Color(0xFF1E293B)),
       ),
     );
   }
