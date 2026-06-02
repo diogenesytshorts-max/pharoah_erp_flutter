@@ -1,4 +1,4 @@
-// FILE: lib/pdf/statements/company_stock_pdf.dart
+// FILE: lib/pdf/statements/company_stock_pdf.dart (FULLY SYNCED WITH VALUE CALCULATOR)
 
 import 'dart:io';
 import 'package:pdf/pdf.dart';
@@ -13,7 +13,103 @@ import '../../pharoah_manager.dart';
 
 class CompanyStockPdf {
   
-  // 1. DIRECT PRINT IN LANDSCAPE
+  // 1. ADVANCED DYNAMIC CALCULATOR COMPATIBLE WITH CN/DN REVERSALS
+  static Map<String, double> _calculateCustomItemFlow({
+    required Medicine med,
+    required DateTime from,
+    required DateTime to,
+    required PharoahManager ph,
+    required String partySelectionType,
+    required String selectedParty,
+    required String selectedPartyId,
+    required bool deductCN,
+    required bool deductDN,
+  }) {
+    double received = 0.0;
+    double sold = 0.0;
+    double cnQty = 0.0; // Credit Notes (Sales Return)
+    double dnQty = 0.0; // Debit Notes (Purchase Return)
+
+    // A. Scan Purchases
+    final filteredPurchases = ph.purchases.where((p) {
+      bool inRange = p.date.isAfter(from.subtract(const Duration(seconds: 1))) && 
+                     p.date.isBefore(to.add(const Duration(days: 1)));
+      if (!inRange) return false;
+      if (partySelectionType == "Single") return p.partyId == selectedPartyId;
+      return true;
+    });
+    for (var p in filteredPurchases) {
+      for (var it in p.items.where((it) => it.medicineID == med.id)) {
+        received += (it.qty + it.freeQty);
+      }
+    }
+
+    // B. Scan Sales
+    final filteredSales = ph.sales.where((s) {
+      bool inRange = s.status == "Active" && 
+                     s.date.isAfter(from.subtract(const Duration(seconds: 1))) && 
+                     s.date.isBefore(to.add(const Duration(days: 1)));
+      if (!inRange) return false;
+      if (partySelectionType == "Single") return s.partyId == selectedPartyId;
+      return true;
+    });
+    for (var s in filteredSales) {
+      for (var it in s.items.where((it) => it.medicineID == med.id)) {
+        sold += (it.qty + it.freeQty);
+      }
+    }
+
+    // C. Scan Sales Returns (Credit Notes)
+    final filteredSaleReturns = ph.saleReturns.where((r) {
+      bool inRange = r.status == "Active" && r.date.isAfter(from) && r.date.isBefore(to);
+      if (!inRange) return false;
+      if (partySelectionType == "Single") return r.partyName == selectedParty;
+      return true;
+    });
+    for (var r in filteredSaleReturns) {
+      for (var it in r.items.where((it) => it.medicineID == med.id && !it.isBreakage)) {
+        cnQty += (it.qty + it.freeQty);
+      }
+    }
+
+    // D. Scan Purchase Returns (Debit Notes)
+    final filteredPurchaseReturns = ph.purchaseReturns.where((r) {
+      bool inRange = r.status == "Active" && r.date.isAfter(from) && r.date.isBefore(to);
+      if (!inRange) return false;
+      if (partySelectionType == "Single") return r.distributorName == selectedParty;
+      return true;
+    });
+    for (var r in filteredPurchaseReturns) {
+      for (var it in r.items.where((it) => it.medicineID == med.id && !it.isBreakage)) {
+        dnQty += (it.qty + it.freeQty);
+      }
+    }
+
+    // E. Apply CN/DN Deductions
+    double finalReceived = received;
+    double finalSold = sold;
+
+    if (deductDN) {
+      finalReceived -= dnQty;
+      if (finalReceived < 0) finalReceived = 0;
+    }
+    if (deductCN) {
+      finalSold -= cnQty;
+      if (finalSold < 0) finalSold = 0;
+    }
+
+    double closing = med.stock;
+    double opening = closing - finalReceived + finalSold;
+
+    return {
+      'opening': opening,
+      'received': finalReceived,
+      'sale': finalSold,
+      'closing': closing,
+    };
+  }
+
+  // 2. DIRECT PRINT IN LANDSCAPE (FULLY SYNCED)
   static Future<void> generate({
     required CompanyProfile shop,
     required Map<String, List<Medicine>> groupedData,
@@ -21,10 +117,31 @@ class CompanyStockPdf {
     required DateTime to,
     required String valuationBasis,
     required PharoahManager ph,
+    required String companySelectionType,
+    required Set<String> selectedCompanyIds,
+    required String partySelectionType,
+    required String selectedParty,
+    required String selectedPartyId,
+    required bool deductCN,
+    required bool deductDN,
   }) async {
     final pdf = pw.Document();
 
+    String colReceiveQty = deductDN ? "NET RECEIVE\nQTY" : "RECEIVE\nQTY";
+    String colReceiveVal = deductDN ? "NET RECEIVE\nVALUE" : "RECEIVE\nVALUE";
+    String colIssueQty = deductCN ? "NET ISSUE\nQTY" : "ISSUE\nQTY";
+    String colIssueVal = deductCN ? "NET ISSUE\nVALUE" : "ISSUE\nVALUE";
+
     for (var companyName in groupedData.keys) {
+      // If single company selected, skip other companies on PDF
+      if (companySelectionType == "Single" && companyName != ph.companies.firstWhere((c) => c.name == companyName, orElse: () => Company(id: '', name: 'OTHERS')).name) {
+        continue;
+      }
+      // If multi-select is active, skip excluded companies
+      if (companySelectionType == "All" && !selectedCompanyIds.contains(companyName)) {
+        continue;
+      }
+
       List<Medicine> meds = groupedData[companyName]!;
       if (meds.isEmpty) continue;
 
@@ -32,7 +149,7 @@ class CompanyStockPdf {
         pw.MultiPage(
           pageFormat: PdfPageFormat.a4.landscape,
           margin: const pw.EdgeInsets.all(20),
-          header: (context) => _buildHeader(shop, companyName, from, to, valuationBasis),
+          header: (context) => _buildHeader(shop, companyName, from, to, valuationBasis, partySelectionType, selectedParty),
           build: (context) {
             double totalOpStock = 0; double totalOpVal = 0;
             double totalRecQty = 0; double totalRecVal = 0;
@@ -43,7 +160,14 @@ class CompanyStockPdf {
 
             for (int i = 0; i < meds.length; i++) {
               var m = meds[i];
-              final flow = StockFlowEngine.getItemFlow(med: m, from: from, to: to, ph: ph);
+              final flow = _calculateCustomItemFlow(
+                med: m, from: from, to: to, ph: ph, 
+                partySelectionType: partySelectionType, 
+                selectedParty: selectedParty, 
+                selectedPartyId: selectedPartyId, 
+                deductCN: deductCN, 
+                deductDN: deductDN
+              );
               double rate = (valuationBasis == "PURCHASE") ? m.purRate : (valuationBasis == "SALE" ? m.rateA : m.mrp);
 
               double opStock = (flow['opening'] ?? 0.0);
@@ -90,7 +214,7 @@ class CompanyStockPdf {
             ]);
 
             return [
-              _buildDataTable(tableRows),
+              _buildDataTable(tableRows, colReceiveQty, colReceiveVal, colIssueQty, colIssueVal),
             ];
           },
         ),
@@ -103,7 +227,7 @@ class CompanyStockPdf {
     );
   }
 
-  // 2. EMAIL COMPATIBLE BYTES GENERATION
+  // 3. EMAIL COMPATIBLE BYTES GENERATION (FULLY SYNCED)
   static Future<Uint8List> generateBytes({
     required CompanyProfile shop,
     required Map<String, List<Medicine>> groupedData,
@@ -111,10 +235,29 @@ class CompanyStockPdf {
     required DateTime to,
     required String valuationBasis,
     required PharoahManager ph,
+    required String companySelectionType,
+    required Set<String> selectedCompanyIds,
+    required String partySelectionType,
+    required String selectedParty,
+    required String selectedPartyId,
+    required bool deductCN,
+    required bool deductDN,
   }) async {
     final pdf = pw.Document();
 
+    String colReceiveQty = deductDN ? "NET RECEIVE\nQTY" : "RECEIVE\nQTY";
+    String colReceiveVal = deductDN ? "NET RECEIVE\nVALUE" : "RECEIVE\nVALUE";
+    String colIssueQty = deductCN ? "NET ISSUE\nQTY" : "ISSUE\nQTY";
+    String colIssueVal = deductCN ? "NET ISSUE\nVALUE" : "ISSUE\nVALUE";
+
     for (var companyName in groupedData.keys) {
+      if (companySelectionType == "Single" && companyName != ph.companies.firstWhere((c) => c.name == companyName, orElse: () => Company(id: '', name: 'OTHERS')).name) {
+        continue;
+      }
+      if (companySelectionType == "All" && !selectedCompanyIds.contains(companyName)) {
+        continue;
+      }
+
       List<Medicine> meds = groupedData[companyName]!;
       if (meds.isEmpty) continue;
 
@@ -122,7 +265,7 @@ class CompanyStockPdf {
         pw.MultiPage(
           pageFormat: PdfPageFormat.a4.landscape,
           margin: const pw.EdgeInsets.all(20),
-          header: (context) => _buildHeader(shop, companyName, from, to, valuationBasis),
+          header: (context) => _buildHeader(shop, companyName, from, to, valuationBasis, partySelectionType, selectedParty),
           build: (context) {
             double totalOpStock = 0; double totalOpVal = 0;
             double totalRecQty = 0; double totalRecVal = 0;
@@ -133,7 +276,14 @@ class CompanyStockPdf {
 
             for (int i = 0; i < meds.length; i++) {
               var m = meds[i];
-              final flow = StockFlowEngine.getItemFlow(med: m, from: from, to: to, ph: ph);
+              final flow = _calculateCustomItemFlow(
+                med: m, from: from, to: to, ph: ph, 
+                partySelectionType: partySelectionType, 
+                selectedParty: selectedParty, 
+                selectedPartyId: selectedPartyId, 
+                deductCN: deductCN, 
+                deductDN: deductDN
+              );
               double rate = (valuationBasis == "PURCHASE") ? m.purRate : (valuationBasis == "SALE" ? m.rateA : m.mrp);
 
               double opStock = (flow['opening'] ?? 0.0);
@@ -179,7 +329,7 @@ class CompanyStockPdf {
             ]);
 
             return [
-              _buildDataTable(tableRows),
+              _buildDataTable(tableRows, colReceiveQty, colReceiveVal, colIssueQty, colIssueVal),
             ];
           },
         ),
@@ -189,7 +339,8 @@ class CompanyStockPdf {
   }
 
   // --- COMPACT MARG REPORT HEADER ---
-  static pw.Widget _buildHeader(CompanyProfile shop, String company, DateTime from, DateTime to, String basis) {
+  static pw.Widget _buildHeader(CompanyProfile shop, String company, DateTime from, DateTime to, String basis, String partyType, String selParty) {
+    String partyLabel = partyType == "Single" ? "PARTY TARGET: $selParty" : "ALL ACTIVE PARTIES";
     return pw.Column(children: [
       pw.Row(
         mainAxisAlignment: pw.MainAxisAlignment.spaceBetween, 
@@ -213,18 +364,29 @@ class CompanyStockPdf {
         ]
       ),
       pw.SizedBox(height: 10),
-      pw.Container(
-        width: double.infinity,
-        padding: const pw.EdgeInsets.all(5),
-        decoration: const pw.BoxDecoration(color: PdfColors.grey100, border: pw.Border(left: pw.BorderSide(width: 3, color: PdfColors.indigo900))),
-        child: pw.Text("COMPANY / BRAND: $company", style: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold)),
+      pw.Row(
+        mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+        children: [
+          pw.Container(
+            width: 350,
+            padding: const pw.EdgeInsets.all(5),
+            decoration: const pw.BoxDecoration(color: PdfColors.grey100, border: pw.Border(left: pw.BorderSide(width: 3, color: PdfColors.indigo900))),
+            child: pw.Text("COMPANY / BRAND: $company", style: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold)),
+          ),
+          pw.Container(
+            width: 350,
+            padding: const pw.EdgeInsets.all(5),
+            decoration: const pw.BoxDecoration(color: PdfColors.grey100, border: pw.Border(left: pw.BorderSide(width: 3, color: PdfColors.orange900))),
+            child: pw.Text(partyLabel.toUpperCase(), style: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold, color: PdfColors.orange900)),
+          ),
+        ]
       ),
       pw.SizedBox(height: 10),
     ]);
   }
 
   // --- 10 COLUMNS LANDSCAPE TABLE ---
-  static pw.Widget _buildDataTable(List<List<String>> rows) {
+  static pw.Widget _buildDataTable(List<List<String>> rows, String colRecQty, String colRecVal, String colIssQty, String colIssVal) {
     return pw.TableHelper.fromTextArray(
       headerStyle: pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold, color: PdfColors.white),
       headerDecoration: const pw.BoxDecoration(color: PdfColors.indigo900),
@@ -243,7 +405,7 @@ class CompanyStockPdf {
       },
       headers: [
         'PRODUCT DESCRIPTION', 'UNIT', 'OPENING\nSTOCK', 'OPENING\nVALUE', 
-        'RECEIVE\nQTY', 'RECEIVE\nVALUE', 'ISSUE\nQTY', 'ISSUE\nVALUE', 
+        colRecQty, colRecVal, colIssQty, colIssVal, 
         'CLOSING\nSTOCK', 'CLOSING\nVALUE'
       ],
       data: rows,
