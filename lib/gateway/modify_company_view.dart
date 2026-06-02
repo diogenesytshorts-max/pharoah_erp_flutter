@@ -61,7 +61,7 @@ class _ModifyCompanyViewState extends State<ModifyCompanyView> {
       final updatedProfile = CompanyProfile(
         id: widget.comp.id, // System ID locked
         name: nameC.text.trim().toUpperCase(),
-        businessType: selectedType,
+        businessType: widget.comp.businessType, // 👈 सीधे डेटाबेस से ओरिजिनल प्रकार का उपयोग करें
         createdAt: widget.comp.createdAt,
         address: addressC.text.trim(),
         state: selectedState,
@@ -105,13 +105,55 @@ class _ModifyCompanyViewState extends State<ModifyCompanyView> {
             _sectionLabel("PRIMARY IDENTITY"),
             _inputField(nameC, "Firm Name", Icons.business, isCaps: true),
             
-            _inputLabel("Nature of Business"),
-            DropdownButtonFormField<String>(
-              value: selectedType,
-              decoration: const InputDecoration(border: OutlineInputBorder(), prefixIcon: Icon(Icons.category)),
-              items: ["WHOLESALE", "RETAIL"].map((t) => DropdownMenuItem(value: t, child: Text(t))).toList(),
-              onChanged: (v) => setState(() => selectedType = v!),
-            ),
+          _inputLabel("Nature of Business (Locked after Creation)"),
+Container(
+  width: double.infinity,
+  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+  decoration: BoxDecoration(
+    color: const Color(0xFFF8FAFC), // साफ़-सुथरा लाइट ग्रे बैकग्राउंड
+    borderRadius: BorderRadius.circular(12),
+    border: Border.all(color: const Color(0xFFE2E8F0), width: 1.5),
+  ),
+  child: Row(
+    children: [
+      // लॉक सुरक्षा आइकॉन
+      const Icon(Icons.lock_outline_rounded, color: Color(0xFF64748B), size: 20),
+      const SizedBox(width: 12),
+      
+      // वर्तमान टाइप का प्रदर्शन
+      Expanded(
+        child: Text(
+          selectedType, // WHOLESALE या RETAIL प्रदर्शित करेगा
+          style: const TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w900,
+            color: Color(0xFF0F172A),
+            letterSpacing: 0.5,
+          ),
+        ),
+      ),
+      
+      // विज़ुअल सुरक्षा बैच
+      Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        decoration: BoxDecoration(
+          color: const Color(0xFFF1F5F9),
+          borderRadius: BorderRadius.circular(6),
+          border: Border.all(color: const Color(0xFFCBD5E1), width: 0.5),
+        ),
+        child: const Text(
+          "SECURE",
+          style: TextStyle(
+            fontSize: 8,
+            fontWeight: FontWeight.bold,
+            color: Color(0xFF475569),
+            letterSpacing: 0.5,
+          ),
+        ),
+      ),
+    ],
+  ),
+),
             const SizedBox(height: 25),
 
             _sectionLabel("LOCATION & CONTACT"),
