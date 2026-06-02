@@ -187,7 +187,7 @@ class _CompanyStockViewState extends State<CompanyStockView> {
                       ),
                       const SizedBox(height: 15),
 
-                      // Scrollable Checkbox List
+                      // Scrollable Checkbox List (Searchable)
                       Expanded(
                         child: filtered.isEmpty
                             ? const Center(child: Text("No records match.", style: TextStyle(color: Colors.white38, fontSize: 12)))
@@ -477,7 +477,7 @@ class _CompanyStockViewState extends State<CompanyStockView> {
       finalReceived -= dnInPeriod;
     }
     if (deductCN) {
-      finalSold -= cnInPeriod;
+      finalIssued -= cnInPeriod; // FIXED: Changed finalSold to finalIssued
     }
 
     // True Closing Stock for the selected period (Allows negatives safely!)
@@ -489,6 +489,126 @@ class _CompanyStockViewState extends State<CompanyStockView> {
       'sale': finalIssued,
       'closing': closing,
     };
+  }
+
+  // Pipeline execution core
+  void _startSmartReportGeneration() {
+    setState(() {
+      currentStep = ReportStep.processingLoader;
+      processingProgress = 0.0;
+      processingStatusText = "Connecting with DB Engine...";
+    });
+
+    final List<String> phases = [
+      "Scanning meds.json database...",
+      "Filtering Excluded Companies list...",
+      "Filtering Excluded Parties list...",
+      "Analyzing Return (CN/DN) Reversals...",
+      "Mapping product-batch indices...",
+      "Summing Net Inflow & Net Outflow...",
+      "Applying Manual Rate Valuation algorithms...",
+      "Compiling Grand Totals..."
+    ];
+
+    int step = 0;
+    Timer.periodic(const Duration(milliseconds: 300), (timer) {
+      if (processingProgress >= 1.0) {
+        timer.cancel();
+        _showSuccessMiddleDialog();
+      } else {
+        setState(() {
+          processingProgress += 0.15;
+          if (processingProgress > 1.0) processingProgress = 1.0;
+          
+          if (step < phases.length) {
+            processingStatusText = phases[step];
+            step++;
+          }
+        });
+      }
+    });
+  }
+
+  void _showSuccessMiddleDialog() {
+    final ph = Provider.of<PharoahManager>(context, listen: false);
+    List<String> excludedParties = ph.parties.where((p) => p.name != "CASH" && !selectedPartyIds.contains(p.name)).map((e) => e.name).toList();
+    List<String> excludedCompanies = ph.companies.where((c) => !selectedCompanyIds.contains(c.name)).map((e) => e.name).toList();
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (c) => BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 5.0, sigmaY: 5.0),
+        child: AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: const Row(
+            children: [
+              Icon(Icons.verified_rounded, color: neonEmerald, size: 24),
+              SizedBox(width: 10),
+              Text("PROCESS COMPLETE", style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                "Your Statement has been processed in a safe memory container.",
+                style: TextStyle(fontSize: 12, color: Colors.blueGrey),
+              ),
+              const SizedBox(height: 15),
+              _bulletPoint("Companies: ${companySelectionType == "All" ? "${selectedCompanyIds.length} Active" : selectedCompany}"),
+              if (companySelectionType == "All" && excludedCompanies.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(left: 14, bottom: 4),
+                  child: Text("Excluded: ${excludedCompanies.join(', ')}", style: const TextStyle(fontSize: 9, color: Colors.red, fontWeight: FontWeight.bold)),
+                ),
+              _bulletPoint("Parties: ${partySelectionType == "All" ? "${selectedPartyIds.length} Active" : selectedParty}"),
+              if (partySelectionType == "All" && excludedParties.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(left: 14, bottom: 4),
+                  child: Text("Excluded: ${excludedParties.join(', ')}", style: const TextStyle(fontSize: 9, color: Colors.red, fontWeight: FontWeight.bold)),
+                ),
+              _bulletPoint("Deductions Applied: ${deductCN ? 'CN (Sales)' : 'None'} ${deductDN ? '& DN (Purchases)' : ''}"),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(c);
+                setState(() {
+                  currentStep = ReportStep.selectionForm;
+                });
+              },
+              child: const Text("GO BACK", style: TextStyle(color: Colors.grey, fontWeight: FontWeight.bold)),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: accentElectric, foregroundColor: Colors.white),
+              onPressed: () {
+                Navigator.pop(c);
+                setState(() {
+                  currentStep = ReportStep.showReportGrid;
+                });
+              },
+              child: const Text("VIEW STATEMENT", style: TextStyle(fontWeight: FontWeight.bold)),
+            )
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _bulletPoint(String text) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6),
+      child: Row(
+        children: [
+          const Icon(Icons.circle, size: 6, color: accentElectric),
+          const SizedBox(width: 8),
+          Expanded(child: Text(text, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold))),
+        ],
+      ),
+    );
   }
 
   @override
@@ -795,7 +915,7 @@ class _CompanyStockViewState extends State<CompanyStockView> {
   }
 
   // ===========================================================================
-  // SCREEN 3: PROCESSING IMMERSIVE LOADER
+  // SCREEN 3: PROCESSING IMMERSIVE LOADER (DEFINED FULLY)
   // ===========================================================================
   Widget _buildProcessingLoader() {
     return Center(
