@@ -1,4 +1,4 @@
-// FILE: lib/finance/company_stock_view.dart (FULLY INTEGRATED ADVANCED VERSION)
+// FILE: lib/finance/company_stock_view.dart (FULLY INTEGRATED COMPLETED VERSION)
 
 import 'dart:async';
 import 'dart:ui'; // ImageFilter के लिए अनिवार्य
@@ -7,11 +7,16 @@ import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import '../pharoah_manager.dart';
 import '../models.dart';
-import 'stock_flow_engine.dart';
 import '../pharoah_date_controller.dart';
 import '../app_date_logic.dart';
 import '../../pdf/statements/company_stock_pdf.dart';
 import '../pdf/pdf_router_service.dart';
+
+enum ReportStep {
+  selectionForm,
+  processingLoader,
+  showReportGrid,
+}
 
 class CompanyStockView extends StatefulWidget {
   const CompanyStockView({super.key});
@@ -313,7 +318,7 @@ class _CompanyStockViewState extends State<CompanyStockView> {
                                       activeColor: accentElectric,
                                       checkColor: Colors.white,
                                       dense: true,
-                                      title: Text(item, style: TextStyle(color: isChecked ? Colors.white : Colors.white54, fontWeight: isChecked ? FontWeight.bold : FontWeight.normal, fontSize: 13)),
+                                      title: Text(item, style: TextStyle(color: isChecked ? Colors.white : Colors.white60, fontWeight: isChecked ? FontWeight.bold : FontWeight.normal, fontSize: 13)),
                                       value: isChecked,
                                       onChanged: (val) {
                                         setDialogState(() {
@@ -778,7 +783,7 @@ class _CompanyStockViewState extends State<CompanyStockView> {
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(border: Border.all(color: const Color(0xFFE2E8F0)), borderRadius: BorderRadius.circular(10), color: const Color(0xFFF8FAFC)),
         child: Row(
-          mainAxisAlignment: Main---------
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             const Text("Tap to Search...", style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.blueGrey)),
             Row(children: [
@@ -860,234 +865,6 @@ class _CompanyStockViewState extends State<CompanyStockView> {
           style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF0F172A)),
           items: items.map((e) => DropdownMenuItem<String>(value: e, child: Text(e))).toList(),
           onChanged: onChanged,
-        ),
-      ),
-    );
-  }
-
-  // ===========================================================================
-  // SCREEN 5: COMPREHENSIVE 10-COLUMN REPORT GRID (DYNAMIC LOGIC APPLIED)
-  // ===========================================================================
-  Widget _buildReportGrid(PharoahManager ph) {
-    String colReceiveQty = deductDN ? "NET RECEIVE\nQTY" : "RECEIVE\nQUANTITY";
-    String colReceiveVal = deductDN ? "NET RECEIVE\nVALUE (₹)" : "RECEIVE\nVALUE (₹)";
-    String colIssueQty = deductCN ? "NET ISSUE\nQTY" : "ISSUE\nQUANTITY";
-    String colIssueVal = deductCN ? "NET ISSUE\nVALUE (₹)" : "ISSUE\nVALUE (₹)";
-
-    // Filtering medications list dynamically based on exclusions
-    List<Medicine> activeMeds = ph.medicines.where((m) {
-      String cName = ph.companies.firstWhere((c) => c.id == m.companyId, orElse: () => Company(id: '', name: 'OTHERS')).name;
-      if (companySelectionType == "Single") {
-        return cName == selectedCompany;
-      }
-      return selectedCompanyIds.contains(cName);
-    }).toList();
-
-    double totalOpStock = 0; double totalOpVal = 0;
-    double totalRecQty = 0; double totalRecVal = 0;
-    double totalIssueQty = 0; double totalIssueVal = 0;
-    double totalCloStock = 0; double totalCloVal = 0;
-
-    List<TableRow> tableRows = [];
-
-    // Header Row
-    tableRows.add(TableRow(
-      decoration: const BoxDecoration(color: tableHeaderColor),
-      children: [
-        _th("PRODUCT DESCRIPTION", isLeft: true),
-        _th("UNIT"),
-        _th("OPENING\nSTOCK"),
-        _th("OPENING\nVALUE (₹)"),
-        _th(colReceiveQty),
-        _th(colReceiveVal),
-        _th(colIssueQty),
-        _th(colIssueVal),
-        _th("CLOSING\nSTOCK"),
-        _th("CLOSING\nVALUE (₹)"),
-      ],
-    ));
-
-    // Dynamic calculations
-    for (int idx = 0; idx < activeMeds.length; idx++) {
-      final m = activeMeds[idx];
-      final flow = _calculateCustomItemFlow(med: m, from: fyDateRange.start, to: fyDateRange.end, ph: ph);
-      double rate = (valuationBasis == "PURCHASE") ? m.purRate : (valuationBasis == "SALE" ? m.rateA : m.mrp);
-
-      double opStock = (flow['opening'] ?? 0.0);
-      double recQty = (flow['received'] ?? 0.0);
-      double issueQty = (flow['sale'] ?? 0.0);
-      double cloStock = (flow['closing'] ?? 0.0);
-
-      double opVal = opStock * rate;
-      double recVal = recQty * rate;
-      double issueVal = issueQty * rate;
-      double cloVal = cloStock * rate;
-
-      totalOpStock += opStock; totalOpVal += opVal;
-      totalRecQty += recQty; totalRecVal += recVal;
-      totalIssueQty += issueQty; totalIssueVal += issueVal;
-      totalCloStock += cloStock; totalCloVal += cloVal;
-
-      bool isShaded = idx % 2 != 0;
-
-      tableRows.add(TableRow(
-        decoration: BoxDecoration(color: isShaded ? const Color(0xFFF8FAFC) : Colors.white),
-        children: [
-          _td(m.name, isLeft: true, isBold: true),
-          _td(m.packing),
-          _td(opStock.toInt().toString()),
-          _td(opVal.toStringAsFixed(2)),
-          _td(recQty.toInt().toString()),
-          _td(recVal.toStringAsFixed(2)),
-          _td(issueQty.toInt().toString()),
-          _td(issueVal.toStringAsFixed(2)),
-          _td(cloStock.toInt().toString(), textColor: neonEmerald),
-          _td(cloVal.toStringAsFixed(2), textColor: neonEmerald),
-        ],
-      ));
-    }
-
-    // Grand totals row
-    tableRows.add(TableRow(
-      decoration: const BoxDecoration(color: Color(0xFFECFDF5)),
-      children: [
-        _td("TOTAL", isLeft: true, isBold: true, textColor: const Color(0xFF047857)),
-        _td("-", isBold: true),
-        _td(totalOpStock.toInt().toString(), isBold: true, textColor: const Color(0xFF047857)),
-        _td("₹${totalOpVal.toStringAsFixed(2)}", isBold: true, textColor: const Color(0xFF047857)),
-        _td(totalRecQty.toInt().toString(), isBold: true, textColor: const Color(0xFF047857)),
-        _td("₹${totalRecVal.toStringAsFixed(2)}", isBold: true, textColor: const Color(0xFF047857)),
-        _td(totalIssueQty.toInt().toString(), isBold: true, textColor: const Color(0xFF047857)),
-        _td("₹${totalIssueVal.toStringAsFixed(2)}", isBold: true, textColor: const Color(0xFF047857)),
-        _td(totalCloStock.toInt().toString(), isBold: true, textColor: const Color(0xFF047857)),
-        _td("₹${totalCloVal.toStringAsFixed(2)}", isBold: true, textColor: const Color(0xFF047857)),
-      ],
-    ));
-
-    return Scaffold(
-      backgroundColor: const Color(0xFFF5F6F9),
-      body: Center(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24.0),
-          child: Container(
-            width: 1000,
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(20),
-            ),
-            padding: const EdgeInsets.all(25.0),
-            child: Column(
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    OutlinedButton.icon(
-                      onPressed: () => setState(() => currentStep = ReportStep.selectionForm),
-                      icon: const Icon(Icons.arrow_back),
-                      label: const Text("RE-CONFIGURE"),
-                    ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                      decoration: BoxDecoration(color: Colors.indigo.shade50, borderRadius: BorderRadius.circular(8)),
-                      child: Text(
-                        "VALUATION: $valuationBasis RATE",
-                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 10, color: brandDark),
-                      ),
-                    )
-                  ],
-                ),
-                const SizedBox(height: 20),
-                _buildMockReportHeader(ph),
-                const SizedBox(height: 20),
-                
-                // Horizontal scrolling Table
-                SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: Container(
-                    width: 950,
-                    decoration: BoxDecoration(
-                      border: Border.all(color: const Color(0xFFCBD5E1), width: 1),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(11),
-                      child: Table(
-                        columnWidths: const {
-                          0: FixedColumnWidth(180),
-                          1: FixedColumnWidth(60),
-                          2: FixedColumnWidth(80),
-                          3: FixedColumnWidth(100),
-                          4: FixedColumnWidth(80),
-                          5: FixedColumnWidth(100),
-                          6: FixedColumnWidth(80),
-                          7: FixedColumnWidth(100),
-                          8: FixedColumnWidth(80),
-                          9: FixedColumnWidth(100),
-                        },
-                        border: TableBorder.all(color: const Color(0xFFE2E8F0), width: 1),
-                        children: tableRows,
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 25),
-                _buildLegislationDisclaimer(),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildMockReportHeader(PharoahManager ph) {
-    return Center(
-      child: Column(
-        children: [
-          Text(ph.activeCompany?.name ?? "DWARIKA MEDICALS", style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: brandDark, letterSpacing: 1)),
-          const SizedBox(height: 2),
-          Text("D.L. No. : ${ph.activeCompany?.dlNo ?? 'N/A'} | GST: ${ph.activeCompany?.gstin ?? 'N/A'}", style: const TextStyle(fontSize: 8.5, fontWeight: FontWeight.bold, color: Colors.grey)),
-          const SizedBox(height: 8),
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: brandDark.withAlpha(20), 
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Text(
-              "DIOS LIFESCIENCE FLOW REPORT (${_formatDate(fyDateRange.start)} to ${_formatDate(fyDateRange.end)})",
-              style: const TextStyle(fontSize: 8.5, fontWeight: FontWeight.w900, color: brandDark),
-            ),
-          )
-        ],
-      ),
-    );
-  }
-
-  // --- REUSABLE SUBWIDGETS ---
-
-  Widget _sectionLabel(String t) => Padding(
-    padding: const EdgeInsets.only(bottom: 6, left: 4),
-    child: Text(t, style: const TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.blueGrey, letterSpacing: 0.5)),
-  );
-
-  Widget _formSegment(String label, bool active, VoidCallback onTap) {
-    return Expanded(
-      child: InkWell(
-        onTap: onTap,
-        child: Container(
-          margin: const EdgeInsets.symmetric(horizontal: 4),
-          padding: const EdgeInsets.symmetric(vertical: 10),
-          decoration: BoxDecoration(
-            color: active ? brandDark : const Color(0xFFF1F5F9),
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: active ? brandDark : const Color(0xFFE2E8F0)),
-          ),
-          child: Text(
-            label,
-            textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: active ? Colors.white : const Color(0xFF64748B)),
-          ),
         ),
       ),
     );
