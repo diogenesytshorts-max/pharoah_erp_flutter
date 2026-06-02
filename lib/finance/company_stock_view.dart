@@ -1,4 +1,4 @@
-// FILE: lib/finance/company_stock_view.dart
+// FILE: lib/finance/company_stock_view.dart (FULLY INTEGRATED ADVANCED VERSION)
 
 import 'dart:async';
 import 'dart:ui'; // ImageFilter के लिए अनिवार्य
@@ -16,12 +16,6 @@ import '../pdf/pdf_router_service.dart';
 class CompanyStockView extends StatefulWidget {
   const CompanyStockView({super.key});
   @override State<CompanyStockView> createState() => _CompanyStockViewState();
-}
-
-enum ReportStep {
-  selectionForm,
-  processingLoader,
-  showReportGrid,
 }
 
 class _CompanyStockViewState extends State<CompanyStockView> {
@@ -84,6 +78,12 @@ class _CompanyStockViewState extends State<CompanyStockView> {
     }
   }
 
+  // Simple In-Built Date Formatter
+  String _formatDate(DateTime d) {
+    String pad(int n) => n.toString().padLeft(2, '0');
+    return "${pad(d.day)}/${pad(d.month)}/${d.year}";
+  }
+
   // Live progress simulation
   void _startSmartReportGeneration() {
     setState(() {
@@ -104,7 +104,7 @@ class _CompanyStockViewState extends State<CompanyStockView> {
     ];
 
     int step = 0;
-    Timer.periodic(const Duration(milliseconds: 200), (timer) {
+    Timer.periodic(const Duration(milliseconds: 300), (timer) {
       if (processingProgress >= 1.0) {
         timer.cancel();
         _showSuccessMiddleDialog();
@@ -379,6 +379,7 @@ class _CompanyStockViewState extends State<CompanyStockView> {
                   padding: const EdgeInsets.all(20),
                   child: Column(
                     children: [
+                      // Header
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
@@ -777,7 +778,7 @@ class _CompanyStockViewState extends State<CompanyStockView> {
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(border: Border.all(color: const Color(0xFFE2E8F0)), borderRadius: BorderRadius.circular(10), color: const Color(0xFFF8FAFC)),
         child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          mainAxisAlignment: Main---------
           children: [
             const Text("Tap to Search...", style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.blueGrey)),
             Row(children: [
@@ -865,44 +866,7 @@ class _CompanyStockViewState extends State<CompanyStockView> {
   }
 
   // ===========================================================================
-  // SCREEN 3: LOADER OVERLAY
-  // ===========================================================================
-  Widget _buildProcessingLoader() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          const Icon(Icons.sync_rounded, color: Colors.orangeAccent, size: 60),
-          const SizedBox(height: 25),
-          Text(
-            "${(processingProgress * 100).toInt()}%",
-            style: const TextStyle(color: Colors.white, fontSize: 36, fontWeight: FontWeight.w900, letterSpacing: 1),
-          ),
-          const SizedBox(height: 10),
-          SizedBox(
-            width: 250,
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(8),
-              child: LinearProgressIndicator(
-                value: processingProgress,
-                color: Colors.orangeAccent,
-                backgroundColor: Colors.white10,
-                minHeight: 8,
-              ),
-            ),
-          ),
-          const SizedBox(height: 20),
-          Text(
-            processingStatusText.toUpperCase(),
-            style: const TextStyle(color: Colors.white70, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1.5),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // ===========================================================================
-  // SCREEN 5: COMPREHENSIVE 10-COLUMN REPORT GRID
+  // SCREEN 5: COMPREHENSIVE 10-COLUMN REPORT GRID (DYNAMIC LOGIC APPLIED)
   // ===========================================================================
   Widget _buildReportGrid(PharoahManager ph) {
     String colReceiveQty = deductDN ? "NET RECEIVE\nQTY" : "RECEIVE\nQUANTITY";
