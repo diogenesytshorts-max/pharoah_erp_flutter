@@ -30,7 +30,47 @@ class CompanyStockPdf {
     double cnQty = 0.0; // Credit Notes (Sales Return)
     double dnQty = 0.0; // Debit Notes (Purchase Return)
 
-    // A. Scan Purchases
+    // A. Retrospective Stock Calculations for true Period-Opening Stock
+    double receivedSinceFrom = 0.0;
+    double issuedSinceFrom = 0.0;
+    DateTime todayEnd = DateTime.now().add(const Duration(days: 1));
+
+    // Purchases from 'from' to today
+    for (var p in ph.purchases.where((p) => p.date.isAfter(from.subtract(const Duration(seconds: 1))) && p.date.isBefore(todayEnd))) {
+      for (var it in p.items.where((it) => it.medicineID == med.id)) {
+        receivedSinceFrom += (it.qty + it.freeQty);
+      }
+    }
+    // DN from 'from' to today
+    for (var r in ph.purchaseReturns.where((r) => r.status == "Active" && r.date.isAfter(from.subtract(const Duration(seconds: 1))) && r.date.isBefore(todayEnd))) {
+      for (var it in r.items.where((it) => it.medicineID == med.id && !it.isBreakage)) {
+        receivedSinceFrom -= (it.qty + it.freeQty);
+      }
+    }
+
+    // Sales from 'from' to today
+    for (var s in ph.sales.where((s) => s.status == "Active" && s.date.isAfter(from.subtract(const Duration(seconds: 1))) && s.date.isBefore(todayEnd))) {
+      for (var it in s.items.where((it) => it.medicineID == med.id)) {
+        issuedSinceFrom += (it.qty + it.freeQty);
+      }
+    }
+    // CN from 'from' to today
+    for (var r in ph.saleReturns.where((r) => r.status == "Active" && r.date.isAfter(from.subtract(const Duration(seconds: 1))) && r.date.isBefore(todayEnd))) {
+      for (var it in r.items.where((it) => it.medicineID == med.id && !it.isBreakage)) {
+        issuedSinceFrom -= (it.qty + it.freeQty);
+      }
+    }
+
+    // True retrospective Opening Stock at From Date
+    double opening = med.stock - receivedSinceFrom + issuedSinceFrom;
+
+    // B. Calculate Inwards and Outwards strictly WITHIN the selected period (from -> to)
+    double receivedInPeriod = 0.0;
+    double issuedInPeriod = 0.0;
+    double dnInPeriod = 0.0;
+    double cnInPeriod = 0.0;
+
+    // Purchases in period
     final filteredPurchases = ph.purchases.where((p) {
       bool inRange = p.date.isAfter(from.subtract(const Duration(seconds: 1))) && 
                      p.date.isBefore(to.add(const Duration(days: 1)));
@@ -40,11 +80,24 @@ class CompanyStockPdf {
     });
     for (var p in filteredPurchases) {
       for (var it in p.items.where((it) => it.medicineID == med.id)) {
-        received += (it.qty + it.freeQty);
+        receivedInPeriod += (it.qty + it.freeQty);
       }
     }
 
-    // B. Scan Sales
+    // DN in period
+    final filteredPurchaseReturns = ph.purchaseReturns.where((r) {
+      bool inRange = r.status == "Active" && r.date.isAfter(from.subtract(const Duration(seconds: 1))) && r.date.isBefore(to.add(const Duration(days: 1)));
+      if (!inRange) return false;
+      if (partySelectionType == "Single") return r.distributorName == selectedParty;
+      return true;
+    });
+    for (var r in filteredPurchaseReturns) {
+      for (var it in r.items.where((it) => it.medicineID == med.id && !it.isBreakage)) {
+        dnInPeriod += (it.qty + it.freeQty);
+      }
+    }
+
+    // Sales in period
     final filteredSales = ph.sales.where((s) {
       bool inRange = s.status == "Active" && 
                      s.date.isAfter(from.subtract(const Duration(seconds: 1))) && 
@@ -55,56 +108,40 @@ class CompanyStockPdf {
     });
     for (var s in filteredSales) {
       for (var it in s.items.where((it) => it.medicineID == med.id)) {
-        sold += (it.qty + it.freeQty);
+        issuedInPeriod += (it.qty + it.freeQty);
       }
     }
 
-    // C. Scan Sales Returns (Credit Notes)
+    // CN in period
     final filteredSaleReturns = ph.saleReturns.where((r) {
-      bool inRange = r.status == "Active" && r.date.isAfter(from) && r.date.isBefore(to);
+      bool inRange = r.status == "Active" && r.date.isAfter(from.subtract(const Duration(seconds: 1))) && r.date.isBefore(to.add(const Duration(days: 1)));
       if (!inRange) return false;
       if (partySelectionType == "Single") return r.partyName == selectedParty;
       return true;
     });
     for (var r in filteredSaleReturns) {
       for (var it in r.items.where((it) => it.medicineID == med.id && !it.isBreakage)) {
-        cnQty += (it.qty + it.freeQty);
+        cnInPeriod += (it.qty + it.freeQty);
       }
     }
 
-    // D. Scan Purchase Returns (Debit Notes)
-    final filteredPurchaseReturns = ph.purchaseReturns.where((r) {
-      bool inRange = r.status == "Active" && r.date.isAfter(from) && r.date.isBefore(to);
-      if (!inRange) return false;
-      if (partySelectionType == "Single") return r.distributorName == selectedParty;
-      return true;
-    });
-    for (var r in filteredPurchaseReturns) {
-      for (var it in r.items.where((it) => it.medicineID == med.id && !it.isBreakage)) {
-        dnQty += (it.qty + it.freeQty);
-      }
-    }
-
-    // E. Apply CN/DN Deductions
-    double finalReceived = received;
-    double finalSold = sold;
+    double finalReceived = receivedInPeriod;
+    double finalIssued = issuedInPeriod;
 
     if (deductDN) {
-      finalReceived -= dnQty;
-      if (finalReceived < 0) finalReceived = 0;
+      finalReceived -= dnInPeriod;
     }
     if (deductCN) {
-      finalSold -= cnQty;
-      if (finalSold < 0) finalSold = 0;
+      finalIssued -= cnInPeriod;
     }
 
-    double closing = med.stock;
-    double opening = closing - finalReceived + finalSold;
+    // True Closing Stock for the selected period (Allows negatives safely!)
+    double closing = opening + finalReceived - finalIssued;
 
     return {
       'opening': opening,
       'received': finalReceived,
-      'sale': finalSold,
+      'sale': finalIssued,
       'closing': closing,
     };
   }
