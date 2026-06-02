@@ -1,4 +1,4 @@
-// FILE: lib/finance/company_stock_view.dart (FULLY SYNCED COMPLETED VERSION)
+// FILE: lib/finance/company_stock_view.dart (FULLY INTEGRATED COMPLETED VERSION)
 
 import 'dart:async';
 import 'dart:ui'; // ImageFilter के लिए अनिवार्य
@@ -90,90 +90,126 @@ class _CompanyStockViewState extends State<CompanyStockView> {
     return "${pad(d.day)}/${pad(d.month)}/${d.year}";
   }
 
-  // Search Picker Bottom Sheet
-  void _openSearchableSinglePicker(String title, List<String> items, String currentSelection, ValueChanged<String> onSelected) {
+  // Live progress simulation
+  void _startSmartReportGeneration() {
+    setState(() {
+      currentStep = ReportStep.processingLoader;
+      processingProgress = 0.0;
+      processingStatusText = "Connecting with DB Engine...";
+    });
+
+    final List<String> phases = [
+      "Scanning meds.json database...",
+      "Filtering Excluded Companies list...",
+      "Filtering Excluded Parties list...",
+      "Analyzing Return (CN/DN) Reversals...",
+      "Mapping product-batch indices...",
+      "Summing Net Inflow & Net Outflow...",
+      "Applying Manual Rate Valuation algorithms...",
+      "Compiling Grand Totals..."
+    ];
+
+    int step = 0;
+    Timer.periodic(const Duration(milliseconds: 200), (timer) {
+      if (processingProgress >= 1.0) {
+        timer.cancel();
+        _showSuccessMiddleDialog();
+      } else {
+        setState(() {
+          processingProgress += 0.15;
+          if (processingProgress > 1.0) processingProgress = 1.0;
+          
+          if (step < phases.length) {
+            processingStatusText = phases[step];
+            step++;
+          }
+        });
+      }
+    });
+  }
+
+  // Middle Success Dialog (Buffer)
+  void _showSuccessMiddleDialog() {
+    final ph = Provider.of<PharoahManager>(context, listen: false);
+    List<String> excludedParties = ph.parties.where((p) => p.name != "CASH" && !selectedPartyIds.contains(p.name)).map((e) => e.name).toList();
+    List<String> excludedCompanies = ph.companies.where((c) => !selectedCompanyIds.contains(c.name)).map((e) => e.name).toList();
+
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (c) {
-        String searchVal = "";
-        return StatefulBuilder(
-          builder: (context, setDialogState) {
-            final filtered = items.where((element) => element.toLowerCase().contains(searchVal.toLowerCase())).toList();
-            return BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: 5.0, sigmaY: 5.0),
-              child: Dialog(
-                backgroundColor: Colors.transparent,
-                child: Container(
-                  width: 400,
-                  height: 500,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF0F172A),
-                    borderRadius: BorderRadius.circular(24),
-                    border: Border.all(color: accentElectric.withAlpha(100), width: 1.5),
-                  ),
-                  padding: const EdgeInsets.all(20),
-                  child: Column(
-                    children: [
-                      // Header
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text("SEARCH $title", style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 13, letterSpacing: 1)),
-                          IconButton(
-                            icon: const Icon(Icons.close, color: Colors.white70, size: 20),
-                            onPressed: () => Navigator.pop(c),
-                          ),
-                        ],
-                      ),
-                      const Divider(color: Colors.white10),
-                      const SizedBox(height: 5),
-
-                      TextField(
-                        style: const TextStyle(color: Colors.white, fontSize: 12),
-                        decoration: InputDecoration(
-                          isDense: true,
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                          hintText: "Type to search...",
-                          hintStyle: const TextStyle(color: Colors.white38, fontSize: 12),
-                          prefixIcon: const Icon(Icons.search, color: accentElectric, size: 16),
-                          filled: true,
-                          fillColor: Colors.white.withAlpha(20),
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
-                        ),
-                        onChanged: (v) => setDialogState(() => searchVal = v),
-                      ),
-                      const SizedBox(height: 15),
-
-                      Expanded(
-                        child: filtered.isEmpty
-                            ? const Center(child: Text("No records found.", style: TextStyle(color: Colors.white38, fontSize: 12)))
-                            : ListView.builder(
-                                  itemCount: filtered.length,
-                                  itemBuilder: (context, idx) {
-                                    final item = filtered[idx];
-                                    bool isSelected = item == currentSelection;
-                                    return ListTile(
-                                      leading: Icon(Icons.check_circle_rounded, color: isSelected ? neonEmerald : Colors.transparent, size: 18),
-                                      title: Text(item, style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: isSelected ? FontWeight.bold : FontWeight.normal)),
-                                      onTap: () {
-                                        onSelected(item);
-                                        Navigator.pop(c);
-                                      },
-                                    );
-                                  },
-                                ),
-                        ),
-                      ],
-                    ),
-                  ),
+      builder: (c) => BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 5.0, sigmaY: 5.0),
+        child: AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: const Row(
+            children: [
+              Icon(Icons.verified_rounded, color: neonEmerald, size: 24),
+              SizedBox(width: 10),
+              Text("PROCESS COMPLETE", style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                "Your Statement has been processed in a safe memory container.",
+                style: TextStyle(fontSize: 12, color: Colors.blueGrey),
+              ),
+              const SizedBox(height: 15),
+              _bulletPoint("Companies: ${companySelectionType == "All" ? "${selectedCompanyIds.length} Active" : selectedCompany}"),
+              if (companySelectionType == "All" && excludedCompanies.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(left: 14, bottom: 4),
+                  child: Text("Excluded: ${excludedCompanies.join(', ')}", style: const TextStyle(fontSize: 9, color: Colors.red, fontWeight: FontWeight.bold)),
                 ),
-              );
-            },
-          );
-        },
-      );
-    }
+              _bulletPoint("Parties: ${partySelectionType == "All" ? "${selectedPartyIds.length} Active" : selectedParty}"),
+              if (partySelectionType == "All" && excludedParties.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(left: 14, bottom: 4),
+                  child: Text("Excluded: ${excludedParties.join(', ')}", style: const TextStyle(fontSize: 9, color: Colors.red, fontWeight: FontWeight.bold)),
+                ),
+              _bulletPoint("Deductions Applied: ${deductCN ? 'CN (Sales)' : 'None'} ${deductDN ? '& DN (Purchases)' : ''}"),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(c);
+                setState(() {
+                  currentStep = ReportStep.selectionForm;
+                });
+              },
+              child: const Text("GO BACK", style: TextStyle(color: Colors.grey, fontWeight: FontWeight.bold)),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: accentElectric, foregroundColor: Colors.white),
+              onPressed: () {
+                Navigator.pop(c);
+                setState(() {
+                  currentStep = ReportStep.showReportGrid;
+                });
+              },
+              child: const Text("VIEW STATEMENT", style: TextStyle(fontWeight: FontWeight.bold)),
+            )
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _bulletPoint(String text) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6),
+      child: Row(
+        children: [
+          const Icon(Icons.circle, size: 6, color: accentElectric),
+          const SizedBox(width: 8),
+          Expanded(child: Text(text, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold))),
+        ],
+      ),
+    );
+  }
 
   // SEARCHABLE MULTI-SELECT POPUP FOR EXCLUSIONS
   void _openAdvancedExclusionDialog({
@@ -324,125 +360,90 @@ class _CompanyStockViewState extends State<CompanyStockView> {
     );
   }
 
-  // Simulating deep inventory scan phases step-by-step
-  void _startSmartReportGeneration() {
-    setState(() {
-      currentStep = ReportStep.processingLoader;
-      processingProgress = 0.0;
-      processingStatusText = "Connecting with DB Engine...";
-    });
-
-    final List<String> phases = [
-      "Scanning meds.json database...",
-      "Filtering Excluded Companies list...",
-      "Filtering Excluded Parties list...",
-      "Analyzing Return (CN/DN) Reversals...",
-      "Mapping product-batch indices...",
-      "Summing Net Inflow & Net Outflow...",
-      "Applying Manual Rate Valuation algorithms...",
-      "Compiling Grand Totals..."
-    ];
-
-    int step = 0;
-    Timer.periodic(const Duration(milliseconds: 200), (timer) {
-      if (processingProgress >= 1.0) {
-        timer.cancel();
-        _showSuccessMiddleDialog();
-      } else {
-        setState(() {
-          processingProgress += 0.15;
-          if (processingProgress > 1.0) processingProgress = 1.0;
-          
-          if (step < phases.length) {
-            processingStatusText = phases[step];
-            step++;
-          }
-        });
-      }
-    });
-  }
-
-  void _showSuccessMiddleDialog() {
-    final ph = Provider.of<PharoahManager>(context, listen: false);
-    List<String> excludedParties = ph.parties.where((p) => p.name != "CASH" && !selectedPartyIds.contains(p.name)).map((e) => e.name).toList();
-    List<String> excludedCompanies = ph.companies.where((c) => !selectedCompanyIds.contains(c.name)).map((e) => e.name).toList();
-
+  // SEARCHABLE SINGLE PICKER (For Single Mode Selection)
+  void _openSearchableSinglePicker(String title, List<String> items, String currentSelection, ValueChanged<String> onSelected) {
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (c) => BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 5.0, sigmaY: 5.0),
-        child: AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-          title: const Row(
-            children: [
-              Icon(Icons.verified_rounded, color: neonEmerald, size: 24),
-              SizedBox(width: 10),
-              Text("PROCESS COMPLETE", style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
-            ],
-          ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                "Your Statement has been processed in a safe memory container.",
-                style: TextStyle(fontSize: 12, color: Colors.blueGrey),
-              ),
-              const SizedBox(height: 15),
-              _bulletPoint("Companies: ${companySelectionType == "All" ? "${selectedCompanyIds.length} Active" : selectedCompany}"),
-              if (companySelectionType == "All" && excludedCompanies.isNotEmpty)
-                Padding(
-                  padding: const EdgeInsets.only(left: 14, bottom: 4),
-                  child: Text("Excluded: ${excludedCompanies.join(', ')}", style: const TextStyle(fontSize: 9, color: Colors.red, fontWeight: FontWeight.bold)),
-                ),
-              _bulletPoint("Parties: ${partySelectionType == "All" ? "${selectedPartyIds.length} Active" : selectedParty}"),
-              if (partySelectionType == "All" && excludedParties.isNotEmpty)
-                Padding(
-                  padding: const EdgeInsets.only(left: 14, bottom: 4),
-                  child: Text("Excluded: ${excludedParties.join(', ')}", style: const TextStyle(fontSize: 9, color: Colors.red, fontWeight: FontWeight.bold)),
-                ),
-              _bulletPoint("Deductions Applied: ${deductCN ? 'CN (Sales)' : 'None'} ${deductDN ? '& DN (Purchases)' : ''}"),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.pop(c);
-                setState(() {
-                  currentStep = ReportStep.selectionForm;
-                });
-              },
-              child: const Text("GO BACK", style: TextStyle(color: Colors.grey, fontWeight: FontWeight.bold)),
-            ),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(backgroundColor: accentElectric, foregroundColor: Colors.white),
-              onPressed: () {
-                Navigator.pop(c);
-                setState(() {
-                  currentStep = ReportStep.showReportGrid;
-                });
-              },
-              child: const Text("VIEW STATEMENT", style: TextStyle(fontWeight: FontWeight.bold)),
-            )
-          ],
-        ),
-      ),
-    );
-  }
+      builder: (c) {
+        String searchVal = "";
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            final filtered = items.where((element) => element.toLowerCase().contains(searchVal.toLowerCase())).toList();
+            return BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 5.0, sigmaY: 5.0),
+              child: Dialog(
+                backgroundColor: Colors.transparent,
+                child: Container(
+                  width: 400,
+                  height: 500,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF0F172A),
+                    borderRadius: BorderRadius.circular(24),
+                    border: Border.all(color: accentElectric.withAlpha(100), width: 1.5),
+                  ),
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    children: [
+                      // Header
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text("SEARCH $title", style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 13, letterSpacing: 1)),
+                          IconButton(
+                            icon: const Icon(Icons.close, color: Colors.white70, size: 20),
+                            onPressed: () => Navigator.pop(c),
+                          ),
+                        ],
+                      ),
+                      const Divider(color: Colors.white10),
+                      const SizedBox(height: 5),
 
-  Widget _bulletPoint(String text) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 6),
-      child: Row(
-        children: [
-          const Icon(Icons.circle, size: 6, color: accentElectric),
-          const SizedBox(width: 8),
-          Expanded(child: Text(text, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold))),
-        ],
-      ),
-    );
-  }
+                      TextField(
+                        style: const TextStyle(color: Colors.white, fontSize: 12),
+                        decoration: InputDecoration(
+                          isDense: true,
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                          hintText: "Type to search...",
+                          hintStyle: const TextStyle(color: Colors.white38, fontSize: 12),
+                          prefixIcon: const Icon(Icons.search, color: accentElectric, size: 16),
+                          filled: true,
+                          fillColor: Colors.white.withAlpha(20),
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
+                        ),
+                        onChanged: (v) => setDialogState(() => searchVal = v),
+                      ),
+                      const SizedBox(height: 15),
+
+                      Expanded(
+                        child: filtered.isEmpty
+                            ? const Center(child: Text("No records found.", style: TextStyle(color: Colors.white38, fontSize: 12)))
+                            : ListView.builder(
+                                  itemCount: filtered.length,
+                                  itemBuilder: (context, idx) {
+                                    final item = filtered[idx];
+                                    bool isSelected = item == currentSelection;
+                                    return ListTile(
+                                      leading: Icon(Icons.check_circle_rounded, color: isSelected ? neonEmerald : Colors.transparent, size: 18),
+                                      title: Text(item, style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: isSelected ? FontWeight.bold : FontWeight.normal)),
+                                      onTap: () {
+                                        onSelected(item);
+                                        Navigator.pop(c);
+                                      },
+                                    );
+                                  },
+                                ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            },
+          );
+        },
+      );
+    }
 
   // STRICT CALENDAR LOCK TO ACTIVE FINANCIAL YEAR
   Future<void> _pickDateRangeWithinFY() async {
@@ -477,7 +478,7 @@ class _CompanyStockViewState extends State<CompanyStockView> {
   }
 
   // ===========================================================================
-  // ADVANCED STOCK FLOW ENGINE - WITH DYNAMIC CN/DN DEDUCTION
+  // ADVANCED RETROSPECTIVE STOCK FLOW ENGINE - WITH DYNAMIC CN/DN DEDUCTION
   // ===========================================================================
   Map<String, double> _calculateCustomItemFlow({
     required Medicine med,
@@ -490,7 +491,47 @@ class _CompanyStockViewState extends State<CompanyStockView> {
     double cnQty = 0.0; // Credit Notes (Sales Return)
     double dnQty = 0.0; // Debit Notes (Purchase Return)
 
-    // A. Scan Purchases
+    // A. Retrospective Stock Calculations for true Period-Opening Stock
+    double receivedSinceFrom = 0.0;
+    double issuedSinceFrom = 0.0;
+    DateTime todayEnd = DateTime.now().add(const Duration(days: 1));
+
+    // Purchases from 'from' to today
+    for (var p in ph.purchases.where((p) => p.date.isAfter(from.subtract(const Duration(seconds: 1))) && p.date.isBefore(todayEnd))) {
+      for (var it in p.items.where((it) => it.medicineID == med.id)) {
+        receivedSinceFrom += (it.qty + it.freeQty);
+      }
+    }
+    // DN from 'from' to today
+    for (var r in ph.purchaseReturns.where((r) => r.status == "Active" && r.date.isAfter(from.subtract(const Duration(seconds: 1))) && r.date.isBefore(todayEnd))) {
+      for (var it in r.items.where((it) => it.medicineID == med.id && !it.isBreakage)) {
+        receivedSinceFrom -= (it.qty + it.freeQty);
+      }
+    }
+
+    // Sales from 'from' to today
+    for (var s in ph.sales.where((s) => s.status == "Active" && s.date.isAfter(from.subtract(const Duration(seconds: 1))) && s.date.isBefore(todayEnd))) {
+      for (var it in s.items.where((it) => it.medicineID == med.id)) {
+        issuedSinceFrom += (it.qty + it.freeQty);
+      }
+    }
+    // CN from 'from' to today
+    for (var r in ph.saleReturns.where((r) => r.status == "Active" && r.date.isAfter(from.subtract(const Duration(seconds: 1))) && r.date.isBefore(todayEnd))) {
+      for (var it in r.items.where((it) => it.medicineID == med.id && !it.isBreakage)) {
+        issuedSinceFrom -= (it.qty + it.freeQty);
+      }
+    }
+
+    // True retrospective Opening Stock at From Date
+    double opening = med.stock - receivedSinceFrom + issuedSinceFrom;
+
+    // B. Calculate Inwards and Outwards strictly WITHIN the selected period (from -> to)
+    double receivedInPeriod = 0.0;
+    double issuedInPeriod = 0.0;
+    double dnInPeriod = 0.0;
+    double cnInPeriod = 0.0;
+
+    // Purchases in period
     final filteredPurchases = ph.purchases.where((p) {
       bool inRange = p.date.isAfter(from.subtract(const Duration(seconds: 1))) && 
                      p.date.isBefore(to.add(const Duration(days: 1)));
@@ -500,11 +541,24 @@ class _CompanyStockViewState extends State<CompanyStockView> {
     });
     for (var p in filteredPurchases) {
       for (var it in p.items.where((it) => it.medicineID == med.id)) {
-        received += (it.qty + it.freeQty);
+        receivedInPeriod += (it.qty + it.freeQty);
       }
     }
 
-    // B. Scan Sales
+    // DN in period
+    final filteredPurchaseReturns = ph.purchaseReturns.where((r) {
+      bool inRange = r.status == "Active" && r.date.isAfter(from.subtract(const Duration(seconds: 1))) && r.date.isBefore(to.add(const Duration(days: 1)));
+      if (!inRange) return false;
+      if (partySelectionType == "Single") return r.distributorName == selectedParty;
+      return true;
+    });
+    for (var r in filteredPurchaseReturns) {
+      for (var it in r.items.where((it) => it.medicineID == med.id && !it.isBreakage)) {
+        dnInPeriod += (it.qty + it.freeQty);
+      }
+    }
+
+    // Sales in period
     final filteredSales = ph.sales.where((s) {
       bool inRange = s.status == "Active" && 
                      s.date.isAfter(from.subtract(const Duration(seconds: 1))) && 
@@ -515,56 +569,40 @@ class _CompanyStockViewState extends State<CompanyStockView> {
     });
     for (var s in filteredSales) {
       for (var it in s.items.where((it) => it.medicineID == med.id)) {
-        sold += (it.qty + it.freeQty);
+        issuedInPeriod += (it.qty + it.freeQty);
       }
     }
 
-    // C. Scan Sales Returns (Credit Notes)
+    // CN in period
     final filteredSaleReturns = ph.saleReturns.where((r) {
-      bool inRange = r.status == "Active" && r.date.isAfter(from) && r.date.isBefore(to);
+      bool inRange = r.status == "Active" && r.date.isAfter(from.subtract(const Duration(seconds: 1))) && r.date.isBefore(to.add(const Duration(days: 1)));
       if (!inRange) return false;
       if (partySelectionType == "Single") return r.partyName == selectedParty;
       return true;
     });
     for (var r in filteredSaleReturns) {
       for (var it in r.items.where((it) => it.medicineID == med.id && !it.isBreakage)) {
-        cnQty += (it.qty + it.freeQty);
+        cnInPeriod += (it.qty + it.freeQty);
       }
     }
 
-    // D. Scan Purchase Returns (Debit Notes)
-    final filteredPurchaseReturns = ph.purchaseReturns.where((r) {
-      bool inRange = r.status == "Active" && r.date.isAfter(from) && r.date.isBefore(to);
-      if (!inRange) return false;
-      if (partySelectionType == "Single") return r.distributorName == selectedParty;
-      return true;
-    });
-    for (var r in filteredPurchaseReturns) {
-      for (var it in r.items.where((it) => it.medicineID == med.id && !it.isBreakage)) {
-        dnQty += (it.qty + it.freeQty);
-      }
-    }
-
-    // E. Apply CN/DN Deductions
-    double finalReceived = received;
-    double finalSold = sold;
+    double finalReceived = receivedInPeriod;
+    double finalIssued = issuedInPeriod;
 
     if (deductDN) {
-      finalReceived -= dnQty;
-      if (finalReceived < 0) finalReceived = 0;
+      finalReceived -= dnInPeriod;
     }
     if (deductCN) {
-      finalSold -= cnQty;
-      if (finalSold < 0) finalSold = 0;
+      finalIssued -= cnInPeriod;
     }
 
-    double closing = med.stock;
-    double opening = closing - finalReceived + finalSold;
+    // True Closing Stock for the selected period (Allows negatives safely!)
+    double closing = opening + finalReceived - finalIssued;
 
     return {
       'opening': opening,
       'received': finalReceived,
-      'sale': finalSold,
+      'sale': finalIssued,
       'closing': closing,
     };
   }
@@ -748,6 +786,84 @@ class _CompanyStockViewState extends State<CompanyStockView> {
     );
   }
 
+  // Multi-select view with "Select All" and "Exclusion" logic
+  Widget _buildMultiSelectExclusionCard() {
+    bool isAllSelected = selectedPartyIds.length == masterParties.length;
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text("Party Selection (Exclusions)", style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.blueGrey)),
+              InkWell(
+                onTap: () {
+                  setState(() {
+                    if (isAllSelected) {
+                      selectedPartyIds.clear();
+                    } else {
+                      selectedPartyIds = Set.from(masterParties);
+                    }
+                  });
+                },
+                child: Row(
+                  children: [
+                    Icon(isAllSelected ? Icons.check_box_rounded : Icons.check_box_outline_blank_rounded, size: 16, color: accentElectric),
+                    const SizedBox(width: 4),
+                    const Text("Select All", style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: accentElectric)),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const Divider(height: 15),
+          Container(
+            height: 120,
+            child: ListView.builder(
+              itemCount: masterParties.length,
+              itemBuilder: (context, idx) {
+                final party = masterParties[idx];
+                final isSelected = selectedPartyIds.contains(party);
+                return Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 4),
+                  child: InkWell(
+                    onTap: () {
+                      setState(() {
+                        if (isSelected) {
+                          selectedPartyIds.remove(party);
+                        } else {
+                          selectedPartyIds.add(party);
+                        }
+                      });
+                    },
+                    child: Row(
+                      children: [
+                        Icon(
+                          isSelected ? Icons.check_box_rounded : Icons.check_box_outline_blank_rounded, 
+                          size: 18, 
+                          color: isSelected ? Colors.green : Colors.grey,
+                        ),
+                        const SizedBox(width: 10),
+                        Text(party, style: TextStyle(fontSize: 12, fontWeight: isSelected ? FontWeight.bold : FontWeight.normal, color: isSelected ? Colors.black : Colors.black54)),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
+          )
+        ],
+      ),
+    );
+  }
+
   Widget _buildGatewayTrigger(String label, String value, VoidCallback onTap) {
     return InkWell(
       onTap: onTap,
@@ -871,7 +987,7 @@ class _CompanyStockViewState extends State<CompanyStockView> {
   }
 
   // ===========================================================================
-  // SCREEN 3: PROCESSING IMMERSIVE LOADER (DEFINED FULLY)
+  // SCREEN 3: PROCESSING IMMERSIVE LOADER
   // ===========================================================================
   Widget _buildProcessingLoader() {
     return Center(
@@ -1143,7 +1259,7 @@ class _CompanyStockViewState extends State<CompanyStockView> {
       alignment: isLeft ? Alignment.centerLeft : Alignment.center,
       child: Text(
         text,
-        textAlign: isLeft ? TextAlign.left : TextAlign.center, // FIXED
+        textAlign: isLeft ? TextAlign.left : TextAlign.center, // FIXED: Corrected Alignment.center to TextAlign.center
         style: const TextStyle(fontSize: 7.5, fontWeight: FontWeight.w900, color: Colors.white, letterSpacing: 0.5),
       ),
     );
@@ -1164,11 +1280,11 @@ class _CompanyStockViewState extends State<CompanyStockView> {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(color: const Color(0xFFF8FAFC), borderRadius: BorderRadius.circular(10), border: Border.all(color: const Color(0xFFE2E8F0))),
-      child: Row( // FIXED
+      child: Row( // FIXED: Removed illegal const prefix on Row
         children: [
           const Icon(Icons.gavel_rounded, color: Colors.blueGrey, size: 16),
           const SizedBox(width: 10),
-          Expanded( // FIXED
+          Expanded( // FIXED: Kept Expanded as non-const
             child: Text(
               "Note: This audit is locked to active Financial Year parameters. Processing is completely sandboxed on local resources to prevent leaks.",
               style: const TextStyle(fontSize: 8, color: Colors.blueGrey, fontStyle: FontStyle.italic, fontWeight: FontWeight.bold),
