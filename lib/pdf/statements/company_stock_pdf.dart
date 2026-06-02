@@ -1,4 +1,4 @@
-// FILE: lib/pdf/statements/company_stock_pdf.dart (FULLY SYNCED ADVANCED VERSION)
+// FILE: lib/pdf/statements/company_stock_pdf.dart (FULLY UPDATED - STABLE PROGRESSIVE METHOD)
 
 import 'dart:io';
 import 'package:pdf/pdf.dart';
@@ -8,12 +8,13 @@ import 'package:intl/intl.dart';
 import 'dart:typed_data';
 import '../../models.dart';
 import '../../gateway/company_registry_model.dart';
-import '../../finance/stock_flow_engine.dart';
 import '../../pharoah_manager.dart';
 
 class CompanyStockPdf {
   
-  // 1. ADVANCED DYNAMIC CALCULATOR COMPATIBLE WITH CN/DN REVERSALS
+  // ===========================================================================
+  // PROGRESSIVE ENGINE: STOCK CALCULATION FOR PDF (MUST MATCH SCREEN TOTALLY)
+  // ===========================================================================
   static Map<String, double> _calculateCustomItemFlow({
     required Medicine med,
     required DateTime from,
@@ -25,128 +26,133 @@ class CompanyStockPdf {
     required bool deductCN,
     required bool deductDN,
   }) {
-    double received = 0.0;
-    double sold = 0.0;
-    double cnQty = 0.0; // Credit Notes (Sales Return)
-    double dnQty = 0.0; // Debit Notes (Purchase Return)
+    double baseOpening = 0.0;
+    
+    if (partySelectionType == "Single") {
+      baseOpening = 0.0;
+    } else {
+      final batches = ph.batchHistory[med.identityKey] ?? [];
+      if (batches.isNotEmpty) {
+        baseOpening = batches.fold(0.0, (sum, b) => sum + b.openingQty + b.adjustmentQty);
+      } else {
+        double totalPur = 0.0;
+        double totalSale = 0.0;
+        double totalCN = 0.0;
+        double totalDN = 0.0;
+        
+        for (var p in ph.purchases) {
+          for (var it in p.items.where((it) => it.medicineID == med.id)) {
+            totalPur += (it.qty + it.freeQty);
+          }
+        }
+        for (var s in ph.sales.where((s) => s.status == "Active")) {
+          for (var it in s.items.where((it) => it.medicineID == med.id)) {
+            totalSale += (it.qty + it.freeQty);
+          }
+        }
+        for (var r in ph.saleReturns.where((r) => r.status == "Active")) {
+          for (var it in r.items.where((it) => it.medicineID == med.id && !it.isBreakage)) {
+            totalCN += (it.qty + it.freeQty);
+          }
+        }
+        for (var r in ph.purchaseReturns.where((r) => r.status == "Active")) {
+          for (var it in r.items.where((it) => it.medicineID == med.id && !it.isBreakage)) {
+            totalDN += (it.qty + it.freeQty);
+          }
+        }
+        baseOpening = med.stock - totalPur + totalSale - totalCN + totalDN;
+      }
+    }
 
-    // A. Retrospective Stock Calculations for true Period-Opening Stock
-    double receivedSinceFrom = 0.0;
-    double issuedSinceFrom = 0.0;
-    DateTime todayEnd = DateTime.now().add(const Duration(days: 1));
+    double purBefore = 0.0;
+    double saleBefore = 0.0;
+    double cnBefore = 0.0;
+    double dnBefore = 0.0;
 
-    // Purchases from 'from' to today
-    for (var p in ph.purchases.where((p) => p.date.isAfter(from.subtract(const Duration(seconds: 1))) && p.date.isBefore(todayEnd))) {
+    for (var p in ph.purchases.where((p) => p.date.isBefore(from))) {
+      if (partySelectionType == "Single" && p.partyId != selectedPartyId) continue;
       for (var it in p.items.where((it) => it.medicineID == med.id)) {
-        receivedSinceFrom += (it.qty + it.freeQty);
+        purBefore += (it.qty + it.freeQty);
       }
     }
-    // DN from 'from' to today
-    for (var r in ph.purchaseReturns.where((r) => r.status == "Active" && r.date.isAfter(from.subtract(const Duration(seconds: 1))) && r.date.isBefore(todayEnd))) {
-      for (var it in r.items.where((it) => it.medicineID == med.id && !it.isBreakage)) {
-        receivedSinceFrom -= (it.qty + it.freeQty);
-      }
-    }
-
-    // Sales from 'from' to today
-    for (var s in ph.sales.where((s) => s.status == "Active" && s.date.isAfter(from.subtract(const Duration(seconds: 1))) && s.date.isBefore(todayEnd))) {
+    for (var s in ph.sales.where((s) => s.status == "Active" && s.date.isBefore(from))) {
+      if (partySelectionType == "Single" && s.partyId != selectedPartyId) continue;
       for (var it in s.items.where((it) => it.medicineID == med.id)) {
-        issuedSinceFrom += (it.qty + it.freeQty);
+        saleBefore += (it.qty + it.freeQty);
       }
     }
-    // CN from 'from' to today
-    for (var r in ph.saleReturns.where((r) => r.status == "Active" && r.date.isAfter(from.subtract(const Duration(seconds: 1))) && r.date.isBefore(todayEnd))) {
+    for (var r in ph.saleReturns.where((r) => r.status == "Active" && r.date.isBefore(from))) {
+      if (partySelectionType == "Single" && r.partyName != selectedParty) continue;
       for (var it in r.items.where((it) => it.medicineID == med.id && !it.isBreakage)) {
-        issuedSinceFrom -= (it.qty + it.freeQty);
+        cnBefore += (it.qty + it.freeQty);
+      }
+    }
+    for (var r in ph.purchaseReturns.where((r) => r.status == "Active" && r.date.isBefore(from))) {
+      if (partySelectionType == "Single" && r.distributorName != selectedParty) continue;
+      for (var it in r.items.where((it) => it.medicineID == med.id && !it.isBreakage)) {
+        dnBefore += (it.qty + it.freeQty);
       }
     }
 
-    // True retrospective Opening Stock at From Date
-    double opening = med.stock - receivedSinceFrom + issuedSinceFrom;
+    double opening = baseOpening + purBefore - saleBefore + cnBefore - dnBefore;
 
-    // B. Calculate Inwards and Outwards strictly WITHIN the selected period (from -> to)
-    double receivedInPeriod = 0.0;
-    double issuedInPeriod = 0.0;
-    double dnInPeriod = 0.0;
+    double purInPeriod = 0.0;
+    double saleInPeriod = 0.0;
     double cnInPeriod = 0.0;
+    double dnInPeriod = 0.0;
 
-    // Purchases in period
-    final filteredPurchases = ph.purchases.where((p) {
-      bool inRange = p.date.isAfter(from.subtract(const Duration(seconds: 1))) && 
-                     p.date.isBefore(to.add(const Duration(days: 1)));
-      if (!inRange) return false;
-      if (partySelectionType == "Single") return p.partyId == selectedPartyId;
-      return true;
-    });
-    for (var p in filteredPurchases) {
+    DateTime fromLimit = from.subtract(const Duration(seconds: 1));
+    DateTime toLimit = to.add(const Duration(days: 1));
+
+    for (var p in ph.purchases.where((p) => p.date.isAfter(fromLimit) && p.date.isBefore(toLimit))) {
+      if (partySelectionType == "Single" && p.partyId != selectedPartyId) continue;
       for (var it in p.items.where((it) => it.medicineID == med.id)) {
-        receivedInPeriod += (it.qty + it.freeQty);
+        purInPeriod += (it.qty + it.freeQty);
       }
     }
-
-    // DN in period
-    final filteredPurchaseReturns = ph.purchaseReturns.where((r) {
-      bool inRange = r.status == "Active" && r.date.isAfter(from.subtract(const Duration(seconds: 1))) && r.date.isBefore(to.add(const Duration(days: 1)));
-      if (!inRange) return false;
-      if (partySelectionType == "Single") return r.distributorName == selectedParty;
-      return true;
-    });
-    for (var r in filteredPurchaseReturns) {
+    for (var s in ph.sales.where((s) => s.status == "Active" && s.date.isAfter(fromLimit) && s.date.isBefore(toLimit))) {
+      if (partySelectionType == "Single" && s.partyId != selectedPartyId) continue;
+      for (var it in s.items.where((it) => it.medicineID == med.id)) {
+        saleInPeriod += (it.qty + it.freeQty);
+      }
+    }
+    for (var r in ph.saleReturns.where((r) => r.status == "Active" && r.date.isAfter(fromLimit) && r.date.isBefore(toLimit))) {
+      if (partySelectionType == "Single" && r.partyName != selectedParty) continue;
+      for (var it in r.items.where((it) => it.medicineID == med.id && !it.isBreakage)) {
+        cnInPeriod += (it.qty + it.freeQty);
+      }
+    }
+    for (var r in ph.purchaseReturns.where((r) => r.status == "Active" && r.date.isAfter(fromLimit) && r.date.isBefore(toLimit))) {
+      if (partySelectionType == "Single" && r.distributorName != selectedParty) continue;
       for (var it in r.items.where((it) => it.medicineID == med.id && !it.isBreakage)) {
         dnInPeriod += (it.qty + it.freeQty);
       }
     }
 
-    // Sales in period
-    final filteredSales = ph.sales.where((s) {
-      bool inRange = s.status == "Active" && 
-                     s.date.isAfter(from.subtract(const Duration(seconds: 1))) && 
-                     s.date.isBefore(to.add(const Duration(days: 1)));
-      if (!inRange) return false;
-      if (partySelectionType == "Single") return s.partyId == selectedPartyId;
-      return true;
-    });
-    for (var s in filteredSales) {
-      for (var it in s.items.where((it) => it.medicineID == med.id)) {
-        issuedInPeriod += (it.qty + it.freeQty);
-      }
-    }
-
-    // CN in period
-    final filteredSaleReturns = ph.saleReturns.where((r) {
-      bool inRange = r.status == "Active" && r.date.isAfter(from.subtract(const Duration(seconds: 1))) && r.date.isBefore(to.add(const Duration(days: 1)));
-      if (!inRange) return false;
-      if (partySelectionType == "Single") return r.partyName == selectedParty;
-      return true;
-    });
-    for (var r in filteredSaleReturns) {
-      for (var it in r.items.where((it) => it.medicineID == med.id && !it.isBreakage)) {
-        cnInPeriod += (it.qty + it.freeQty);
-      }
-    }
-
-    double finalReceived = receivedInPeriod;
-    double finalIssued = issuedInPeriod;
+    double received = purInPeriod;
+    double issued = saleInPeriod;
 
     if (deductDN) {
-      finalReceived -= dnInPeriod;
+      received -= dnInPeriod;
+    } else {
+      issued += dnInPeriod; 
     }
     if (deductCN) {
-      finalIssued -= cnInPeriod;
+      issued -= cnInPeriod;
+    } else {
+      received += cnInPeriod; 
     }
 
-    // True Closing Stock for the selected period (Allows negatives safely!)
-    double closing = opening + finalReceived - finalIssued;
+    double closing = opening + received - issued;
 
     return {
       'opening': opening,
-      'received': finalReceived,
-      'sale': finalIssued,
+      'received': received,
+      'sale': issued,
       'closing': closing,
     };
   }
 
-  // 2. DIRECT PRINT IN LANDSCAPE (FULLY SYNCED)
   static Future<void> generate({
     required CompanyProfile shop,
     required Map<String, List<Medicine>> groupedData,
@@ -170,7 +176,6 @@ class CompanyStockPdf {
     String colIssueVal = deductCN ? "NET ISSUE\nVALUE" : "ISSUE\nVALUE";
 
     for (var companyName in groupedData.keys) {
-      // Exclude logic
       if (companySelectionType == "Single" && companyName != ph.companies.firstWhere((c) => c.name == companyName, orElse: () => Company(id: '', name: 'OTHERS')).name) {
         continue;
       }
@@ -235,7 +240,6 @@ class CompanyStockPdf {
               ]);
             }
 
-            // Append Grand Total Row
             tableRows.add([
               "TOTAL",
               "-",
@@ -263,7 +267,6 @@ class CompanyStockPdf {
     );
   }
 
-  // 3. EMAIL COMPATIBLE BYTES GENERATION (FULLY SYNCED)
   static Future<Uint8List> generateBytes({
     required CompanyProfile shop,
     required Map<String, List<Medicine>> groupedData,
@@ -374,7 +377,6 @@ class CompanyStockPdf {
     return pdf.save();
   }
 
-  // --- COMPACT MARG REPORT HEADER ---
   static pw.Widget _buildHeader(CompanyProfile shop, String company, DateTime from, DateTime to, String basis, String partyType, String selParty) {
     String partyLabel = partyType == "Single" ? "PARTY TARGET: $selParty" : "ALL ACTIVE PARTIES";
     return pw.Column(children: [
@@ -421,23 +423,22 @@ class CompanyStockPdf {
     ]);
   }
 
-  // --- 10 COLUMNS LANDSCAPE TABLE ---
   static pw.Widget _buildDataTable(List<List<String>> rows, String colRecQty, String colRecVal, String colIssQty, String colIssVal) {
     return pw.TableHelper.fromTextArray(
       headerStyle: pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold, color: PdfColors.white),
       headerDecoration: const pw.BoxDecoration(color: PdfColors.indigo900),
       cellStyle: const pw.TextStyle(fontSize: 7.5),
       columnWidths: {
-        0: const pw.FixedColumnWidth(180), // Description
-        1: const pw.FixedColumnWidth(40),  // Packing
-        2: const pw.FixedColumnWidth(55),  // Op Stock
-        3: const pw.FixedColumnWidth(75),  // Op Val
-        4: const pw.FixedColumnWidth(55),  // Rec Qty
-        5: const pw.FixedColumnWidth(75),  // Rec Val
-        6: const pw.FixedColumnWidth(55),  // Issue Qty
-        7: const pw.FixedColumnWidth(75),  // Issue Val
-        8: const pw.FixedColumnWidth(55),  // Close Stock
-        9: const pw.FixedColumnWidth(75),  // Close Val
+        0: const pw.FixedColumnWidth(180), 
+        1: const pw.FixedColumnWidth(40),  
+        2: const pw.FixedColumnWidth(55),  
+        3: const pw.FixedColumnWidth(75),  
+        4: const pw.FixedColumnWidth(55),  
+        5: const pw.FixedColumnWidth(75),  
+        6: const pw.FixedColumnWidth(55),  
+        7: const pw.FixedColumnWidth(75),  
+        8: const pw.FixedColumnWidth(55),  
+        9: const pw.FixedColumnWidth(75),  
       },
       headers: [
         'PRODUCT DESCRIPTION', 'UNIT', 'OPENING\nSTOCK', 'OPENING\nVALUE', 
