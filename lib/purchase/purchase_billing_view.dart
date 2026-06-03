@@ -44,8 +44,8 @@ class _PurchaseBillingViewState extends State<PurchaseBillingView> {
   late TextEditingController internalNoC;
   late TextEditingController distBillNoC;
   late DateTime selectedBillDate;
+  final discountC = TextEditingController(text: "0"); // 🆕 Mapped for Purchase Extra Discount
   List<PurchaseItem> items = [];
-  double get totalAmt => items.fold(0, (sum, it) => sum + it.total);
 
   @override
   void initState() {
@@ -54,6 +54,18 @@ class _PurchaseBillingViewState extends State<PurchaseBillingView> {
     distBillNoC = TextEditingController(text: widget.distBillNo);
     selectedBillDate = widget.billDate;
     if (widget.existingItems != null) items = List.from(widget.existingItems!);
+
+    // If modifying an existing purchase, pull its extraDiscount value
+    if (widget.modifyPurchaseId != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        final ph = Provider.of<PharoahManager>(context, listen: false);
+        try {
+          final exPur = ph.purchases.firstWhere((p) => p.id == widget.modifyPurchaseId);
+          discountC.text = exPur.extraDiscount.toString();
+          setState(() {});
+        } catch (_) {}
+      });
+    }
   }
 
   void _recalculateSR() {
@@ -64,9 +76,17 @@ class _PurchaseBillingViewState extends State<PurchaseBillingView> {
     });
   }
 
-  @override
+@override
   Widget build(BuildContext context) {
     final ph = Provider.of<PharoahManager>(context);
+
+    // 🆕 CENTRAL CALCULATIONS (Common for footer & print)
+    double itemTotal = items.fold(0.0, (sum, it) => sum + it.total);
+    double extraDisc = double.tryParse(discountC.text) ?? 0.0;
+    double rawTotal = itemTotal - extraDisc;
+    double finalGrandTotal = rawTotal.roundToDouble();
+    double roundOffVal = finalGrandTotal - rawTotal;
+
     return Scaffold(
       backgroundColor: const Color(0xFFF5F6F9),
       appBar: AppBar(
@@ -84,8 +104,12 @@ class _PurchaseBillingViewState extends State<PurchaseBillingView> {
               final tempPurchase = Purchase(
                 id: "temp", internalNo: internalNoC.text, billNo: distBillNoC.text.trim(), 
                 partyId: widget.distributor.id, date: selectedBillDate, entryDate: widget.entryDate, 
-                distributorName: widget.distributor.name, items: items, totalAmount: totalAmt, 
-                paymentMode: widget.mode, linkedChallanIds: widget.linkedChallanIds ?? [],
+                distributorName: widget.distributor.name, items: items, 
+                totalAmount: finalGrandTotal, // 🆕 Passed correct net total
+                paymentMode: widget.mode, 
+                linkedChallanIds: widget.linkedChallanIds ?? [],
+                extraDiscount: extraDisc,     // 🆕 Mapped
+                roundOff: roundOffVal,         // 🆕 Mapped
               );
               await PdfRouterService.printPurchase(purchase: tempPurchase, supplier: widget.distributor, ph: ph);
             },
@@ -94,7 +118,7 @@ class _PurchaseBillingViewState extends State<PurchaseBillingView> {
             Padding(
               padding: const EdgeInsets.only(right: 10),
               child: TextButton(
-                onPressed: items.isEmpty ? null : () => _handleSave(ph), 
+                onPressed: items.isEmpty ? null : () => _handleSave(ph, itemTotal, extraDisc, roundOffVal, finalGrandTotal), 
                 child: const Text("FINISH", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold))
               ),
             )
@@ -104,7 +128,7 @@ class _PurchaseBillingViewState extends State<PurchaseBillingView> {
         _buildHeader(),
         _buildSearchBarTrigger(ph),
         Expanded(child: items.isEmpty ? const Center(child: Text("Cart is empty")) : ListView.builder(padding: const EdgeInsets.symmetric(horizontal: 10), itemCount: items.length, itemBuilder: (c, i) => _buildItemCard(items[i], i, ph))),
-        _buildFooter(),
+        _buildFooter(itemTotal, extraDisc, roundOffVal, finalGrandTotal),
       ]),
     );
   }
@@ -181,20 +205,68 @@ class _PurchaseBillingViewState extends State<PurchaseBillingView> {
     );
   }
 
-  Widget _buildFooter() => Container(
-    padding: const EdgeInsets.all(20), color: Colors.white,
-    child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-      const Text("INWARD TOTAL", style: TextStyle(fontWeight: FontWeight.bold, letterSpacing: 1, fontSize: 12, color: Colors.grey)),
-      Text("₹${totalAmt.toStringAsFixed(2)}", style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: Color(0xFFB45309)))
+  // 🆕 UPGRADED FOOTER: Mapped with extra discount and live round-off
+  Widget _buildFooter(double itemTotal, double extraDisc, double roundOffVal, double finalGrandTotal) => Container(
+    padding: const EdgeInsets.all(15), 
+    decoration: const BoxDecoration(color: Colors.white, boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 10)]),
+    child: Column(children: [
+      _row("Items Total", "₹${itemTotal.toStringAsFixed(2)}"),
+      const SizedBox(height: 5),
+      Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+        const Text("Extra Discount (-)", style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
+        SizedBox(
+          width: 100, 
+          child: TextField(
+            controller: discountC, 
+            readOnly: widget.isReadOnly,
+            keyboardType: TextInputType.number, 
+            textAlign: TextAlign.right, 
+            onChanged: (v) => setState(() {}), 
+            decoration: const InputDecoration(isDense: true, contentPadding: EdgeInsets.all(8), border: OutlineInputBorder()),
+            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.red)
+          )
+        ),
+      ]),
+      const SizedBox(height: 5),
+      _row("Round Off", roundOffVal.toStringAsFixed(2)),
+      const Divider(),
+      _row("GRAND TOTAL", "₹${finalGrandTotal.toStringAsFixed(0)}.00", bold: true, size: 22, color: const Color(0xFFB45309)),
     ]),
   );
 
-  void _handleSave(PharoahManager ph) {
+  Widget _row(String l, String v, {bool bold = false, double size = 15, Color? color}) => Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [Text(l, style: TextStyle(fontWeight: bold ? FontWeight.bold : FontWeight.normal)), Text(v, style: TextStyle(fontWeight: bold ? FontWeight.bold : FontWeight.normal, fontSize: size, color: color))]);
+
+  void _handleSave(PharoahManager ph, double itemTotal, double extraDisc, double roundOffVal, double finalGrandTotal) {
     List<String> links = widget.linkedChallanIds ?? [];
     if (widget.modifyPurchaseId != null) {
-      ph.updatePurchase(id: widget.modifyPurchaseId!, internalNo: internalNoC.text, billNo: distBillNoC.text.trim(), date: selectedBillDate, entryDate: widget.entryDate, party: widget.distributor, items: items, total: totalAmt, mode: widget.mode, linkedChallanIds: links);
+      ph.updatePurchase(
+        id: widget.modifyPurchaseId!, 
+        internalNo: internalNoC.text, 
+        billNo: distBillNoC.text.trim(), 
+        date: selectedBillDate, 
+        entryDate: widget.entryDate, 
+        party: widget.distributor, 
+        items: items, 
+        total: finalGrandTotal, // Passed net total
+        mode: widget.mode, 
+        linkedChallanIds: links,
+        extraDiscount: extraDisc, // 🆕 Mapped
+        roundOff: roundOffVal,     // 🆕 Mapped
+      );
     } else {
-      ph.finalizePurchase(internalNo: internalNoC.text, billNo: distBillNoC.text.trim(), date: selectedBillDate, entryDate: widget.entryDate, party: widget.distributor, items: items, total: totalAmt, mode: widget.mode, linkedChallanIds: links);
+      ph.finalizePurchase(
+        internalNo: internalNoC.text, 
+        billNo: distBillNoC.text.trim(), 
+        date: selectedBillDate, 
+        entryDate: widget.entryDate, 
+        party: widget.distributor, 
+        items: items, 
+        total: finalGrandTotal, // Passed net total
+        mode: widget.mode, 
+        linkedChallanIds: links,
+        extraDiscount: extraDisc, // 🆕 Mapped
+        roundOff: roundOffVal,     // 🆕 Mapped
+      );
     }
     Navigator.of(context).popUntil((route) => route.isFirst);
   }
