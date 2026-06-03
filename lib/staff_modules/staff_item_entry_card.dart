@@ -213,7 +213,7 @@ class _StaffItemEntryCardState extends State<StaffItemEntryCard> {
                   medicineID: widget.med.id,
                   name: widget.med.name,
                   packing: widget.med.packing,
-                  batch: batchC.text.toUpperCase(),
+                  batch: batchC.text.trim(), // 👈 Case Preserved (Removed .toUpperCase() and added .trim())
                   exp: expC.text,
                   hsn: widget.med.hsnCode,
                   mrp: double.tryParse(mrpC.text) ?? 0,
