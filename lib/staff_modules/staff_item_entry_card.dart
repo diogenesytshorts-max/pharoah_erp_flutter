@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import '../models.dart';
 import '../pharoah_manager.dart';
 import '../batch_sync_engine.dart'; // NAYA IMPORT
+import '../widgets.dart'; 
 import '../expiry_master.dart';    // NAYA IMPORT
 
 class StaffItemEntryCard extends StatefulWidget {
