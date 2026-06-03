@@ -20,6 +20,7 @@ import 'gateway/company_registry_model.dart';
 import 'logic/app_settings_model.dart';
 import 'logic/pharoah_numbering_engine.dart';
 import 'master_data_library.dart';
+import 'batch_sync_engine.dart';
 
 class PharoahManager with ChangeNotifier {
   // ===========================================================================
