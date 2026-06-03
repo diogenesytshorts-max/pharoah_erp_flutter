@@ -467,21 +467,134 @@ Future<void> finalizePurchase({
   }
 
   // --- CHALLANS & RETURNS ---
-  void finalizeSaleChallan({required String billNo, required DateTime date, required Party party, required List<BillItem> items, required double total, String remarks = "", required String partyId}) { saleChallans.add(SaleChallan(id: DateTime.now().toString(), billNo: billNo, partyId: partyId, date: date, partyName: party.name, partyGstin: party.gst, partyState: party.state, items: items, totalAmount: total, remarks: remarks)); save(); }
-  void finalizePurchaseChallan({required String billNo, required String internalNo, required DateTime date, required Party party, required List<PurchaseItem> items, required double total, String remarks = "", required String partyId}) { purchaseChallans.add(PurchaseChallan(id: DateTime.now().toString(), internalNo: internalNo, billNo: billNo, partyId: partyId, date: date, distributorName: party.name, items: items, totalAmount: total, remarks: remarks)); save(); }
+ // --- CHALLANS & RETURNS ---
+  void finalizeSaleChallan({
+    required String billNo, 
+    required DateTime date, 
+    required Party party, 
+    required List<BillItem> items, 
+    required double total, 
+    String remarks = "", 
+    required String partyId
+  }) { 
+    saleChallans.add(SaleChallan(id: DateTime.now().toString(), billNo: billNo, partyId: partyId, date: date, partyName: party.name, partyGstin: party.gst, partyState: party.state, items: items, totalAmount: total, remarks: remarks)); 
+    
+    // 🆕 TWO-WAY SYNC: Sale Challan items ko Batch Master me register/update karein
+    for (var item in items) {
+      registerBatchActivity(
+        productKey: item.medicineID,
+        batchNo: item.batch,
+        exp: item.exp,
+        packing: item.packing,
+        mrp: item.mrp,
+        rate: item.rate,
+        rateA: item.appliedRateType == "A" ? item.rate : 0.0,
+        rateB: item.appliedRateType == "B" ? item.rate : 0.0,
+        rateC: item.appliedRateType == "C" ? item.rate : 0.0,
+        rateCFormula: item.rateCFormula,
+        appliedRateType: item.appliedRateType,
+      );
+    }
+    save(); 
+  }
+
+  void finalizePurchaseChallan({
+    required String billNo, 
+    required String internalNo, 
+    required DateTime date, 
+    required Party party, 
+    required List<PurchaseItem> items, 
+    required double total, 
+    String remarks = "", 
+    required String partyId
+  }) { 
+    purchaseChallans.add(PurchaseChallan(id: DateTime.now().toString(), internalNo: internalNo, billNo: billNo, partyId: partyId, date: date, distributorName: party.name, items: items, totalAmount: total, remarks: remarks)); 
+    
+    // 🆕 TWO-WAY SYNC: Purchase Challan items ko Batch Master me register/update karein
+    for (var item in items) {
+      registerBatchActivity(
+        productKey: item.medicineID,
+        batchNo: item.batch,
+        exp: item.exp,
+        packing: item.packing,
+        mrp: item.mrp,
+        rate: item.purchaseRate,
+        rateA: item.rateA,
+        rateB: item.rateB,
+        rateC: item.rateC,
+        rateCFormula: item.rateCFormula,
+        appliedRateType: item.appliedRateType,
+      );
+    }
+    save(); 
+  }
+  
   // --- NEW CODE ---
- Future<void> finalizeSaleReturn({required String billNo, required DateTime date, required Party party, required List<BillItem> items, required double total, double extraDiscount = 0.0, double roundOff = 0.0, String type = "Mixed"}) async { 
+// --- NEW CODE ---
+  Future<void> finalizeSaleReturn({
+    required String billNo, 
+    required DateTime date, 
+    required Party party, 
+    required List<BillItem> items, 
+    required double total, 
+    double extraDiscount = 0.0, 
+    double roundOff = 0.0, 
+    String type = "Mixed"
+  }) async { 
     saleReturns.add(SaleReturn(id: DateTime.now().toString(), billNo: billNo, date: date, partyName: party.name, items: items, totalAmount: total, returnType: type, extraDiscount: extraDiscount, roundOff: roundOff, status: "Active")); 
     
+    // 🆕 TWO-WAY SYNC: Sale Return (Credit Note) items ko Batch Master me register/update karein
+    for (var item in items) {
+      registerBatchActivity(
+        productKey: item.medicineID,
+        batchNo: item.batch,
+        exp: item.exp,
+        packing: item.packing,
+        mrp: item.mrp,
+        rate: item.rate,
+        rateA: item.appliedRateType == "A" ? item.rate : 0.0,
+        rateB: item.appliedRateType == "B" ? item.rate : 0.0,
+        rateC: item.appliedRateType == "C" ? item.rate : 0.0,
+        rateCFormula: item.rateCFormula,
+        appliedRateType: item.appliedRateType,
+      );
+    }
+
     // Rebuild first, then Save
     InventoryLogicCenter.rebuildAllInventory(medicines: medicines, batchHistory: batchHistory, purchases: purchases, sales: sales, saleReturns: saleReturns, purchaseReturns: purchaseReturns); 
     await save();
     notifyListeners();
   }
 
- Future<void> finalizePurchaseReturn({required String billNo, required DateTime date, required Party party, required List<PurchaseItem> items, required double total, double extraDiscount = 0.0, double roundOff = 0.0, String type = "Mixed"}) async { 
+  Future<void> finalizePurchaseReturn({
+    required String billNo, 
+    required DateTime date, 
+    required Party party, 
+    required List<PurchaseItem> items, 
+    required double total, 
+    double extraDiscount = 0.0, 
+    double roundOff = 0.0, 
+    String type = "Mixed"
+  }) async { 
     purchaseReturns.add(PurchaseReturn(id: DateTime.now().toString(), billNo: billNo, distributorName: party.name, date: date, items: items, totalAmount: total, status: "Active", returnType: type, extraDiscount: extraDiscount, roundOff: roundOff)); 
     
+    // 🆕 TWO-WAY SYNC: Purchase Return (Debit Note) items ko Batch Master me register/update karein
+    for (var item in items) {
+      registerBatchActivity(
+        productKey: item.medicineID,
+        batchNo: item.batch,
+        exp: item.exp,
+        packing: item.packing,
+        mrp: item.mrp,
+        rate: item.purchaseRate,
+        rateA: item.rateA,
+        rateB: item.rateB,
+        rateC: item.rateC,
+        rateCFormula: item.rateCFormula,
+        appliedRateType: item.appliedRateType,
+      );
+    }
+
     // Rebuild first, then Save
     InventoryLogicCenter.rebuildAllInventory(medicines: medicines, batchHistory: batchHistory, purchases: purchases, sales: sales, saleReturns: saleReturns, purchaseReturns: purchaseReturns); 
     await save();
