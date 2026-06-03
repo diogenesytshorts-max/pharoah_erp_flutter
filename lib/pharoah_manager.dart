@@ -478,8 +478,6 @@ Future<void> finalizeSale({
     notifyListeners(); 
   }
 
-  // --- CHALLANS & RETURNS ---
- // --- CHALLANS & RETURNS ---
 // --- CHALLANS & RETURNS ---
   void finalizeSaleChallan({
     required String billNo, 
@@ -497,7 +495,7 @@ Future<void> finalizeSale({
       String resolvedKey = item.medicineID;
       try {
         final med = medicines.firstWhere((m) => m.id == item.medicineID);
-        resolvedKey = med.identityKey;
+        resolvedKey = med.identityKey; // Mapped to e.g. "PH-10001"
       } catch (_) {}
 
       registerBatchActivity(
@@ -534,7 +532,7 @@ Future<void> finalizeSale({
       String resolvedKey = item.medicineID;
       try {
         final med = medicines.firstWhere((m) => m.id == item.medicineID);
-        resolvedKey = med.identityKey;
+        resolvedKey = med.identityKey; // Mapped to e.g. "PH-10001"
       } catch (_) {}
 
       registerBatchActivity(
@@ -573,7 +571,7 @@ Future<void> finalizeSale({
       String resolvedKey = item.medicineID;
       try {
         final med = medicines.firstWhere((m) => m.id == item.medicineID);
-        resolvedKey = med.identityKey;
+        resolvedKey = med.identityKey; // Resolved to "PH-10001"
       } catch (_) {}
 
       registerBatchActivity(
@@ -614,7 +612,7 @@ Future<void> finalizeSale({
       String resolvedKey = item.medicineID;
       try {
         final med = medicines.firstWhere((m) => m.id == item.medicineID);
-        resolvedKey = med.identityKey;
+        resolvedKey = med.identityKey; // Resolved to "PH-10001"
       } catch (_) {}
 
       registerBatchActivity(
