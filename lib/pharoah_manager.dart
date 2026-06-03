@@ -339,23 +339,98 @@ class PharoahManager with ChangeNotifier {
   // 6. BUSINESS LOGIC (SALES, PURCHASES, STITCHER)
   // ===========================================================================
 
-Future<void> finalizeSale({required String billNo, required DateTime date, required Party party, required List<BillItem> items, required double total, required String mode, List<String>? linkedIds, double extraDiscount = 0.0, double roundOff = 0.0, String sourceTag = ""}) async { 
+Future<void> finalizeSale({
+    required String billNo, 
+    required DateTime date, 
+    required Party party, 
+    required List<BillItem> items, 
+    required double total, 
+    required String mode, 
+    List<String>? linkedIds, 
+    double extraDiscount = 0.0, 
+    double roundOff = 0.0, 
+    String sourceTag = ""
+  }) async { 
     final p = parties.firstWhere((pt) => pt.id == party.id, orElse: () => party);
     sales.add(Sale(id: DateTime.now().toString(), billNo: billNo, partyId: p.id, date: date, partyName: p.name, partyGstin: p.gst, partyState: p.state, items: items, totalAmount: total, paymentMode: mode, linkedChallanIds: linkedIds ?? [], extraDiscount: extraDiscount, roundOff: roundOff, partyAddress: p.address, partyPhone: p.phone, partyEmail: p.email, partyDl: p.dl, partyPan: p.pan, partyCity: p.city, sourceTag: sourceTag)); 
-    if (linkedIds != null) { for (var id in linkedIds) { int i = saleChallans.indexWhere((c) => c.id == id); if (i != -1) saleChallans[i].status = "Billed"; } }
-    if (sourceTag.isEmpty && activeCompany != null) { String pfx = billNo.split(RegExp(r'\d')).first; await PharoahNumberingEngine.updateSeriesCounter(type: "SALE", companyID: activeCompany!.id, usedNumber: billNo, prefix: pfx); }
     
-    // --- 🛡️ LIFECYCLE RESTRUCTURE: REBUILD FIRST, THEN SAVE (NEW) ---
+    if (linkedIds != null) { 
+      for (var id in linkedIds) { 
+        int i = saleChallans.indexWhere((c) => c.id == id); 
+        if (i != -1) saleChallans[i].status = "Billed"; 
+      } 
+    }
+    
+    if (sourceTag.isEmpty && activeCompany != null) { 
+      String pfx = billNo.split(RegExp(r'\d')).first; 
+      await PharoahNumberingEngine.updateSeriesCounter(type: "SALE", companyID: activeCompany!.id, usedNumber: billNo, prefix: pfx); 
+    }
+
+    // 🆕 TWO-WAY SYNC: Billing items ko Batch Master me auto-register/update karein
+    for (var item in items) {
+      registerBatchActivity(
+        productKey: item.medicineID, 
+        batchNo: item.batch, 
+        exp: item.exp, 
+        packing: item.packing, 
+        mrp: item.mrp, 
+        rate: item.rate, // sale price reference
+        rateA: item.appliedRateType == "A" ? item.rate : 0.0,
+        rateB: item.appliedRateType == "B" ? item.rate : 0.0,
+        rateC: item.appliedRateType == "C" ? item.rate : 0.0,
+        rateCFormula: item.rateCFormula,
+        appliedRateType: item.appliedRateType,
+      );
+    }
+    
+    // Rebuild first, then Save
     InventoryLogicCenter.rebuildAllInventory(medicines: medicines, batchHistory: batchHistory, purchases: purchases, sales: sales, saleReturns: saleReturns, purchaseReturns: purchaseReturns); 
-    await save(); // Correctly saves rebuilt batches with final stock to disk!
+    await save(); 
     
     notifyListeners();
   }
 
-Future<void> finalizePurchase({required String internalNo, required String billNo, required DateTime date, DateTime? entryDate, required Party party, required List<PurchaseItem> items, required double total, required String mode, List<String>? linkedChallanIds, String sourceTag = ""}) async { 
+Future<void> finalizePurchase({
+    required String internalNo, 
+    required String billNo, 
+    required DateTime date, 
+    DateTime? entryDate, 
+    required Party party, 
+    required List<PurchaseItem> items, 
+    required double total, 
+    required String mode, 
+    List<String>? linkedChallanIds, 
+    String sourceTag = ""
+  }) async { 
     purchases.add(Purchase(id: DateTime.now().toString(), internalNo: internalNo, billNo: billNo, partyId: party.id, date: date, entryDate: entryDate ?? DateTime.now(), distributorName: party.name, items: items, totalAmount: total, paymentMode: mode, linkedChallanIds: linkedChallanIds ?? [], sourceTag: sourceTag)); 
-    if (linkedChallanIds != null) { for (var id in linkedChallanIds) { int i = purchaseChallans.indexWhere((c) => c.id == id); if (i != -1) purchaseChallans[i].status = "Billed"; } }
-    if (sourceTag.isEmpty && activeCompany != null) { await PharoahNumberingEngine.updateSeriesCounter(type: "PURCHASE", companyID: activeCompany!.id, usedNumber: internalNo, prefix: "PUR-"); }
+    
+    if (linkedChallanIds != null) { 
+      for (var id in linkedChallanIds) { 
+        int i = purchaseChallans.indexWhere((c) => c.id == id); 
+        if (i != -1) purchaseChallans[i].status = "Billed"; 
+      } 
+    }
+    
+    if (sourceTag.isEmpty && activeCompany != null) { 
+      await PharoahNumberingEngine.updateSeriesCounter(type: "PURCHASE", companyID: activeCompany!.id, usedNumber: internalNo, prefix: "PUR-"); 
+    }
+
+    // 🆕 TWO-WAY SYNC: Inward (Purchase) items ko Batch Master me full rates aur formulas ke sath save/update karein
+    for (var item in items) {
+      registerBatchActivity(
+        productKey: item.medicineID, 
+        batchNo: item.batch, 
+        exp: item.exp, 
+        packing: item.packing, 
+        mrp: item.mrp, 
+        rate: item.purchaseRate, // purchase inward rate reference
+        rateA: item.rateA,
+        rateB: item.rateB,
+        rateC: item.rateC,
+        rateCFormula: item.rateCFormula,
+        appliedRateType: item.appliedRateType,
+      );
+    }
     
     // Rebuild first, then Save
     InventoryLogicCenter.rebuildAllInventory(medicines: medicines, batchHistory: batchHistory, purchases: purchases, sales: sales, saleReturns: saleReturns, purchaseReturns: purchaseReturns); 
@@ -415,17 +490,38 @@ Future<void> finalizePurchase({required String internalNo, required String billN
   // 7. BATCH TOOLS & INVENTORY INTEL
   // ===========================================================================
 
-  void registerBatchActivity({required String productKey, required String batchNo, required String exp, required String packing, required double mrp, required double rate}) {
-    if (activeCompany == null) return;
-    if (!batchHistory.containsKey(productKey)) batchHistory[productKey] = [];
-    List<BatchInfo> history = batchHistory[productKey]!;
-    int existingIdx = history.indexWhere((b) => b.batch.trim() == batchNo.trim());
-    if (existingIdx != -1) {
-      history[existingIdx].exp = exp; history[existingIdx].mrp = mrp; history[existingIdx].rate = rate; history[existingIdx].packing = packing;
-    } else {
-      history.add(BatchInfo(batch: batchNo.trim(), exp: exp, packing: packing, mrp: mrp, rate: rate, qty: 0.0, isShell: false));
-    }
-    save();
+void registerBatchActivity({
+    required String productKey, 
+    required String batchNo, 
+    required String exp, 
+    required String packing, 
+    required double mrp, 
+    required double rate,
+    double rateA = 0.0,
+    double rateB = 0.0,
+    double rateC = 0.0,
+    double rateCFormula = 0.0,
+    String appliedRateType = "A",
+    double qtyChange = 0.0,
+    String status = "Active",
+  }) {
+    // Direct delegation to BatchSyncEngine (Centralized safe sync)
+    BatchSyncEngine.registerBatchActivity(
+      ph: this,
+      productKey: productKey,
+      batchNo: batchNo,
+      exp: exp,
+      packing: packing,
+      mrp: mrp,
+      rate: rate,
+      rateA: rateA,
+      rateB: rateB,
+      rateC: rateC,
+      rateCFormula: rateCFormula,
+      appliedRateType: appliedRateType,
+      qtyChange: qtyChange,
+      status: status,
+    );
   }
 
   void runAutoShortageScan() { shortages.removeWhere((s) => s.source == "Auto"); for (var m in medicines) { double a = calculateAvgMonthlySale(m.id); double r = a * 1.5; if (m.stock < r && r > 0) { shortages.add(ShortageItem(id: "auto_${m.id}", medicineId: m.id, medicineName: m.name, companyName: m.companyId, qtyRequired: r - m.stock, currentStock: m.stock, date: DateTime.now(), source: "Auto")); } } save(); }
