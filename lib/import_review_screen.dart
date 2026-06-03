@@ -152,23 +152,169 @@ class _ImportReviewScreenState extends State<ImportReviewScreen> {
     setState(() => isLoading = false);
   }
 
-  void _autoResolveAllNewProducts(PharoahManager ph) async {
+  // 🆕 DYNAMIC AUTO-PROPAGATION: Ek row link hote hi baaki saari matching rows ko instantly auto-link karega
+  void _propagateMatchingLinks(Medicine matchedMed) {
+    setState(() {
+      for (var it in reviewedItems) {
+        if (it['match'] == null && 
+            it['name'].toString().toUpperCase().trim() == matchedMed.name.toUpperCase().trim() && 
+            it['pack'].toString().toUpperCase().trim() == matchedMed.packing.toUpperCase().trim()) {
+          it['match'] = matchedMed;
+          it['status'] = 'exact';
+          it['isSelected'] = true;
+        }
+      }
+    });
+  }
+
+  // 🆕 INSTANT BILLING-STYLE SEARCH SHEET: Direct link sheet (bypasses full master view)
+  void _showInstantLinkOverlay(int itemIndex, PharoahManager ph) {
+    String localSearch = "";
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: const Color(0xFF1E293B), // Premium Dark Slate matching theme
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(25))),
+      builder: (context) => StatefulBuilder(
+        builder: (context, setSheetState) {
+          final filteredMeds = ph.medicines
+              .where((m) => m.name.toLowerCase().contains(localSearch.toLowerCase()))
+              .toList();
+
+          return Container(
+            height: MediaQuery.of(context).size.height * 0.8,
+            padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom, left: 20, right: 20, top: 15),
+            child: Column(
+              children: [
+                Container(height: 5, width: 50, decoration: const BoxDecoration(color: Colors.white24)),
+                const SizedBox(height: 15),
+                const Text(
+                  "SEARCH SYSTEM MASTER TO LINK",
+                  style: TextStyle(color: Colors.white70, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1),
+                ),
+                const SizedBox(height: 15),
+                TextField(
+                  style: const TextStyle(color: Colors.white),
+                  autofocus: true,
+                  decoration: InputDecoration(
+                    hintText: "Type name to search product...",
+                    hintStyle: const TextStyle(color: Colors.white38),
+                    prefixIcon: const Icon(Icons.search, color: Colors.blueAccent),
+                    filled: true,
+                    fillColor: Colors.white10,
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(15), borderSide: BorderSide.none),
+                  ),
+                  onChanged: (v) => setSheetState(() => localSearch = v),
+                ),
+                const SizedBox(height: 15),
+                Expanded(
+                  child: filteredMeds.isEmpty
+                      ? const Center(child: Text("No products found.", style: TextStyle(color: Colors.white38)))
+                      : ListView.builder(
+                          itemCount: filteredMeds.length,
+                          itemBuilder: (c, idx) {
+                            final m = filteredMeds[idx];
+                            return ListTile(
+                              title: Text(m.name, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                              subtitle: Text("Pack: ${m.packing} | Stock: ${m.stock.toInt()}", style: const TextStyle(color: Colors.white54, fontSize: 11)),
+                              trailing: const Icon(Icons.link_rounded, color: Colors.greenAccent, size: 18),
+                              onTap: () {
+                                Navigator.pop(context, m);
+                              },
+                            );
+                          },
+                        ),
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    ).then((selectedMed) {
+      if (selectedMed != null && selectedMed is Medicine) {
+        setState(() {
+          reviewedItems[itemIndex]['match'] = selectedMed;
+          reviewedItems[itemIndex]['status'] = 'exact';
+          reviewedItems[itemIndex]['isSelected'] = true;
+        });
+        // Matching unlinked items ko instantly cascade (propagate) karein
+        _propagateMatchingLinks(selectedMed);
+      }
+    });
+  }
+
+ void _autoResolveAllNewProducts(PharoahManager ph) async {
     List<int> newIndices = [];
-    for (int i = 0; i < reviewedItems.length; i++) { if (reviewedItems[i]['status'] == 'new') newIndices.add(i); }
+    for (int i = 0; i < reviewedItems.length; i++) { 
+      if (reviewedItems[i]['status'] == 'new') newIndices.add(i); 
+    }
     if (newIndices.isEmpty) return;
 
     setState(() => isLoading = true);
+    
+    // System ID Counter Setup
     String startNoStr = await PharoahNumberingEngine.getNextNumber(type: "PRODUCT", companyID: ph.activeCompany!.id, prefix: "PH-", startFrom: 10001, currentList: ph.medicines);
     int currentNum = int.parse(startNoStr.replaceAll("PH-", ""));
 
+    // Loop ke andar duplicate master creation se bachne ke liye local cache
+    Map<String, Medicine> newlyCreatedInLoop = {};
+
     for (int idx in newIndices) {
       var it = reviewedItems[idx];
-      String genId = "PH-$currentNum";
-      final m = Medicine(id: DateTime.now().millisecondsSinceEpoch.toString() + idx.toString(), systemId: genId, name: it['name'], packing: it['pack'], hsnCode: it['hsn'], gst: it['gstPer'], mrp: it['mrp'], purRate: it['purRate'], rateA: it['rate'], drugForm: it['form'], isNarcotic: it['isNaco'], isScheduleH1: it['isH1'], companyId: ph.getOrCreateCompany(it['mfg']), saltId: ph.getOrCreateSalt(it['salt']));
-      ph.addMedicine(m, doSave: false); 
-      it['match'] = m; it['status'] = 'exact'; it['isSelected'] = true; currentNum++;
+      String nameKey = "${it['name'].toString().toUpperCase().trim()}|${it['pack'].toString().toUpperCase().trim()}";
+
+      if (newlyCreatedInLoop.containsKey(nameKey)) {
+        // 🆕 DEDUPLICATION: Use the product created in previous loop iteration
+        it['match'] = newlyCreatedInLoop[nameKey];
+        it['status'] = 'exact';
+        it['isSelected'] = true;
+      } else {
+        // Safe check: Kahin loop chalne ke dauran hi user ne manual create ya link toh nahi kiya
+        Medicine? doubleCheckMaster;
+        try {
+          doubleCheckMaster = ph.medicines.firstWhere((m) => 
+            m.name.toUpperCase().trim() == it['name'].toString().toUpperCase().trim() && 
+            m.packing.toUpperCase().trim() == it['pack'].toString().toUpperCase().trim()
+          );
+        } catch (_) { doubleCheckMaster = null; }
+
+        if (doubleCheckMaster != null) {
+          it['match'] = doubleCheckMaster;
+          it['status'] = 'exact';
+          it['isSelected'] = true;
+          newlyCreatedInLoop[nameKey] = doubleCheckMaster;
+        } else {
+          // Unique New Product Master creation
+          String genId = "PH-$currentNum";
+          final m = Medicine(
+            id: DateTime.now().millisecondsSinceEpoch.toString() + idx.toString(), 
+            systemId: genId, 
+            name: it['name'], 
+            packing: it['pack'], 
+            hsnCode: it['hsn'], 
+            gst: it['gstPer'], 
+            mrp: it['mrp'], 
+            purRate: it['purRate'], 
+            rateA: it['rate'], 
+            drugForm: it['form'], 
+            isNarcotic: it['isNaco'], 
+            isScheduleH1: it['isH1'], 
+            companyId: ph.getOrCreateCompany(it['mfg']), 
+            saltId: ph.getOrCreateSalt(it['salt'])
+          );
+          
+          ph.addMedicine(m, doSave: false); 
+          it['match'] = m; 
+          it['status'] = 'exact'; 
+          it['isSelected'] = true; 
+          
+          newlyCreatedInLoop[nameKey] = m;
+          currentNum++;
+        }
+      }
     }
-    await ph.save(); setState(() => isLoading = false);
+    await ph.save(); 
+    setState(() => isLoading = false);
   }
 
   void _showQuickPartyPicker(PharoahManager ph) {
@@ -274,16 +420,32 @@ class _ImportReviewScreenState extends State<ImportReviewScreen> {
           leading: Checkbox(value: it['isSelected'], activeColor: Colors.green, onChanged: (v) => setState(() => it['isSelected'] = v!)),
           title: Text(it['name'], style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13)),
           subtitle: Wrap(spacing: 5, children: [ _badge("PK: ${it['pack']}", Colors.blueGrey), _badge("DISC: ${it['itemDiscPer']}%", Colors.orangeAccent), ]),
-          trailing: it['match'] == null 
+        trailing: it['match'] == null 
             ? Row(mainAxisSize: MainAxisSize.min, children: [
-                IconButton(icon: const Icon(Icons.link, color: Colors.blueAccent, size: 20), onPressed: () async {
-                   final res = await Navigator.push(context, MaterialPageRoute(builder: (c) => const ProductMasterView(isSelectionMode: true)));
-                   if(res!=null) setState(() { it['match'] = res; it['status'] = 'exact'; it['isSelected'] = true; });
-                }),
-                IconButton(icon: const Icon(Icons.add_box, color: Colors.redAccent, size: 20), onPressed: () async {
-                   final res = await Navigator.push(context, MaterialPageRoute(builder: (c) => ProductMasterView(isSelectionMode: true, preFillData: it)));
-                   if(res!=null) setState(() { it['match'] = res; it['status'] = 'exact'; it['isSelected'] = true; });
-                }),
+                // 🆕 INSTANT LOOKUP SHEET: Master page par jane ke bajaye billing style sheet open karega
+                IconButton(
+                  icon: const Icon(Icons.link, color: Colors.blueAccent, size: 20), 
+                  onPressed: () => _showInstantLinkOverlay(i, ph),
+                ),
+                // 🆕 SINGLE CREATION WITH CASCADE: Naya product save hote hi sabhi matching unlinked items ko auto-link kar dega
+                IconButton(
+                  icon: const Icon(Icons.add_box, color: Colors.redAccent, size: 20), 
+                  onPressed: () async {
+                    final res = await Navigator.push(
+                      context, 
+                      MaterialPageRoute(builder: (c) => ProductMasterView(isSelectionMode: true, preFillData: it))
+                    );
+                    if (res != null && res is Medicine) {
+                      setState(() { 
+                        it['match'] = res; 
+                        it['status'] = 'exact'; 
+                        it['isSelected'] = true; 
+                      });
+                      // Mismatches aur duplicates se bachne ke liye auto-cascade check run karein
+                      _propagateMatchingLinks(res);
+                    }
+                  },
+                ),
               ])
             : const Icon(Icons.check_circle, color: Colors.greenAccent, size: 18),
         ),
