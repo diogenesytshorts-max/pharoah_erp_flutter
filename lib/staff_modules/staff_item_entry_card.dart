@@ -46,6 +46,40 @@ class _StaffItemEntryCardState extends State<StaffItemEntryCard> {
     _setupInitialData();
   }
 
+  // 🆕 TWO-WAY RECALL: Mapped for Staff Item Entry Card
+  void _triggerBatchLookup(PharoahManager ph) async {
+    final rawBatches = ph.batchHistory[widget.med.identityKey] ?? [];
+
+    // Global Batch Lookup modal kholna (Staff Compliant)
+    final selected = await showDialog<dynamic>(
+      context: context,
+      barrierDismissible: true,
+      builder: (context) => MargBatchLookupDialog(
+        medicine: widget.med,
+        batches: rawBatches,
+        prioritizeExpired: false, // Sales screen default
+      ),
+    );
+
+    if (selected != null) {
+      if (selected is BatchInfo) {
+        setState(() {
+          batchC.text = selected.batch;
+          expC.text = selected.exp;
+          mrpC.text = selected.mrp.toString();
+          rateC.text = selected.rate.toString();
+        });
+      } else if (selected == "MANUAL") {
+        setState(() {
+          batchC.clear();
+          expC.clear();
+          mrpC.text = widget.med.mrp.toString();
+          rateC.text = widget.med.rateA.toString();
+        });
+      }
+    }
+  }
+
   void _setupInitialData() {
     if (widget.existingItem != null) {
       final i = widget.existingItem!;
@@ -126,58 +160,22 @@ class _StaffItemEntryCardState extends State<StaffItemEntryCard> {
             IconButton(icon: const Icon(Icons.cancel, color: Colors.grey), onPressed: widget.onCancel)
           ]),
           const Divider(),
-          Row(children: [
-            Expanded(child: _input(batchC, "BATCH", Icons.layers, onChanged: (v)=>setState((){}))),
-            const SizedBox(width: 8),
-            Expanded(child: _input(expC, "EXPIRY", Icons.event, color: statusColor, isNum: true, onChanged: _formatExpiry)),
-          ]),
-
-          // --- NAYA: Conditional Batch Filter Header for Staff ---
-          if (ph.showBatchFilter && widget.existingItem == null)
-            Padding(
-              padding: const EdgeInsets.only(top: 10, left: 4, right: 4),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text("AVAILABLE BATCHES", style: TextStyle(fontSize: 8, fontWeight: FontWeight.bold, color: Colors.grey, letterSpacing: 0.5)),
-                  InkWell(
-                    onTap: () => setState(() => hideZeroStock = !hideZeroStock),
-                    child: Row(
-                      children: [
-                        Icon(
-                          hideZeroStock ? Icons.check_box : Icons.check_box_outline_blank, 
-                          size: 14, 
-                          color: Colors.teal
+      Row(children: [
+                    Expanded(
+                      child: _input(
+                        batchC, 
+                        "BATCH", 
+                        Icons.layers, 
+                        onChanged: (v)=>setState((){}),
+                        suffix: InkWell(
+                          onTap: () => _triggerBatchLookup(ph),
+                          child: const Icon(Icons.list_alt_rounded, color: Colors.teal, size: 18),
                         ),
-                        const SizedBox(width: 4),
-                        const Text("Hide Zero Stock", style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.teal)),
-                      ],
+                      ),
                     ),
-                  )
-                ],
-              ),
-            ),
-
-          // BATCH CHIPS FOR STAFF (Simplified & Upgraded with Stocks)
-          if (matchingBatches.isNotEmpty && widget.existingItem == null)
-            Container(height: 45, margin: const EdgeInsets.symmetric(vertical: 8),
-              child: ListView(scrollDirection: Axis.horizontal, children: matchingBatches.map((b) {
-                  Color bColor = ExpiryMaster.getStatusColor(b.exp);
-                  return Padding(padding: const EdgeInsets.only(right: 8),
-                    child: ActionChip(
-                      backgroundColor: bColor.withOpacity(0.05),
-                      label: Text("${b.batch} (${b.qty.toInt()})", style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: bColor)),
-                      onPressed: () {
-                        setState(() {
-                          batchC.text = b.batch; expC.text = b.exp;
-                          mrpC.text = b.mrp.toString(); rateC.text = b.rate.toString();
-                        });
-                      },
-                    ),
-                  );
-                }).toList(),
-              ),
-            ),
+                    const SizedBox(width: 8),
+                    Expanded(child: _input(expC, "EXPIRY", Icons.event, color: statusColor, isNum: true, onChanged: _formatExpiry)),
+                  ]),
 
           const SizedBox(height: 10),
           Row(children: [
@@ -234,12 +232,21 @@ class _StaffItemEntryCardState extends State<StaffItemEntryCard> {
     );
   }
 
-  Widget _input(TextEditingController ctrl, String label, IconData icon, {bool isNum = false, bool isReadOnly = false, Color? color, Function(String)? onChanged}) {
+Widget _input(TextEditingController ctrl, String label, IconData icon, {bool isNum = false, bool isReadOnly = false, Color? color, Function(String)? onChanged, Widget? suffix}) {
     return TextField(
       controller: ctrl, readOnly: isReadOnly, onChanged: onChanged,
       keyboardType: isNum ? const TextInputType.numberWithOptions(decimal: true) : TextInputType.text,
       style: TextStyle(fontWeight: FontWeight.bold, color: color, fontSize: 13),
-      decoration: InputDecoration(labelText: label, prefixIcon: Icon(icon, size: 16), border: const OutlineInputBorder(), isDense: true, filled: isReadOnly, fillColor: isReadOnly ? Colors.grey.shade100 : Colors.white),
+      decoration: InputDecoration(
+        labelText: label, 
+        prefixIcon: Icon(icon, size: 16), 
+        border: const OutlineInputBorder(), 
+        isDense: true, 
+        filled: isReadOnly, 
+        fillColor: isReadOnly ? Colors.grey.shade100 : Colors.white,
+        suffixIcon: suffix,
+        suffixIconConstraints: const BoxConstraints(minWidth: 24, minHeight: 24),
+      ),
     );
   }
 }
