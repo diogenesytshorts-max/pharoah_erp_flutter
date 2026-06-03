@@ -325,12 +325,43 @@ class Sale {
 class Purchase { 
   String id, internalNo, billNo, partyId, distributorName, paymentMode, gstStatus, sourceTag; 
   DateTime date, entryDate; List<PurchaseItem> items; double totalAmount; List<String> linkedChallanIds;
+  
+  // 🆕 PURCHASE EXTRA DISCOUNT & ROUND OFF
+  double extraDiscount;
+  double roundOff;
 
-  Purchase({required this.id, required this.internalNo, required this.billNo, required this.partyId, required this.date, required this.entryDate, required this.distributorName, required this.items, required this.totalAmount, required this.paymentMode, this.gstStatus = "Pending", this.linkedChallanIds = const [], this.sourceTag = ""});
+  Purchase({
+    required this.id, 
+    required this.internalNo, 
+    required this.billNo, 
+    required this.partyId, 
+    required this.date, 
+    required this.entryDate, 
+    required this.distributorName, 
+    required this.items, 
+    required this.totalAmount, 
+    required this.paymentMode, 
+    this.gstStatus = "Pending", 
+    this.linkedChallanIds = const [], 
+    this.sourceTag = "",
+    this.extraDiscount = 0.0,
+    this.roundOff = 0.0,
+  });
   
-  Map<String, dynamic> toMap() => {'id': id, 'internalNo': internalNo, 'billNo': billNo, 'partyId': partyId, 'date': date.toIso8601String(), 'entryDate': entryDate.toIso8601String(), 'distributorName': distributorName, 'paymentMode': paymentMode, 'gstStatus': gstStatus, 'totalAmount': totalAmount, 'items': items.map((i) => i.toMap()).toList(), 'linkedChallanIds': linkedChallanIds, 'sourceTag': sourceTag};
+  Map<String, dynamic> toMap() => {
+    'id': id, 'internalNo': internalNo, 'billNo': billNo, 'partyId': partyId, 'date': date.toIso8601String(), 
+    'entryDate': entryDate.toIso8601String(), 'distributorName': distributorName, 'paymentMode': paymentMode, 
+    'gstStatus': gstStatus, 'totalAmount': totalAmount, 'items': items.map((i) => i.toMap()).toList(), 
+    'linkedChallanIds': linkedChallanIds, 'sourceTag': sourceTag,
+    'extraDiscount': extraDiscount, 'roundOff': roundOff
+  };
   
-  factory Purchase.fromMap(Map<String, dynamic> map) => Purchase(id: map['id'] ?? "", internalNo: map['internalNo'] ?? "", billNo: map['billNo'] ?? "", distributorName: map['distributorName'] ?? "", partyId: map['partyId'] ?? "", paymentMode: map['paymentMode'] ?? "CREDIT", gstStatus: map['gstStatus'] ?? "Pending", date: DateTime.parse(map['date'] ?? DateTime.now().toIso8601String()), entryDate: DateTime.parse(map['entryDate'] ?? DateTime.now().toIso8601String()), totalAmount: (map['totalAmount'] ?? 0.0).toDouble(), items: (map['items'] as List?)?.map((i) => PurchaseItem.fromMap(i)).toList() ?? [], sourceTag: map['sourceTag'] ?? "", linkedChallanIds: List<String>.from(map['linkedChallanIds'] ?? [])); 
+  factory Purchase.fromMap(Map<String, dynamic> map) => Purchase(
+    id: map['id'] ?? "", internalNo: map['internalNo'] ?? "", billNo: map['billNo'] ?? "", distributorName: map['distributorName'] ?? "", partyId: map['partyId'] ?? "", paymentMode: map['paymentMode'] ?? "CREDIT", gstStatus: map['gstStatus'] ?? "Pending", date: DateTime.parse(map['date'] ?? DateTime.now().toIso8601String()), entryDate: DateTime.parse(map['entryDate'] ?? DateTime.now().toIso8601String()), totalAmount: (map['totalAmount'] ?? 0.0).toDouble(), items: (map['items'] as List?)?.map((i) => PurchaseItem.fromMap(i)).toList() ?? [], sourceTag: map['sourceTag'] ?? "", linkedChallanIds: List<String>.from(map['linkedChallanIds'] ?? []),
+    // 🆕 Fallbacks to load older purchase files safely
+    extraDiscount: (map['extraDiscount'] ?? 0.0).toDouble(),
+    roundOff: (map['roundOff'] ?? 0.0).toDouble(),
+  ); 
 }
 
 class SaleChallan { 
