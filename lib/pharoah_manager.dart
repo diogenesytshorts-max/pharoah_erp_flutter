@@ -397,7 +397,7 @@ Future<void> finalizeSale({
     notifyListeners();
   }
 
-  Future<void> finalizePurchase({
+Future<void> finalizePurchase({
     required String internalNo, 
     required String billNo, 
     required DateTime date, 
@@ -407,9 +407,11 @@ Future<void> finalizeSale({
     required double total, 
     required String mode, 
     List<String>? linkedChallanIds, 
-    String sourceTag = ""
+    String sourceTag = "",
+    double extraDiscount = 0.0, // 🆕 Mapped
+    double roundOff = 0.0,      // 🆕 Mapped
   }) async { 
-    purchases.add(Purchase(id: DateTime.now().toString(), internalNo: internalNo, billNo: billNo, partyId: party.id, date: date, entryDate: entryDate ?? DateTime.now(), distributorName: party.name, items: items, totalAmount: total, paymentMode: mode, linkedChallanIds: linkedChallanIds ?? [], sourceTag: sourceTag)); 
+    purchases.add(Purchase(id: DateTime.now().toString(), internalNo: internalNo, billNo: billNo, partyId: party.id, date: date, entryDate: entryDate ?? DateTime.now(), distributorName: party.name, items: items, totalAmount: total, paymentMode: mode, linkedChallanIds: linkedChallanIds ?? [], sourceTag: sourceTag, extraDiscount: extraDiscount, roundOff: roundOff)); 
     
     if (linkedChallanIds != null) { 
       for (var id in linkedChallanIds) { 
@@ -450,11 +452,25 @@ Future<void> finalizeSale({
     await save();
     notifyListeners();
   }
- Future<void> updatePurchase({required String id, required String internalNo, required String billNo, required DateTime date, DateTime? entryDate, required Party party, required List<PurchaseItem> items, required double total, required String mode, required List<String> linkedChallanIds}) async { 
+
+  Future<void> updatePurchase({
+    required String id, 
+    required String internalNo, 
+    required String billNo, 
+    required DateTime date, 
+    DateTime? entryDate, 
+    required Party party, 
+    required List<PurchaseItem> items, 
+    required double total, 
+    required String mode, 
+    required List<String> linkedChallanIds,
+    double extraDiscount = 0.0, // 🆕 Mapped
+    double roundOff = 0.0,      // 🆕 Mapped
+  }) async { 
     int idx = purchases.indexWhere((p) => p.id == id); 
     if (idx == -1) return; 
     String t = purchases[idx].sourceTag; 
-    purchases[idx] = Purchase(id: id, internalNo: internalNo, billNo: billNo, partyId: party.id, date: date, entryDate: entryDate ?? DateTime.now(), distributorName: party.name, items: items, totalAmount: total, paymentMode: mode, linkedChallanIds: linkedChallanIds, sourceTag: t); 
+    purchases[idx] = Purchase(id: id, internalNo: internalNo, billNo: billNo, partyId: party.id, date: date, entryDate: entryDate ?? DateTime.now(), distributorName: party.name, items: items, totalAmount: total, paymentMode: mode, linkedChallanIds: linkedChallanIds, sourceTag: t, extraDiscount: extraDiscount, roundOff: roundOff); 
     
     // Rebuild first, then Save
     InventoryLogicCenter.rebuildAllInventory(medicines: medicines, batchHistory: batchHistory, purchases: purchases, sales: sales, saleReturns: saleReturns, purchaseReturns: purchaseReturns); 
