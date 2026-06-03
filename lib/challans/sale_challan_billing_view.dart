@@ -329,43 +329,36 @@ class _SaleChallanBillingViewState extends State<SaleChallanBillingView> {
         ),
       );
 
-  void _handleSave(PharoahManager ph) async {
+void _handleSave(PharoahManager ph) async {
     if (widget.existingRecord != null) {
       ph.deleteSaleChallan(widget.existingRecord!.id);
     }
 
-    final newChallan = SaleChallan(
-      id: DateTime.now().toString(),
+    // 🆕 TWO-WAY SYNC TRIGGER: Direct list add ke bajaye finalizer call karein
+    ph.finalizeSaleChallan(
       billNo: widget.challanNo,
-      partyId: widget.party.id, // ID Link Added
       date: widget.challanDate,
-      partyName: widget.party.name,
-      partyGstin: widget.party.gst,
-      partyState: widget.party.state,
+      party: widget.party,
       items: items,
-      totalAmount: totalAmt,
+      total: totalAmt,
       remarks: remarksC.text.trim(),
-      sigHistory: [], 
-      isSigned: false,
+      partyId: widget.party.id,
     );
 
-    if (ph.config.showCustomerSignChallan == true) {
-      ph.saleChallans.add(newChallan);
-      await ph.save();
+    // Dynamic fetch of newly created challan record
+    final createdChallan = ph.saleChallans.last;
 
+    if (ph.config.showCustomerSignChallan == true) {
       if (mounted) {
         Navigator.pushReplacement(
           context, 
           MaterialPageRoute(builder: (c) => ChallanSignatureView(
-            challan: newChallan, 
+            challan: createdChallan, 
             party: widget.party
           ))
         );
       }
     } else {
-      ph.saleChallans.add(newChallan);
-      await ph.save();
-      
       if (mounted) {
         Navigator.of(context).popUntil((route) => route.isFirst);
         ScaffoldMessenger.of(context).showSnackBar(
