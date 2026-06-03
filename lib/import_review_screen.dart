@@ -99,8 +99,13 @@ class _ImportReviewScreenState extends State<ImportReviewScreen> {
       'dateAdjustmentNote': dateAdjustmentNote,
       'rawCsvDate': rawCsvDate,
 
-      'extraDisc': r1.length > 35 ? (double.tryParse(r1[35].toString()) ?? 0.0) : 0.0,
-      'roundOff': r1.length > 36 ? (double.tryParse(r1[36].toString()) ?? 0.0) : 0.0,
+   // 🆕 BACKWARD COMPATIBLE & SECURE PARSING:
+      // Naya format (39 columns): Index 37 is Extra Discount, Index 38 is Round Off
+      // Purana format (38 columns): Extra Discount is 0.0, Index 37 is Round Off
+      'extraDisc': r1.length >= 39 ? (double.tryParse(r1[37].toString()) ?? 0.0) : 0.0,
+      'roundOff': r1.length >= 39 
+          ? (double.tryParse(r1[38].toString()) ?? 0.0) 
+          : (r1.length >= 38 ? (double.tryParse(r1[37].toString()) ?? 0.0) : 0.0),
     };
 
     try {
