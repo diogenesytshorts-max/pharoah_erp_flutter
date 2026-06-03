@@ -168,7 +168,8 @@ class _ImportReviewScreenState extends State<ImportReviewScreen> {
   }
 
   // 🆕 INSTANT BILLING-STYLE SEARCH SHEET: Direct link sheet (bypasses full master view)
-  void _showInstantLinkOverlay(int itemIndex, PharoahManager ph) {
+  void _showInstantLinkOverlay(int itemIndex) {
+    final ph = Provider.of<PharoahManager>(context, listen: false); // Mapped via context safely
     String localSearch = "";
     showModalBottomSheet(
       context: context,
@@ -214,14 +215,7 @@ class _ImportReviewScreenState extends State<ImportReviewScreen> {
                           itemCount: filteredMeds.length,
                           itemBuilder: (c, idx) {
                             final m = filteredMeds[idx];
-                            return ListTile(
-                              title: Text(m.name, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                              subtitle: Text("Pack: ${m.packing} | Stock: ${m.stock.toInt()}", style: const TextStyle(color: Colors.white54, fontSize: 11)),
-                              trailing: const Icon(Icons.link_rounded, color: Colors.greenAccent, size: 18),
-                              onTap: () {
-                                Navigator.pop(context, m);
-                              },
-                            );
+                            return LibraryListTile(m, context);
                           },
                         ),
                 ),
@@ -241,6 +235,18 @@ class _ImportReviewScreenState extends State<ImportReviewScreen> {
         _propagateMatchingLinks(selectedMed);
       }
     });
+  }
+
+  // Helper widget to bypass compiler nested state rebuild checks
+  Widget LibraryListTile(Medicine m, BuildContext context) {
+    return ListTile(
+      title: Text(m.name, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+      subtitle: Text("Pack: ${m.packing} | Stock: ${m.stock.toInt()}", style: const TextStyle(color: Colors.white54, fontSize: 11)),
+      trailing: const Icon(Icons.link_rounded, color: Colors.greenAccent, size: 18),
+      onTap: () {
+        Navigator.pop(context, m);
+      },
+    );
   }
 
  void _autoResolveAllNewProducts(PharoahManager ph) async {
@@ -407,6 +413,7 @@ class _ImportReviewScreenState extends State<ImportReviewScreen> {
   );
 
   Widget _buildRow(int i) {
+    final ph = Provider.of<PharoahManager>(context, listen: false);
     var it = reviewedItems[i];
     bool hasErr = (it['sysTotal'] - it['csvTotal']).abs() > 0.1 && !it['isFixed'];
     Color statusColor = it['status'] == 'new' ? Colors.orange : (hasErr ? Colors.redAccent : Colors.greenAccent);
@@ -425,7 +432,7 @@ class _ImportReviewScreenState extends State<ImportReviewScreen> {
                 // 🆕 INSTANT LOOKUP SHEET: Master page par jane ke bajaye billing style sheet open karega
                 IconButton(
                   icon: const Icon(Icons.link, color: Colors.blueAccent, size: 20), 
-                  onPressed: () => _showInstantLinkOverlay(i, ph),
+                  onPressed: () => _showInstantLinkOverlay(i),
                 ),
                 // 🆕 SINGLE CREATION WITH CASCADE: Naya product save hote hi sabhi matching unlinked items ko auto-link kar dega
                 IconButton(
