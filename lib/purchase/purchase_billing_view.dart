@@ -541,6 +541,7 @@ class _PurchaseItemEntryCardState extends State<PurchaseItemEntryCard> {
                       const SizedBox(height: 20),
 
                       // Solid Action Button
+                      // Solid Action Button
                       SizedBox(
                         width: double.infinity,
                         height: 48,
@@ -555,7 +556,7 @@ class _PurchaseItemEntryCardState extends State<PurchaseItemEntryCard> {
                              widget.onAdd(PurchaseItem(
                                 id: widget.existingItem?.id ?? DateTime.now().toString(),
                                 srNo: widget.srNo, medicineID: widget.med.id, name: widget.med.name, packing: widget.med.packing,
-                                batch: batchC.text.trim().toUpperCase(), // 👈 Case Preserved
+                                batch: batchC.text.trim(), // 👈 Case Preserved (Removed .toUpperCase())
                                 exp: expC.text, hsn: widget.med.hsnCode, mrp: double.tryParse(mrpC.text) ?? 0,
                                 qty: double.tryParse(qtyC.text) ?? 0, freeQty: double.tryParse(freeC.text) ?? 0,
                                 purchaseRate: double.tryParse(purRateC.text) ?? 0, gstRate: double.tryParse(gstC.text) ?? 0,
