@@ -213,27 +213,6 @@ class _PurchaseBillingViewState extends State<PurchaseBillingView> {
 
 // REPLACE FROM HERE TO END OF FILE IN lib/purchase/purchase_billing_view.dart
 
-class PurchaseItemEntryCard extends StatefulWidget {
-  final Medicine med; 
-  final int srNo; 
-  final PurchaseItem? existingItem; 
-  final Function(PurchaseItem) onAdd; 
-  final VoidCallback onCancel;
-  final bool allowExpired; 
-
-  const PurchaseItemEntryCard({
-    super.key, 
-    required this.med, 
-    required this.srNo, 
-    this.existingItem, 
-    required this.onAdd, 
-    required this.onCancel,
-    this.allowExpired = false,
-  });
-
-  @override State<PurchaseItemEntryCard> createState() => _PurchaseItemEntryCardState();
-}
-
 class _PurchaseItemEntryCardState extends State<PurchaseItemEntryCard> {
   final batchC = TextEditingController(); 
   final expC = TextEditingController(); 
@@ -255,6 +234,48 @@ class _PurchaseItemEntryCardState extends State<PurchaseItemEntryCard> {
   void initState() {
     super.initState();
     _setupInitialData();
+  }
+
+  // 🆕 TWO-WAY RECALL: Mapped for Purchase Item Entry Card
+  void _triggerBatchLookup(PharoahManager ph) async {
+    final rawBatches = ph.batchHistory[widget.med.identityKey] ?? [];
+
+    // Global Batch Lookup modal kholna (Wholesale compliant)
+    final selected = await showDialog<dynamic>(
+      context: context,
+      barrierDismissible: true,
+      builder: (context) => MargBatchLookupDialog(
+        medicine: widget.med,
+        batches: rawBatches,
+        prioritizeExpired: widget.allowExpired,
+      ),
+    );
+
+    if (selected != null) {
+      if (selected is BatchInfo) {
+        // Dynamic autofill on choice
+        setState(() {
+          batchC.text = selected.batch;
+          expC.text = selected.exp;
+          mrpC.text = selected.mrp.toStringAsFixed(2);
+          purRateC.text = selected.purRate.toStringAsFixed(2);
+          rateAC.text = selected.rateA.toStringAsFixed(2);
+          rateBC.text = selected.rateB.toStringAsFixed(2);
+          rateCC.text = selected.rateC.toStringAsFixed(2);
+          rateCDiscC.text = selected.rateCFormula.toStringAsFixed(2);
+          selectedRateType = selected.appliedRateType;
+          _syncDiscount(true);
+        });
+      } else if (selected == "MANUAL") {
+        setState(() {
+          batchC.clear();
+          expC.clear();
+          mrpC.text = widget.med.mrp.toString();
+          purRateC.text = widget.med.purRate.toString();
+          _calcRateC();
+        });
+      }
+    }
   }
 
   void _setupInitialData() {
@@ -410,46 +431,28 @@ class _PurchaseItemEntryCardState extends State<PurchaseItemEntryCard> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Row 1: Batch & Expiry
+                   // Row 1: Batch & Expiry
                       Row(
                         children: [
-                          Expanded(child: _vibrantInput("BATCH (Case-Sensitive)", batchC, brandTeal, false, onChanged: (v) => setState(() {}))),
+                          Expanded(
+                            child: _vibrantInput(
+                              "BATCH (Case-Sensitive)", 
+                              batchC, 
+                              brandTeal, 
+                              false, 
+                              onChanged: (v) => setState(() {}),
+                              // Lookup Trigger mapped inside BATCH suffix safely
+                              suffix: InkWell(
+                                onTap: () => _triggerBatchLookup(ph),
+                                child: const Icon(Icons.list_alt_rounded, color: Color(0xFF115E59), size: 20),
+                              ),
+                            ),
+                          ),
                           const SizedBox(width: 12),
                           Expanded(child: _vibrantInput("EXPIRY (MM/YY)", expC, brandTeal, false, isNum: true, onChanged: _formatExpiry)),
                         ],
                       ),
                       const SizedBox(height: 12),
-
-                      if (matchingBatches.isNotEmpty && widget.existingItem == null) ...[
-                        const Text("SELECT RECENT BATCH", style: TextStyle(fontSize: 8, fontWeight: FontWeight.bold, color: Color(0xFF94A3B8))),
-                        const SizedBox(height: 6),
-                        SizedBox(
-                          height: 36,
-                          child: ListView(
-                            scrollDirection: Axis.horizontal, 
-                            children: matchingBatches.map((b) => Padding(
-                              padding: const EdgeInsets.only(right: 8), 
-                              child: ActionChip(
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                                backgroundColor: const Color(0xFFE6F4EA),
-                                side: const BorderSide(color: Color(0xFFA3E635)),
-                                label: Text(
-                                  "${b.batch} (${b.qty.toInt()} Tab)",
-                                  style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF15803D)),
-                                ),
-                                onPressed: () {
-                                  setState(() { 
-                                    batchC.text = b.batch; expC.text = b.exp; 
-                                    mrpC.text = b.mrp.toString(); purRateC.text = b.rate.toString(); 
-                                    _calcRateC(); _syncDiscount(true);
-                                  });
-                                }
-                              )
-                            )).toList()
-                          )
-                        ),
-                        const SizedBox(height: 16),
-                      ],
 
                       // Rate selection Row
                       Row(
@@ -571,7 +574,7 @@ class _PurchaseItemEntryCardState extends State<PurchaseItemEntryCard> {
     );
   }
 
-  Widget _vibrantInput(
+Widget _vibrantInput(
     String label,
     TextEditingController ctrl,
     Color activeColor,
@@ -580,6 +583,7 @@ class _PurchaseItemEntryCardState extends State<PurchaseItemEntryCard> {
     bool highlight = false,
     bool isNum = false,
     Function(String)? onChanged,
+    Widget? suffix, // Mapped safely
   }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -604,21 +608,28 @@ class _PurchaseItemEntryCardState extends State<PurchaseItemEntryCard> {
               width: highlight ? 1.8 : 1.0,
             ),
           ),
-          child: TextField(
-            controller: ctrl,
-            readOnly: isReadOnly,
-            onChanged: onChanged,
-            keyboardType: isNum ? const TextInputType.numberWithOptions(decimal: true) : TextInputType.text,
-            style: TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w900,
-              color: isReadOnly ? const Color(0xFF64748B) : const Color(0xFF0F172A),
-            ),
-            decoration: const InputDecoration(
-              isDense: true,
-              contentPadding: EdgeInsets.symmetric(vertical: 10),
-              border: InputBorder.none,
-            ),
+          child: Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: ctrl,
+                  readOnly: isReadOnly,
+                  onChanged: onChanged,
+                  keyboardType: isNum ? const TextInputType.numberWithOptions(decimal: true) : TextInputType.text,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w900,
+                    color: isReadOnly ? const Color(0xFF64748B) : const Color(0xFF0F172A),
+                  ),
+                  decoration: const InputDecoration(
+                    isDense: true,
+                    contentPadding: EdgeInsets.symmetric(vertical: 10),
+                    border: InputBorder.none,
+                  ),
+                ),
+              ),
+              if (suffix != null) suffix,
+            ],
           ),
         ),
       ],
