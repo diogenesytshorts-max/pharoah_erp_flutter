@@ -367,15 +367,21 @@ Future<void> finalizeSale({
       await PharoahNumberingEngine.updateSeriesCounter(type: "SALE", companyID: activeCompany!.id, usedNumber: billNo, prefix: pfx); 
     }
 
-    // 🆕 TWO-WAY SYNC: Billing items ko Batch Master me auto-register/update karein
+    // 🆕 STRICT TWO-WAY SYNC: Billing items ko business key (systemId) ke sath Master me register karein
     for (var item in items) {
+      String resolvedKey = item.medicineID;
+      try {
+        final med = medicines.firstWhere((m) => m.id == item.medicineID);
+        resolvedKey = med.identityKey; // "PH-10001" resolved!
+      } catch (_) {}
+
       registerBatchActivity(
-        productKey: item.medicineID, 
+        productKey: resolvedKey, 
         batchNo: item.batch, 
         exp: item.exp, 
         packing: item.packing, 
         mrp: item.mrp, 
-        rate: item.rate, // sale price reference
+        rate: item.rate,
         rateA: item.appliedRateType == "A" ? item.rate : 0.0,
         rateB: item.appliedRateType == "B" ? item.rate : 0.0,
         rateC: item.appliedRateType == "C" ? item.rate : 0.0,
@@ -391,7 +397,7 @@ Future<void> finalizeSale({
     notifyListeners();
   }
 
-Future<void> finalizePurchase({
+  Future<void> finalizePurchase({
     required String internalNo, 
     required String billNo, 
     required DateTime date, 
@@ -416,15 +422,21 @@ Future<void> finalizePurchase({
       await PharoahNumberingEngine.updateSeriesCounter(type: "PURCHASE", companyID: activeCompany!.id, usedNumber: internalNo, prefix: "PUR-"); 
     }
 
-    // 🆕 TWO-WAY SYNC: Inward (Purchase) items ko Batch Master me full rates aur formulas ke sath save/update karein
+    // 🆕 STRICT TWO-WAY SYNC: Purchase items ko business key (systemId) ke sath Master me register karein
     for (var item in items) {
+      String resolvedKey = item.medicineID;
+      try {
+        final med = medicines.firstWhere((m) => m.id == item.medicineID);
+        resolvedKey = med.identityKey; // "PH-10001" resolved!
+      } catch (_) {}
+
       registerBatchActivity(
-        productKey: item.medicineID, 
+        productKey: resolvedKey, 
         batchNo: item.batch, 
         exp: item.exp, 
         packing: item.packing, 
         mrp: item.mrp, 
-        rate: item.purchaseRate, // purchase inward rate reference
+        rate: item.purchaseRate,
         rateA: item.rateA,
         rateB: item.rateB,
         rateC: item.rateC,
@@ -468,6 +480,7 @@ Future<void> finalizePurchase({
 
   // --- CHALLANS & RETURNS ---
  // --- CHALLANS & RETURNS ---
+// --- CHALLANS & RETURNS ---
   void finalizeSaleChallan({
     required String billNo, 
     required DateTime date, 
@@ -479,10 +492,16 @@ Future<void> finalizePurchase({
   }) { 
     saleChallans.add(SaleChallan(id: DateTime.now().toString(), billNo: billNo, partyId: partyId, date: date, partyName: party.name, partyGstin: party.gst, partyState: party.state, items: items, totalAmount: total, remarks: remarks)); 
     
-    // 🆕 TWO-WAY SYNC: Sale Challan items ko Batch Master me register/update karein
+    // 🆕 STRICT TWO-WAY SYNC: Sale Challan items ko correct systemId ke sath Batch Master me register karein
     for (var item in items) {
+      String resolvedKey = item.medicineID;
+      try {
+        final med = medicines.firstWhere((m) => m.id == item.medicineID);
+        resolvedKey = med.identityKey;
+      } catch (_) {}
+
       registerBatchActivity(
-        productKey: item.medicineID,
+        productKey: resolvedKey,
         batchNo: item.batch,
         exp: item.exp,
         packing: item.packing,
@@ -510,10 +529,16 @@ Future<void> finalizePurchase({
   }) { 
     purchaseChallans.add(PurchaseChallan(id: DateTime.now().toString(), internalNo: internalNo, billNo: billNo, partyId: partyId, date: date, distributorName: party.name, items: items, totalAmount: total, remarks: remarks)); 
     
-    // 🆕 TWO-WAY SYNC: Purchase Challan items ko Batch Master me register/update karein
+    // 🆕 STRICT TWO-WAY SYNC: Purchase Challan items ko correct systemId ke sath Batch Master me register karein
     for (var item in items) {
+      String resolvedKey = item.medicineID;
+      try {
+        final med = medicines.firstWhere((m) => m.id == item.medicineID);
+        resolvedKey = med.identityKey;
+      } catch (_) {}
+
       registerBatchActivity(
-        productKey: item.medicineID,
+        productKey: resolvedKey,
         batchNo: item.batch,
         exp: item.exp,
         packing: item.packing,
@@ -543,10 +568,16 @@ Future<void> finalizePurchase({
   }) async { 
     saleReturns.add(SaleReturn(id: DateTime.now().toString(), billNo: billNo, date: date, partyName: party.name, items: items, totalAmount: total, returnType: type, extraDiscount: extraDiscount, roundOff: roundOff, status: "Active")); 
     
-    // 🆕 TWO-WAY SYNC: Sale Return (Credit Note) items ko Batch Master me register/update karein
+    // 🆕 STRICT TWO-WAY SYNC: Sale Return (Credit Note) items ko correct systemId ke sath Batch Master me register karein
     for (var item in items) {
+      String resolvedKey = item.medicineID;
+      try {
+        final med = medicines.firstWhere((m) => m.id == item.medicineID);
+        resolvedKey = med.identityKey;
+      } catch (_) {}
+
       registerBatchActivity(
-        productKey: item.medicineID,
+        productKey: resolvedKey,
         batchNo: item.batch,
         exp: item.exp,
         packing: item.packing,
@@ -578,10 +609,16 @@ Future<void> finalizePurchase({
   }) async { 
     purchaseReturns.add(PurchaseReturn(id: DateTime.now().toString(), billNo: billNo, distributorName: party.name, date: date, items: items, totalAmount: total, status: "Active", returnType: type, extraDiscount: extraDiscount, roundOff: roundOff)); 
     
-    // 🆕 TWO-WAY SYNC: Purchase Return (Debit Note) items ko Batch Master me register/update karein
+    // 🆕 STRICT TWO-WAY SYNC: Purchase Return (Debit Note) items ko correct systemId ke sath Batch Master me register karein
     for (var item in items) {
+      String resolvedKey = item.medicineID;
+      try {
+        final med = medicines.firstWhere((m) => m.id == item.medicineID);
+        resolvedKey = med.identityKey;
+      } catch (_) {}
+
       registerBatchActivity(
-        productKey: item.medicineID,
+        productKey: resolvedKey,
         batchNo: item.batch,
         exp: item.exp,
         packing: item.packing,
