@@ -67,7 +67,7 @@ class CsvEngine {
                   shop.name, shop.gstin, shop.dlNo, "N/A", shop.phone, shop.email, shop.address, // 11-17
                   i.name, i.packing, i.hsn, mfg, salt, med.drugForm, med.isNarcotic ? "YES" : "NO", med.isScheduleH1 ? "YES" : "NO", // 18-25
                   i.batch, i.exp, i.qty, i.freeQty, i.mrp, i.purchaseRate, i.rateA, i.gstRate, // 26-33
-                  i.total, i.discountPer, i.discountRupees, 0.0, 0.0 // 34, 35, 36, 37, 38
+                  i.total, i.discountPer, i.discountRupees, p.extraDiscount, p.roundOff // 34, 35, 36, 37, 38 (🆕 Real purchase properties mapped)
                 ]);
       }
     }
