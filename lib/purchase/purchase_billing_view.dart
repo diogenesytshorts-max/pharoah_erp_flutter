@@ -5,13 +5,13 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../pharoah_manager.dart';
 import '../models.dart';
+import '../widgets.dart'; // Mapped safely for MargBatchLookupDialog
 import '../product_master.dart'; 
 import '../batch_sync_engine.dart'; 
 import '../expiry_master.dart';    
 import 'package:intl/intl.dart';
 import '../pdf/pdf_router_service.dart';
 import 'dart:ui';
-import '../widgets.dart'; 
 
 class PurchaseBillingView extends StatefulWidget {
   final Party distributor;
@@ -200,19 +200,26 @@ class _PurchaseBillingViewState extends State<PurchaseBillingView> {
   }
 }
 
-// =============================================================================
-// 🛒 REFINED ITEM ENTRY CARD (Enterprise UI + Rate C + Two Way Sync)
-// =============================================================================
+class PurchaseItemEntryCard extends StatefulWidget {
+  final Medicine med; 
+  final int srNo; 
+  final PurchaseItem? existingItem; 
+  final Function(PurchaseItem) onAdd; 
+  final VoidCallback onCancel;
+  final bool allowExpired; 
 
-// =============================================================================
-// 🛒 ADVANCED PURCHASE ITEM ENTRY CARD (WITH STATE PERSISTENCE)
-// =============================================================================
+  const PurchaseItemEntryCard({
+    super.key, 
+    required this.med, 
+    required this.srNo, 
+    this.existingItem, 
+    required this.onAdd, 
+    required this.onCancel,
+    this.allowExpired = false,
+  });
 
-// =============================================================================
-// 🛒 ADVANCED PURCHASE ITEM ENTRY CARD (WITH STATE PERSISTENCE)
-// =============================================================================
-
-// REPLACE FROM HERE TO END OF FILE IN lib/purchase/purchase_billing_view.dart
+  @override State<PurchaseItemEntryCard> createState() => _PurchaseItemEntryCardState();
+}
 
 class _PurchaseItemEntryCardState extends State<PurchaseItemEntryCard> {
   final batchC = TextEditingController(); 
@@ -235,48 +242,6 @@ class _PurchaseItemEntryCardState extends State<PurchaseItemEntryCard> {
   void initState() {
     super.initState();
     _setupInitialData();
-  }
-
-  // 🆕 TWO-WAY RECALL: Mapped for Purchase Item Entry Card
-  void _triggerBatchLookup(PharoahManager ph) async {
-    final rawBatches = ph.batchHistory[widget.med.identityKey] ?? [];
-
-    // Global Batch Lookup modal kholna (Wholesale compliant)
-    final selected = await showDialog<dynamic>(
-      context: context,
-      barrierDismissible: true,
-      builder: (context) => MargBatchLookupDialog(
-        medicine: widget.med,
-        batches: rawBatches,
-        prioritizeExpired: widget.allowExpired,
-      ),
-    );
-
-    if (selected != null) {
-      if (selected is BatchInfo) {
-        // Dynamic autofill on choice
-        setState(() {
-          batchC.text = selected.batch;
-          expC.text = selected.exp;
-          mrpC.text = selected.mrp.toStringAsFixed(2);
-          purRateC.text = selected.purRate.toStringAsFixed(2);
-          rateAC.text = selected.rateA.toStringAsFixed(2);
-          rateBC.text = selected.rateB.toStringAsFixed(2);
-          rateCC.text = selected.rateC.toStringAsFixed(2);
-          rateCDiscC.text = selected.rateCFormula.toStringAsFixed(2);
-          selectedRateType = selected.appliedRateType;
-          _syncDiscount(true);
-        });
-      } else if (selected == "MANUAL") {
-        setState(() {
-          batchC.clear();
-          expC.clear();
-          mrpC.text = widget.med.mrp.toString();
-          purRateC.text = widget.med.purRate.toString();
-          _calcRateC();
-        });
-      }
-    }
   }
 
   void _setupInitialData() {
@@ -340,10 +305,50 @@ class _PurchaseItemEntryCardState extends State<PurchaseItemEntryCard> {
     setState(() {});
   }
 
+  void _triggerBatchLookup(PharoahManager ph) async {
+    final rawBatches = ph.batchHistory[widget.med.identityKey] ?? [];
+
+    // Global Batch Lookup modal kholna (Wholesale compliant)
+    final selected = await showDialog<dynamic>(
+      context: context,
+      barrierDismissible: true,
+      builder: (context) => MargBatchLookupDialog(
+        medicine: widget.med,
+        batches: rawBatches,
+        prioritizeExpired: widget.allowExpired,
+      ),
+    );
+
+    if (selected != null) {
+      if (selected is BatchInfo) {
+        // Dynamic autofill on choice
+        setState(() {
+          batchC.text = selected.batch;
+          expC.text = selected.exp;
+          mrpC.text = selected.mrp.toStringAsFixed(2);
+          purRateC.text = selected.purRate.toStringAsFixed(2);
+          rateAC.text = selected.rateA.toStringAsFixed(2);
+          rateBC.text = selected.rateB.toStringAsFixed(2);
+          rateCC.text = selected.rateC.toStringAsFixed(2);
+          rateCDiscC.text = selected.rateCFormula.toStringAsFixed(2);
+          selectedRateType = selected.appliedRateType;
+          _syncDiscount(true);
+        });
+      } else if (selected == "MANUAL") {
+        setState(() {
+          batchC.clear();
+          expC.clear();
+          mrpC.text = widget.med.mrp.toString();
+          purRateC.text = widget.med.purRate.toString();
+          _calcRateC();
+        });
+      }
+    }
+  }
+
   @override 
   Widget build(BuildContext context) {
     final ph = Provider.of<PharoahManager>(context);
-    final matchingBatches = BatchSyncEngine.getFilteredBatches(ph: ph, productKey: widget.med.identityKey, hideExpired: !widget.allowExpired);
     
     double q = double.tryParse(qtyC.text) ?? 0; 
     double r = double.tryParse(purRateC.text) ?? 0;
@@ -432,7 +437,7 @@ class _PurchaseItemEntryCardState extends State<PurchaseItemEntryCard> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                   // Row 1: Batch & Expiry
+                      // Row 1: Batch & Expiry
                       Row(
                         children: [
                           Expanded(
@@ -442,7 +447,6 @@ class _PurchaseItemEntryCardState extends State<PurchaseItemEntryCard> {
                               brandTeal, 
                               false, 
                               onChanged: (v) => setState(() {}),
-                              // Lookup Trigger mapped inside BATCH suffix safely
                               suffix: InkWell(
                                 onTap: () => _triggerBatchLookup(ph),
                                 child: const Icon(Icons.list_alt_rounded, color: Color(0xFF115E59), size: 20),
@@ -551,7 +555,7 @@ class _PurchaseItemEntryCardState extends State<PurchaseItemEntryCard> {
                              widget.onAdd(PurchaseItem(
                                 id: widget.existingItem?.id ?? DateTime.now().toString(),
                                 srNo: widget.srNo, medicineID: widget.med.id, name: widget.med.name, packing: widget.med.packing,
-                                batch: batchC.text.trim(), // 👈 Case Preserved
+                                batch: batchC.text.trim().toUpperCase(), // 👈 Case Preserved
                                 exp: expC.text, hsn: widget.med.hsnCode, mrp: double.tryParse(mrpC.text) ?? 0,
                                 qty: double.tryParse(qtyC.text) ?? 0, freeQty: double.tryParse(freeC.text) ?? 0,
                                 purchaseRate: double.tryParse(purRateC.text) ?? 0, gstRate: double.tryParse(gstC.text) ?? 0,
@@ -575,7 +579,7 @@ class _PurchaseItemEntryCardState extends State<PurchaseItemEntryCard> {
     );
   }
 
-Widget _vibrantInput(
+  Widget _vibrantInput(
     String label,
     TextEditingController ctrl,
     Color activeColor,
