@@ -287,7 +287,7 @@ class _ItemEntryCardState extends State<ItemEntryCard> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Row 1: Batch & Expiry (Lookup triggers mapped inside Batch input suffix)
+                   // Row 1: Batch & Expiry
                       Row(
                         children: [
                           Expanded(
@@ -307,61 +307,7 @@ class _ItemEntryCardState extends State<ItemEntryCard> {
                           Expanded(child: _vibrantInput("EXPIRY (MM/YY)", expC, accentElectric, false, isNum: true, onChanged: _formatExpiry)),
                         ],
                       ),
-                      const SizedBox(height: 12),
-
-                      // Conditional Batch Filter Header
-                      if (ph.showBatchFilter && widget.existingItem == null) ...[
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            const Text("AVAILABLE BATCHES", style: TextStyle(fontSize: 8, fontWeight: FontWeight.bold, color: Color(0xFF94A3B8))),
-                            InkWell(
-                              onTap: () => setState(() => hideZeroStock = !hideZeroStock),
-                              child: Row(
-                                children: [
-                                  Icon(
-                                    hideZeroStock ? Icons.check_box : Icons.check_box_outline_blank, 
-                                    size: 14, 
-                                    color: accentElectric,
-                                  ),
-                                  const SizedBox(width: 4),
-                                  const Text("Hide Zero Stock", style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: accentElectric)),
-                                ],
-                              ),
-                            )
-                          ],
-                        ),
-                        const SizedBox(height: 6),
-                      ],
-
-                      if (matchingBatches.isNotEmpty && widget.existingItem == null) ...[
-                        SizedBox(
-                          height: 36,
-                          child: ListView(
-                            scrollDirection: Axis.horizontal, 
-                            children: matchingBatches.map((b) => Padding(
-                              padding: const EdgeInsets.only(right: 8), 
-                              child: ActionChip(
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                                backgroundColor: const Color(0xFFEFF6FF),
-                                side: const BorderSide(color: Color(0xFFBFDBFE)),
-                                label: Text(
-                                  "${b.batch} (${b.qty.toInt()})",
-                                  style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF1D4ED8)),
-                                ),
-                                onPressed: () {
-                                  setState(() { 
-                                    batchC.text = b.batch; expC.text = b.exp; 
-                                    mrpC.text = b.mrp.toString(); 
-                                    _updateRateLogic();
-                                  });
-                                }
-                              )
-                            )).toList()
-                          )
-                        ),
-                        const SizedBox(height: 16),
-                      ],
+                      const SizedBox(height: 16),
 
                       // High Contrast Segmented Buttons
                       Row(
