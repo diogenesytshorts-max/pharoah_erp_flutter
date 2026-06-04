@@ -40,78 +40,87 @@ class PurchasePdf {
           pageFormat: PdfPageFormat.a4.landscape,
           margin: const pw.EdgeInsets.symmetric(horizontal: 20, vertical: 15),
           build: (pw.Context context) {
-            return pw.Container(
-              width: masterWidth,
-              height: pageHeightLimit,
-              decoration: pw.BoxDecoration(border: pw.Border.all(width: 1, color: PdfColors.black)),
-              child: pw.Column(
-                children: [
-                  // Header
-                  pw.Row(children: [
-                    // Box 1: Shop (Width 285)
-                    _hBox(285, true, pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
-                      pw.Text(shop.name.toUpperCase(), style: pw.TextStyle(fontSize: 13, fontWeight: pw.FontWeight.bold, color: PdfColors.blue900)),
-                      pw.Text(shop.address, style: const pw.TextStyle(fontSize: 7), maxLines: 2),
-                      pw.Text("GSTIN: ${shop.gstin} | DL: ${shop.dlNo}", style: pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold)),
-                      pw.Text("Mob: ${shop.phone} | Email: ${shop.email.toLowerCase()}", style: const pw.TextStyle(fontSize: 7)),
-                    ])),
-                    // Box 2: Invoice Info (Width 170)
-                    _hBox(170, true, pw.Column(children: [
-                      pw.Text("PURCHASE BILL", style: pw.TextStyle(fontSize: 11, fontWeight: pw.FontWeight.bold, color: PdfColors.orange900)),
-                      pw.Divider(thickness: 0.5),
-                      pw.Text(pur.billNo, style: pw.TextStyle(fontSize: 8.5, fontWeight: pw.FontWeight.bold)),
-                      pw.Text(DateFormat('dd/MM/yyyy').format(pur.date), style: const pw.TextStyle(fontSize: 8)),
-                      pw.Text(pur.paymentMode, style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold)),
-                    ])),
-                    // Box 3: Supplier (Width 340)
-                    _hBox(340, false, pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
-                      pw.Text("SUPPLIER DETAILS:", style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold, color: PdfColors.grey700)),
-                      pw.Text(supplier.name, style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold, color: PdfColors.blue900)),
-                      pw.Text("GSTIN: ${supplier.gst} | DL: ${supplier.dl}", style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold)),
-                      pw.Text("Mob: ${supplier.phone} | Email: ${supplier.email.toLowerCase()}", style: const pw.TextStyle(fontSize: 7)),
-                    ])),
-                  ]),
-
-                  // Table Header
-                  pw.Container(
-                    color: PdfColors.grey200,
-                    child: pw.Row(children: [
-                      _tCol("S.N", 25), _tCol("Qty", 45), _tCol("Free", 35), _tCol("Pack", 45),
-                      _tCol("Product Name", 215, isLeft: true), _tCol("Batch", 80), _tCol("Exp", 45), 
-                      _tCol("HSN", 50), _tCol("MRP", 60), _tCol("Rate", 60), _tCol("GST%", 50), 
-                      _tCol("Net Amt", 90, isLast: true),
+            return pw.Column(children: [
+              pw.Container(
+                width: masterWidth,
+                height: pageHeightLimit,
+                decoration: pw.BoxDecoration(border: pw.Border.all(width: 1, color: PdfColors.black)),
+                child: pw.Column(
+                  children: [
+                    // Header
+                    pw.Row(children: [
+                      // Box 1: Shop (Width 285)
+                      _hBox(285, true, pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
+                        pw.Text(shop.name.toUpperCase(), style: pw.TextStyle(fontSize: 13, fontWeight: pw.FontWeight.bold, color: PdfColors.blue900)),
+                        pw.Text(shop.address, style: const pw.TextStyle(fontSize: 7), maxLines: 2),
+                        pw.Text("GSTIN: ${shop.gstin} | DL: ${shop.dlNo}", style: pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold)),
+                        pw.Text("Mob: ${shop.phone} | Email: ${shop.email.toLowerCase()}", style: const pw.TextStyle(fontSize: 7)),
+                      ])),
+                      // Box 2: Invoice Info (Width 170)
+                      _hBox(170, true, pw.Column(children: [
+                        pw.Text("PURCHASE BILL", style: pw.TextStyle(fontSize: 11, fontWeight: pw.FontWeight.bold, color: PdfColors.orange900)),
+                        pw.Divider(thickness: 0.5),
+                        pw.Text(pur.billNo, style: pw.TextStyle(fontSize: 8.5, fontWeight: pw.FontWeight.bold)),
+                        pw.Text(DateFormat('dd/MM/yyyy').format(pur.date), style: const pw.TextStyle(fontSize: 8)),
+                        pw.Text(pur.paymentMode, style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold)),
+                      ])),
+                      // Box 3: Supplier (Width 340)
+                      _hBox(340, false, pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
+                        pw.Text("SUPPLIER DETAILS:", style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold, color: PdfColors.grey700)),
+                        pw.Text(supplier.name, style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold, color: PdfColors.blue900)),
+                        pw.Text("GSTIN: ${supplier.gst} | DL: ${supplier.dl}", style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold)),
+                        pw.Text("Mob: ${supplier.phone} | Email: ${supplier.email.toLowerCase()}", style: const pw.TextStyle(fontSize: 7)),
+                      ])),
                     ]),
-                  ),
 
-                  // Items Area
-                  pw.Container(
-                    height: 310,
-                    child: pw.Column(children: pageItems.map((i) {
-                      return pw.Container(
-                        decoration: const pw.BoxDecoration(border: pw.Border(bottom: pw.BorderSide(width: 0.1))),
-                        child: pw.Row(children: [
-                          _cell("${pur.items.indexOf(i) + 1}", 25), _cell(i.qty.toStringAsFixed(0), 45),
-                          _cell(i.freeQty.toStringAsFixed(0), 35), _cell(i.packing, 45),
-                          pw.Container(width: 215, padding: const pw.EdgeInsets.only(left: 8), alignment: pw.Alignment.centerLeft, child: pw.Text(i.name, style: const pw.TextStyle(fontSize: 7.5))),
-                          _cell(i.batch, 80), _cell(i.exp, 45), _cell(i.hsn, 50),
-                          _cell(i.mrp.toStringAsFixed(2), 60), _cell(i.purchaseRate.toStringAsFixed(2), 60),
-                          _cell("${i.gstRate}%", 50), _cell(i.total.toStringAsFixed(2), 90),
-                        ]),
-                      );
-                    }).toList()),
-                  ),
+                    // Table Header
+                    pw.Container(
+                      color: PdfColors.grey200,
+                      child: pw.Row(children: [
+                        _tCol("S.N", 25), _tCol("Qty", 45), _tCol("Free", 35), _tCol("Pack", 45),
+                        _tCol("Product Name", 215, isLeft: true), _tCol("Batch", 80), _tCol("Exp", 45), 
+                        _tCol("HSN", 50), _tCol("MRP", 60), _tCol("Rate", 60), _tCol("GST%", 50), 
+                        _tCol("Net Amt", 90, isLast: true),
+                      ]),
+                    ),
 
-                  // Footer
-                  if (isLastPage) _buildFullFooter(shop.name, pur)
-                  else pw.Container(
-                    height: 110, 
-                    alignment: pw.Alignment.centerRight, 
-                    padding: const pw.EdgeInsets.all(10),
-                    child: pw.Text("Continued...", style: pw.TextStyle(fontStyle: pw.FontStyle.italic, fontSize: 10))
-                  ),
-                ],
+                    // Items Area
+                    pw.Container(
+                      height: 310,
+                      child: pw.Column(children: pageItems.map((i) {
+                        return pw.Container(
+                          decoration: const pw.BoxDecoration(border: pw.Border(bottom: pw.BorderSide(width: 0.1))),
+                          child: pw.Row(children: [
+                            _cell("${pur.items.indexOf(i) + 1}", 25), _cell(i.qty.toStringAsFixed(0), 45),
+                            _cell(i.freeQty.toStringAsFixed(0), 35), _cell(i.packing, 45),
+                            pw.Container(width: 215, padding: const pw.EdgeInsets.only(left: 8), alignment: pw.Alignment.centerLeft, child: pw.Text(i.name, style: const pw.TextStyle(fontSize: 7.5))),
+                            _cell(i.batch, 80), _cell(i.exp, 45), _cell(i.hsn, 50),
+                            _cell(i.mrp.toStringAsFixed(2), 60), _cell(i.purchaseRate.toStringAsFixed(2), 60),
+                            _cell("${i.gstRate}%", 50), _cell(i.total.toStringAsFixed(2), 90),
+                          ]),
+                        );
+                      }).toList()),
+                    ),
+
+                    // Footer
+                    if (isLastPage) _buildFullFooter(shop.name, pur)
+                    else pw.Container(
+                      height: 110, 
+                      alignment: pw.Alignment.centerRight, 
+                      padding: const pw.EdgeInsets.all(10),
+                      child: pw.Text("Continued...", style: pw.TextStyle(fontStyle: pw.FontStyle.italic, fontSize: 10))
+                    ),
+                  ],
+                ),
               ),
-            );
+              pw.SizedBox(height: 4), // Margin space
+              pw.Center(
+                child: pw.Text(
+                  "This is a system-generated document. | Powered by Pharoah ERP [Download from Play Store] | Support: cloudcubeapps.ok@gmail.com",
+                  style: const pw.TextStyle(fontSize: 5, color: PdfColors.grey600),
+                ),
+              ),
+            ]);
           },
         ),
       );
