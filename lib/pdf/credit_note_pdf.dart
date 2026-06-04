@@ -125,12 +125,11 @@ class CreditNotePdf {
         if (local) ...[_fRow("CGST TOTAL", tax / 2), _fRow("SGST TOTAL", tax / 2)] else _fRow("IGST TOTAL", tax),
         pw.Divider(thickness: 0.5),
         pw.Row(mainAxisAlignment: pw.MainAxisAlignment.spaceBetween, children: [
-          pw.Text("NET CREDIT", style: pw.TextStyle(fontSize: 10, fontWeight: FontWeight.bold)),
-          pw.Text("Rs. ${ret.totalAmount.toStringAsFixed(2)}", style: pw.TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
+          pw.Text("NET CREDIT", style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold)),
+          pw.Text("Rs. ${ret.totalAmount.toStringAsFixed(2)}", style: pw.TextStyle(fontSize: 13, fontWeight: pw.FontWeight.bold)),
         ]),
       ])),
-      pw.Container(width: 230, padding: const pw.EdgeInsets.all(8), child: pw.Column(mainAxisAlignment: pw.MainAxisAlignment.spaceBetween, children: [pw.Text("For $n", style: pw.TextStyle(fontSize: 8, fontWeight: FontWeight.bold)), pw.Text("Authorised Signatory", style: const pw.TextStyle(fontSize: 7))])),
-    ]));
+      pw.Container(width: 230, padding: const pw.EdgeInsets.all(8), child: pw.Column(mainAxisAlignment: pw.MainAxisAlignment.spaceBetween, children: [pw.Text("For $n", style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold)), pw.Text("Authorised Signatory", style: const pw.TextStyle(fontSize: 7))])),
   }
   static pw.Widget _fRow(String l, double v) => pw.Row(mainAxisAlignment: pw.MainAxisAlignment.spaceBetween, children: [pw.Text(l, style: const pw.TextStyle(fontSize: 7.5)), pw.Text(v.toStringAsFixed(2), style: pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold))]);
 }
