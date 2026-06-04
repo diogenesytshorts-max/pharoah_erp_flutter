@@ -70,74 +70,83 @@ class ArchitectSalePdf {
       pdf.addPage(pw.Page(
         pageFormat: PdfPageFormat.a4.landscape,
         margin: const pw.EdgeInsets.all(15),
-        build: (pw.Context context) => pw.Container(
-          width: masterWidth,
-          decoration: pw.BoxDecoration(border: pw.Border.all(width: 1)),
-          child: pw.Column(children: [
-            // --- HEADER ---
-            pw.Row(children: [
-              _hBox(280, true, pw.Row(children: [
-                if (logoImage != null)
-                  pw.Container(width: 40, height: 40, margin: const pw.EdgeInsets.only(right: 5), child: pw.Image(logoImage)),
-                pw.Expanded(child: pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
-                  pw.Text(shop.name.toUpperCase(), style: pw.TextStyle(fontSize: 13, fontWeight: pw.FontWeight.bold, color: PdfColors.blue900)),
-                  pw.Text(shop.address, style: const pw.TextStyle(fontSize: 7), maxLines: 2),
-                  pw.Text("GSTIN: ${shop.gstin} | DL: ${shop.dlNo}", style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold)),
-                  pw.Text("Mob: ${shop.phone}", style: const pw.TextStyle(fontSize: 6.5)),
+        build: (pw.Context context) => pw.Column(children: [
+          pw.Container(
+            width: masterWidth,
+            decoration: pw.BoxDecoration(border: pw.Border.all(width: 1)),
+            child: pw.Column(children: [
+              // --- HEADER ---
+              pw.Row(children: [
+                _hBox(280, true, pw.Row(children: [
+                  if (logoImage != null)
+                    pw.Container(width: 40, height: 40, margin: const pw.EdgeInsets.only(right: 5), child: pw.Image(logoImage)),
+                  pw.Expanded(child: pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
+                    pw.Text(shop.name.toUpperCase(), style: pw.TextStyle(fontSize: 13, fontWeight: pw.FontWeight.bold, color: PdfColors.blue900)),
+                    pw.Text(shop.address, style: const pw.TextStyle(fontSize: 7), maxLines: 2),
+                    pw.Text("GSTIN: ${shop.gstin} | DL: ${shop.dlNo}", style: pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold)),
+                    pw.Text("Mob: ${shop.phone}", style: const pw.TextStyle(fontSize: 6.5)),
+                  ])),
                 ])),
-              ])),
-              _hBox(175, true, pw.Column(children: [
-                pw.Text("TAX INVOICE", style: pw.TextStyle(fontSize: 11, fontWeight: pw.FontWeight.bold)),
-                pw.Divider(thickness: 0.5),
-                pw.Text(sale.billNo, style: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold)),
-                pw.Text(DateFormat('dd/MM/yyyy').format(sale.date), style: const pw.TextStyle(fontSize: 8)),
-                pw.Text(sale.paymentMode.toUpperCase(), style: pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold)),
-              ])),
-              _hBox(345, false, pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
-                pw.Text("CONSIGNEE DETAILS:", style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold, color: PdfColors.grey700)),
-                pw.Text(party.name, style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold, color: PdfColors.blue900)),
-                pw.Text("${party.address}, ${party.city}", style: const pw.TextStyle(fontSize: 7.5), maxLines: 2),
-                pw.Text("GSTIN: ${party.gst} | DL: ${party.dl}", style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold)),
-              ])),
-            ]),
-
-            // --- TABLE HEADER ---
-            pw.Container(
-              color: PdfColors.grey200, 
-              decoration: const pw.BoxDecoration(border: pw.Border(bottom: pw.BorderSide(width: 0.5))),
-              child: pw.Row(children: [
-                _tCol("S.N", 25), _tCol("Qty+Free", 50), _tCol("Pack", 40), 
-                _tCol("Product Description", 210, isLeft: true), 
-                _tCol("Batch", 70), _tCol("Exp", 45), _tCol("HSN", 45),
-                _tCol("MRP", 55), _tCol("Rate", 55), 
-                _tCol("CGST", 40), _tCol("SGST", 40),
-                _tCol("Net Total", 125, isLast: true), 
+                _hBox(175, true, pw.Column(children: [
+                  pw.Text("TAX INVOICE", style: pw.TextStyle(fontSize: 11, fontWeight: pw.FontWeight.bold)),
+                  pw.Divider(thickness: 0.5),
+                  pw.Text(sale.billNo, style: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold)),
+                  pw.Text(DateFormat('dd/MM/yyyy').format(sale.date), style: const pw.TextStyle(fontSize: 8)),
+                  pw.Text(sale.paymentMode.toUpperCase(), style: pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold)),
+                ])),
+                _hBox(345, false, pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
+                  pw.Text("CONSIGNEE DETAILS:", style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold, color: PdfColors.grey700)),
+                  pw.Text(party.name, style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold, color: PdfColors.blue900)),
+                  pw.Text("${party.address}, ${party.city}", style: const pw.TextStyle(fontSize: 7.5), maxLines: 2),
+                  pw.Text("GSTIN: ${party.gst} | DL: ${party.dl}", style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold)),
+                ])),
               ]),
-            ),
 
-            // --- ITEM ROWS ---
-            pw.Expanded(child: pw.Column(children: pageItems.asMap().entries.map((entry) {
-              int idx = entry.key; var i = entry.value;
-              bool isShaded = config.useZebraShading && (idx % 2 != 0);
-              String fmt(double v) => v % 1 == 0 ? v.toInt().toString() : v.toStringAsFixed(1);
-              return pw.Container(
-                color: isShaded ? PdfColors.grey50 : PdfColors.white,
-                decoration: const pw.BoxDecoration(border: pw.Border(bottom: pw.BorderSide(width: 0.1, color: PdfColors.grey400))),
+              // --- TABLE HEADER ---
+              pw.Container(
+                color: PdfColors.grey200, 
+                decoration: const pw.BoxDecoration(border: pw.Border(bottom: pw.BorderSide(width: 0.5))),
                 child: pw.Row(children: [
-                  _cell("${start + idx + 1}", 25), _cell("${fmt(i.qty)}+${fmt(i.freeQty)}", 50), _cell(i.packing, 40),
-                  pw.Container(width: 210, padding: const pw.EdgeInsets.only(left: 8), alignment: pw.Alignment.centerLeft, child: pw.Text(i.name, style: const pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold))),
-                  _cell(i.batch, 70), _cell(i.exp, 45), _cell(i.hsn, 45),
-                  _cell(i.mrp.toStringAsFixed(2), 55), _cell(i.rate.toStringAsFixed(2), 55),
-                  _cell("${(i.gstRate / 2).toStringAsFixed(1)}%", 40), _cell("${(i.gstRate / 2).toStringAsFixed(1)}%", 40),
-                  _cell(i.total.toStringAsFixed(2), 125),
+                  _tCol("S.N", 25), _tCol("Qty+Free", 50), _tCol("Pack", 40), 
+                  _tCol("Product Description", 210, isLeft: true), 
+                  _tCol("Batch", 70), _tCol("Exp", 45), _tCol("HSN", 45),
+                  _tCol("MRP", 55), _tCol("Rate", 55), 
+                  _tCol("CGST", 40), _tCol("SGST", 40),
+                  _tCol("Net Total", 125, isLast: true), 
                 ]),
-              );
-            }).toList())),
+              ),
 
-            if (isLastPage) _buildArchitectFooter(shop.name, sale, config, shop, isLocal, qrImage)
-            else pw.Container(height: 30, alignment: pw.Alignment.centerRight, padding: const pw.EdgeInsets.only(right: 20), child: pw.Text("Next Page...", style: pw.TextStyle(fontStyle: pw.FontStyle.italic, fontSize: 8))),
-          ]),
-        )
+              // --- ITEM ROWS ---
+              pw.Expanded(child: pw.Column(children: pageItems.asMap().entries.map((entry) {
+                int idx = entry.key; var i = entry.value;
+                bool isShaded = config.useZebraShading && (idx % 2 != 0);
+                String fmt(double v) => v % 1 == 0 ? v.toInt().toString() : v.toStringAsFixed(1);
+                return pw.Container(
+                  color: isShaded ? PdfColors.grey50 : PdfColors.white,
+                  decoration: const pw.BoxDecoration(border: pw.Border(bottom: pw.BorderSide(width: 0.1, color: PdfColors.grey400))),
+                  child: pw.Row(children: [
+                    _cell("${start + idx + 1}", 25), _cell("${fmt(i.qty)}+${fmt(i.freeQty)}", 50), _cell(i.packing, 40),
+                    pw.Container(width: 210, padding: const pw.EdgeInsets.only(left: 8), alignment: pw.Alignment.centerLeft, child: pw.Text(i.name, style: const pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold))),
+                    _cell(i.batch, 70), _cell(i.exp, 45), _cell(i.hsn, 45),
+                    _cell(i.mrp.toStringAsFixed(2), 55), _cell(i.rate.toStringAsFixed(2), 55),
+                    _cell("${(i.gstRate / 2).toStringAsFixed(1)}%", 40), _cell("${(i.gstRate / 2).toStringAsFixed(1)}%", 40),
+                    _cell(i.total.toStringAsFixed(2), 125),
+                  ]),
+                );
+              }).toList())),
+
+              if (isLastPage) _buildArchitectFooter(shop.name, sale, config, shop, isLocal, qrImage)
+              else pw.Container(height: 30, alignment: pw.Alignment.centerRight, padding: const pw.EdgeInsets.only(right: 20), child: pw.Text("Next Page...", style: pw.TextStyle(fontStyle: pw.FontStyle.italic, fontSize: 8))),
+            ]),
+          ),
+          pw.SizedBox(height: 4), // Professional margins spacer
+          pw.Center(
+            child: pw.Text(
+              "This is a system-generated document. | Powered by Pharoah ERP [Download from Play Store] | Support: cloudcubeapps.ok@gmail.com",
+              style: const pw.TextStyle(fontSize: 5, color: PdfColors.grey600),
+            ),
+          ),
+        ])
       ));
     }
     return pdf.save();
