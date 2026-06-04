@@ -29,7 +29,7 @@ class SaleInvoicePdf {
 
     String fmt(double val) => val == val.toInt() ? val.toInt().toString() : val.toStringAsFixed(2);
 
-    for (int pageNum = 0; pageNum < totalPages; pageNum++) {
+ for (int pageNum = 0; pageNum < totalPages; pageNum++) {
       int start = pageNum * itemsPerPage;
       int end = (start + itemsPerPage < sale.items.length) ? start + itemsPerPage : sale.items.length;
       List<BillItem> pageItems = sale.items.sublist(start, end);
@@ -38,75 +38,87 @@ class SaleInvoicePdf {
       pdf.addPage(pw.Page(
         pageFormat: PdfPageFormat.a4.landscape,
         margin: const pw.EdgeInsets.all(15),
-        build: (pw.Context context) => pw.Container(
-          width: masterWidth,
-          decoration: pw.BoxDecoration(border: pw.Border.all(width: 1)),
-          child: pw.Column(children: [
-            // --- HEADER (280+170+350 = 800) ---
-            // --- HEADER SECTION (TOTAL 800 POINTS) ---
-            pw.Row(children: [
-              // Box 1: Company Profile (Width: 280)
-              _hBox(280, true, pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
-                pw.Text(shop.name.toUpperCase(), style: pw.TextStyle(fontSize: 13, fontWeight: pw.FontWeight.bold, color: PdfColors.blue900)),
-                pw.Text(shop.address, style: const pw.TextStyle(fontSize: 7), maxLines: 2),
-                pw.Text("GSTIN: ${shop.gstin} | DL: ${shop.dlNo}", style: pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold)),
-                pw.Text("Mob: ${shop.phone} | Email: ${shop.email.toLowerCase()}", style: const pw.TextStyle(fontSize: 7)),
+        build: (pw.Context context) => pw.Column(children: [
+          pw.Container(
+            width: masterWidth,
+            decoration: pw.BoxDecoration(border: pw.Border.all(width: 1)),
+            child: pw.Column(children: [
+              // --- HEADER (280+170+350 = 800) ---
+              pw.Row(children: [
+                // Box 1: Company Profile (Width: 280)
+                _hBox(280, true, pw.Row(children: [
+                  if (logoImage != null)
+                    pw.Container(width: 40, height: 40, margin: const pw.EdgeInsets.only(right: 5), child: pw.Image(logoImage)),
+                  pw.Expanded(child: pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
+                    pw.Text(shop.name.toUpperCase(), style: pw.TextStyle(fontSize: 13, fontWeight: pw.FontWeight.bold, color: PdfColors.blue900)),
+                    pw.Text(shop.address, style: const pw.TextStyle(fontSize: 7), maxLines: 2),
+                    pw.Text("GSTIN: ${shop.gstin} | DL: ${shop.dlNo}", style: pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold)),
+                    pw.Text("Mob: ${shop.phone} | Email: ${shop.email.toLowerCase()}", style: const pw.TextStyle(fontSize: 7)),
+                  ])),
+                ])),
+                // Box 2: Invoice Info (Width: 175)
+                _hBox(175, true, pw.Column(children: [
+                  pw.Text("TAX INVOICE", style: pw.TextStyle(fontSize: 11, fontWeight: pw.FontWeight.bold)),
+                  pw.Text(sale.paymentMode.toUpperCase(), style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold)),
+                  pw.Divider(thickness: 0.5),
+                  pw.Text("No: ${sale.billNo}", style: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold)),
+                  pw.Text(DateFormat('dd/MM/yyyy').format(sale.date), style: const pw.TextStyle(fontSize: 8)),
+                ])),
+                // Box 3: Party Details (Width: 345)
+                _hBox(345, false, pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
+                  pw.Text("CONSIGNEE:", style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold, color: PdfColors.grey700)),
+                  pw.Text(sale.partyName, style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold, color: PdfColors.blue900)),
+                  pw.Text("${sale.partyAddress}, ${sale.partyCity}", style: const pw.TextStyle(fontSize: 7.5), maxLines: 2),
+                  pw.Text("GST: ${sale.partyGstin} | DL: ${sale.partyDl}", style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold)),
+                  pw.Text("Mob: ${sale.partyPhone} | Email: ${sale.partyEmail}", style: const pw.TextStyle(fontSize: 7)),
+                ])),
+              ]),
+
+              // --- TABLE HEADER (800 POINTS ALIGNED) ---
+              pw.Container(color: PdfColors.grey200, child: pw.Row(children: [
+                _tCol("S.N", 25), _tCol("Qty+Free", 60), _tCol("Pack", 40), 
+                _tCol("Product Description", 220, isLeft: true), 
+                _tCol("Batch", 70), _tCol("Exp", 45), _tCol("HSN", 45),
+                _tCol("MRP", 55), _tCol("Rate", 55), 
+                _tCol("CGST", 40), _tCol("SGST", 40),
+                _tCol("Net Amt", 100, isLast: true), 
               ])),
-              // Box 2: Invoice Info (Width: 175)
-              _hBox(175, true, pw.Column(children: [
-                pw.Text("TAX INVOICE", style: pw.TextStyle(fontSize: 11, fontWeight: pw.FontWeight.bold)),
-                pw.Text(sale.paymentMode.toUpperCase(), style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold)),
-                pw.Divider(thickness: 0.5),
-                pw.Text("No: ${sale.billNo}", style: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold)),
-                pw.Text(DateFormat('dd/MM/yyyy').format(sale.date), style: const pw.TextStyle(fontSize: 8)),
-              ])),
-              // Box 3: Party Details (Width: 345)
-              _hBox(345, false, pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
-                pw.Text("CONSIGNEE:", style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold, color: PdfColors.grey700)),
-                pw.Text(sale.partyName, style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold, color: PdfColors.blue900)),
-                pw.Text("${sale.partyAddress}, ${sale.partyCity}", style: const pw.TextStyle(fontSize: 7.5), maxLines: 2),
-                pw.Text("GST: ${sale.partyGstin} | DL: ${sale.partyDl}", style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold)),
-                pw.Text("Mob: ${sale.partyPhone} | Email: ${sale.partyEmail}", style: const pw.TextStyle(fontSize: 7)),
-              ])),
+
+              // --- ITEM ROWS ---
+              pw.Expanded(child: pw.Column(children: pageItems.asMap().entries.map((entry) {
+                int idx = entry.key; var i = entry.value;
+                
+                // NAYA: Decimal formatting logic
+                String fmt(double v) => v % 1 == 0 ? v.toInt().toString() : v.toStringAsFixed(1);
+                String qtyDisplay = "${fmt(i.qty)} + ${fmt(i.freeQty)}";
+
+                return pw.Container(
+                  decoration: const pw.BoxDecoration(border: pw.Border(bottom: pw.BorderSide(width: 0.1, color: PdfColors.grey400))),
+                  child: pw.Row(children: [
+                    _cell("${start + idx + 1}", 25), 
+                    _cell(qtyDisplay, 60), // Smart Qty yahan print hogi
+                    _cell(i.packing, 40), 
+                    pw.Container(width: 220, padding: const pw.EdgeInsets.only(left: 8), alignment: pw.Alignment.centerLeft, child: pw.Text(i.name, style: pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold))),
+                    _cell(i.batch, 70), _cell(i.exp, 45), _cell(i.hsn, 45),
+                    _cell(i.mrp.toStringAsFixed(2), 55), _cell(i.rate.toStringAsFixed(2), 55),
+                    _cell("${(i.gstRate / 2).toStringAsFixed(1)}%", 40), _cell("${(i.gstRate / 2).toStringAsFixed(1)}%", 40),
+                    _cell(i.total.toStringAsFixed(2), 100),
+                  ]),
+                );
+              }).toList())),
+
+              if (isLastPage) _buildFooter(shop.name, sale, shop, isLocal)
+              else pw.Container(height: 30, alignment: pw.Alignment.centerRight, padding: const pw.EdgeInsets.only(right: 20), child: pw.Text("Continued...", style: pw.TextStyle(fontStyle: pw.FontStyle.italic, fontSize: 8))),
             ]),
-
-            // --- TABLE HEADER (800 POINTS ALIGNED) ---
-            pw.Container(color: PdfColors.grey200, child: pw.Row(children: [
-              _tCol("S.N", 25), _tCol("Qty+Free", 60), _tCol("Pack", 40), 
-              _tCol("Product Description", 220, isLeft: true), 
-              _tCol("Batch", 75), _tCol("Exp", 45), _tCol("HSN", 45),
-              _tCol("MRP", 55), _tCol("Rate", 55), 
-              _tCol("CGST", 40), _tCol("SGST", 40),
-              _tCol("Net Amt", 100, isLast: true), 
-            ])),
-
-            // --- ITEM ROWS ---
-            pw.Expanded(child: pw.Column(children: pageItems.asMap().entries.map((entry) {
-              int idx = entry.key; var i = entry.value;
-              
-              // NAYA: Decimal formatting logic
-              String fmt(double v) => v % 1 == 0 ? v.toInt().toString() : v.toStringAsFixed(1);
-              String qtyDisplay = "${fmt(i.qty)} + ${fmt(i.freeQty)}";
-
-              return pw.Container(
-                decoration: const pw.BoxDecoration(border: pw.Border(bottom: pw.BorderSide(width: 0.1, color: PdfColors.grey400))),
-                child: pw.Row(children: [
-                  _cell("${start + idx + 1}", 25), 
-                  _cell(qtyDisplay, 60), // Smart Qty yahan print hogi
-                  _cell(i.packing, 40), 
-                  pw.Container(width: 220, padding: const pw.EdgeInsets.only(left: 8), alignment: pw.Alignment.centerLeft, child: pw.Text(i.name, style: pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold))),
-                  _cell(i.batch, 75), _cell(i.exp, 45), _cell(i.hsn, 45),
-                  _cell(i.mrp.toStringAsFixed(2), 55), _cell(i.rate.toStringAsFixed(2), 55),
-                  _cell("${(i.gstRate / 2).toStringAsFixed(1)}%", 40), _cell("${(i.gstRate / 2).toStringAsFixed(1)}%", 40),
-                  _cell(i.total.toStringAsFixed(2), 100),
-                ]),
-              );
-            }).toList())),
-
-            if (isLastPage) _buildFooter(shop.name, sale, shop, isLocal)
-            else pw.Container(height: 30, alignment: pw.Alignment.centerRight, padding: const pw.EdgeInsets.only(right: 20), child: pw.Text("Continued...", style: pw.TextStyle(fontStyle: pw.FontStyle.italic, fontSize: 8))),
-          ]),
-        )
+          ),
+          pw.SizedBox(height: 4), // Professional margins spacer
+          pw.Center(
+            child: pw.Text(
+              "This is a system-generated document. | Powered by Pharoah ERP [Download from Play Store] | Support: cloudcubeapps.ok@gmail.com",
+              style: const pw.TextStyle(fontSize: 5, color: PdfColors.grey600),
+            ),
+          ),
+        ])
       ));
     }
     return pdf.save();
