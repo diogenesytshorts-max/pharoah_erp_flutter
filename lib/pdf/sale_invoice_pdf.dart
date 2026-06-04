@@ -46,15 +46,11 @@ class SaleInvoicePdf {
               // --- HEADER (280+170+350 = 800) ---
               pw.Row(children: [
                 // Box 1: Company Profile (Width: 280)
-                _hBox(280, true, pw.Row(children: [
-                  if (logoImage != null)
-                    pw.Container(width: 40, height: 40, margin: const pw.EdgeInsets.only(right: 5), child: pw.Image(logoImage)),
-                  pw.Expanded(child: pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
-                    pw.Text(shop.name.toUpperCase(), style: pw.TextStyle(fontSize: 13, fontWeight: pw.FontWeight.bold, color: PdfColors.blue900)),
-                    pw.Text(shop.address, style: const pw.TextStyle(fontSize: 7), maxLines: 2),
-                    pw.Text("GSTIN: ${shop.gstin} | DL: ${shop.dlNo}", style: pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold)),
-                    pw.Text("Mob: ${shop.phone} | Email: ${shop.email.toLowerCase()}", style: const pw.TextStyle(fontSize: 7)),
-                  ])),
+                _hBox(280, true, pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
+                  pw.Text(shop.name.toUpperCase(), style: pw.TextStyle(fontSize: 13, fontWeight: pw.FontWeight.bold, color: PdfColors.blue900)),
+                  pw.Text(shop.address, style: const pw.TextStyle(fontSize: 7), maxLines: 2),
+                  pw.Text("GSTIN: ${shop.gstin} | DL: ${shop.dlNo}", style: pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold)),
+                  pw.Text("Mob: ${shop.phone} | Email: ${shop.email.toLowerCase()}", style: const pw.TextStyle(fontSize: 7)),
                 ])),
                 // Box 2: Invoice Info (Width: 175)
                 _hBox(175, true, pw.Column(children: [
