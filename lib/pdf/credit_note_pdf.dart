@@ -12,12 +12,17 @@ import '../logic/app_settings_model.dart';
 import 'pdf_master_service.dart';
 
 class CreditNotePdf {
-  // 📧 NAYA: EMAIL KE LIYE BYTES GENERATE KARNA
+  // 1. PRINT / PREVIEW
+  static Future<void> generate(SaleReturn ret, Party party, CompanyProfile shop, AppConfig config) async {
+    final bytes = await generateBytes(ret, party, shop, config);
+    await Printing.layoutPdf(onLayout: (format) async => bytes, name: 'CreditNote_${ret.billNo}', format: PdfPageFormat.a4.landscape);
+  }
+
+  // 2. GENERATE BYTES FOR EMAIL / DISPATCH (Fixed Future type)
   static Future<Uint8List> generateBytes(SaleReturn ret, Party party, CompanyProfile shop, AppConfig config) async {
     final pdf = pw.Document();
     const double masterWidth = 800; 
     const int itemsPerPage = 20;
-
     String fmt(double v) => v % 1 == 0 ? v.toInt().toString() : v.toStringAsFixed(1);
     bool isLocal = shop.state.trim().toLowerCase() == party.state.trim().toLowerCase();
 
@@ -25,14 +30,8 @@ class CreditNotePdf {
     final breakage = ret.items.where((i) => i.isBreakage == true).toList();
 
     List<dynamic> combinedList = [];
-    if (sellable.isNotEmpty) {
-      combinedList.add(">> SALES RETURN (SELLABLE STOCK)");
-      combinedList.addAll(sellable);
-    }
-    if (breakage.isNotEmpty) {
-      combinedList.add(">> BREAKAGE & EXPIRY (NON-SELLABLE)");
-      combinedList.addAll(breakage);
-    }
+    if (sellable.isNotEmpty) { combinedList.add(">> SALES RETURN (SELLABLE STOCK)"); combinedList.addAll(sellable); }
+    if (breakage.isNotEmpty) { combinedList.add(">> BREAKAGE & EXPIRY (NON-SELLABLE)"); combinedList.addAll(breakage); }
 
     int totalPages = (combinedList.length / itemsPerPage).ceil();
     if (totalPages == 0) totalPages = 1;
@@ -57,7 +56,6 @@ class CreditNotePdf {
                   pw.Text(shop.name.toUpperCase(), style: pw.TextStyle(fontSize: 13, fontWeight: pw.FontWeight.bold, color: PdfColors.blue900)),
                   pw.Text(shop.address, style: const pw.TextStyle(fontSize: 7), maxLines: 2),
                   pw.Text("GSTIN: ${shop.gstin} | DL: ${shop.dlNo}", style: pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold)),
-                  pw.Text("Mob: ${shop.phone} | Email: ${shop.email.toLowerCase()}", style: const pw.TextStyle(fontSize: 7)),
                 ])),
                 _hBox(175, true, pw.Column(children: [
                   pw.Text("CREDIT NOTE", style: pw.TextStyle(fontSize: 11, fontWeight: pw.FontWeight.bold, color: PdfColors.red900)),
@@ -68,50 +66,33 @@ class CreditNotePdf {
                 _hBox(345, false, pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
                   pw.Text("CONSIGNEE DETAILS:", style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold, color: PdfColors.grey700)),
                   pw.Text(party.name.toUpperCase(), style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold, color: PdfColors.blue900)),
-                  pw.Text("${party.address}, ${party.city}", style: const pw.TextStyle(fontSize: 7.5), maxLines: 2),
-                  pw.Text("GST: ${party.gst} | DL: ${party.dl}", style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold)),
-                  pw.Text("Mob: ${party.phone}", style: const pw.TextStyle(fontSize: 7)),
+                  pw.Text("GST: ${party.gst}", style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold)),
                 ])),
               ]),
 
               // --- TABLE HEADER ---
               pw.Container(color: PdfColors.grey200, child: pw.Row(children: [
-                _tCol("S.N", 25), _tCol("Qty+Free", 50), _tCol("Pack", 40), 
-                _tCol("Description", 210, isLeft: true), 
-                _tCol("Batch", 70), _tCol("Exp", 45), _tCol("HSN", 45),
-                _tCol("MRP", 55), _tCol("Rate", 55), 
-                _tCol("CGST", 40), _tCol("SGST", 40),
-                _tCol("Net Total", 125, isLast: true), 
+                _tCol("S.N", 25), _tCol("Qty+Free", 50), _tCol("Pack", 40), _tCol("Description", 210, isLeft: true), 
+                _tCol("Batch", 70), _tCol("Exp", 45), _tCol("HSN", 45), _tCol("MRP", 55), _tCol("Rate", 55), 
+                _tCol("CGST", 40), _tCol("SGST", 40), _tCol("Total", 125, isLast: true), 
               ])),
 
               // --- SMART CONTENT ---
               pw.Expanded(child: pw.Column(children: pageContent.map((entry) {
-                if (entry is String) {
-                   return pw.Container(width: masterWidth, padding: const pw.EdgeInsets.all(3), decoration: const pw.BoxDecoration(color: PdfColors.grey100, border: pw.Border(bottom: pw.BorderSide(width: 0.5))),
-                   child: pw.Text(entry, style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold, color: entry.contains("BREAKAGE") ? PdfColors.red900 : PdfColors.blue900)));
-                }
+                if (entry is String) return pw.Container(width: masterWidth, padding: const pw.EdgeInsets.all(3), decoration: const pw.BoxDecoration(color: PdfColors.grey100, border: pw.Border(bottom: pw.BorderSide(width: 0.5))), child: pw.Text(entry, style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold)));
                 BillItem i = entry as BillItem;
-                int idx = ret.items.indexOf(i) + 1;
-                bool isShaded = config.useZebraShading && (idx % 2 != 0);
-
-                return pw.Container(
-                  color: isShaded ? PdfColors.grey50 : PdfColors.white,
-                  decoration: const pw.BoxDecoration(border: pw.Border(bottom: pw.BorderSide(width: 0.1, color: PdfColors.grey400))),
-                  child: pw.Row(children: [
-                    _cell("$idx", 25), _cell("${fmt(i.qty)}+${fmt(i.freeQty)}", 50), _cell(i.packing, 40),
+                return pw.Container(decoration: const pw.BoxDecoration(border: pw.Border(bottom: pw.BorderSide(width: 0.1, color: PdfColors.grey400))), child: pw.Row(children: [
+                    _cell("${ret.items.indexOf(i) + 1}", 25), _cell("${fmt(i.qty)}+${fmt(i.freeQty)}", 50), _cell(i.packing, 40),
                     pw.Container(width: 210, padding: const pw.EdgeInsets.only(left: 8), alignment: pw.Alignment.centerLeft, child: pw.Text(i.name, style: const pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold))),
-                    _cell(i.batch, 70), _cell(i.exp, 45), _cell(i.hsn, 45),
-                    _cell(i.mrp.toStringAsFixed(2), 55), _cell(i.rate.toStringAsFixed(2), 55),
-                    _cell("${(i.gstRate / 2).toStringAsFixed(1)}%", 40), _cell("${(i.gstRate / 2).toStringAsFixed(1)}%", 40),
-                    _cell(i.total.toStringAsFixed(2), 125),
-                  ]),
-                );
+                    _cell(i.batch, 70), _cell(i.exp, 45), _cell(i.hsn, 45), _cell(i.mrp.toStringAsFixed(2), 55), _cell(i.rate.toStringAsFixed(2), 55),
+                    _cell("${(i.gstRate / 2).toStringAsFixed(1)}%", 40), _cell("${(i.gstRate / 2).toStringAsFixed(1)}%", 40), _cell(i.total.toStringAsFixed(2), 125),
+                ]));
               }).toList())),
 
               if (isLastPage) _buildFooter(shop.name, ret, isLocal)
             ]),
           ),
-          pw.SizedBox(height: 4), // Professional margins spacer
+          pw.SizedBox(height: 4),
           pw.Center(
             child: pw.Text(
               "This is a system-generated document. | Powered by Pharoah ERP [Download from Play Store] | Support: cloudcubeapps.ok@gmail.com",
@@ -123,7 +104,6 @@ class CreditNotePdf {
     }
     return pdf.save();
   }
-  
 
   static pw.Widget _hBox(double w, bool b, pw.Widget child) => pw.Container(width: w, height: 105, padding: const pw.EdgeInsets.all(5), decoration: pw.BoxDecoration(border: pw.Border(right: pw.BorderSide(width: b ? 0.5 : 0), bottom: const pw.BorderSide(width: 0.5))), child: child);
   static pw.Widget _tCol(String t, double w, {bool isLast = false, bool isLeft = false}) => pw.Container(width: w, height: 20, alignment: isLeft ? pw.Alignment.centerLeft : pw.Alignment.center, padding: pw.EdgeInsets.only(left: 5), decoration: pw.BoxDecoration(border: pw.Border(right: pw.BorderSide(width: isLast ? 0 : 0.5), bottom: const pw.BorderSide(width: 0.5))), child: pw.Text(t, style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold)));
@@ -139,18 +119,17 @@ class CreditNotePdf {
         pw.Text("Verified return account settlement.", style: const pw.TextStyle(fontSize: 7)),
       ])),
       pw.Container(width: 250, padding: const pw.EdgeInsets.all(5), decoration: const pw.BoxDecoration(border: pw.Border(right: pw.BorderSide(width: 0.5))), child: pw.Column(children: [
-        // Footer ke andar _fRow lines ke bich mein ye condition jorein:
-if (ret.extraDiscount > 0) _fRow("EXTRA DISCOUNT (-)", ret.extraDiscount),
-if (ret.roundOff != 0) _fRow("ROUND OFF", ret.roundOff),
         _fRow("TAXABLE VAL", taxable),
+        if (ret.extraDiscount > 0) _fRow("EXTRA DISCOUNT (-)", ret.extraDiscount),
+        if (ret.roundOff != 0) _fRow("ROUND OFF", ret.roundOff),
         if (local) ...[_fRow("CGST TOTAL", tax / 2), _fRow("SGST TOTAL", tax / 2)] else _fRow("IGST TOTAL", tax),
         pw.Divider(thickness: 0.5),
         pw.Row(mainAxisAlignment: pw.MainAxisAlignment.spaceBetween, children: [
-          pw.Text("NET CREDIT", style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold)),
-          pw.Text("Rs. ${ret.totalAmount.toStringAsFixed(2)}", style: pw.TextStyle(fontSize: 13, fontWeight: pw.FontWeight.bold)),
+          pw.Text("NET CREDIT", style: pw.TextStyle(fontSize: 10, fontWeight: FontWeight.bold)),
+          pw.Text("Rs. ${ret.totalAmount.toStringAsFixed(2)}", style: pw.TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
         ]),
       ])),
-      pw.Container(width: 230, padding: const pw.EdgeInsets.all(8), child: pw.Column(mainAxisAlignment: pw.MainAxisAlignment.spaceBetween, children: [pw.Text("For $n", style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold)), pw.Text("Authorised Signatory", style: const pw.TextStyle(fontSize: 7))])),
+      pw.Container(width: 230, padding: const pw.EdgeInsets.all(8), child: pw.Column(mainAxisAlignment: pw.MainAxisAlignment.spaceBetween, children: [pw.Text("For $n", style: pw.TextStyle(fontSize: 8, fontWeight: FontWeight.bold)), pw.Text("Authorised Signatory", style: const pw.TextStyle(fontSize: 7))])),
     ]));
   }
   static pw.Widget _fRow(String l, double v) => pw.Row(mainAxisAlignment: pw.MainAxisAlignment.spaceBetween, children: [pw.Text(l, style: const pw.TextStyle(fontSize: 7.5)), pw.Text(v.toStringAsFixed(2), style: pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold))]);
