@@ -18,7 +18,7 @@ class CreditNotePdf {
     await Printing.layoutPdf(onLayout: (format) async => bytes, name: 'CreditNote_${ret.billNo}', format: PdfPageFormat.a4.landscape);
   }
 
-  // 2. GENERATE BYTES FOR EMAIL / DISPATCH (Fixed Future type)
+  // 2. GENERATE BYTES FOR EMAIL / DISPATCH (Fixed Future type & FontWeights)
   static Future<Uint8List> generateBytes(SaleReturn ret, Party party, CompanyProfile shop, AppConfig config) async {
     final pdf = pw.Document();
     const double masterWidth = 800; 
@@ -64,7 +64,7 @@ class CreditNotePdf {
                   pw.Text(DateFormat('dd/MM/yyyy').format(ret.date), style: const pw.TextStyle(fontSize: 8)),
                 ])),
                 _hBox(345, false, pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
-                  pw.Text("CONSIGNEE DETAILS:", style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold, color: PdfColors.grey700)),
+                  pw.Text("CONSIGNEE:", style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold, color: PdfColors.grey700)),
                   pw.Text(party.name.toUpperCase(), style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold, color: PdfColors.blue900)),
                   pw.Text("GST: ${party.gst}", style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold)),
                 ])),
@@ -130,6 +130,7 @@ class CreditNotePdf {
         ]),
       ])),
       pw.Container(width: 230, padding: const pw.EdgeInsets.all(8), child: pw.Column(mainAxisAlignment: pw.MainAxisAlignment.spaceBetween, children: [pw.Text("For $n", style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold)), pw.Text("Authorised Signatory", style: const pw.TextStyle(fontSize: 7))])),
+    ]));
   }
   static pw.Widget _fRow(String l, double v) => pw.Row(mainAxisAlignment: pw.MainAxisAlignment.spaceBetween, children: [pw.Text(l, style: const pw.TextStyle(fontSize: 7.5)), pw.Text(v.toStringAsFixed(2), style: pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold))]);
 }
