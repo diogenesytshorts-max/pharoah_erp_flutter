@@ -12,7 +12,8 @@ import '../logic/app_settings_model.dart';
 import 'pdf_master_service.dart';
 
 class CreditNotePdf {
-  static Future<void> generate(SaleReturn ret, Party party, CompanyProfile shop, AppConfig config) async {
+  // 📧 NAYA: EMAIL KE LIYE BYTES GENERATE KARNA
+  static Future<Uint8List> generateBytes(SaleReturn ret, Party party, CompanyProfile shop, AppConfig config) async {
     final pdf = pw.Document();
     const double masterWidth = 800; 
     const int itemsPerPage = 20;
