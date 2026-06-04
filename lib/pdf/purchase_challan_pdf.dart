@@ -31,42 +31,51 @@ class PurchaseChallanPdf {
       pdf.addPage(pw.Page(
         pageFormat: PdfPageFormat.a4.landscape, 
         margin: const pw.EdgeInsets.all(15),
-        build: (context) => pw.Container(
-          width: 800, decoration: pw.BoxDecoration(border: pw.Border.all(width: 1)),
-          child: pw.Column(children: [
-            pw.Row(children: [
-              _hBox(285, true, pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
-                pw.Text(shop.name.toUpperCase(), style: pw.TextStyle(fontSize: 13, fontWeight: pw.FontWeight.bold, color: PdfColors.blue900)),
-                pw.Text(shop.address, style: const pw.TextStyle(fontSize: 7.5)),
-                pw.Text("GSTIN: ${shop.gstin}", style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold)),
-              ])),
-              _hBox(170, true, pw.Column(children: [
-                pw.Text("INWARD CHALLAN", style: pw.TextStyle(fontSize: 11, fontWeight: pw.FontWeight.bold)),
-                pw.Divider(thickness: 0.5),
-                pw.Text("Ref: ${challan.billNo}", style: const pw.TextStyle(fontSize: 7.5)),
-                pw.Text(DateFormat('dd/MM/yyyy').format(challan.date), style: const pw.TextStyle(fontSize: 8)),
-              ])),
-              _hBox(335, false, pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
-                pw.Text("SUPPLIER:", style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold, color: PdfColors.grey700)),
-                pw.Text(supplier.name, style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold, color: PdfColors.blue900)),
-                pw.Text("GSTIN: ${supplier.gst}", style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold)),
-              ])),
-            ]),
-            pw.Container(color: PdfColors.grey200, child: pw.Row(children: [
-              _tCol("S.N", 30), _tCol("Product Description", 300, isLeft: true), _tCol("Packing", 60),
-              _tCol("Batch", 90), _tCol("Expiry", 60), _tCol("Qty", 60), _tCol("Rate", 100), _tCol("Total", 100, isLast: true),
-            ])),
-            pw.Expanded(child: pw.Column(children: pageItems.map((i) => pw.Container(
-              decoration: const pw.BoxDecoration(border: pw.Border(bottom: pw.BorderSide(width: 0.1))),
-              child: pw.Row(children: [
-                _cell("${challan.items.indexOf(i) + 1}", 30), _cell(i.name, 300, isLeft: true), _cell(i.packing, 60),
-                _cell(i.batch, 90), _cell(i.exp, 60), _cell(i.qty.toInt().toString(), 60),
-                _cell(i.purchaseRate.toStringAsFixed(2), 100), _cell(i.total.toStringAsFixed(2), 100),
+        build: (context) => pw.Column(children: [
+          pw.Container(
+            width: 800, decoration: pw.BoxDecoration(border: pw.Border.all(width: 1)),
+            child: pw.Column(children: [
+              pw.Row(children: [
+                _hBox(285, true, pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
+                  pw.Text(shop.name.toUpperCase(), style: pw.TextStyle(fontSize: 13, fontWeight: pw.FontWeight.bold, color: PdfColors.blue900)),
+                  pw.Text(shop.address, style: const pw.TextStyle(fontSize: 7.5)),
+                  pw.Text("GSTIN: ${shop.gstin}", style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold)),
+                ])),
+                _hBox(170, true, pw.Column(children: [
+                  pw.Text("INWARD CHALLAN", style: pw.TextStyle(fontSize: 11, fontWeight: pw.FontWeight.bold)),
+                  pw.Divider(thickness: 0.5),
+                  pw.Text("Ref: ${challan.billNo}", style: const pw.TextStyle(fontSize: 7.5)),
+                  pw.Text(DateFormat('dd/MM/yyyy').format(challan.date), style: const pw.TextStyle(fontSize: 8)),
+                ])),
+                _hBox(335, false, pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
+                  pw.Text("SUPPLIER:", style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold, color: PdfColors.grey700)),
+                  pw.Text(supplier.name, style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold, color: PdfColors.blue900)),
+                  pw.Text("GSTIN: ${supplier.gst}", style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold)),
+                ])),
               ]),
-            )).toList())),
-            if (isLastPage) _buildFooter(shop.name, challan.totalAmount, challan.remarks)
-          ]),
-        ),
+              pw.Container(color: PdfColors.grey200, child: pw.Row(children: [
+                _tCol("S.N", 30), _tCol("Product Description", 300, isLeft: true), _tCol("Packing", 60),
+                _tCol("Batch", 90), _tCol("Expiry", 60), _tCol("Qty", 60), _tCol("Rate", 100), _tCol("Total", 100, isLast: true),
+              ])),
+              pw.Expanded(child: pw.Column(children: pageItems.map((i) => pw.Container(
+                decoration: const pw.BoxDecoration(border: pw.Border(bottom: pw.BorderSide(width: 0.1))),
+                child: pw.Row(children: [
+                  _cell("${challan.items.indexOf(i) + 1}", 30), _cell(i.name, 300, isLeft: true), _cell(i.packing, 60),
+                  _cell(i.batch, 90), _cell(i.exp, 60), _cell(i.qty.toInt().toString(), 60),
+                  _cell(i.purchaseRate.toStringAsFixed(2), 100), _cell(i.total.toStringAsFixed(2), 100),
+                ]),
+              )).toList())),
+              if (isLastPage) _buildFooter(shop.name, challan.totalAmount, challan.remarks)
+            ]),
+          ),
+          pw.SizedBox(height: 4), // Professional margins spacer
+          pw.Center(
+            child: pw.Text(
+              "This is a system-generated document. | Powered by Pharoah ERP [Download from Play Store] | Support: cloudcubeapps.ok@gmail.com",
+              style: const pw.TextStyle(fontSize: 5, color: PdfColors.grey600),
+            ),
+          ),
+        ])
       ));
     }
     return pdf.save();
