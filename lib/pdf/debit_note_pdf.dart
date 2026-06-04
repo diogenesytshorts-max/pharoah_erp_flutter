@@ -46,75 +46,86 @@ class DebitNotePdf {
       pdf.addPage(pw.Page(
         pageFormat: PdfPageFormat.a4.landscape,
         margin: const pw.EdgeInsets.all(15),
-        build: (pw.Context context) => pw.Container(
-          width: masterWidth,
-          decoration: pw.BoxDecoration(border: pw.Border.all(width: 1)),
-          child: pw.Column(children: [
-            // --- HEADER BOXES (Exact match to Architect Sale Bill) ---
-            pw.Row(children: [
-              _hBox(280, true, pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
-                pw.Text(shop.name.toUpperCase(), style: pw.TextStyle(fontSize: 13, fontWeight: pw.FontWeight.bold, color: PdfColors.blue900)),
-                pw.Text(shop.address, style: const pw.TextStyle(fontSize: 7), maxLines: 2),
-                pw.Text("GSTIN: ${shop.gstin} | DL: ${shop.dlNo}", style: pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold)),
-                pw.Text("Mob: ${shop.phone} | Email: ${shop.email.toLowerCase()}", style: const pw.TextStyle(fontSize: 7)),
+        build: (pw.Context context) => pw.Column(children: [
+          pw.Container(
+            width: masterWidth,
+            decoration: pw.BoxDecoration(border: pw.Border.all(width: 1)),
+            child: pw.Column(children: [
+              // --- HEADER BOXES (Exact match to Architect Sale Bill) ---
+              pw.Row(children: [
+                _hBox(280, true, pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
+                  pw.Text(shop.name.toUpperCase(), style: pw.TextStyle(fontSize: 13, fontWeight: pw.FontWeight.bold, color: PdfColors.blue900)),
+                  pw.Text(shop.address, style: const pw.TextStyle(fontSize: 7), maxLines: 2),
+                  pw.Text("GSTIN: ${shop.gstin} | DL: ${shop.dlNo}", style: pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold)),
+                  pw.Text("Mob: ${shop.phone} | Email: ${shop.email.toLowerCase()}", style: const pw.TextStyle(fontSize: 7)),
+                ])),
+                _hBox(175, true, pw.Column(children: [
+                  pw.Text("DEBIT NOTE", style: pw.TextStyle(fontSize: 11, fontWeight: pw.FontWeight.bold, color: PdfColors.brown900)),
+                  pw.Divider(thickness: 0.5),
+                  pw.Text("No: ${ret.billNo}", style: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold)),
+                  pw.Text(DateFormat('dd/MM/yyyy').format(ret.date), style: const pw.TextStyle(fontSize: 8)),
+                ])),
+                _hBox(345, false, pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
+                  pw.Text("SEND TO SUPPLIER:", style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold, color: PdfColors.grey700)),
+                  pw.Text(supplier.name, style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold, color: PdfColors.blue900)),
+                  pw.Text("${supplier.address}, ${supplier.city}", style: const pw.TextStyle(fontSize: 7.5), maxLines: 2),
+                  pw.Text("GST: ${supplier.gst} | DL: ${supplier.dl}", style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold)),
+                ])),
+              ]),
+
+              // --- SYNCED TABLE GRID (12 COLUMNS - TOTAL 800PT) ---
+              pw.Container(color: PdfColors.grey200, child: pw.Row(children: [
+                _tCol("S.N", 25), _tCol("Qty+Free", 60), _tCol("Pack", 40), 
+                _tCol("Product Name", 220, isLeft: true), 
+                _tCol("Batch", 75), _tCol("Exp", 45), _tCol("HSN", 45),
+                _tCol("MRP", 55), _tCol("Rate", 55), 
+                _tCol("CGST", 40), _tCol("SGST", 40),
+                _tCol("Total", 100, isLast: true), 
               ])),
-              _hBox(175, true, pw.Column(children: [
-                pw.Text("DEBIT NOTE", style: pw.TextStyle(fontSize: 11, fontWeight: pw.FontWeight.bold, color: PdfColors.brown900)),
-                pw.Divider(thickness: 0.5),
-                pw.Text("No: ${ret.billNo}", style: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold)),
-                pw.Text(DateFormat('dd/MM/yyyy').format(ret.date), style: const pw.TextStyle(fontSize: 8)),
-              ])),
-              _hBox(345, false, pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
-                pw.Text("SEND TO SUPPLIER:", style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold, color: PdfColors.grey700)),
-                pw.Text(supplier.name, style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold, color: PdfColors.blue900)),
-                pw.Text("${supplier.address}, ${supplier.city}", style: const pw.TextStyle(fontSize: 7.5), maxLines: 2),
-                pw.Text("GST: ${supplier.gst} | DL: ${supplier.dl}", style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold)),
-              ])),
+
+              // --- SMART CONTENT ---
+              pw.Expanded(child: pw.Column(children: pageItems.map((entry) {
+                if (entry is String) {
+                  return pw.Container(width: masterWidth, padding: const pw.EdgeInsets.all(3), decoration: const pw.BoxDecoration(color: PdfColors.grey100, border: pw.Border(bottom: pw.BorderSide(width: 0.5))),
+                  child: pw.Text(entry, style: pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold, color: PdfColors.brown900)));
+                }
+                // Field Mapping Fix: Using purchaseRate
+                PurchaseItem i = entry as PurchaseItem;
+                int sNo = ret.items.indexOf(i) + 1;
+                bool isShaded = config.useZebraShading && (sNo % 2 != 0);
+                
+                double taxableRow = i.purchaseRate * i.qty;
+                double taxAmt = i.total - taxableRow;
+
+                return pw.Container(
+                  color: isShaded ? PdfColors.grey50 : PdfColors.white,
+                  decoration: const pw.BoxDecoration(border: pw.Border(bottom: pw.BorderSide(width: 0.1))),
+                  child: pw.Row(children: [
+                    _cell("$sNo", 25), 
+                    _cell("${fmt(i.qty)} + ${fmt(i.freeQty)}", 60), 
+                    _cell(i.packing, 40),
+                    pw.Container(width: 220, padding: const pw.EdgeInsets.only(left: 8), alignment: pw.Alignment.centerLeft, child: pw.Text(i.name, style: const pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold))),
+                    _cell(i.batch, 75), _cell(i.exp, 45), _cell(i.hsn, 45),
+                    _cell(i.mrp.toStringAsFixed(2), 55), 
+                    _cell(i.purchaseRate.toStringAsFixed(2), 55),
+                    _cell(isLocal ? (taxAmt / 2).toStringAsFixed(1) : "0", 40),
+                    _cell(isLocal ? (taxAmt / 2).toStringAsFixed(1) : taxAmt.toStringAsFixed(1), 40),
+                    _cell(i.total.toStringAsFixed(2), 100),
+                  ]),
+                );
+              }).toList())),
+
+              if (isLastPage) _buildFixedSyncFooter(shop.name, ret, isLocal)
             ]),
-
-            // --- SYNCED TABLE GRID (12 COLUMNS - TOTAL 800PT) ---
-            pw.Container(color: PdfColors.grey200, child: pw.Row(children: [
-              _tCol("S.N", 25), _tCol("Qty+Free", 60), _tCol("Pack", 40), 
-              _tCol("Product Name", 220, isLeft: true), 
-              _tCol("Batch", 75), _tCol("Exp", 45), _tCol("HSN", 45),
-              _tCol("MRP", 55), _tCol("Rate", 55), 
-              _tCol("CGST", 40), _tCol("SGST", 40),
-              _tCol("Total", 100, isLast: true), 
-            ])),
-
-            pw.Expanded(child: pw.Column(children: pageItems.map((entry) {
-              if (entry is String) {
-                return pw.Container(width: masterWidth, padding: const pw.EdgeInsets.all(3), decoration: const pw.BoxDecoration(color: PdfColors.grey100, border: pw.Border(bottom: pw.BorderSide(width: 0.5))),
-                child: pw.Text(entry, style: pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold, color: PdfColors.brown900)));
-              }
-              // Field Mapping Fix: Using purchaseRate
-              PurchaseItem i = entry as PurchaseItem;
-              int sNo = ret.items.indexOf(i) + 1;
-              bool isShaded = config.useZebraShading && (sNo % 2 != 0);
-              
-              double taxableRow = i.purchaseRate * i.qty;
-              double taxAmt = i.total - taxableRow;
-
-              return pw.Container(
-                color: isShaded ? PdfColors.grey50 : PdfColors.white,
-                decoration: const pw.BoxDecoration(border: pw.Border(bottom: pw.BorderSide(width: 0.1))),
-                child: pw.Row(children: [
-                  _cell("$sNo", 25), 
-                  _cell("${fmt(i.qty)} + ${fmt(i.freeQty)}", 60), 
-                  _cell(i.packing, 40),
-                  pw.Container(width: 220, padding: const pw.EdgeInsets.only(left: 8), alignment: pw.Alignment.centerLeft, child: pw.Text(i.name, style: const pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold))),
-                  _cell(i.batch, 75), _cell(i.exp, 45), _cell(i.hsn, 45),
-                  _cell(i.mrp.toStringAsFixed(2), 55), 
-                  _cell(i.purchaseRate.toStringAsFixed(2), 55),
-                  _cell(isLocal ? (taxAmt / 2).toStringAsFixed(1) : "0", 40),
-                  _cell(isLocal ? (taxAmt / 2).toStringAsFixed(1) : taxAmt.toStringAsFixed(1), 40),
-                  _cell(i.total.toStringAsFixed(2), 100),
-                ]),
-              );
-            }).toList())),
-
-            if (isLastPage) _buildFixedSyncFooter(shop.name, ret, isLocal)
-          ])),
+          ),
+          pw.SizedBox(height: 4), // Professional margins spacer
+          pw.Center(
+            child: pw.Text(
+              "This is a system-generated document. | Powered by Pharoah ERP [Download from Play Store] | Support: cloudcubeapps.ok@gmail.com",
+              style: const pw.TextStyle(fontSize: 5, color: PdfColors.grey600),
+            ),
+          ),
+        ])
       ));
     }
     await Printing.layoutPdf(onLayout: (format) async => pdf.save(), format: PdfPageFormat.a4.landscape);
