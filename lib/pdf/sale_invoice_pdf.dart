@@ -37,10 +37,11 @@ class SaleInvoicePdf {
 
       pdf.addPage(pw.Page(
         pageFormat: PdfPageFormat.a4.landscape,
-        margin: const pw.EdgeInsets.all(15),
+        margin: const pw.EdgeInsets.symmetric(horizontal: 20, vertical: 15), // 🆕 Strictly locked to 15 vertical margin
         build: (pw.Context context) => pw.Column(children: [
           pw.Container(
             width: masterWidth,
+            height: 550, // 🆕 Height strictly locked to 550 points (pageHeightLimit)
             decoration: pw.BoxDecoration(border: pw.Border.all(width: 1)),
             child: pw.Column(children: [
               // --- HEADER (280+170+350 = 800) ---
@@ -94,7 +95,7 @@ class SaleInvoicePdf {
                     _cell("${start + idx + 1}", 25), 
                     _cell(qtyDisplay, 60), // Smart Qty yahan print hogi
                     _cell(i.packing, 40), 
-                    pw.Container(width: 220, padding: const pw.EdgeInsets.only(left: 8), alignment: pw.Alignment.centerLeft, child: pw.Text(i.name, style: pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold))),
+                    pw.Container(width: 220, padding: const pw.EdgeInsets.only(left: 8), alignment: pw.Alignment.centerLeft, child: pw.Text(i.name, style: const pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold))),
                     _cell(i.batch, 70), _cell(i.exp, 45), _cell(i.hsn, 45),
                     _cell(i.mrp.toStringAsFixed(2), 55), _cell(i.rate.toStringAsFixed(2), 55),
                     _cell("${(i.gstRate / 2).toStringAsFixed(1)}%", 40), _cell("${(i.gstRate / 2).toStringAsFixed(1)}%", 40),
