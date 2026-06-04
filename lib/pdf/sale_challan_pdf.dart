@@ -39,7 +39,7 @@ class SaleChallanPdf {
       }
     }
 
- for (int pageNum = 0; pageNum < totalPages; pageNum++) {
+    for (int pageNum = 0; pageNum < totalPages; pageNum++) {
       int start = pageNum * itemsPerPage;
       int end = (start + itemsPerPage < challan.items.length) ? start + itemsPerPage : challan.items.length;
       List<BillItem> pageItems = challan.items.sublist(start, end);
@@ -71,7 +71,7 @@ class SaleChallanPdf {
                       pw.Text(challan.billNo, style: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold)),
                       pw.Text(DateFormat('dd/MM/yyyy').format(challan.date), style: const pw.TextStyle(fontSize: 8)),
                     ])),
-                    // Box 3: Party Details (Width 345 - Corrected Alignment)
+                    // Box 3: Party Details (Width: 345)
                     _hBox(345, false, pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
                       pw.Text("CONSIGNEE DETAILS:", style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold, color: PdfColors.grey700)),
                       pw.Text(party.name, style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold, color: PdfColors.blue900)),
@@ -112,7 +112,7 @@ class SaleChallanPdf {
                   // --- 4. FOOTER ---
                   if (isLastPage) _buildFinalFooter(shop.name, challan.totalAmount, challan.remarks, lastSig)
                   else pw.Container(
-                    padding: const EdgeInsets.all(10),
+                    padding: const pw.EdgeInsets.all(10),
                     alignment: pw.Alignment.centerRight,
                     decoration: const pw.BoxDecoration(border: pw.Border(top: pw.BorderSide(width: 0.5))),
                     child: pw.Text("Continued on next page...", style: const pw.TextStyle(fontSize: 9, color: PdfColors.grey700)),
@@ -139,12 +139,11 @@ class SaleChallanPdf {
     return pdf.save();
   }
 
-  // --- HELPERS (Corrected Fixed Height & Syntax) ---
   static pw.Widget _hBox(double w, bool b, pw.Widget child) => pw.Container(width: w, height: 105, padding: const pw.EdgeInsets.all(6), decoration: pw.BoxDecoration(border: pw.Border(right: pw.BorderSide(width: b ? 0.5 : 0), bottom: const pw.BorderSide(width: 0.5))), child: child);
   static pw.Widget _tCol(String t, double w, {bool isLast = false, bool isLeft = false}) => pw.Container(width: w, height: 20, alignment: isLeft ? pw.Alignment.centerLeft : pw.Alignment.center, padding: pw.EdgeInsets.only(left: 5), decoration: pw.BoxDecoration(border: pw.Border(right: pw.BorderSide(width: isLast ? 0 : 0.5), bottom: const pw.BorderSide(width: 0.5))), child: pw.Text(t, style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold)));
   static pw.Widget _cell(String t, double w, {bool isLeft = false}) => pw.Container(width: w, height: 20, padding: const pw.EdgeInsets.symmetric(horizontal: 6, vertical: 4), alignment: isLeft ? pw.Alignment.centerLeft : pw.Alignment.center, decoration: const pw.BoxDecoration(border: pw.Border(right: pw.BorderSide(width: 0.2, color: PdfColors.grey))), child: pw.Text(t, style: const pw.TextStyle(fontSize: 8)));
   
-static pw.Widget _buildFinalFooter(String n, double t, String r, ChallanSignature? sig) => pw.Container(height: 110, decoration: const pw.BoxDecoration(border: pw.Border(top: pw.BorderSide(width: 0.5))), child: pw.Row(children: [
+  static pw.Widget _buildFinalFooter(String n, double t, String r, ChallanSignature? sig) => pw.Container(height: 110, decoration: const pw.BoxDecoration(border: pw.Border(top: pw.BorderSide(width: 0.5))), child: pw.Row(children: [
     pw.Container(width: 480, padding: const pw.EdgeInsets.all(10), decoration: const pw.BoxDecoration(border: pw.Border(right: pw.BorderSide(width: 0.5))), child: pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
       if (sig != null) pw.Text("DIGITAL SEAL: ${sig.verificationCode}", style: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold, color: PdfColors.red900)),
       pw.SizedBox(height: 50), 
