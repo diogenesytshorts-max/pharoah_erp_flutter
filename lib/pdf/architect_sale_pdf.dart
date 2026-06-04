@@ -69,10 +69,11 @@ class ArchitectSalePdf {
 
       pdf.addPage(pw.Page(
         pageFormat: PdfPageFormat.a4.landscape,
-        margin: const pw.EdgeInsets.all(15),
+        margin: const pw.EdgeInsets.symmetric(horizontal: 20, vertical: 15), // 🆕 Strictly locked to 15 vertical margin
         build: (pw.Context context) => pw.Column(children: [
           pw.Container(
             width: masterWidth,
+            height: 550, // 🆕 Height strictly locked to 550 points (pageHeightLimit)
             decoration: pw.BoxDecoration(border: pw.Border.all(width: 1)),
             child: pw.Column(children: [
               // --- HEADER ---
