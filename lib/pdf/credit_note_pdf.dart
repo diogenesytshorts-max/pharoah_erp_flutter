@@ -44,10 +44,11 @@ class CreditNotePdf {
 
       pdf.addPage(pw.Page(
         pageFormat: PdfPageFormat.a4.landscape,
-        margin: const pw.EdgeInsets.all(15),
+        margin: const pw.EdgeInsets.symmetric(horizontal: 20, vertical: 15), // 🆕 Strictly locked to 15 vertical margin
         build: (pw.Context context) => pw.Column(children: [
           pw.Container(
             width: masterWidth,
+            height: 550, // 🆕 Height strictly locked to 550 points (pageHeightLimit)
             decoration: pw.BoxDecoration(border: pw.Border.all(width: 1)),
             child: pw.Column(children: [
               // --- BOX HEADER (800pt FIXED) ---
@@ -85,7 +86,8 @@ class CreditNotePdf {
                     _cell("${ret.items.indexOf(i) + 1}", 25), _cell("${fmt(i.qty)}+${fmt(i.freeQty)}", 50), _cell(i.packing, 40),
                     pw.Container(width: 210, padding: const pw.EdgeInsets.only(left: 8), alignment: pw.Alignment.centerLeft, child: pw.Text(i.name, style: const pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold))),
                     _cell(i.batch, 70), _cell(i.exp, 45), _cell(i.hsn, 45), _cell(i.mrp.toStringAsFixed(2), 55), _cell(i.rate.toStringAsFixed(2), 55),
-                    _cell("${(i.gstRate / 2).toStringAsFixed(1)}%", 40), _cell("${(i.gstRate / 2).toStringAsFixed(1)}%", 40), _cell(i.total.toStringAsFixed(2), 125),
+                    _cell("${(i.gstRate / 2).toStringAsFixed(1)}%", 40), _cell("${(i.gstRate / 2).toStringAsFixed(1)}%", 40),
+                    _cell(i.total.toStringAsFixed(2), 125),
                 ]));
               }).toList())),
 
