@@ -63,40 +63,56 @@ class PharoahEmailService {
     }
   }
 
-  // ===========================================================================
-  // 📝 SMART MESSAGE TEMPLATES
-  // ===========================================================================
-  static Map<String, String> getTemplate({
-    required String type, 
-    required String shopName,
-    String docNo = "",
-    String dateRange = "",
-  }) {
-    String subject = "";
-    String body = "";
+ // ===========================================================================
+          // 📝 SMART MESSAGE TEMPLATES (REFINED PROFESSIONAL SIGNATURES)
+          // ===========================================================================
+          static Map<String, String> getTemplate({
+            required String type, 
+            required String shopName,
+            String docNo = "",
+            String dateRange = "",
+          }) {
+            String subject = "";
+            String messageBody = "";
 
-    switch (type) {
-      case "SALE":
-        subject = "Invoice Attached: $docNo from $shopName";
-        body = "Dear Sir/Madam,\n\nPlease find attached the Tax Invoice ($docNo).\n\nRegards,\n$shopName\nPowered by Pharoah ERP";
-        break;
-      case "CHALLAN":
-        subject = "Delivery Challan: $docNo from $shopName";
-        body = "Dear Sir,\n\nAttached is the Delivery Challan ($docNo) for the material dispatched.\n\nRegards,\n$shopName";
-        break;
-      case "LEDGER":
-        subject = "Account Statement: $shopName";
-        body = "Dear Sir,\n\nYour Ledger Statement for the period $dateRange has been attached.\n\nRegards,\n$shopName";
-        break;
-      case "STOCK":
-        subject = "Stock Report: $shopName";
-        body = "Dear Sir,\n\nStock summary report has been attached for your review.\n\nRegards,\n$shopName";
-        break;
-      default:
-        subject = "Document from $shopName";
-        body = "Please find the attached document.\n\nRegards,\n$shopName";
-    }
+            // Centralized Support & Promo Signature Block
+            const String footerSign = "\n\n---\nPowered by Pharoah ERP - Modern Business Billing App.\nDownload now for your business from Google Play Store.\nNeed help or facing download issues? Email us: cloudcubeapps.ok@gmail.com";
 
-    return {"subject": subject, "body": body};
-  }
+            switch (type.toUpperCase()) {
+              case "SALE":
+                subject = "Tax Invoice Attached: $docNo from $shopName";
+                messageBody = "Dear Customer,\n\nPlease find attached your Tax Invoice $docNo for your recent transaction with us.\nWe highly appreciate your business!\n\nRegards,\n$shopName";
+                break;
+              case "CHALLAN":
+                subject = "Delivery Challan Attached: $docNo from $shopName";
+                messageBody = "Dear Customer,\n\nPlease find attached the Delivery Challan $docNo for the materials dispatched.\n\nRegards,\n$shopName";
+                break;
+              case "LEDGER":
+                subject = "Ledger Statement: $shopName";
+                messageBody = "Dear Customer,\n\nPlease find attached your detailed Ledger Statement of account${dateRange.isNotEmpty ? ' for the period ' + dateRange : ''}.\nKindly review the statement.\n\nRegards,\n$shopName";
+                break;
+              case "STOCK":
+                subject = "Stock Analysis Report: $shopName";
+                messageBody = "Dear Partner / Auditor,\n\nPlease find attached the detailed Stock Summary & Valuation report.\n\nRegards,\n$shopName";
+                break;
+              case "RETURN":
+              case "CN":
+              case "DN":
+                subject = "Credit/Debit Note Attached: $docNo from $shopName";
+                messageBody = "Dear Customer / Supplier,\n\nPlease find attached the verified Credit / Debit Note $docNo regarding the returned materials.\n\nRegards,\n$shopName";
+                break;
+              case "VOUCHER":
+                subject = "Voucher Receipt Attached: $docNo from $shopName";
+                messageBody = "Dear Customer,\n\nPlease find attached the payment confirmation Voucher Receipt $docNo for your records.\n\nRegards,\n$shopName";
+                break;
+              default:
+                subject = "Document Attached from $shopName";
+                messageBody = "Dear Customer,\n\nPlease find attached the document for your reference.\n\nRegards,\n$shopName";
+            }
+
+            return {
+              "subject": subject, 
+              "body": "$messageBody$footerSign"
+            };
+          }
 }
