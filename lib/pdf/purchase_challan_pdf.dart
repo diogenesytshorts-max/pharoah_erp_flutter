@@ -16,9 +16,15 @@ class PurchaseChallanPdf {
   }
 
   // 📧 NAYA: EMAIL DISPATCH LOGIC
+// 📧 NAYA: EMAIL DISPATCH LOGIC
   static Future<Uint8List> generateBytes(PurchaseChallan challan, Party supplier, CompanyProfile shop) async {
     final pdf = pw.Document();
-    const int itemsPerPage = 18; 
+    
+    // 🆕 STRICT ALIGNED PARAMETERS
+    const int itemsPerPage = 15; 
+    const double pageHeightLimit = 550;
+    const double masterWidth = 800;
+
     int totalPages = (challan.items.length / itemsPerPage).ceil();
     if (totalPages == 0) totalPages = 1;
 
@@ -30,10 +36,12 @@ class PurchaseChallanPdf {
 
       pdf.addPage(pw.Page(
         pageFormat: PdfPageFormat.a4.landscape, 
-        margin: const pw.EdgeInsets.all(15),
+        margin: const pw.EdgeInsets.symmetric(horizontal: 20, vertical: 15), // 🆕 Symmetric margins locked
         build: (context) => pw.Column(children: [
           pw.Container(
-            width: 800, decoration: pw.BoxDecoration(border: pw.Border.all(width: 1)),
+            width: masterWidth, 
+            height: pageHeightLimit, // 🆕 Bounded height set to 550
+            decoration: pw.BoxDecoration(border: pw.Border.all(width: 1)),
             child: pw.Column(children: [
               pw.Row(children: [
                 _hBox(285, true, pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
@@ -78,8 +86,6 @@ class PurchaseChallanPdf {
         ])
       ));
     }
-    return pdf.save();
-  }
 
   static pw.Widget _hBox(double w, bool b, pw.Widget child) => pw.Container(width: w, height: 80, padding: const pw.EdgeInsets.all(5), decoration: pw.BoxDecoration(border: pw.Border(right: pw.BorderSide(width: b ? 0.5 : 0), bottom: const pw.BorderSide(width: 0.5))), child: child);
   static pw.Widget _tCol(String t, double w, {bool isLast = false, bool isLeft = false}) => pw.Container(width: w, height: 20, alignment: isLeft ? pw.Alignment.centerLeft : pw.Alignment.center, padding: pw.EdgeInsets.only(left: isLeft ? 8 : 0), decoration: pw.BoxDecoration(border: pw.Border(right: pw.BorderSide(width: isLast ? 0 : 0.5), bottom: const pw.BorderSide(width: 0.5))), child: pw.Text(t, style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold)));
