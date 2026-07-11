@@ -71,15 +71,20 @@ class SaleInvoicePdf {
                 ])),
               ]),
 
-              // --- TABLE HEADER (800 POINTS ALIGNED) ---
-              pw.Container(color: PdfColors.grey200, child: pw.Row(children: [
-                _tCol("S.N", 25), _tCol("Qty+Free", 60), _tCol("Pack", 40), 
-                _tCol("Product Description", 220, isLeft: true), 
-                _tCol("Batch", 70), _tCol("Exp", 45), _tCol("HSN", 45),
-                _tCol("MRP", 55), _tCol("Rate", 55), 
-                _tCol("CGST", 40), _tCol("SGST", 40),
-                _tCol("Net Amt", 100, isLast: true), 
-              ])),
+          // --- TABLE HEADER (800 POINTS ALIGNED) ---
+pw.Container(color: PdfColors.grey200, child: pw.Row(children: [
+  _tCol("S.N", 25), _tCol("Qty+Free", 60), _tCol("Pack", 40), 
+  _tCol("Product Description", 220, isLeft: true), 
+  _tCol("Batch", 70), _tCol("Exp", 45), _tCol("HSN", 45),
+  _tCol("MRP", 55), _tCol("Rate", 55), 
+  if (isLocal) ...[
+    _tCol("CGST", 40),
+    _tCol("SGST", 40),
+  ] else ...[
+    _tCol("IGST", 80),
+  ],
+  _tCol("Net Amt", 100, isLast: true), 
+])),
 
               // --- ITEM ROWS ---
               pw.Expanded(child: pw.Column(children: pageItems.asMap().entries.map((entry) {
@@ -89,19 +94,24 @@ class SaleInvoicePdf {
                 String fmt(double v) => v % 1 == 0 ? v.toInt().toString() : v.toStringAsFixed(1);
                 String qtyDisplay = "${fmt(i.qty)} + ${fmt(i.freeQty)}";
 
-                return pw.Container(
-                  decoration: const pw.BoxDecoration(border: pw.Border(bottom: pw.BorderSide(width: 0.1, color: PdfColors.grey400))),
-                  child: pw.Row(children: [
-                    _cell("${start + idx + 1}", 25), 
-                    _cell(qtyDisplay, 60), // Smart Qty yahan print hogi
-                    _cell(i.packing, 40), 
-                    pw.Container(width: 220, padding: const pw.EdgeInsets.only(left: 8), alignment: pw.Alignment.centerLeft, child: pw.Text(i.name, style: const pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold))),
-                    _cell(i.batch, 70), _cell(i.exp, 45), _cell(i.hsn, 45),
-                    _cell(i.mrp.toStringAsFixed(2), 55), _cell(i.rate.toStringAsFixed(2), 55),
-                    _cell("${(i.gstRate / 2).toStringAsFixed(1)}%", 40), _cell("${(i.gstRate / 2).toStringAsFixed(1)}%", 40),
-                    _cell(i.total.toStringAsFixed(2), 100),
-                  ]),
-                );
+              return pw.Container(
+  decoration: const pw.BoxDecoration(border: pw.Border(bottom: pw.BorderSide(width: 0.1, color: PdfColors.grey400))),
+  child: pw.Row(children: [
+    _cell("${start + idx + 1}", 25), 
+    _cell(qtyDisplay, 60), 
+    _cell(i.packing, 40), 
+    pw.Container(width: 220, padding: const pw.EdgeInsets.only(left: 8), alignment: pw.Alignment.centerLeft, child: pw.Text(i.name, style: const pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold))),
+    _cell(i.batch, 70), _cell(i.exp, 45), _cell(i.hsn, 45),
+    _cell(i.mrp.toStringAsFixed(2), 55), _cell(i.rate.toStringAsFixed(2), 55),
+    if (isLocal) ...[
+      _cell("${(i.gstRate / 2).toStringAsFixed(1)}%", 40),
+      _cell("${(i.gstRate / 2).toStringAsFixed(1)}%", 40),
+    ] else ...[
+      _cell("${i.gstRate.toStringAsFixed(1)}%", 80),
+    ],
+    _cell(i.total.toStringAsFixed(2), 100),
+  ]),
+);
               }).toList())),
 
               if (isLastPage) _buildFooter(shop.name, sale, shop, isLocal)
