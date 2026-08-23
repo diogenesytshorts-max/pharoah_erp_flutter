@@ -1,4 +1,4 @@
-// FILE: lib/pharoah_manager.dart (FULLY INTEGRATED, COMPILE-SAFE VERSION)
+// FILE: lib/pharoah_manager.dart (FULLY INTEGRATED WITH AUTO CLOUD SYNC)
 
 import 'dart:convert';
 import 'dart:io';
@@ -8,7 +8,7 @@ import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:local_auth/local_auth.dart'; 
 import 'package:flutter_secure_storage/flutter_secure_storage.dart'; 
-import 'package:shared_preferences/shared_preferences.dart'; // REQUIRED IMPORT
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'models.dart';
 import 'administration/system_user_model.dart';
@@ -19,27 +19,20 @@ import 'fy_transfer_engine.dart';
 import 'gateway/company_registry_model.dart';
 import 'logic/app_settings_model.dart';
 import 'logic/pharoah_numbering_engine.dart';
+import 'logic/cloud_sync_helper.dart'; // ☁️ AUTO-SYNC IMPORT
 import 'master_data_library.dart';
 import 'batch_sync_engine.dart';
 
 class PharoahManager with ChangeNotifier {
-  // ===========================================================================
-  // 1. GLOBAL STATE & SECURITY VARIABLES (CLASS LEVEL)
-  // ===========================================================================
-  
   String activeModule = "HOME"; 
-  // --- CONDITIONAL BATCH FILTER WATCHDOG (NEW) ---
-  // Yeh tabhi true dega jab company ke paas 1 se zyada Financial Years honge
   bool get showBatchFilter => activeCompany != null && activeCompany!.fYears.length > 1;
   
-  // --- 🛡️ NEW SECURITY & AUTO-LOCK STATE ---
   bool isAppLocked = false;           
   Timer? _inactivityTimer; 
   Timer? _backgroundLockTimer;
   final _auth = LocalAuthentication(); 
   final _secureStorage = const FlutterSecureStorage(); 
 
-  // --- DATA LISTS ---
   List<Medicine> medicines = []; 
   List<SystemUser> systemUsers = []; 
   SystemUser? loggedInStaff;
@@ -68,10 +61,6 @@ class PharoahManager with ChangeNotifier {
   bool isAdminAuthenticated = false;
 
   PharoahManager() { initRegistry(); }
-
-  // ===========================================================================
-  // 2. NAVIGATION & DYNAMIC MENU GETTERS
-  // ===========================================================================
 
   void updateModule(String newModule) {
     activeModule = newModule;
@@ -144,10 +133,6 @@ class PharoahManager with ChangeNotifier {
     ModuleAction(title: "Portal", icon: Icons.fact_check, color: Colors.teal, navModule: "GO_GST_RECON"),
   ];
 
-  // ===========================================================================
-  // 3. SECURITY & AUTH LOGIC
-  // ===========================================================================
-
   void authenticateAdmin(bool status) { 
     isAdminAuthenticated = status; 
     if (status) {
@@ -206,16 +191,10 @@ class PharoahManager with ChangeNotifier {
           lockApp(); 
         });
       }
-    } 
-    else if (state == AppLifecycleState.resumed) {
+    } else if (state == AppLifecycleState.resumed) {
       _backgroundLockTimer?.cancel(); 
-      debugPrint("🛡️ System: Welcome back! Lock cancelled via Grace Period.");
     }
   }
-
-  // ===========================================================================
-  // 4. REGISTRY & PERSISTENCE
-  // ===========================================================================
 
   Future<void> initRegistry() async {
     final root = await getApplicationDocumentsDirectory(); 
@@ -238,11 +217,9 @@ class PharoahManager with ChangeNotifier {
   Future<void> loginToCompany(CompanyProfile c, String fy) async { 
     activeCompany = c; 
     currentFY = fy; 
-    
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('active_fy_${c.id}', fy); 
     await prefs.setString('last_active_fy_for_${c.id}', fy); 
-    
     await loadAllData(); 
   }
 
@@ -264,6 +241,9 @@ class PharoahManager with ChangeNotifier {
     return dir.path;
   }
 
+  // ===========================================================================
+  // 💾 ATOMIC SAVE & AUTO CLOUD DRIVE SYNC
+  // ===========================================================================
   Future<void> save() async {
     final dir = await getWorkingPath(); 
     if (dir.isEmpty) return;
@@ -291,7 +271,11 @@ class PharoahManager with ChangeNotifier {
     
     await File('$dir/bats.json').writeAsString(jsonEncode(batchHistory.map((k, v) => MapEntry(k, v.map((b) => b.toMap()).toList()))));
     await File('$dir/config.json').writeAsString(jsonEncode(config.toMap()));
+    
     notifyListeners();
+
+    // ☁️ AUTO-TRIGGER 2-WAY CLOUD DRIVE SYNC (IF ON)
+    CloudSyncHelper.triggerAutoSync(this);
   }
 
   Future<void> loadAllData() async {
@@ -326,31 +310,20 @@ class PharoahManager with ChangeNotifier {
     var bD = load('bats.json'); if (bD!=null) { batchHistory.clear(); (bD as Map).forEach((k,v)=>batchHistory[k]=(v as List).map((b)=>BatchInfo.fromMap(b)).toList()); }
     
     InventoryLogicCenter.rebuildAllInventory(
-      medicines: medicines, 
-      batchHistory: batchHistory, 
-      purchases: purchases, 
-      sales: sales,
-      saleReturns: saleReturns,      
-      purchaseReturns: purchaseReturns 
+      medicines: medicines, batchHistory: batchHistory, purchases: purchases, sales: sales,
+      saleReturns: saleReturns, purchaseReturns: purchaseReturns 
     );
     notifyListeners();
   }
 
   // ===========================================================================
-  // 6. BUSINESS LOGIC (SALES, PURCHASES, STITCHER)
+  // TRANSACTION METHODS
   // ===========================================================================
 
-Future<void> finalizeSale({
-    required String billNo, 
-    required DateTime date, 
-    required Party party, 
-    required List<BillItem> items, 
-    required double total, 
-    required String mode, 
-    List<String>? linkedIds, 
-    double extraDiscount = 0.0, 
-    double roundOff = 0.0, 
-    String sourceTag = ""
+  Future<void> finalizeSale({
+    required String billNo, required DateTime date, required Party party, 
+    required List<BillItem> items, required double total, required String mode, 
+    List<String>? linkedIds, double extraDiscount = 0.0, double roundOff = 0.0, String sourceTag = ""
   }) async { 
     final p = parties.firstWhere((pt) => pt.id == party.id, orElse: () => party);
     sales.add(Sale(id: DateTime.now().toString(), billNo: billNo, partyId: p.id, date: date, partyName: p.name, partyGstin: p.gst, partyState: p.state, items: items, totalAmount: total, paymentMode: mode, linkedChallanIds: linkedIds ?? [], extraDiscount: extraDiscount, roundOff: roundOff, partyAddress: p.address, partyPhone: p.phone, partyEmail: p.email, partyDl: p.dl, partyPan: p.pan, partyCity: p.city, sourceTag: sourceTag)); 
@@ -367,49 +340,30 @@ Future<void> finalizeSale({
       await PharoahNumberingEngine.updateSeriesCounter(type: "SALE", companyID: activeCompany!.id, usedNumber: billNo, prefix: pfx); 
     }
 
-    // 🆕 STRICT TWO-WAY SYNC: Billing items ko business key (systemId) ke sath Master me register karein
     for (var item in items) {
       String resolvedKey = item.medicineID;
       try {
         final med = medicines.firstWhere((m) => m.id == item.medicineID);
-        resolvedKey = med.identityKey; // "PH-10001" resolved!
+        resolvedKey = med.identityKey;
       } catch (_) {}
 
       registerBatchActivity(
-        productKey: resolvedKey, 
-        batchNo: item.batch, 
-        exp: item.exp, 
-        packing: item.packing, 
-        mrp: item.mrp, 
-        rate: item.rate,
-        rateA: item.appliedRateType == "A" ? item.rate : 0.0,
-        rateB: item.appliedRateType == "B" ? item.rate : 0.0,
-        rateC: item.appliedRateType == "C" ? item.rate : 0.0,
-        rateCFormula: item.rateCFormula,
-        appliedRateType: item.appliedRateType,
+        productKey: resolvedKey, batchNo: item.batch, exp: item.exp, packing: item.packing, 
+        mrp: item.mrp, rate: item.rate, rateA: item.appliedRateType == "A" ? item.rate : 0.0,
+        rateB: item.appliedRateType == "B" ? item.rate : 0.0, rateC: item.appliedRateType == "C" ? item.rate : 0.0,
+        rateCFormula: item.rateCFormula, appliedRateType: item.appliedRateType,
       );
     }
     
-    // Rebuild first, then Save
     InventoryLogicCenter.rebuildAllInventory(medicines: medicines, batchHistory: batchHistory, purchases: purchases, sales: sales, saleReturns: saleReturns, purchaseReturns: purchaseReturns); 
     await save(); 
-    
     notifyListeners();
   }
 
-Future<void> finalizePurchase({
-    required String internalNo, 
-    required String billNo, 
-    required DateTime date, 
-    DateTime? entryDate, 
-    required Party party, 
-    required List<PurchaseItem> items, 
-    required double total, 
-    required String mode, 
-    List<String>? linkedChallanIds, 
-    String sourceTag = "",
-    double extraDiscount = 0.0, // 🆕 Mapped
-    double roundOff = 0.0,      // 🆕 Mapped
+  Future<void> finalizePurchase({
+    required String internalNo, required String billNo, required DateTime date, DateTime? entryDate, 
+    required Party party, required List<PurchaseItem> items, required double total, required String mode, 
+    List<String>? linkedChallanIds, String sourceTag = "", double extraDiscount = 0.0, double roundOff = 0.0,
   }) async { 
     purchases.add(Purchase(id: DateTime.now().toString(), internalNo: internalNo, billNo: billNo, partyId: party.id, date: date, entryDate: entryDate ?? DateTime.now(), distributorName: party.name, items: items, totalAmount: total, paymentMode: mode, linkedChallanIds: linkedChallanIds ?? [], sourceTag: sourceTag, extraDiscount: extraDiscount, roundOff: roundOff)); 
     
@@ -424,55 +378,35 @@ Future<void> finalizePurchase({
       await PharoahNumberingEngine.updateSeriesCounter(type: "PURCHASE", companyID: activeCompany!.id, usedNumber: internalNo, prefix: "PUR-"); 
     }
 
-    // 🆕 STRICT TWO-WAY SYNC: Purchase items ko business key (systemId) ke sath Master me register karein
     for (var item in items) {
       String resolvedKey = item.medicineID;
       try {
         final med = medicines.firstWhere((m) => m.id == item.medicineID);
-        resolvedKey = med.identityKey; // "PH-10001" resolved!
+        resolvedKey = med.identityKey;
       } catch (_) {}
 
       registerBatchActivity(
-        productKey: resolvedKey, 
-        batchNo: item.batch, 
-        exp: item.exp, 
-        packing: item.packing, 
-        mrp: item.mrp, 
-        rate: item.purchaseRate,
-        rateA: item.rateA,
-        rateB: item.rateB,
-        rateC: item.rateC,
-        rateCFormula: item.rateCFormula,
-        appliedRateType: item.appliedRateType,
+        productKey: resolvedKey, batchNo: item.batch, exp: item.exp, packing: item.packing, 
+        mrp: item.mrp, rate: item.purchaseRate, rateA: item.rateA, rateB: item.rateB, rateC: item.rateC,
+        rateCFormula: item.rateCFormula, appliedRateType: item.appliedRateType,
       );
     }
     
-    // Rebuild first, then Save
     InventoryLogicCenter.rebuildAllInventory(medicines: medicines, batchHistory: batchHistory, purchases: purchases, sales: sales, saleReturns: saleReturns, purchaseReturns: purchaseReturns); 
     await save();
     notifyListeners();
   }
 
   Future<void> updatePurchase({
-    required String id, 
-    required String internalNo, 
-    required String billNo, 
-    required DateTime date, 
-    DateTime? entryDate, 
-    required Party party, 
-    required List<PurchaseItem> items, 
-    required double total, 
-    required String mode, 
-    required List<String> linkedChallanIds,
-    double extraDiscount = 0.0, // 🆕 Mapped
-    double roundOff = 0.0,      // 🆕 Mapped
+    required String id, required String internalNo, required String billNo, required DateTime date, 
+    DateTime? entryDate, required Party party, required List<PurchaseItem> items, required double total, 
+    required String mode, required List<String> linkedChallanIds, double extraDiscount = 0.0, double roundOff = 0.0,
   }) async { 
     int idx = purchases.indexWhere((p) => p.id == id); 
     if (idx == -1) return; 
     String t = purchases[idx].sourceTag; 
     purchases[idx] = Purchase(id: id, internalNo: internalNo, billNo: billNo, partyId: party.id, date: date, entryDate: entryDate ?? DateTime.now(), distributorName: party.name, items: items, totalAmount: total, paymentMode: mode, linkedChallanIds: linkedChallanIds, sourceTag: t, extraDiscount: extraDiscount, roundOff: roundOff); 
     
-    // Rebuild first, then Save
     InventoryLogicCenter.rebuildAllInventory(medicines: medicines, batchHistory: batchHistory, purchases: purchases, sales: sales, saleReturns: saleReturns, purchaseReturns: purchaseReturns); 
     await save();
     notifyListeners();
@@ -494,205 +428,126 @@ Future<void> finalizePurchase({
     notifyListeners(); 
   }
 
-// --- CHALLANS & RETURNS ---
   void finalizeSaleChallan({
-    required String billNo, 
-    required DateTime date, 
-    required Party party, 
-    required List<BillItem> items, 
-    required double total, 
-    String remarks = "", 
-    required String partyId
+    required String billNo, required DateTime date, required Party party, 
+    required List<BillItem> items, required double total, String remarks = "", required String partyId
   }) { 
     saleChallans.add(SaleChallan(id: DateTime.now().toString(), billNo: billNo, partyId: partyId, date: date, partyName: party.name, partyGstin: party.gst, partyState: party.state, items: items, totalAmount: total, remarks: remarks)); 
-    
-    // 🆕 STRICT TWO-WAY SYNC: Sale Challan items ko correct systemId ke sath Batch Master me register karein
     for (var item in items) {
       String resolvedKey = item.medicineID;
       try {
         final med = medicines.firstWhere((m) => m.id == item.medicineID);
-        resolvedKey = med.identityKey; // Mapped to e.g. "PH-10001"
+        resolvedKey = med.identityKey;
       } catch (_) {}
 
       registerBatchActivity(
-        productKey: resolvedKey,
-        batchNo: item.batch,
-        exp: item.exp,
-        packing: item.packing,
-        mrp: item.mrp,
-        rate: item.rate,
-        rateA: item.appliedRateType == "A" ? item.rate : 0.0,
-        rateB: item.appliedRateType == "B" ? item.rate : 0.0,
-        rateC: item.appliedRateType == "C" ? item.rate : 0.0,
-        rateCFormula: item.rateCFormula,
-        appliedRateType: item.appliedRateType,
+        productKey: resolvedKey, batchNo: item.batch, exp: item.exp, packing: item.packing, 
+        mrp: item.mrp, rate: item.rate, rateA: item.appliedRateType == "A" ? item.rate : 0.0,
+        rateB: item.appliedRateType == "B" ? item.rate : 0.0, rateC: item.appliedRateType == "C" ? item.rate : 0.0,
+        rateCFormula: item.rateCFormula, appliedRateType: item.appliedRateType,
       );
     }
     save(); 
   }
 
   void finalizePurchaseChallan({
-    required String billNo, 
-    required String internalNo, 
-    required DateTime date, 
-    required Party party, 
-    required List<PurchaseItem> items, 
-    required double total, 
-    String remarks = "", 
-    required String partyId
+    required String billNo, required String internalNo, required DateTime date, 
+    required Party party, required List<PurchaseItem> items, required double total, 
+    String remarks = "", required String partyId
   }) { 
     purchaseChallans.add(PurchaseChallan(id: DateTime.now().toString(), internalNo: internalNo, billNo: billNo, partyId: partyId, date: date, distributorName: party.name, items: items, totalAmount: total, remarks: remarks)); 
-    
-    // 🆕 STRICT TWO-WAY SYNC: Purchase Challan items ko correct systemId ke sath Batch Master me register karein
     for (var item in items) {
       String resolvedKey = item.medicineID;
       try {
         final med = medicines.firstWhere((m) => m.id == item.medicineID);
-        resolvedKey = med.identityKey; // Mapped to e.g. "PH-10001"
+        resolvedKey = med.identityKey;
       } catch (_) {}
 
       registerBatchActivity(
-        productKey: resolvedKey,
-        batchNo: item.batch,
-        exp: item.exp,
-        packing: item.packing,
-        mrp: item.mrp,
-        rate: item.purchaseRate,
-        rateA: item.rateA,
-        rateB: item.rateB,
-        rateC: item.rateC,
-        rateCFormula: item.rateCFormula,
-        appliedRateType: item.appliedRateType,
+        productKey: resolvedKey, batchNo: item.batch, exp: item.exp, packing: item.packing, 
+        mrp: item.mrp, rate: item.purchaseRate, rateA: item.rateA, rateB: item.rateB, rateC: item.rateC,
+        rateCFormula: item.rateCFormula, appliedRateType: item.appliedRateType,
       );
     }
     save(); 
   }
-  
-  // --- NEW CODE ---
-// --- NEW CODE ---
+
   Future<void> finalizeSaleReturn({
-    required String billNo, 
-    required DateTime date, 
-    required Party party, 
-    required List<BillItem> items, 
-    required double total, 
-    double extraDiscount = 0.0, 
-    double roundOff = 0.0, 
-    String type = "Mixed"
+    required String billNo, required DateTime date, required Party party, 
+    required List<BillItem> items, required double total, double extraDiscount = 0.0, 
+    double roundOff = 0.0, String type = "Mixed"
   }) async { 
     saleReturns.add(SaleReturn(id: DateTime.now().toString(), billNo: billNo, date: date, partyName: party.name, items: items, totalAmount: total, returnType: type, extraDiscount: extraDiscount, roundOff: roundOff, status: "Active")); 
-    
-    // 🆕 STRICT TWO-WAY SYNC: Sale Return (Credit Note) items ko correct systemId ke sath Batch Master me register karein
     for (var item in items) {
       String resolvedKey = item.medicineID;
       try {
         final med = medicines.firstWhere((m) => m.id == item.medicineID);
-        resolvedKey = med.identityKey; // Resolved to "PH-10001"
+        resolvedKey = med.identityKey;
       } catch (_) {}
 
       registerBatchActivity(
-        productKey: resolvedKey,
-        batchNo: item.batch,
-        exp: item.exp,
-        packing: item.packing,
-        mrp: item.mrp,
-        rate: item.rate,
-        rateA: item.appliedRateType == "A" ? item.rate : 0.0,
-        rateB: item.appliedRateType == "B" ? item.rate : 0.0,
-        rateC: item.appliedRateType == "C" ? item.rate : 0.0,
-        rateCFormula: item.rateCFormula,
-        appliedRateType: item.appliedRateType,
+        productKey: resolvedKey, batchNo: item.batch, exp: item.exp, packing: item.packing, 
+        mrp: item.mrp, rate: item.rate, rateA: item.appliedRateType == "A" ? item.rate : 0.0,
+        rateB: item.appliedRateType == "B" ? item.rate : 0.0, rateC: item.appliedRateType == "C" ? item.rate : 0.0,
+        rateCFormula: item.rateCFormula, appliedRateType: item.appliedRateType,
       );
     }
 
-    // Rebuild first, then Save
     InventoryLogicCenter.rebuildAllInventory(medicines: medicines, batchHistory: batchHistory, purchases: purchases, sales: sales, saleReturns: saleReturns, purchaseReturns: purchaseReturns); 
     await save();
     notifyListeners();
   }
 
   Future<void> finalizePurchaseReturn({
-    required String billNo, 
-    required DateTime date, 
-    required Party party, 
-    required List<PurchaseItem> items, 
-    required double total, 
-    double extraDiscount = 0.0, 
-    double roundOff = 0.0, 
-    String type = "Mixed"
+    required String billNo, required DateTime date, required Party party, 
+    required List<PurchaseItem> items, required double total, double extraDiscount = 0.0, 
+    double roundOff = 0.0, String type = "Mixed"
   }) async { 
     purchaseReturns.add(PurchaseReturn(id: DateTime.now().toString(), billNo: billNo, distributorName: party.name, date: date, items: items, totalAmount: total, status: "Active", returnType: type, extraDiscount: extraDiscount, roundOff: roundOff)); 
-    
-    // 🆕 STRICT TWO-WAY SYNC: Purchase Return (Debit Note) items ko correct systemId ke sath Batch Master me register karein
     for (var item in items) {
       String resolvedKey = item.medicineID;
       try {
         final med = medicines.firstWhere((m) => m.id == item.medicineID);
-        resolvedKey = med.identityKey; // Resolved to "PH-10001"
+        resolvedKey = med.identityKey;
       } catch (_) {}
 
       registerBatchActivity(
-        productKey: resolvedKey,
-        batchNo: item.batch,
-        exp: item.exp,
-        packing: item.packing,
-        mrp: item.mrp,
-        rate: item.purchaseRate,
-        rateA: item.rateA,
-        rateB: item.rateB,
-        rateC: item.rateC,
-        rateCFormula: item.rateCFormula,
-        appliedRateType: item.appliedRateType,
+        productKey: resolvedKey, batchNo: item.batch, exp: item.exp, packing: item.packing, 
+        mrp: item.mrp, rate: item.purchaseRate, rateA: item.rateA, rateB: item.rateB, rateC: item.rateC,
+        rateCFormula: item.rateCFormula, appliedRateType: item.appliedRateType,
       );
     }
 
-    // Rebuild first, then Save
     InventoryLogicCenter.rebuildAllInventory(medicines: medicines, batchHistory: batchHistory, purchases: purchases, sales: sales, saleReturns: saleReturns, purchaseReturns: purchaseReturns); 
     await save();
     notifyListeners();
   }
-  // ===========================================================================
-  // 7. BATCH TOOLS & INVENTORY INTEL
-  // ===========================================================================
 
-void registerBatchActivity({
-    required String productKey, 
-    required String batchNo, 
-    required String exp, 
-    required String packing, 
-    required double mrp, 
-    required double rate,
-    double rateA = 0.0,
-    double rateB = 0.0,
-    double rateC = 0.0,
-    double rateCFormula = 0.0,
-    String appliedRateType = "A",
-    double qtyChange = 0.0,
-    String status = "Active",
+  void registerBatchActivity({
+    required String productKey, required String batchNo, required String exp, 
+    required String packing, required double mrp, required double rate,
+    double rateA = 0.0, double rateB = 0.0, double rateC = 0.0, double rateCFormula = 0.0,
+    String appliedRateType = "A", double qtyChange = 0.0, String status = "Active",
   }) {
-    // Direct delegation to BatchSyncEngine (Centralized safe sync)
     BatchSyncEngine.registerBatchActivity(
-      ph: this,
-      productKey: productKey,
-      batchNo: batchNo,
-      exp: exp,
-      packing: packing,
-      mrp: mrp,
-      rate: rate,
-      rateA: rateA,
-      rateB: rateB,
-      rateC: rateC,
-      rateCFormula: rateCFormula,
-      appliedRateType: appliedRateType,
-      qtyChange: qtyChange,
-      status: status,
+      ph: this, productKey: productKey, batchNo: batchNo, exp: exp, packing: packing, 
+      mrp: mrp, rate: rate, rateA: rateA, rateB: rateB, rateC: rateC, 
+      rateCFormula: rateCFormula, appliedRateType: appliedRateType, qtyChange: qtyChange, status: status,
     );
   }
 
-  void runAutoShortageScan() { shortages.removeWhere((s) => s.source == "Auto"); for (var m in medicines) { double a = calculateAvgMonthlySale(m.id); double r = a * 1.5; if (m.stock < r && r > 0) { shortages.add(ShortageItem(id: "auto_${m.id}", medicineId: m.id, medicineName: m.name, companyName: m.companyId, qtyRequired: r - m.stock, currentStock: m.stock, date: DateTime.now(), source: "Auto")); } } save(); }
- // ===========================================================================
-  // 📈 INTELLIGENT SHORTAGE ENGINE (NET-SALE FORMULA)
-  // ===========================================================================
+  void runAutoShortageScan() { 
+    shortages.removeWhere((s) => s.source == "Auto"); 
+    for (var m in medicines) { 
+      double a = calculateAvgMonthlySale(m.id); 
+      double r = a * 1.5; 
+      if (m.stock < r && r > 0) { 
+        shortages.add(ShortageItem(id: "auto_${m.id}", medicineId: m.id, medicineName: m.name, companyName: m.companyId, qtyRequired: r - m.stock, currentStock: m.stock, date: DateTime.now(), source: "Auto")); 
+      } 
+    } 
+    save(); 
+  }
+
   double calculateAvgMonthlySale(String mid) {
     DateTime thirtyDaysAgo = DateTime.now().subtract(const Duration(days: 30));
     double grossSaleQty = 0;
@@ -713,13 +568,10 @@ void registerBatchActivity({
     double netMonthlySale = grossSaleQty - returnedQty;
     return netMonthlySale < 0 ? 0 : netMonthlySale;
   }
+
   void adjustBatchStock({required String medId, required String batchNo, required double adjQty, required String reason}) { if (batchHistory.containsKey(medId)) { try { var b = batchHistory[medId]!.firstWhere((x) => x.batch == batchNo); b.adjustmentQty += adjQty; b.adjReason = reason; save().then((_) => loadAllData()); } catch (e) {} } }
   void updateBatchMetadata({required String medId, required String batchNo, required String newExp, required double newMrp, required double newRate}) { if (batchHistory.containsKey(medId)) { try { var b = batchHistory[medId]!.firstWhere((x) => x.batch == batchNo); b.exp = newExp; b.mrp = newMrp; b.rate = newRate; save().then((_) => loadAllData()); } catch (e) {} } }
   
-  // ===========================================================================
-  // 💹 ADVANCED ACCOUNTING & VOUCHER ENGINE
-  // ===========================================================================
-
   List<Map<String, dynamic>> getPendingBills(String partyId, bool isReceipt) {
     List<Map<String, dynamic>> pending = [];
     DateTime now = DateTime.now();
@@ -784,10 +636,6 @@ void registerBatchActivity({
     return (todayTotal + newAmount) > 200000;
   }
 
-  // ===========================================================================
-  // 8. MASTERS CRUD (ADD/UPDATE/DELETE)
-  // ===========================================================================
-
   String getOrCreateCompany(String n) { try { return companies.firstWhere((c) => c.name.toUpperCase() == n.trim().toUpperCase()).id; } catch (e) { String id = "CP-${1000 + companies.length + 1}"; companies.add(Company(id: id, name: n.trim().toUpperCase())); save(); return id; } }
   String getOrCreateSalt(String n) { try { return salts.firstWhere((s) => s.name.toUpperCase() == n.trim().toUpperCase()).id; } catch (e) { String id = "SL-${1000 + salts.length + 1}"; salts.add(Salt(id: id, name: n.trim().toUpperCase())); save(); return id; } }
 
@@ -827,10 +675,6 @@ void registerBatchActivity({
       notifyListeners();
     }
   }
-
-  // ===========================================================================
-  // ⚡ ADVANCED STOCK-SAFE MODIFICATION ENGINE
-  // ===========================================================================
 
   Future<void> updateSaleReturn({required String id, required String billNo, required DateTime date, required Party party, required List<BillItem> items, required double total, double extraDiscount = 0.0, double roundOff = 0.0}) async {
     int i = saleReturns.indexWhere((r) => r.id == id);
@@ -909,24 +753,16 @@ void registerBatchActivity({
 
   void resetCounter(String t) { if (activeCompany != null) { String pfx = (t == "SALE_BILL") ? "INV-" : (t == "PUR_BILL" ? "PUR-" : "SCH-"); PharoahNumberingEngine.resetSeries(type: t.contains("SALE") ? "SALE" : "PURCHASE", companyID: activeCompany!.id, prefix: pfx); } notifyListeners(); }
 
-  // ===========================================================================
-  // 9. DATA REGISTRY & YEAR-END
-  // ===========================================================================
-
   Future<void> setupNewCompanyEnvironment(CompanyProfile p, String f) async { activeCompany = p; currentFY = f; numberingSeries = [NumberingSeries(id: 's1', name: "Standard Retail", type: "SALE", prefix: "INV-", isDefault: true)]; medicines = DemoData.getMedicines(); companies = MasterDataLibrary.getTopCompanies(); salts = MasterDataLibrary.getTopSalts(); drugTypes = MasterDataLibrary.getDrugTypes(); parties = [DemoData.getDemoParty(), Party(id: 'cash', name: "CASH", group: "Cash in Hand")]; await save(); if (!companiesRegistry.any((c) => c.id == p.id)) { companiesRegistry.add(p); await saveRegistry(); } notifyListeners(); }
   
   Future<bool> startNewFinancialYear(String n, {bool filterZeroStock = false, bool filterExpired = false}) async { 
     await save(); 
-    
-    // --- 🛡️ PATH COLLISION FIX (NEW) ---
-    // Gateway screen par currentFY khali ("") hoti hai, jisse path mismatch ho jata hai.
-    // Isliye hum strictly pichle saal ka active folder (fYears.last) use karenge.
     String actualSourceYear = currentFY.isNotEmpty ? currentFY : activeCompany!.fYears.last;
 
     bool ok = await FYTransferEngine.transferData(
       companyID: activeCompany!.id, 
       businessType: activeCompany!.businessType, 
-      sourceFY: actualSourceYear, // Smart Sync Source Year
+      sourceFY: actualSourceYear,
       targetFY: n,
       filterZeroStock: filterZeroStock, 
       filterExpired: filterExpired,     
@@ -972,14 +808,11 @@ void registerBatchActivity({
 
   Future<void> masterReset() async { final p = await getWorkingPath(); if(p.isNotEmpty) { final d = Directory(p); if(d.existsSync()) d.deleteSync(recursive: true); } await loadAllData(); }
   
-  // --- INTEGRITY CHECKERS ---
-  
   bool isPartyInUse(String partyId, String partyName) {
     bool inSales = sales.any((s) => s.partyId == partyId || s.partyName == partyName);
     bool inPurchases = purchases.any((p) => p.partyId == partyId || p.distributorName == partyName);
     bool inVouchers = vouchers.any((v) => v.partyId == partyId || v.partyName == partyName);
     bool inChallans = saleChallans.any((c) => c.partyId == partyId) || purchaseChallans.any((c) => c.partyId == partyId);
-    
     return inSales || inPurchases || inVouchers || inChallans;
   }
 
@@ -988,10 +821,6 @@ void registerBatchActivity({
     bool inPurchases = purchases.any((p) => p.items.any((it) => it.medicineID == medId));
     return inSales || inPurchases;
   }
-
-  // ===========================================================================
-  // 10. GETTERS & RECOVERY
-  // ===========================================================================
 
   NumberingSeries getDefaultSeries(String t) {
     final searchType = t.toUpperCase();
@@ -1019,10 +848,6 @@ void registerBatchActivity({
     sorted.sort((a, b) => (counts[b] ?? 0).compareTo(counts[a] ?? 0));
     return sorted;
   }
-
-  // ===========================================================================
-  // 📊 ADVANCED STATEMENT ENGINE (FOR PARTY LEDGER & AUDIT)
-  // ===========================================================================
 
   List<Map<String, dynamic>> getPartyStatementData({
     required String partyId,
@@ -1097,8 +922,7 @@ void registerBatchActivity({
 
     return finalResult;
   }
-  // --- 🛡️ SILENT MAINTENANCE LOADERS (NEW) ---
-  // Yeh system ko bina notify kiye (bina screen flash kiye) memory reload karne ki permission dete hain.
+
   Future<void> loadDataForMaintenanceSilently(String year) async {
     currentFY = year; 
     final dir = await getWorkingPath(); 
@@ -1129,12 +953,9 @@ void registerBatchActivity({
   }
 
   void resetYearSilently() {
-    currentFY = ""; // Clear silently without notifyListeners
+    currentFY = ""; 
   }
 
-// ===========================================================================
-  // 🏛️ NAYA: CASCADE PROVISIONAL BALANCE SYNC (CASCADE LOOP - NO NESTING)
-  // ===========================================================================
   Future<bool> syncOpeningBalancesFromPreviousYear({
     required String startYear, 
     required Function(double progress, String status) onStepProgress
@@ -1146,15 +967,11 @@ void registerBatchActivity({
       List<String> years = activeCompany!.fYears;
       int startIndex = years.indexOf(startYear);
       
-      if (startIndex == -1 || startIndex >= years.length - 1) {
-        debugPrint("Sync Error: Invalid starting year or no subsequent year to sync.");
-        return false;
-      }
+      if (startIndex == -1 || startIndex >= years.length - 1) return false;
 
       int totalSteps = (years.length - 1) - startIndex;
       int completedSteps = 0;
 
-      // Chronological loop through years
       for (int i = startIndex; i < years.length - 1; i++) {
         String prevFY = years[i];
         String targetFY = years[i + 1];
@@ -1169,12 +986,8 @@ void registerBatchActivity({
         final prevDir = Directory(prevPath);
         final targetDir = Directory(targetPath);
         
-        if (!await prevDir.exists() || !await targetDir.exists()) {
-          debugPrint("Sync Error: directories missing on step $prevFY -> $targetFY");
-          return false;
-        }
+        if (!await prevDir.exists() || !await targetDir.exists()) return false;
 
-        // 1. Read previous year databases directly from disk files
         File fMeds = File('$prevPath/meds.json');
         List<Medicine> prevMeds = fMeds.existsSync() ? (jsonDecode(fMeds.readAsStringSync()) as List).map((e) => Medicine.fromMap(e)).toList() : [];
 
@@ -1196,7 +1009,6 @@ void registerBatchActivity({
         File fBats = File('$prevPath/bats.json');
         Map<String, dynamic> prevBatchesRaw = fBats.existsSync() ? jsonDecode(fBats.readAsStringSync()) : {};
 
-        // 2. Read target year databases
         File fTargetParts = File('$targetPath/parts.json');
         List<Party> targetParties = fTargetParts.existsSync() ? (jsonDecode(fTargetParts.readAsStringSync()) as List).map((e) => Party.fromMap(e)).toList() : [];
 
@@ -1209,45 +1021,31 @@ void registerBatchActivity({
         File fTargetBats = File('$targetPath/bats.json');
         Map<String, dynamic> targetBatchesRaw = fTargetBats.existsSync() ? jsonDecode(fTargetBats.readAsStringSync()) : {};
 
-        // 3. Re-calculate Party Closing Balances
         Map<String, double> recalculatedPartyBals = {};
         for (var p in prevParties) {
           if (p.name == "CASH") continue;
           double bal = p.opBal;
-          
-          for (var s in prevSales.where((s) => s.partyName == p.name && s.status == "Active")) {
-            bal += s.totalAmount;
-          }
-          for (var pr in prevPurc.where((pr) => pr.distributorName == p.name)) {
-            bal -= pr.totalAmount;
-          }
+          for (var s in prevSales.where((s) => s.partyName == p.name && s.status == "Active")) { bal += s.totalAmount; }
+          for (var pr in prevPurc.where((pr) => pr.distributorName == p.name)) { bal -= pr.totalAmount; }
           for (var v in prevVouc.where((v) => v.partyName == p.name && v.status == "Active")) {
             String type = v.type.toUpperCase();
-            if (type == "RECEIPT") {
-              bal -= v.amount;
-            } else if (type == "PAYMENT" || type == "EXPENSE") {
-              bal += v.amount;
-            }
+            if (type == "RECEIPT") bal -= v.amount;
+            else if (type == "PAYMENT" || type == "EXPENSE") bal += v.amount;
           }
           recalculatedPartyBals[p.id] = bal;
         }
 
-        // 4. Re-calculate Bank Balances
         Map<String, double> recalculatedBankBals = {};
         for (var b in prevBanks) {
           double bal = b.openingBalance;
           for (var v in prevVouc.where((v) => v.depositedIn.toUpperCase() == b.name.toUpperCase() && v.status == "Active")) {
             String type = v.type.toUpperCase();
-            if (type == "RECEIPT") {
-              bal += v.amount;
-            } else if (type == "PAYMENT" || type == "EXPENSE") {
-              bal -= v.amount;
-            }
+            if (type == "RECEIPT") bal += v.amount;
+            else if (type == "PAYMENT" || type == "EXPENSE") bal -= v.amount;
           }
           recalculatedBankBals[b.id] = bal;
         }
 
-        // 5. Re-calculate Batch Stocks
         Map<String, List<BatchInfo>> recalculatedBatches = {};
         prevBatchesRaw.forEach((medKey, batchList) {
           List<dynamic> list = batchList as List;
@@ -1260,7 +1058,6 @@ void registerBatchActivity({
           }).toList();
         });
 
-        // 6. DELTA MASTERS EXPORT (Masters Sync)
         Set<String> targetPartyIds = targetParties.map((p) => p.id).toSet();
         List<Party> missingParties = [];
         for (var p in prevParties) {
@@ -1280,7 +1077,6 @@ void registerBatchActivity({
 
         Set<String> targetMedKeys = targetMeds.map((m) => m.identityKey).toSet();
         List<Medicine> missingMeds = [];
-        
         for (var m in prevMeds) {
           if (!targetMedKeys.contains(m.identityKey)) {
             double totalStock = 0.0;
@@ -1309,28 +1105,6 @@ void registerBatchActivity({
         }).toList();
         updatedMeds.addAll(missingMeds);
 
-        // Delta for other static files
-        File fPrevRouts = File('$prevPath/routs.json');
-        List<RouteArea> prevRouts = fPrevRouts.existsSync() ? (jsonDecode(fPrevRouts.readAsStringSync()) as List).map((e) => RouteArea.fromMap(e)).toList() : [];
-        File fTargetRouts = File('$targetPath/routs.json');
-        List<RouteArea> targetRouts = fTargetRouts.existsSync() ? (jsonDecode(fTargetRouts.readAsStringSync()) as List).map((e) => RouteArea.fromMap(e)).toList() : [];
-        Set<String> targetRouteIds = targetRouts.map((r) => r.id).toSet();
-        targetRouts.addAll(prevRouts.where((r) => !targetRouteIds.contains(r.id)));
-
-        File fPrevComps = File('$prevPath/comps.json');
-        List<Company> prevComps = fPrevComps.existsSync() ? (jsonDecode(fPrevComps.readAsStringSync()) as List).map((e) => Company.fromMap(e)).toList() : [];
-        File fTargetComps = File('$targetPath/comps.json');
-        List<Company> targetComps = fTargetComps.existsSync() ? (jsonDecode(fTargetComps.readAsStringSync()) as List).map((e) => Company.fromMap(e)).toList() : [];
-        Set<String> targetCompIds = targetComps.map((c) => c.id).toSet();
-        targetComps.addAll(prevComps.where((c) => !targetCompIds.contains(c.id)));
-
-        File fPrevSalts = File('$prevPath/salts.json');
-        List<Salt> prevSalts = fPrevSalts.existsSync() ? (jsonDecode(fPrevSalts.readAsStringSync()) as List).map((e) => Salt.fromMap(e)).toList() : [];
-        File fTargetSalts = File('$targetPath/salts.json');
-        List<Salt> targetSalts = fTargetSalts.existsSync() ? (jsonDecode(fTargetSalts.readAsStringSync()) as List).map((e) => Salt.fromMap(e)).toList() : [];
-        Set<String> targetSaltIds = targetSalts.map((s) => s.id).toSet();
-        targetSalts.addAll(prevSalts.where((s) => !targetSaltIds.contains(s.id)));
-
         List<Bank> updatedBanks = targetBanks.map((b) {
           if (recalculatedBankBals.containsKey(b.id)) {
             b.openingBalance = recalculatedBankBals[b.id]!;
@@ -1342,14 +1116,10 @@ void registerBatchActivity({
           targetBatchesRaw[medKey] = list.map((e) => e.toMap()).toList();
         });
 
-        // Save straight to disk
         await File('$targetPath/meds.json').writeAsString(jsonEncode(updatedMeds.map((e) => e.toMap()).toList()));
         await File('$targetPath/parts.json').writeAsString(jsonEncode(updatedParties.map((e) => e.toMap()).toList()));
         await File('$targetPath/banks.json').writeAsString(jsonEncode(updatedBanks.map((e) => e.toMap()).toList()));
         await File('$targetPath/bats.json').writeAsString(jsonEncode(targetBatchesRaw));
-        await File('$targetPath/routs.json').writeAsString(jsonEncode(targetRouts.map((e) => e.toMap()).toList()));
-        await File('$targetPath/comps.json').writeAsString(jsonEncode(targetComps.map((e) => e.toMap()).toList()));
-        await File('$targetPath/salts.json').writeAsString(jsonEncode(targetSalts.map((e) => e.toMap()).toList()));
 
         addLog("SYSTEM", "Provisional Cascade: synced opening balances from $prevFY to $targetFY.");
         await Future.delayed(const Duration(milliseconds: 100));
@@ -1365,30 +1135,15 @@ void registerBatchActivity({
     }
   }
 
-  // ===========================================================================
-  // ✍️ SIGNATURES & CHALLAN SECURITY (RESTORED & RESOLVED)
-  // ===========================================================================
-  
   Future<void> addSignatureToChallan({
-    required String challanId, 
-    required String imagePath, 
-    required String code, 
-    required double amount, 
-    required double qty, 
-    required double x, 
-    required double y
+    required String challanId, required String imagePath, required String code, 
+    required double amount, required double qty, required double x, required double y
   }) async { 
     int idx = saleChallans.indexWhere((c) => c.id == challanId); 
     if (idx != -1) { 
       final s = ChallanSignature(
-        id: DateTime.now().toString(), 
-        imagePath: imagePath, 
-        verificationCode: code, 
-        signedAmount: amount, 
-        signedQty: qty, 
-        signDate: DateTime.now(), 
-        signX: x, 
-        signY: y
+        id: DateTime.now().toString(), imagePath: imagePath, verificationCode: code, 
+        signedAmount: amount, signedQty: qty, signDate: DateTime.now(), signX: x, signY: y
       ); 
       List<ChallanSignature> h = List.from(saleChallans[idx].sigHistory); 
       h.add(s); 
@@ -1407,28 +1162,17 @@ void registerBatchActivity({
     return f.path; 
   }
 
-  // ===========================================================================
-  // 📜 MEDICINE HISTORY ENGINE (RESTORED & RESOLVED)
-  // ===========================================================================
-
   List<Map<String, dynamic>> getMedicineHistory({
-    required String partyId, 
-    required String medicineId, 
-    required bool isSale
+    required String partyId, required String medicineId, required bool isSale
   }) {
     List<Map<String, dynamic>> history = [];
     if (isSale) {
       for (var s in sales.where((s) => s.partyId == partyId && s.status == "Active")) {
         for (var it in s.items.where((it) => it.medicineID == medicineId)) {
           history.add({
-            'date': s.date, 
-            'billNo': s.billNo, 
-            'batch': it.batch, 
-            'qty': it.qty, 
-            'free': it.freeQty, 
-            'rate': it.rate, 
-            'mrp': it.mrp, 
-            'gst': it.gstRate
+            'date': s.date, 'billNo': s.billNo, 'batch': it.batch, 
+            'qty': it.qty, 'free': it.freeQty, 'rate': it.rate, 
+            'mrp': it.mrp, 'gst': it.gstRate
           });
         }
       }
@@ -1436,14 +1180,9 @@ void registerBatchActivity({
       for (var p in purchases.where((p) => p.partyId == partyId)) {
         for (var it in p.items.where((it) => it.medicineID == medicineId)) {
           history.add({
-            'date': p.date, 
-            'billNo': p.billNo, 
-            'batch': it.batch, 
-            'qty': it.qty, 
-            'free': it.freeQty, 
-            'rate': it.purchaseRate, 
-            'mrp': it.mrp, 
-            'gst': it.gstRate
+            'date': p.date, 'billNo': p.billNo, 'batch': it.batch, 
+            'qty': it.qty, 'free': it.freeQty, 'rate': it.purchaseRate, 
+            'mrp': it.mrp, 'gst': it.gstRate
           });
         }
       }
@@ -1451,4 +1190,4 @@ void registerBatchActivity({
     history.sort((a, b) => b['date'].compareTo(a['date']));
     return history;
   }
-} // <--- THE DEFINITIVE CLOSING BRACE FOR PHAROAHMANAGER CLASS
+}
