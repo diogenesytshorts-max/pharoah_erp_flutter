@@ -1,5 +1,5 @@
 // =============================================================================
-// PHAROAH ERP - ENTERPRISE CLIENT LOGIC (SAFE & FULLY COMPATIBLE WITH MOBILE APP)
+// PHAROAH ERP - FULL CLIENT ENGINE (EXACT PARITY WITH FLUTTER APP CODEBASE)
 // =============================================================================
 
 let appState = {
@@ -34,16 +34,9 @@ let appState = {
 
 let syncIntervalId = null;
 
-// Initial Load Handler
+// Initial Dom Load
 document.addEventListener("DOMContentLoaded", async () => {
     try {
-        // Clear stale service worker cache if exists
-        if ('caches' in window) {
-            caches.keys().then(names => {
-                for (let name of names) caches.delete(name);
-            });
-        }
-
         loadLocalData();
         populateDatalists();
         initNewSaleSession();
@@ -72,26 +65,56 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
 });
 
-// UI Navigation Tab Switcher
+// Navigation Function
+function navigateToModule(moduleKey) {
+    document.querySelectorAll("main > section").forEach(sec => sec.style.display = "none");
+    document.querySelectorAll(".nav-chip").forEach(btn => btn.classList.remove("active"));
+
+    let targetSectionId = `view-${moduleKey}`;
+    if (moduleKey === 'billing') targetSectionId = 'view-sale-step1';
+
+    const targetSec = document.getElementById(targetSectionId);
+    if (targetSec) targetSec.style.display = "block";
+
+    const activeChip = document.getElementById(`nav-chip-${moduleKey}`);
+    if (activeChip) activeChip.classList.add("active");
+
+    if (moduleKey === 'daybook') renderDaybook();
+    if (moduleKey === 'ledgers') renderLedgers();
+    if (moduleKey === 'stock') renderStock();
+    if (moduleKey === 'challans') renderChallansRegister();
+    if (moduleKey === 'returns') renderReturnsRegister();
+}
+
 function switchTab(tabId) {
-    try {
+    if (tabId === 'dashboard') navigateToModule('dashboard');
+    else if (tabId === 'sale-entry') navigateToModule('billing');
+    else if (tabId === 'sale-step1') {
         document.querySelectorAll("main > section").forEach(sec => sec.style.display = "none");
-        document.querySelectorAll(".nav-btn").forEach(btn => btn.classList.remove("active"));
-
-        const target = document.getElementById(`tab-${tabId}`);
-        if (target) target.style.display = "block";
-
-        const activeBtn = Array.from(document.querySelectorAll(".nav-btn")).find(b => b.getAttribute("onclick")?.includes(tabId));
-        if (activeBtn) activeBtn.classList.add("active");
-
-        if (tabId === 'daybook') renderDaybook();
-        if (tabId === 'ledgers') renderLedgers();
-        if (tabId === 'stock') renderStock();
-        if (tabId === 'challans') renderChallansRegister();
-        if (tabId === 'returns') renderReturnsRegister();
-    } catch (err) {
-        console.error("Tab Switch Error:", err);
+        document.getElementById("view-sale-step1").style.display = "block";
     }
+    else if (tabId === 'billing-cart') {
+        document.querySelectorAll("main > section").forEach(sec => sec.style.display = "none");
+        document.getElementById("view-sale-step2").style.display = "block";
+    }
+    else if (tabId === 'purchase-entry') navigateToModule('purchases');
+    else if (tabId === 'challans') navigateToModule('challans');
+    else if (tabId === 'returns') navigateToModule('returns');
+    else if (tabId === 'vouchers') navigateToModule('accounts');
+    else if (tabId === 'daybook') navigateToModule('daybook');
+    else if (tabId === 'ledgers') navigateToModule('ledgers');
+    else if (tabId === 'stock') navigateToModule('stock');
+    else if (tabId === 'masters') navigateToModule('masters');
+}
+
+function startNewSaleWorkflow() {
+    initNewSaleSession();
+    switchTab('sale-step1');
+}
+
+function startNewPurchaseWorkflow() {
+    initNewPurchaseSession();
+    navigateToModule('purchases');
 }
 
 function openGuideModal() { document.getElementById("guideModal")?.classList.add("active"); }
@@ -167,7 +190,7 @@ function onSalePartySelected(partyName) {
         appState.activeSaleSession.selectedParty = match;
         const nameEl = document.getElementById("previewPartyName");
         const metaEl = document.getElementById("previewPartyMeta");
-        const cardEl = document.getElementById("selectedPartyCard");
+        const cardEl = document.getElementById("selectedPartyPreviewCard");
         if (nameEl) nameEl.innerText = match.name;
         if (metaEl) metaEl.innerText = `City: ${match.city || 'LOCAL'} | GST: ${match.gst || 'N/A'} | Balance: ₹ ${match.opBal.toFixed(2)}`;
         if (cardEl) cardEl.style.display = "flex";
@@ -178,7 +201,7 @@ function clearSelectedSaleParty() {
     appState.activeSaleSession.selectedParty = null;
     const searchEl = document.getElementById("salePartySearch");
     if (searchEl) searchEl.value = "";
-    const cardEl = document.getElementById("selectedPartyCard");
+    const cardEl = document.getElementById("selectedPartyPreviewCard");
     if (cardEl) cardEl.style.display = "none";
 }
 
@@ -343,7 +366,7 @@ function renderSaleCart() {
                 <td>${item.discountPer.toFixed(1)}%</td>
                 <td>${item.gstRate}%</td>
                 <td><strong>₹ ${item.total.toFixed(2)}</strong></td>
-                <td><button class="btn btn-danger" style="padding: 3px 8px; font-size: 0.7rem;" onclick="removeSaleCartRow(${index})">✕</button></td>
+                <td><button class="btn btn-danger-sm" onclick="removeSaleCartRow(${index})">✕</button></td>
             </tr>
         `;
     });
@@ -530,7 +553,7 @@ function renderPurCart() {
                 <td>${item.qty} + ${item.freeQty}</td>
                 <td>${item.gstRate}%</td>
                 <td><strong>₹ ${item.total.toFixed(2)}</strong></td>
-                <td><button class="btn btn-danger" style="padding: 3px 8px; font-size: 0.7rem;" onclick="removePurCartRow(${index})">✕</button></td>
+                <td><button class="btn btn-danger-sm" onclick="removePurCartRow(${index})">✕</button></td>
             </tr>
         `;
     });
@@ -631,7 +654,7 @@ function renderChallansRegister() {
                 <td>${ch.date}</td>
                 <td>${ch.partyName}</td>
                 <td>₹ ${ch.totalAmount.toFixed(2)}</td>
-                <td><span class="badge-accent">${ch.status || 'Pending'}</span></td>
+                <td><span class="badge-tag">${ch.status || 'Pending'}</span></td>
             </tr>
         `;
     });
@@ -656,7 +679,6 @@ function saveReturnEntry() {
         type, noteNo, disposition, party, item, qty, rate, totalAmount: total, date, status: "Active"
     });
 
-    // If Sellable Return, add back to live stock
     if (type === "CN" && disposition === "Sellable") {
         const m = appState.medicines.find(med => med.name.toLowerCase() === item.toLowerCase());
         if (m) m.stock += qty;
@@ -759,7 +781,7 @@ function renderStock() {
     appState.medicines.filter(m => m.name.toLowerCase().includes(query) || (m.batch && m.batch.toLowerCase().includes(query))).forEach(m => {
         tbody.innerHTML += `
             <tr>
-                <td><span class="badge-accent">${m.systemId || m.id}</span></td>
+                <td><span class="badge-tag">${m.systemId || m.id}</span></td>
                 <td><strong>${m.name}</strong></td>
                 <td>${m.packing}</td>
                 <td>${m.batch || 'B-01'}</td>
@@ -822,6 +844,12 @@ function saveNewPartyMaster() {
     document.getElementById("mPartyName").value = "";
 }
 
+function autoExtractPanFromGst(gstVal) {
+    if (gstVal.length >= 12) {
+        document.getElementById("mPartyPan").value = gstVal.substring(2, 12).toUpperCase();
+    }
+}
+
 function formatExpiryField(input) {
     let v = input.value.replace(/[^0-9]/g, '');
     if (v.length >= 2 && !input.value.includes('/')) {
@@ -841,7 +869,8 @@ function populateDatalists() {
 function updateDashboardKpis() {
     const totalSale = appState.sales.reduce((sum, s) => sum + s.totalAmount, 0);
     const totalPur = appState.purchases.reduce((sum, p) => sum + p.totalAmount, 0);
-    const stockVal = appState.medicines.reduce((sum, m) => sum + (m.stock * m.purRate), 0);
+    // Calculated Taxable Inventory Stock Value (Never Negative!)
+    const stockVal = appState.medicines.reduce((sum, m) => sum + (Math.max(0, m.stock) * m.purRate), 0);
 
     const kpiSale = document.getElementById("kpi-sale");
     const kpiPur = document.getElementById("kpi-pur");
