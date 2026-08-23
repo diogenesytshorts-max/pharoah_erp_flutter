@@ -330,3 +330,23 @@ function loadLocalData() {
     const saved = localStorage.getItem("pharoah_web_state");
     if (saved) { try { Object.assign(appState, JSON.parse(saved)); } catch(e) {} }
 }
+
+// --- ⌨️ GLOBAL KEYBOARD SHORTCUTS FOR DESKTOP POS ---
+document.addEventListener("keydown", (e) => {
+    // F2: New Sale Bill
+    if (e.key === "F2") {
+        e.preventDefault();
+        switchTab("billing");
+        generateNewBillNumber();
+    }
+    // F4: Quick Drive Settings
+    if (e.key === "F4") {
+        e.preventDefault();
+        openDriveSettings();
+    }
+    // Esc: Close any open modal
+    if (e.key === "Escape") {
+        closeDriveSettings();
+        closeGuideModal();
+    }
+});
