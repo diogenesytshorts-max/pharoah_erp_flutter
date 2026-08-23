@@ -1,4 +1,4 @@
-// FILE: lib/administration/app_settings_view.dart (CLEANED VERSION)
+// FILE: lib/administration/app_settings_view.dart (UPDATED WITH WEB CLOUD & HINDI GUIDE GATEWAY)
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -18,10 +18,10 @@ class _AppSettingsViewState extends State<AppSettingsView> {
     final ph = Provider.of<PharoahManager>(context);
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF4F7FC), // Premium Background
+      backgroundColor: const Color(0xFFF4F7FC),
       appBar: AppBar(
         title: const Text("Global ERP Settings", style: TextStyle(fontWeight: FontWeight.w900)),
-        backgroundColor: const Color(0xFF1A237E), // Deep Navy
+        backgroundColor: const Color(0xFF1A237E),
         foregroundColor: Colors.white,
         elevation: 0,
       ),
@@ -30,11 +30,11 @@ class _AppSettingsViewState extends State<AppSettingsView> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // --- SECTION 1: THE ARCHITECT GATEWAY (Advanced Controls) ---
+            // --- SECTION 1: THE ARCHITECT & CLOUD GATEWAY ---
             _buildArchitectGateway(context),
             const SizedBox(height: 25),
             
-            // --- SECTION 2: SYSTEM INFORMATION CARD (Premium Aesthetic) ---
+            // --- SECTION 2: SYSTEM INFORMATION CARD ---
             _buildSystemInfoCard(ph),
           ],
         ),
@@ -42,13 +42,13 @@ class _AppSettingsViewState extends State<AppSettingsView> {
     );
   }
 
-  // Architect Control Center में जाने का खूबसूरत गेटवे कार्ड
+  // Architect & Web Cloud Control Center में जाने का खूबसूरत गेटवे कार्ड
   Widget _buildArchitectGateway(BuildContext context) {
     return InkWell(
       onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => const ArchitectControlView())),
       borderRadius: BorderRadius.circular(20),
       child: Container(
-        padding: const EdgeInsets.all(25),
+        padding: const EdgeInsets.all(22),
         decoration: BoxDecoration(
           gradient: const LinearGradient(
             colors: [Color(0xFF1A237E), Color(0xFF3949AB)],
@@ -59,15 +59,21 @@ class _AppSettingsViewState extends State<AppSettingsView> {
         ),
         child: const Row(
           children: [
-            Icon(Icons.architecture_rounded, color: Colors.orangeAccent, size: 45),
-            SizedBox(width: 20),
+            Icon(Icons.cloud_sync_rounded, color: Colors.cyanAccent, size: 45),
+            SizedBox(width: 18),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text("ARCHITECT CONTROL CENTER", style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold, letterSpacing: 0.5)),
+                  Text(
+                    "ARCHITECT & WEB CLOUD HUB", 
+                    style: TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold, letterSpacing: 0.5)
+                  ),
                   SizedBox(height: 5),
-                  Text("Manage Logo, Signatures, QR Code, Print Formats & Bank Details", style: TextStyle(color: Colors.white70, fontSize: 11)),
+                  Text(
+                    "Live Website, Google Drive 2-Way Sync, 📖 हिंदी गाइड, Logo & Bank Details", 
+                    style: TextStyle(color: Colors.white70, fontSize: 11, height: 1.3)
+                  ),
                 ],
               ),
             ),
@@ -78,7 +84,7 @@ class _AppSettingsViewState extends State<AppSettingsView> {
     );
   }
 
-  // सिस्टम की जानकारी दिखाने वाला क्लीन कार्ड (ताकि स्क्रीन खाली न लगे)
+  // सिस्टम की जानकारी कार्ड
   Widget _buildSystemInfoCard(PharoahManager ph) {
     return Container(
       width: double.infinity,
@@ -103,7 +109,9 @@ class _AppSettingsViewState extends State<AppSettingsView> {
           _infoRow("Active Company ID", ph.activeCompany?.id ?? "N/A"),
           _infoRow("Business Type", ph.activeCompany?.businessType ?? "N/A"),
           _infoRow("Financial Year", ph.currentFY),
-          _infoRow("ERP Version", "v1.0.9 (Architect Series)"),
+          _infoRow("Web Cloud Sync", ph.config.isArchitectMode ? "🟢 ACTIVE (2-Way)" : "⚪ OFFLINE"),
+          _infoRow("Live Web Portal", "pharoah-erp-flutter.diogenesytshorts.workers.dev"),
+          _infoRow("ERP Version", "v1.0.9 (Cloud Architect Series)"),
         ],
       ),
     );
