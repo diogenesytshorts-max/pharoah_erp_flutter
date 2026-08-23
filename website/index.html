@@ -111,7 +111,8 @@
                     </div>
                     <div class="form-group">
                         <label>CUSTOMER / PARTY</label>
-                        <input type="text" id="customerName" class="form-control" placeholder="Sharma Medicals">
+                        <input type="text" id="customerName" class="form-control" placeholder="Sharma Medicals" list="partyDatalist">
+                        <datalist id="partyDatalist"></datalist>
                     </div>
                     <div class="form-group">
                         <label>PAYMENT MODE</label>
@@ -126,7 +127,8 @@
                     <div class="form-grid">
                         <div class="form-group">
                             <label>PRODUCT NAME</label>
-                            <input type="text" id="itemSearch" class="form-control" placeholder="DOLO 650 MG">
+                            <input type="text" id="itemSearch" class="form-control" placeholder="DOLO 650 MG" list="itemDatalist" onchange="autoFillProductDetails(this.value)">
+                            <datalist id="itemDatalist"></datalist>
                         </div>
                         <div class="form-group">
                             <label>BATCH</label>
@@ -337,8 +339,9 @@
 
         <!-- Tab 9: Masters -->
         <section id="tab-masters" style="display: none;">
-            <div class="panel">
-                <h2>मास्टर्स हब (New Product / Party Quick Add)</h2>
+            <!-- Section A: Product Master -->
+            <div class="panel" style="margin-bottom: 2rem;">
+                <h2>⭐ नया प्रोडक्ट जोड़ें (Add Product Master)</h2>
                 <div class="form-grid" style="margin-top:1rem;">
                     <div class="form-group">
                         <label>PRODUCT NAME</label>
@@ -357,7 +360,42 @@
                         <input type="number" id="mProdRate" class="form-control" value="32.00">
                     </div>
                 </div>
-                <button class="btn btn-primary" onclick="addNewProductMaster()">⭐ नया प्रोडक्ट मास्टर में जोड़ें</button>
+                <button class="btn btn-primary" onclick="addNewProductMaster()">+ प्रोडक्ट मास्टर सेव करें</button>
+            </div>
+
+            <!-- Section B: Party Master (NEW) -->
+            <div class="panel">
+                <h2>👤 नया ग्राहक / सप्लायर खाता जोड़ें (Add Party Master)</h2>
+                <div class="form-grid" style="margin-top:1rem;">
+                    <div class="form-group">
+                        <label>PARTY / FIRM NAME *</label>
+                        <input type="text" id="mPartyName" class="form-control" placeholder="उदा. Gupta Medical Hall">
+                    </div>
+                    <div class="form-group">
+                        <label>GROUP (खाता प्रकार)</label>
+                        <select id="mPartyGroup" class="form-control">
+                            <option value="Sundry Debtors">Sundry Debtors (ग्राहक / कस्टमर)</option>
+                            <option value="Sundry Creditors">Sundry Creditors (सप्लायर / डिस्ट्रीब्यूटर)</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>CITY (शहर)</label>
+                        <input type="text" id="mPartyCity" class="form-control" placeholder="उदा. Udaipur">
+                    </div>
+                    <div class="form-group">
+                        <label>MOBILE NUMBER</label>
+                        <input type="text" id="mPartyPhone" class="form-control" placeholder="9876543210">
+                    </div>
+                    <div class="form-group">
+                        <label>GSTIN NO</label>
+                        <input type="text" id="mPartyGst" class="form-control" placeholder="08ABCDE1234F1Z5">
+                    </div>
+                    <div class="form-group">
+                        <label>OPENING BALANCE (₹)</label>
+                        <input type="number" id="mPartyOpBal" class="form-control" value="0.0">
+                    </div>
+                </div>
+                <button class="btn btn-success" onclick="addNewPartyMaster()">+ पार्टी खाता सेव करें</button>
             </div>
         </section>
     </main>

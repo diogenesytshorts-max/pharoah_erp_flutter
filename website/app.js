@@ -10,26 +10,24 @@ let appState = {
         { id: "3", name: "AZITHRAL 500", batch: "AZ-303", exp: "08/26", mrp: 115.00, rate: 88.00, stock: 45, gst: 12 }
     ],
     parties: [
-        { id: "p1", name: "CASH CUSTOMER", city: "LOCAL", phone: "", gst: "" },
-        { id: "p2", name: "SHARMA MEDICALS", city: "JAIPUR", phone: "9876543210", gst: "08ABCDE1234F1Z5" }
+        { id: "p1", name: "CASH CUSTOMER", group: "Sundry Debtors", city: "LOCAL", phone: "", gst: "" },
+        { id: "p2", name: "SHARMA MEDICALS", group: "Sundry Debtors", city: "JAIPUR", phone: "9876543210", gst: "08ABCDE1234F1Z5" }
     ],
     currentCart: []
 };
 
-// Periodic polling interval ID
 let syncIntervalId = null;
 
 document.addEventListener("DOMContentLoaded", async () => {
     loadLocalData();
     generateNewBillNumber();
     generateNewChallanNumber();
+    populateDatalists();
     document.getElementById("billDate").value = new Date().toISOString().split('T')[0];
     updateDashboardKpis();
 
-    // Initial Pull from Drive
     await pullLatestFromDrive();
 
-    // Start 30-second live background auto-sync from Drive
     if (syncIntervalId) clearInterval(syncIntervalId);
     syncIntervalId = setInterval(async () => {
         if (window.GoogleDriveSync && GoogleDriveSync.config.apiUrl) {
@@ -38,14 +36,36 @@ document.addEventListener("DOMContentLoaded", async () => {
     }, 30000);
 });
 
+function populateDatalists() {
+    const itemDatalist = document.getElementById("itemDatalist");
+    if (itemDatalist) {
+        itemDatalist.innerHTML = appState.medicines.map(m => `<option value="${m.name}"></option>`).join('');
+    }
+    const partyDatalist = document.getElementById("partyDatalist");
+    if (partyDatalist) {
+        partyDatalist.innerHTML = appState.parties.map(p => `<option value="${p.name}"></option>`).join('');
+    }
+}
+
+function autoFillProductDetails(val) {
+    const match = appState.medicines.find(m => m.name.toLowerCase() === val.toLowerCase());
+    if (match) {
+        document.getElementById("itemBatch").value = match.batch || "BATCH-01";
+        document.getElementById("itemExp").value = match.exp || "12/28";
+        document.getElementById("itemRate").value = match.rate || 0;
+        document.getElementById("itemGst").value = match.gst || 12;
+    }
+}
+
 async function pullLatestFromDrive(isSilent = false) {
     if (window.GoogleDriveSync && GoogleDriveSync.config.apiUrl) {
         const cloudData = await GoogleDriveSync.pullFromDrive();
         if (cloudData) {
             Object.assign(appState, cloudData);
             saveLocalData();
+            populateDatalists();
             updateDashboardKpis();
-            if (!isSilent) console.log("☁️ Drive data synchronized with local memory.");
+            if (!isSilent) console.log("☁️ Drive data synchronized.");
         }
     }
 }
@@ -226,16 +246,38 @@ function renderStock() {
 }
 
 function addNewProductMaster() {
-    const name = document.getElementById("mProdName").value.trim();
+    const name = document.getElementById("mProdName").value.trim().toUpperCase();
+    const pack = document.getElementById("mProdPack").value.trim().toUpperCase();
     const mrp = parseFloat(document.getElementById("mProdMrp").value) || 0;
     const rate = parseFloat(document.getElementById("mProdRate").value) || 0;
 
     if (!name) { alert("प्रोडक्ट का नाम डालें!"); return; }
-    appState.medicines.push({ id: Date.now().toString(), name, batch: "NEW-01", exp: "12/28", mrp, rate, stock: 0, gst: 12 });
+    appState.medicines.push({ id: Date.now().toString(), name, packing: pack, batch: "NEW-01", exp: "12/28", mrp, rate, stock: 0, gst: 12 });
     saveLocalData();
+    populateDatalists();
     if (window.GoogleDriveSync) GoogleDriveSync.pushToDrive(appState);
     alert("✅ नया प्रोडक्ट मास्टर में जुड़ गया!");
     renderStock();
+    document.getElementById("mProdName").value = "";
+}
+
+function addNewPartyMaster() {
+    const name = document.getElementById("mPartyName").value.trim().toUpperCase();
+    const group = document.getElementById("mPartyGroup").value;
+    const city = document.getElementById("mPartyCity").value.trim().toUpperCase();
+    const phone = document.getElementById("mPartyPhone").value.trim();
+    const gst = document.getElementById("mPartyGst").value.trim().toUpperCase();
+    const opBal = parseFloat(document.getElementById("mPartyOpBal").value) || 0.0;
+
+    if (!name) { alert("पार्टी का नाम अनिवार्य है!"); return; }
+
+    if (!appState.parties) appState.parties = [];
+    appState.parties.push({ id: "p_" + Date.now(), name, group, city, phone, gst, opBal });
+    saveLocalData();
+    populateDatalists();
+    if (window.GoogleDriveSync) GoogleDriveSync.pushToDrive(appState);
+    alert("✅ नया पार्टी खाता मास्टर में जुड़ गया!");
+    document.getElementById("mPartyName").value = "";
 }
 
 function updateDashboardKpis() {
