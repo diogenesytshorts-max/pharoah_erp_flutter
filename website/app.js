@@ -3,14 +3,21 @@ let appState = {
     purchases: [],
     challans: [],
     returns: [],
+    vouchers: [],
     medicines: [
         { id: "1", name: "DOLO 650 MG", batch: "DL-101", exp: "12/28", mrp: 30.91, rate: 28.50, stock: 150, gst: 12 },
         { id: "2", name: "PAN 40 MG", batch: "PN-202", exp: "05/27", mrp: 120.00, rate: 95.00, stock: 80, gst: 12 },
         { id: "3", name: "AZITHRAL 500", batch: "AZ-303", exp: "08/26", mrp: 115.00, rate: 88.00, stock: 45, gst: 12 }
     ],
-    parties: [],
+    parties: [
+        { id: "p1", name: "CASH CUSTOMER", city: "LOCAL", phone: "", gst: "" },
+        { id: "p2", name: "SHARMA MEDICALS", city: "JAIPUR", phone: "9876543210", gst: "08ABCDE1234F1Z5" }
+    ],
     currentCart: []
 };
+
+// Periodic polling interval ID
+let syncIntervalId = null;
 
 document.addEventListener("DOMContentLoaded", async () => {
     loadLocalData();
@@ -19,15 +26,29 @@ document.addEventListener("DOMContentLoaded", async () => {
     document.getElementById("billDate").value = new Date().toISOString().split('T')[0];
     updateDashboardKpis();
 
+    // Initial Pull from Drive
+    await pullLatestFromDrive();
+
+    // Start 30-second live background auto-sync from Drive
+    if (syncIntervalId) clearInterval(syncIntervalId);
+    syncIntervalId = setInterval(async () => {
+        if (window.GoogleDriveSync && GoogleDriveSync.config.apiUrl) {
+            await pullLatestFromDrive(true);
+        }
+    }, 30000);
+});
+
+async function pullLatestFromDrive(isSilent = false) {
     if (window.GoogleDriveSync && GoogleDriveSync.config.apiUrl) {
         const cloudData = await GoogleDriveSync.pullFromDrive();
         if (cloudData) {
             Object.assign(appState, cloudData);
             saveLocalData();
             updateDashboardKpis();
+            if (!isSilent) console.log("☁️ Drive data synchronized with local memory.");
         }
     }
-});
+}
 
 function switchTab(tabId) {
     document.querySelectorAll("main > section").forEach(sec => sec.style.display = "none");
@@ -61,7 +82,8 @@ function saveDriveSettingsFromModal() {
     if (!url) { alert("कृपया Webhook URL भरें!"); return; }
     if (window.GoogleDriveSync) { GoogleDriveSync.saveConfig(url, email); }
     closeDriveSettings();
-    alert("✅ Google Drive सिंक सफलतापूर्वक कनेक्ट हो गया!");
+    pullLatestFromDrive();
+    alert("✅ Google Drive 2-Way Sync कनेक्ट हो गया!");
 }
 
 function generateNewBillNumber() {
