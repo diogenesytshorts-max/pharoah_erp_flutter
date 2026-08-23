@@ -1,5 +1,5 @@
 // =============================================================================
-// PHAROAH ERP - FULL CLIENT ENGINE (EXACT PARITY WITH FLUTTER APP CODEBASE)
+// PHAROAH ERP - FULL ENTERPRISE CLIENT ENGINE (NO-FREEZE 2-WAY SYNC)
 // =============================================================================
 
 let appState = {
@@ -29,7 +29,8 @@ let appState = {
         roundOff: 0.0,
         grandTotal: 0.0
     },
-    activePurchaseCart: []
+    activePurchaseCart: [],
+    lastSavedBillRecord: null
 };
 
 let syncIntervalId = null;
@@ -65,8 +66,8 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
 });
 
-// Navigation Function
-function navigateToModule(moduleKey) {
+// Module View Switcher
+function showModuleScreen(moduleKey) {
     document.querySelectorAll("main > section").forEach(sec => sec.style.display = "none");
     document.querySelectorAll(".nav-chip").forEach(btn => btn.classList.remove("active"));
 
@@ -86,35 +87,18 @@ function navigateToModule(moduleKey) {
     if (moduleKey === 'returns') renderReturnsRegister();
 }
 
-function switchTab(tabId) {
-    if (tabId === 'dashboard') navigateToModule('dashboard');
-    else if (tabId === 'sale-entry') navigateToModule('billing');
-    else if (tabId === 'sale-step1') {
-        document.querySelectorAll("main > section").forEach(sec => sec.style.display = "none");
-        document.getElementById("view-sale-step1").style.display = "block";
-    }
-    else if (tabId === 'billing-cart') {
-        document.querySelectorAll("main > section").forEach(sec => sec.style.display = "none");
-        document.getElementById("view-sale-step2").style.display = "block";
-    }
-    else if (tabId === 'purchase-entry') navigateToModule('purchases');
-    else if (tabId === 'challans') navigateToModule('challans');
-    else if (tabId === 'returns') navigateToModule('returns');
-    else if (tabId === 'vouchers') navigateToModule('accounts');
-    else if (tabId === 'daybook') navigateToModule('daybook');
-    else if (tabId === 'ledgers') navigateToModule('ledgers');
-    else if (tabId === 'stock') navigateToModule('stock');
-    else if (tabId === 'masters') navigateToModule('masters');
+function returnToDashboard() {
+    showModuleScreen('dashboard');
 }
 
 function startNewSaleWorkflow() {
     initNewSaleSession();
-    switchTab('sale-step1');
+    showModuleScreen('billing');
 }
 
 function startNewPurchaseWorkflow() {
     initNewPurchaseSession();
-    navigateToModule('purchases');
+    showModuleScreen('purchases');
 }
 
 function openGuideModal() { document.getElementById("guideModal")?.classList.add("active"); }
@@ -190,7 +174,7 @@ function onSalePartySelected(partyName) {
         appState.activeSaleSession.selectedParty = match;
         const nameEl = document.getElementById("previewPartyName");
         const metaEl = document.getElementById("previewPartyMeta");
-        const cardEl = document.getElementById("selectedPartyPreviewCard");
+        const cardEl = document.getElementById("selectedPartyBadge");
         if (nameEl) nameEl.innerText = match.name;
         if (metaEl) metaEl.innerText = `City: ${match.city || 'LOCAL'} | GST: ${match.gst || 'N/A'} | Balance: ₹ ${match.opBal.toFixed(2)}`;
         if (cardEl) cardEl.style.display = "flex";
@@ -201,7 +185,7 @@ function clearSelectedSaleParty() {
     appState.activeSaleSession.selectedParty = null;
     const searchEl = document.getElementById("salePartySearch");
     if (searchEl) searchEl.value = "";
-    const cardEl = document.getElementById("selectedPartyPreviewCard");
+    const cardEl = document.getElementById("selectedPartyBadge");
     if (cardEl) cardEl.style.display = "none";
 }
 
@@ -214,10 +198,11 @@ function proceedToBillingStep2() {
     const titleEl = document.getElementById("billingHeaderTitle");
     const partyEl = document.getElementById("billingHeaderParty");
     if (titleEl) titleEl.innerText = `TAX INVOICE: ${appState.activeSaleSession.billNo}`;
-    if (partyEl) partyEl.innerText = `Party: ${appState.activeSaleSession.selectedParty.name} | Date: ${appState.activeSaleSession.billDate} | Mode: ${appState.activeSaleSession.paymentMode}`;
+    if (partyEl) partyEl.innerText = `Party: ${appState.activeSaleSession.selectedParty.name} | Mode: ${appState.activeSaleSession.paymentMode}`;
 
     renderSaleCart();
-    switchTab("billing-cart");
+    document.querySelectorAll("main > section").forEach(sec => sec.style.display = "none");
+    document.getElementById("view-sale-step2").style.display = "block";
 }
 
 // =============================================================================
@@ -400,7 +385,8 @@ function recalculateBillTotals() {
     if (sumGrandEl) sumGrandEl.innerText = `₹ ${grandTotal.toFixed(2)}`;
 }
 
-async function finalizeAndSaveSaleBill(format) {
+// NO-FREEZE INVOICE SAVING LOGIC
+function saveSaleBill() {
     if (appState.activeSaleSession.cartItems.length === 0) {
         alert("Cart is empty! Please add at least 1 item.");
         return;
@@ -422,6 +408,7 @@ async function finalizeAndSaveSaleBill(format) {
     };
 
     appState.sales.push(saleRecord);
+    appState.lastSavedBillRecord = saleRecord;
 
     // Deduct Live Stock
     saleRecord.items.forEach(it => {
@@ -436,7 +423,19 @@ async function finalizeAndSaveSaleBill(format) {
         GoogleDriveSync.pushToDrive(appState);
     }
 
-    // Trigger Print View
+    // Open Success Modal (No browser alert freeze!)
+    const titleEl = document.getElementById("successModalTitle");
+    const subEl = document.getElementById("successModalSub");
+    if (titleEl) titleEl.innerText = `INVOICE ${saleRecord.billNo} SAVED!`;
+    if (subEl) subEl.innerText = `Grand Total: ₹ ${saleRecord.totalAmount.toFixed(2)} | Synced with Google Drive`;
+
+    document.getElementById("billSuccessModal")?.classList.add("active");
+}
+
+function triggerDirectPrint(format) {
+    const saleRecord = appState.lastSavedBillRecord;
+    if (!saleRecord) return;
+
     const printArea = document.getElementById("printArea");
     if (printArea) {
         printArea.innerHTML = `
@@ -476,14 +475,16 @@ async function finalizeAndSaveSaleBill(format) {
         `;
         window.print();
     }
+}
 
+function dismissSuccessAndNewBill() {
+    document.getElementById("billSuccessModal")?.classList.remove("active");
     initNewSaleSession();
-    switchTab("sale-entry");
-    alert("✅ Bill Successfully Finalized, Stock Deducted & Synced to Google Drive!");
+    returnToDashboard();
 }
 
 // =============================================================================
-// PURCHASE, CHALLANS, RETURNS, VOUCHERS, LEDGERS & MASTERS
+// PURCHASES, CHALLANS, RETURNS, VOUCHERS, LEDGERS & MASTERS
 // =============================================================================
 
 function initNewPurchaseSession() {
@@ -607,6 +608,7 @@ function savePurchaseInward() {
 
     alert("✅ Inward Stock Saved and Live Inventory Updated!");
     initNewPurchaseSession();
+    returnToDashboard();
 }
 
 function initNewChallanSession() {
@@ -654,7 +656,7 @@ function renderChallansRegister() {
                 <td>${ch.date}</td>
                 <td>${ch.partyName}</td>
                 <td>₹ ${ch.totalAmount.toFixed(2)}</td>
-                <td><span class="badge-tag">${ch.status || 'Pending'}</span></td>
+                <td><span class="tag-badge">${ch.status || 'Pending'}</span></td>
             </tr>
         `;
     });
@@ -781,7 +783,7 @@ function renderStock() {
     appState.medicines.filter(m => m.name.toLowerCase().includes(query) || (m.batch && m.batch.toLowerCase().includes(query))).forEach(m => {
         tbody.innerHTML += `
             <tr>
-                <td><span class="badge-tag">${m.systemId || m.id}</span></td>
+                <td><span class="tag-badge">${m.systemId || m.id}</span></td>
                 <td><strong>${m.name}</strong></td>
                 <td>${m.packing}</td>
                 <td>${m.batch || 'B-01'}</td>
@@ -846,7 +848,8 @@ function saveNewPartyMaster() {
 
 function autoExtractPanFromGst(gstVal) {
     if (gstVal.length >= 12) {
-        document.getElementById("mPartyPan").value = gstVal.substring(2, 12).toUpperCase();
+        const panEl = document.getElementById("mPartyPan");
+        if (panEl) panEl.value = gstVal.substring(2, 12).toUpperCase();
     }
 }
 
@@ -869,7 +872,6 @@ function populateDatalists() {
 function updateDashboardKpis() {
     const totalSale = appState.sales.reduce((sum, s) => sum + s.totalAmount, 0);
     const totalPur = appState.purchases.reduce((sum, p) => sum + p.totalAmount, 0);
-    // Calculated Taxable Inventory Stock Value (Never Negative!)
     const stockVal = appState.medicines.reduce((sum, m) => sum + (Math.max(0, m.stock) * m.purRate), 0);
 
     const kpiSale = document.getElementById("kpi-sale");

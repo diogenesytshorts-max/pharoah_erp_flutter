@@ -3,21 +3,21 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Pharoah ERP - Enterprise Cloud Web Shell</title>
+    <title>Pharoah ERP - Cloud Web POS</title>
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
     <meta name="theme-color" content="#0d47a1">
-    <link rel="stylesheet" href="style.css?v=3.1">
+    <link rel="stylesheet" href="style.css?v=4.0">
     <script>
       if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.getRegistrations().then(registrations => {
-          for (let reg of registrations) { reg.unregister(); }
+        navigator.serviceWorker.getRegistrations().then(rList => {
+          for (let reg of rList) reg.unregister();
         });
       }
       if ('caches' in window) {
         caches.keys().then(names => {
-          for (let name of names) { caches.delete(name); }
+          for (let n of names) caches.delete(n);
         });
       }
     </script>
@@ -25,331 +25,318 @@
 <body>
 
     <!-- Header -->
-    <header class="app-top-header">
-        <div class="header-left">
-            <div class="company-title">PHAROAH ERP</div>
-            <div class="company-meta">
-                <span id="headerFyLabel">FY: 2026-27</span>
-                <span class="badge-tag">WHOLESALE</span>
+    <header class="app-header">
+        <div class="brand-box">
+            <div class="brand-title">PHAROAH ERP</div>
+            <div class="brand-badges">
+                <span>FY: 2026-27</span>
+                <span class="tag-badge">WHOLESALE</span>
             </div>
         </div>
-        <div class="header-right">
-            <div id="syncStatus" class="cloud-status-badge" onclick="openDriveSettings()" title="Google Drive Cloud Sync">
-                <span class="pulse-dot"></span>
-                <span id="tenantLabel">Cloud Sync: Ready</span>
+        <div class="header-actions">
+            <div id="syncStatus" class="sync-badge" onclick="openDriveSettings()" title="Google Drive Sync">
+                <span class="dot"></span>
+                <span id="tenantLabel">Cloud: Active</span>
             </div>
-            <button class="icon-nav-btn" onclick="openDriveSettings()" title="Drive Settings">⚙️</button>
-            <button class="icon-nav-btn" onclick="openGuideModal()" title="User Manual">📖</button>
+            <button class="btn-icon" onclick="openDriveSettings()">⚙️</button>
+            <button class="btn-icon" onclick="openGuideModal()">📖</button>
         </div>
     </header>
 
-    <!-- Module Navigation Chips -->
-    <nav class="module-navbar">
-        <button class="nav-chip active" id="nav-chip-dashboard" onclick="navigateToModule('dashboard')">DASHBOARD</button>
-        <button class="nav-chip" id="nav-chip-billing" onclick="navigateToModule('billing')">BILLING & SALES</button>
-        <button class="nav-chip" id="nav-chip-purchases" onclick="navigateToModule('purchases')">PURCHASE INWARD</button>
-        <button class="nav-chip" id="nav-chip-challans" onclick="navigateToModule('challans')">CHALLANS</button>
-        <button class="nav-chip" id="nav-chip-returns" onclick="navigateToModule('returns')">RETURNS (CN/DN)</button>
-        <button class="nav-chip" id="nav-chip-accounts" onclick="navigateToModule('accounts')">ACCOUNTS & VOUCHERS</button>
-        <button class="nav-chip" id="nav-chip-daybook" onclick="navigateToModule('daybook')">DAYBOOK</button>
-        <button class="nav-chip" id="nav-chip-ledgers" onclick="navigateToModule('ledgers')">KHATA LEDGERS</button>
-        <button class="nav-chip" id="nav-chip-stock" onclick="navigateToModule('stock')">STOCK LEDGER</button>
-        <button class="nav-chip" id="nav-chip-masters" onclick="navigateToModule('masters')">MASTER HUB</button>
-    </nav>
-
     <!-- Main Workspace -->
-    <main class="app-main-container">
-        
-        <!-- DASHBOARD -->
+    <main>
+        <!-- ========================================== -->
+        <!-- VIEW 1: DASHBOARD                          -->
+        <!-- ========================================== -->
         <section id="view-dashboard">
-            <div class="kpi-container">
-                <div class="stat-card">
-                    <div class="stat-card-top">
-                        <div class="stat-icon-wrap green-bg">📈</div>
-                        <span class="period-pill green-text">TODAY</span>
+            <div class="kpi-row">
+                <div class="kpi-card">
+                    <div class="kpi-card-header">
+                        <span class="kpi-label">TODAY SALE</span>
+                        <span class="pill" style="color: var(--accent-emerald);">LIVE</span>
                     </div>
-                    <div class="stat-label">TODAY SALE</div>
-                    <div class="stat-value" id="kpi-sale">₹ 0.00</div>
+                    <div class="kpi-amount" id="kpi-sale">₹ 0.00</div>
                 </div>
 
-                <div class="stat-card">
-                    <div class="stat-card-top">
-                        <div class="stat-icon-wrap orange-bg">🛒</div>
-                        <span class="period-pill orange-text">TODAY</span>
+                <div class="kpi-card">
+                    <div class="kpi-card-header">
+                        <span class="kpi-label">TODAY PURCHASE</span>
+                        <span class="pill" style="color: var(--accent-orange);">INWARD</span>
                     </div>
-                    <div class="stat-label">TODAY PURCHASE</div>
-                    <div class="stat-value" id="kpi-pur">₹ 0.00</div>
+                    <div class="kpi-amount" id="kpi-pur">₹ 0.00</div>
                 </div>
 
-                <div class="stat-card">
-                    <div class="stat-card-top">
-                        <div class="stat-icon-wrap indigo-bg">📦</div>
-                        <span class="period-pill indigo-text">REAL-TIME</span>
+                <div class="kpi-card">
+                    <div class="kpi-card-header">
+                        <span class="kpi-label">ESTIMATED STOCK VALUE</span>
+                        <span class="pill" style="color: #818cf8;">TAXABLE</span>
                     </div>
-                    <div class="stat-label">ESTIMATED STOCK VALUE</div>
-                    <div class="stat-value" id="kpi-stock">₹ 0.00</div>
+                    <div class="kpi-amount" id="kpi-stock">₹ 0.00</div>
                 </div>
             </div>
 
-            <div class="section-label-bar">QUICK ENTRIES</div>
-            <div class="quick-entry-row">
-                <div class="big-entry-btn sale-btn-bg" onclick="startNewSaleWorkflow()">
-                    <div class="big-btn-icon">🛒</div>
-                    <div class="big-btn-title">NEW SALE</div>
+            <!-- Quick Big Buttons -->
+            <div class="quick-btn-row">
+                <div class="big-btn btn-sale-bg" onclick="startNewSaleWorkflow()">
+                    <span style="font-size: 1.5rem;">🛒</span>
+                    <span class="big-btn-text">NEW SALE</span>
                 </div>
-                <div class="big-entry-btn purchase-btn-bg" onclick="startNewPurchaseWorkflow()">
-                    <div class="big-btn-icon">📥</div>
-                    <div class="big-btn-title">PURCHASE</div>
+                <div class="big-btn btn-pur-bg" onclick="startNewPurchaseWorkflow()">
+                    <span style="font-size: 1.5rem;">📥</span>
+                    <span class="big-btn-text">PURCHASE</span>
                 </div>
             </div>
 
-            <div class="master-hub-banner" onclick="navigateToModule('masters')">
-                <div class="banner-icon">⭐</div>
-                <div class="banner-text">
-                    <div class="banner-title">MASTER HUB</div>
-                    <div class="banner-sub">Manage Products, Parties, Companies & Salts</div>
+            <!-- Master Hub Banner -->
+            <div class="master-banner" onclick="showModuleScreen('masters')">
+                <span style="font-size: 2rem;">⭐</span>
+                <div class="banner-content">
+                    <div class="banner-heading">MASTER HUB</div>
+                    <div class="banner-subtext">Manage Products, Parties, Companies & Salts</div>
                 </div>
-                <div class="banner-arrow">➔</div>
+                <span>➔</span>
             </div>
 
-            <div class="section-label-bar">MAIN BUSINESS MODULES</div>
-            <div class="action-grid-9">
-                <div class="grid-card" onclick="navigateToModule('billing')">
-                    <div class="grid-icon-circle blue-bg">🧾</div>
-                    <div class="grid-title">BILLING</div>
+            <!-- 9 Business Modules Grid -->
+            <div class="module-grid-9">
+                <div class="grid-item" onclick="showModuleScreen('billing')">
+                    <div class="grid-icon blue-icon">🧾</div>
+                    <div class="grid-name">BILLING</div>
                 </div>
-                <div class="grid-card" onclick="navigateToModule('challans')">
-                    <div class="grid-icon-circle teal-bg">🚚</div>
-                    <div class="grid-title">CHALLANS</div>
+                <div class="grid-item" onclick="showModuleScreen('challans')">
+                    <div class="grid-icon teal-icon">🚚</div>
+                    <div class="grid-name">CHALLANS</div>
                 </div>
-                <div class="grid-card" onclick="navigateToModule('returns')">
-                    <div class="grid-icon-circle red-bg">🔄</div>
-                    <div class="grid-title">RETURNS</div>
+                <div class="grid-item" onclick="showModuleScreen('returns')">
+                    <div class="grid-icon red-icon">🔄</div>
+                    <div class="grid-name">RETURNS</div>
                 </div>
-                <div class="grid-card" onclick="navigateToModule('stock')">
-                    <div class="grid-icon-circle purple-bg">📊</div>
-                    <div class="grid-title">INVENTORY</div>
+                <div class="grid-item" onclick="showModuleScreen('stock')">
+                    <div class="grid-icon purple-icon">📊</div>
+                    <div class="grid-name">INVENTORY</div>
                 </div>
-                <div class="grid-card" onclick="navigateToModule('accounts')">
-                    <div class="grid-icon-circle indigo-bg">💰</div>
-                    <div class="grid-title">ACCOUNTS</div>
+                <div class="grid-item" onclick="showModuleScreen('accounts')">
+                    <div class="grid-icon blue-icon">💰</div>
+                    <div class="grid-name">ACCOUNTS</div>
                 </div>
-                <div class="grid-card" onclick="navigateToModule('masters')">
-                    <div class="grid-icon-circle orange-bg">⭐</div>
-                    <div class="grid-title">MASTERS</div>
+                <div class="grid-item" onclick="showModuleScreen('masters')">
+                    <div class="grid-icon orange-icon">⭐</div>
+                    <div class="grid-name">MASTERS</div>
                 </div>
-                <div class="grid-card" onclick="navigateToModule('daybook')">
-                    <div class="grid-icon-circle bluegrey-bg">📅</div>
-                    <div class="grid-title">DAYBOOK</div>
+                <div class="grid-item" onclick="showModuleScreen('daybook')">
+                    <div class="grid-icon bluegrey-icon">📅</div>
+                    <div class="grid-name">DAYBOOK</div>
                 </div>
-                <div class="grid-card" onclick="navigateToModule('ledgers')">
-                    <div class="grid-icon-circle green-bg-light">📑</div>
-                    <div class="grid-title">LEDGERS</div>
+                <div class="grid-item" onclick="showModuleScreen('ledgers')">
+                    <div class="grid-icon green-icon">📑</div>
+                    <div class="grid-name">LEDGERS</div>
                 </div>
-                <div class="grid-card" onclick="openDriveSettings()">
-                    <div class="grid-icon-circle cyan-bg">☁️</div>
-                    <div class="grid-title">CLOUD SYNC</div>
+                <div class="grid-item" onclick="openDriveSettings()">
+                    <div class="grid-icon teal-icon">☁️</div>
+                    <div class="grid-name">CLOUD SYNC</div>
                 </div>
             </div>
         </section>
 
-        <!-- SALE STEP 1: CONFIG -->
+        <!-- ========================================== -->
+        <!-- VIEW 2: SALE STEP 1 (HEADER & PARTY)       -->
+        <!-- ========================================== -->
         <section id="view-sale-step1" style="display: none;">
-            <div class="form-container-card">
-                <div class="card-header-bar">
-                    <h2>SALE ENTRY (STEP 1: INVOICE SETUP)</h2>
-                    <span class="step-pill">STEP 1 OF 2</span>
+            <div class="screen-panel">
+                <div class="screen-header">
+                    <div class="screen-title">SALE ENTRY (STEP 1: SETUP)</div>
+                    <button class="btn btn-secondary" onclick="returnToDashboard()">← DASHBOARD</button>
                 </div>
 
-                <div class="inputs-grid-4">
-                    <div class="input-field-group">
+                <div class="form-grid-4">
+                    <div class="form-field">
                         <label>SERIES SCHEME</label>
-                        <select id="saleSeriesSelect" class="form-input" onchange="updateSaleSeriesPrefix(this.value)">
-                            <option value="INV-">Standard Tax Invoice (INV-)</option>
-                            <option value="RET-">Retail Series (RET-)</option>
+                        <select id="saleSeriesSelect" class="erp-input" onchange="updateSaleSeriesPrefix(this.value)">
+                            <option value="INV-">Tax Invoice (INV-)</option>
+                            <option value="RET-">Retail Counter (RET-)</option>
                             <option value="WHOLE-">Wholesale B2B (WHOLE-)</option>
                         </select>
                     </div>
-                    <div class="input-field-group">
-                        <label>INVOICE NO</label>
-                        <input type="text" id="saleBillNo" class="form-input" readonly>
+                    <div class="form-field">
+                        <label>BILL NO</label>
+                        <input type="text" id="saleBillNo" class="erp-input" readonly>
                     </div>
-                    <div class="input-field-group">
+                    <div class="form-field">
                         <label>BILL DATE</label>
-                        <input type="date" id="saleBillDate" class="form-input">
+                        <input type="date" id="saleBillDate" class="erp-input">
                     </div>
-                    <div class="input-field-group">
+                    <div class="form-field">
                         <label>PAYMENT MODE</label>
-                        <div class="segmented-mode-bar">
+                        <div class="segment-bar">
                             <button type="button" class="seg-btn active" id="modeCashBtn" onclick="setSalePaymentMode('CASH')">CASH</button>
                             <button type="button" class="seg-btn" id="modeCreditBtn" onclick="setSalePaymentMode('CREDIT')">CREDIT</button>
                         </div>
                     </div>
                 </div>
 
-                <div class="input-field-group" style="margin-top: 1.2rem;">
+                <div class="form-field" style="margin-top: 1.2rem;">
                     <label>SELECT PARTY / CUSTOMER *</label>
-                    <input type="text" id="salePartySearch" class="form-input" placeholder="Search Customer Name or City..." list="partyDatalist" oninput="onSalePartySelected(this.value)">
+                    <input type="text" id="salePartySearch" class="erp-input" placeholder="Search Customer Name..." list="partyDatalist" oninput="onSalePartySelected(this.value)">
                 </div>
 
-                <div id="selectedPartyPreviewCard" class="party-info-box" style="display: none; margin-top: 1rem;">
-                    <div class="party-preview-info">
-                        <div class="circle-avatar">👤</div>
-                        <div>
-                            <div class="preview-name" id="previewPartyName">PARTY NAME</div>
-                            <div class="preview-meta" id="previewPartyMeta">City: LOCAL | GST: N/A | Balance: ₹ 0.00</div>
-                        </div>
+                <div id="selectedPartyBadge" class="party-badge-card" style="display: none; margin-top: 1rem;">
+                    <div>
+                        <div style="font-weight: 800; font-size: 0.95rem;" id="previewPartyName">PARTY NAME</div>
+                        <div style="font-size: 0.75rem; color: var(--text-muted);" id="previewPartyMeta">City: LOCAL | Balance: ₹ 0.00</div>
                     </div>
-                    <button class="btn btn-danger-sm" onclick="clearSelectedSaleParty()">CLEAR</button>
+                    <button class="btn btn-danger" style="padding: 4px 10px; font-size: 0.72rem;" onclick="clearSelectedSaleParty()">CHANGE</button>
                 </div>
 
-                <div class="card-footer-action">
+                <div style="margin-top: 2rem; text-align: right;">
                     <button class="btn btn-primary" onclick="proceedToBillingStep2()">PROCEED TO BILLING (STEP 2) ➔</button>
                 </div>
             </div>
         </section>
 
-        <!-- SALE STEP 2: CART -->
+        <!-- ========================================== -->
+        <!-- VIEW 3: SALE STEP 2 (CART & ITEM ENTRY)    -->
+        <!-- ========================================== -->
         <section id="view-sale-step2" style="display: none;">
-            <div class="form-container-card">
-                <div class="card-header-bar">
+            <div class="screen-panel">
+                <div class="screen-header">
                     <div>
-                        <h2 id="billingHeaderTitle">TAX INVOICE: INV-1001</h2>
-                        <div class="sub-party-text" id="billingHeaderParty">Party: Customer Name | Mode: CASH</div>
+                        <div class="screen-title" id="billingHeaderTitle">TAX INVOICE: INV-1001</div>
+                        <div style="font-size: 0.75rem; color: var(--text-muted);" id="billingHeaderParty">Party: Customer Name | Mode: CASH</div>
                     </div>
                     <div style="display: flex; gap: 8px;">
-                        <button class="btn btn-secondary" onclick="switchTab('sale-step1')">⬅ STEP 1</button>
+                        <button class="btn btn-secondary" onclick="showModuleScreen('sale-step1')">⬅ STEP 1</button>
                         <button class="btn btn-primary" onclick="openItemEntryModal()">+ ADD ITEM (F4)</button>
                     </div>
                 </div>
 
-                <div class="table-responsive">
+                <div class="table-wrap">
                     <table class="erp-table">
                         <thead>
                             <tr>
-                                <th>S.N</th><th>PRODUCT DESCRIPTION</th><th>PACK</th><th>BATCH</th><th>EXP</th><th>QTY + FREE</th><th>RATE (₹)</th><th>DISC %</th><th>GST %</th><th>NET TOTAL (₹)</th><th>ACTION</th>
+                                <th>S.N</th><th>DESCRIPTION</th><th>PACK</th><th>BATCH</th><th>EXP</th><th>QTY + FREE</th><th>RATE (₹)</th><th>DISC %</th><th>GST %</th><th>NET TOTAL (₹)</th><th>ACTION</th>
                             </tr>
                         </thead>
                         <tbody id="saleCartTableBody"></tbody>
                     </table>
                 </div>
 
-                <div class="cart-summary-footer">
-                    <div class="summary-remarks-box">
-                        <label>REMARKS / DISPATCH NOTE</label>
-                        <input type="text" id="saleRemarks" class="form-input" placeholder="Vehicle No / Notes">
+                <div class="cart-footer-grid">
+                    <div class="form-field" style="max-width: 320px;">
+                        <label>REMARKS / DISPATCH DETAILS</label>
+                        <input type="text" id="saleRemarks" class="erp-input" placeholder="Vehicle No / Notes">
                     </div>
-                    <div class="summary-calc-box">
-                        <div class="calc-row">
+                    <div class="calc-box">
+                        <div class="calc-line">
                             <span>ITEMS TOTAL:</span>
                             <span id="sumItemsTotal">₹ 0.00</span>
                         </div>
-                        <div class="calc-row">
+                        <div class="calc-line">
                             <span style="color: var(--accent-red); font-weight: bold;">EXTRA DISCOUNT (-):</span>
-                            <input type="number" id="saleExtraDiscount" class="calc-input-inline" value="0.00" oninput="recalculateBillTotals()">
+                            <input type="number" id="saleExtraDiscount" class="erp-input" style="width: 100px; text-align: right; padding: 4px;" value="0.00" oninput="recalculateBillTotals()">
                         </div>
-                        <div class="calc-row">
+                        <div class="calc-line">
                             <span>AUTO ROUND-OFF:</span>
                             <span id="sumRoundOff">₹ 0.00</span>
                         </div>
-                        <div class="calc-row grand-total-line">
+                        <div class="calc-line grand-total-highlight">
                             <span>NET PAYABLE:</span>
                             <span id="sumGrandTotal">₹ 0.00</span>
                         </div>
                     </div>
                 </div>
 
-                <div class="card-footer-action">
-                    <button class="btn btn-success" onclick="finalizeAndSaveSaleBill('A4')">💾 SAVE & PRINT A4 INVOICE</button>
-                    <button class="btn btn-primary" onclick="finalizeAndSaveSaleBill('Thermal')">📠 SAVE & 80MM THERMAL</button>
+                <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 1.5rem;">
+                    <button class="btn btn-success" onclick="saveSaleBill()">💾 SAVE INVOICE</button>
                 </div>
             </div>
         </section>
 
-        <!-- PURCHASES -->
+        <!-- ========================================== -->
+        <!-- VIEW 4: PURCHASES                          -->
+        <!-- ========================================== -->
         <section id="view-purchases" style="display: none;">
-            <div class="form-container-card">
-                <div class="card-header-bar">
-                    <h2>PURCHASE INWARD (STOCK RECEIVE)</h2>
-                    <button class="btn btn-primary" onclick="initNewPurchaseSession()">+ NEW INWARD</button>
+            <div class="screen-panel">
+                <div class="screen-header">
+                    <div class="screen-title">PURCHASE INWARD (STOCK RECEIVE)</div>
+                    <button class="btn btn-secondary" onclick="returnToDashboard()">← DASHBOARD</button>
                 </div>
 
-                <div class="inputs-grid-4">
-                    <div class="input-field-group">
+                <div class="form-grid-4">
+                    <div class="form-field">
                         <label>INTERNAL ID</label>
-                        <input type="text" id="purInternalNo" class="form-input" value="PUR-1" readonly>
+                        <input type="text" id="purInternalNo" class="erp-input" value="PUR-1" readonly>
                     </div>
-                    <div class="input-field-group">
+                    <div class="form-field">
                         <label>SUPPLIER BILL NO *</label>
-                        <input type="text" id="purBillNo" class="form-input" placeholder="INV-9901">
+                        <input type="text" id="purBillNo" class="erp-input" placeholder="INV-9901">
                     </div>
-                    <div class="input-field-group">
-                        <label>SUPPLIER BILL DATE</label>
-                        <input type="date" id="purBillDate" class="form-input">
+                    <div class="form-field">
+                        <label>BILL DATE</label>
+                        <input type="date" id="purBillDate" class="erp-input">
                     </div>
-                    <div class="input-field-group">
-                        <label>STOCK ENTRY DATE</label>
-                        <input type="date" id="purEntryDate" class="form-input">
+                    <div class="form-field">
+                        <label>ENTRY DATE</label>
+                        <input type="date" id="purEntryDate" class="erp-input">
                     </div>
                 </div>
 
-                <div class="inputs-grid-2" style="margin-top: 1rem;">
-                    <div class="input-field-group">
+                <div class="form-grid-2" style="margin-top: 1rem;">
+                    <div class="form-field">
                         <label>SUPPLIER / DISTRIBUTOR *</label>
-                        <input type="text" id="purSupplierSearch" class="form-input" placeholder="Search Distributor Name..." list="partyDatalist">
+                        <input type="text" id="purSupplierSearch" class="erp-input" placeholder="Search Distributor Name..." list="partyDatalist">
                     </div>
-                    <div class="input-field-group">
+                    <div class="form-field">
                         <label>PAYMENT MODE</label>
-                        <select id="purPayMode" class="form-input">
+                        <select id="purPayMode" class="erp-input">
                             <option value="CREDIT">CREDIT</option>
                             <option value="CASH">CASH</option>
                         </select>
                     </div>
                 </div>
 
-                <div class="embedded-entry-box" style="margin-top: 1.5rem;">
-                    <div class="inputs-grid-4">
-                        <div class="input-field-group">
+                <div class="screen-panel" style="background: rgba(0,0,0,0.25); margin-top: 1.2rem;">
+                    <div class="form-grid-4">
+                        <div class="form-field">
                             <label>PRODUCT NAME</label>
-                            <input type="text" id="purItemName" class="form-input" placeholder="DOLO 650 MG" list="itemDatalist" onchange="autoFillPurProductDetails(this.value)">
+                            <input type="text" id="purItemName" class="erp-input" placeholder="DOLO 650 MG" list="itemDatalist">
                         </div>
-                        <div class="input-field-group">
+                        <div class="form-field">
                             <label>BATCH</label>
-                            <input type="text" id="purBatch" class="form-input" value="B-01">
+                            <input type="text" id="purBatch" class="erp-input" value="B-01">
                         </div>
-                        <div class="input-field-group">
+                        <div class="form-field">
                             <label>EXPIRY (MM/YY)</label>
-                            <input type="text" id="purExp" class="form-input" value="12/28" oninput="formatExpiryField(this)">
+                            <input type="text" id="purExp" class="erp-input" value="12/28" oninput="formatExpiryField(this)">
                         </div>
-                        <div class="input-field-group">
+                        <div class="form-field">
                             <label>MRP (₹)</label>
-                            <input type="number" id="purMrp" class="form-input" value="50.00">
+                            <input type="number" id="purMrp" class="erp-input" value="50.00">
                         </div>
                     </div>
-                    <div class="inputs-grid-4" style="margin-top: 0.8rem;">
-                        <div class="input-field-group">
+                    <div class="form-grid-4" style="margin-top: 0.8rem;">
+                        <div class="form-field">
                             <label>PUR. RATE (₹) *</label>
-                            <input type="number" id="purRate" class="form-input" value="40.00">
+                            <input type="number" id="purRate" class="erp-input" value="40.00">
                         </div>
-                        <div class="input-field-group">
+                        <div class="form-field">
                             <label>QTY</label>
-                            <input type="number" id="purQty" class="form-input" value="10">
+                            <input type="number" id="purQty" class="erp-input" value="10">
                         </div>
-                        <div class="input-field-group">
+                        <div class="form-field">
                             <label>FREE</label>
-                            <input type="number" id="purFree" class="form-input" value="0">
+                            <input type="number" id="purFree" class="erp-input" value="0">
                         </div>
-                        <div class="input-field-group">
+                        <div class="form-field">
                             <label>GST %</label>
-                            <input type="number" id="purGst" class="form-input" value="12">
+                            <input type="number" id="purGst" class="erp-input" value="12">
                         </div>
                     </div>
-                    <div style="margin-top: 12px; text-align: right;">
+                    <div style="margin-top: 10px; text-align: right;">
                         <button class="btn btn-primary" onclick="addPurchaseCartItem()">+ ADD ITEM</button>
                     </div>
                 </div>
 
-                <div class="table-responsive" style="margin-top: 1.5rem;">
+                <div class="table-wrap">
                     <table class="erp-table">
                         <thead>
                             <tr>
@@ -360,72 +347,76 @@
                     </table>
                 </div>
 
-                <div class="cart-summary-footer">
+                <div class="cart-footer-grid">
                     <div></div>
-                    <div class="summary-calc-box">
-                        <div class="calc-row grand-total-line">
+                    <div class="calc-box">
+                        <div class="calc-line grand-total-highlight">
                             <span>NET INWARD TOTAL:</span>
                             <span id="purGrandTotal">₹ 0.00</span>
                         </div>
                     </div>
                 </div>
 
-                <div class="card-footer-action">
-                    <button class="btn btn-success" onclick="savePurchaseInward()">📥 FINALIZE & SAVE INWARD STOCK</button>
+                <div style="text-align: right; margin-top: 1.5rem;">
+                    <button class="btn btn-success" onclick="savePurchaseInward()">📥 SAVE INWARD STOCK</button>
                 </div>
             </div>
         </section>
 
-        <!-- CHALLANS -->
+        <!-- ========================================== -->
+        <!-- VIEW 5: CHALLANS                           -->
+        <!-- ========================================== -->
         <section id="view-challans" style="display: none;">
-            <div class="form-container-card">
-                <div class="card-header-bar">
-                    <h2>DELIVERY CHALLANS & REGISTER</h2>
-                    <button class="btn btn-primary" onclick="initNewChallanSession()">+ NEW CHALLAN</button>
+            <div class="screen-panel">
+                <div class="screen-header">
+                    <div class="screen-title">DELIVERY CHALLANS REGISTER</div>
+                    <button class="btn btn-secondary" onclick="returnToDashboard()">← DASHBOARD</button>
                 </div>
 
-                <div class="inputs-grid-4">
-                    <div class="input-field-group">
+                <div class="form-grid-4">
+                    <div class="form-field">
                         <label>CHALLAN NO</label>
-                        <input type="text" id="chBillNo" class="form-input" value="SCH-101" readonly>
+                        <input type="text" id="chBillNo" class="erp-input" value="SCH-101" readonly>
                     </div>
-                    <div class="input-field-group">
+                    <div class="form-field">
                         <label>DATE</label>
-                        <input type="date" id="chDate" class="form-input">
+                        <input type="date" id="chDate" class="erp-input">
                     </div>
-                    <div class="input-field-group">
+                    <div class="form-field">
                         <label>PARTY NAME</label>
-                        <input type="text" id="chParty" class="form-input" placeholder="Customer Name..." list="partyDatalist">
+                        <input type="text" id="chParty" class="erp-input" placeholder="Customer Name..." list="partyDatalist">
                     </div>
-                    <div class="input-field-group">
+                    <div class="form-field">
                         <label>REMARKS</label>
-                        <input type="text" id="chRemarks" class="form-input" placeholder="Transport Info">
+                        <input type="text" id="chRemarks" class="erp-input" placeholder="Dispatch condition">
                     </div>
                 </div>
 
-                <div class="embedded-entry-box" style="margin-top: 1.2rem;">
-                    <div class="inputs-grid-4">
-                        <div class="input-field-group">
+                <div class="screen-panel" style="background: rgba(0,0,0,0.25); margin-top: 1rem;">
+                    <div class="form-grid-4">
+                        <div class="form-field">
                             <label>PRODUCT</label>
-                            <input type="text" id="chItemName" class="form-input" placeholder="Product Name" list="itemDatalist">
+                            <input type="text" id="chItemName" class="erp-input" placeholder="Product Name" list="itemDatalist">
                         </div>
-                        <div class="input-field-group">
+                        <div class="form-field">
                             <label>BATCH</label>
-                            <input type="text" id="chBatch" class="form-input" value="B-01">
+                            <input type="text" id="chBatch" class="erp-input" value="B-01">
                         </div>
-                        <div class="input-field-group">
+                        <div class="form-field">
                             <label>QTY</label>
-                            <input type="number" id="chQty" class="form-input" value="5">
+                            <input type="number" id="chQty" class="erp-input" value="5">
                         </div>
-                        <div class="input-field-group">
+                        <div class="form-field">
                             <label>RATE (₹)</label>
-                            <input type="number" id="chRate" class="form-input" value="30.00">
+                            <input type="number" id="chRate" class="erp-input" value="30.00">
                         </div>
                     </div>
-                    <button class="btn btn-primary" style="margin-top: 10px;" onclick="addChallanItem()">+ RECORD CHALLAN</button>
+                    <div style="margin-top: 10px; text-align: right;">
+                        <button class="btn btn-primary" onclick="addChallanItem()">+ RECORD CHALLAN</button>
+                    </div>
                 </div>
 
-                <div class="table-responsive" style="margin-top: 1.5rem;">
+                <div class="table-wrap">
                     <table class="erp-table">
                         <thead>
                             <tr>
@@ -438,61 +429,66 @@
             </div>
         </section>
 
-        <!-- RETURNS -->
+        <!-- ========================================== -->
+        <!-- VIEW 6: RETURNS                            -->
+        <!-- ========================================== -->
         <section id="view-returns" style="display: none;">
-            <div class="form-container-card">
-                <div class="card-header-bar">
-                    <h2>RETURNS & REVERSALS (CREDIT / DEBIT NOTES)</h2>
+            <div class="screen-panel">
+                <div class="screen-header">
+                    <div class="screen-title">RETURNS & REVERSALS (CREDIT / DEBIT NOTES)</div>
+                    <button class="btn btn-secondary" onclick="returnToDashboard()">← DASHBOARD</button>
                 </div>
 
-                <div class="inputs-grid-4">
-                    <div class="input-field-group">
+                <div class="form-grid-4">
+                    <div class="form-field">
                         <label>NOTE TYPE</label>
-                        <select id="retType" class="form-input">
+                        <select id="retType" class="erp-input">
                             <option value="CN">SALE CREDIT NOTE (CN)</option>
                             <option value="DN">PURCHASE DEBIT NOTE (DN)</option>
                         </select>
                     </div>
-                    <div class="input-field-group">
+                    <div class="form-field">
                         <label>STOCK DISPOSITION</label>
-                        <select id="retDisposition" class="form-input">
+                        <select id="retDisposition" class="erp-input">
                             <option value="Sellable">SELLABLE (Adds to live stock)</option>
                             <option value="Breakage">BREAKAGE / EXPIRY (Waste)</option>
                         </select>
                     </div>
-                    <div class="input-field-group">
+                    <div class="form-field">
                         <label>PARTY NAME</label>
-                        <input type="text" id="retParty" class="form-input" placeholder="Party Name" list="partyDatalist">
+                        <input type="text" id="retParty" class="erp-input" placeholder="Party Name" list="partyDatalist">
                     </div>
-                    <div class="input-field-group">
+                    <div class="form-field">
                         <label>DATE</label>
-                        <input type="date" id="retDate" class="form-input">
+                        <input type="date" id="retDate" class="erp-input">
                     </div>
                 </div>
 
-                <div class="embedded-entry-box" style="margin-top: 1.2rem;">
-                    <div class="inputs-grid-4">
-                        <div class="input-field-group">
+                <div class="screen-panel" style="background: rgba(0,0,0,0.25); margin-top: 1rem;">
+                    <div class="form-grid-4">
+                        <div class="form-field">
                             <label>PRODUCT NAME</label>
-                            <input type="text" id="retItemName" class="form-input" placeholder="Product Name" list="itemDatalist">
+                            <input type="text" id="retItemName" class="erp-input" placeholder="Product Name" list="itemDatalist">
                         </div>
-                        <div class="input-field-group">
+                        <div class="form-field">
                             <label>BATCH</label>
-                            <input type="text" id="retBatch" class="form-input" value="DL-101">
+                            <input type="text" id="retBatch" class="erp-input" value="DL-101">
                         </div>
-                        <div class="input-field-group">
+                        <div class="form-field">
                             <label>RETURN QTY</label>
-                            <input type="number" id="retQty" class="form-input" value="1">
+                            <input type="number" id="retQty" class="erp-input" value="1">
                         </div>
-                        <div class="input-field-group">
+                        <div class="form-field">
                             <label>SETTLEMENT RATE (₹)</label>
-                            <input type="number" id="retRate" class="form-input" value="28.50">
+                            <input type="number" id="retRate" class="erp-input" value="28.50">
                         </div>
                     </div>
-                    <button class="btn btn-danger" style="margin-top: 10px;" onclick="saveReturnEntry()">🔄 SAVE RETURN (CN/DN)</button>
+                    <div style="margin-top: 10px; text-align: right;">
+                        <button class="btn btn-danger" onclick="saveReturnEntry()">🔄 SAVE RETURN (CN/DN)</button>
+                    </div>
                 </div>
 
-                <div class="table-responsive" style="margin-top: 1.5rem;">
+                <div class="table-wrap">
                     <table class="erp-table">
                         <thead>
                             <tr>
@@ -505,32 +501,35 @@
             </div>
         </section>
 
-        <!-- ACCOUNTS & VOUCHERS -->
+        <!-- ========================================== -->
+        <!-- VIEW 7: ACCOUNTS & VOUCHERS                -->
+        <!-- ========================================== -->
         <section id="view-accounts" style="display: none;">
-            <div class="form-container-card">
-                <div class="card-header-bar">
-                    <h2>ACCOUNTS & VOUCHERS (RECEIPT / PAYMENT)</h2>
+            <div class="screen-panel">
+                <div class="screen-header">
+                    <div class="screen-title">ACCOUNTS & VOUCHERS (RECEIPT / PAYMENT)</div>
+                    <button class="btn btn-secondary" onclick="returnToDashboard()">← DASHBOARD</button>
                 </div>
 
-                <div class="inputs-grid-4">
-                    <div class="input-field-group">
+                <div class="form-grid-4">
+                    <div class="form-field">
                         <label>VOUCHER TYPE</label>
-                        <select id="vouchType" class="form-input">
-                            <option value="RECEIPT">RECEIPT (Cash / Bank Inflow)</option>
-                            <option value="PAYMENT">PAYMENT (Cash / Bank Outflow)</option>
+                        <select id="vouchType" class="erp-input">
+                            <option value="RECEIPT">RECEIPT (Inflow)</option>
+                            <option value="PAYMENT">PAYMENT (Outflow)</option>
                         </select>
                     </div>
-                    <div class="input-field-group">
+                    <div class="form-field">
                         <label>DATE</label>
-                        <input type="date" id="vouchDate" class="form-input">
+                        <input type="date" id="vouchDate" class="erp-input">
                     </div>
-                    <div class="input-field-group">
+                    <div class="form-field">
                         <label>PARTY NAME *</label>
-                        <input type="text" id="vouchParty" class="form-input" placeholder="Party Name" list="partyDatalist">
+                        <input type="text" id="vouchParty" class="erp-input" placeholder="Party Name" list="partyDatalist">
                     </div>
-                    <div class="input-field-group">
+                    <div class="form-field">
                         <label>INTERNAL LEDGER</label>
-                        <select id="vouchInternalLedger" class="form-input">
+                        <select id="vouchInternalLedger" class="erp-input">
                             <option value="CASH IN HAND">Cash in Hand</option>
                             <option value="STATE BANK OF INDIA">State Bank of India</option>
                             <option value="HDFC BANK">HDFC Bank</option>
@@ -538,46 +537,48 @@
                     </div>
                 </div>
 
-                <div class="inputs-grid-4" style="margin-top: 1rem;">
-                    <div class="input-field-group">
+                <div class="form-grid-4" style="margin-top: 1rem;">
+                    <div class="form-field">
                         <label>AMOUNT (₹) *</label>
-                        <input type="number" id="vouchAmount" class="form-input" placeholder="0.00">
+                        <input type="number" id="vouchAmount" class="erp-input" placeholder="0.00">
                     </div>
-                    <div class="input-field-group">
+                    <div class="form-field">
                         <label>PAYMENT MODE</label>
-                        <select id="vouchMode" class="form-input">
+                        <select id="vouchMode" class="erp-input">
                             <option value="Cash">Cash</option>
                             <option value="Bank">Bank / UPI / Cheque</option>
                         </select>
                     </div>
-                    <div class="input-field-group">
+                    <div class="form-field">
                         <label>CHEQUE / REF NO</label>
-                        <input type="text" id="vouchChequeNo" class="form-input" placeholder="Optional">
+                        <input type="text" id="vouchChequeNo" class="erp-input" placeholder="Optional">
                     </div>
-                    <div class="input-field-group">
+                    <div class="form-field">
                         <label>NARRATION</label>
-                        <input type="text" id="vouchNarration" class="form-input" placeholder="Remarks...">
+                        <input type="text" id="vouchNarration" class="erp-input" placeholder="Remarks...">
                     </div>
                 </div>
 
-                <div class="card-footer-action" style="margin-top: 1.5rem;">
+                <div style="margin-top: 1.5rem; text-align: right;">
                     <button class="btn btn-success" onclick="saveVoucherEntry()">💾 RECORD VOUCHER</button>
                 </div>
             </div>
         </section>
 
-        <!-- DAYBOOK -->
+        <!-- ========================================== -->
+        <!-- VIEW 8: DAYBOOK REGISTER                   -->
+        <!-- ========================================== -->
         <section id="view-daybook" style="display: none;">
-            <div class="form-container-card">
-                <div class="card-header-bar">
-                    <h2>DAILY DAYBOOK AUDIT REGISTER</h2>
+            <div class="screen-panel">
+                <div class="screen-header">
+                    <div class="screen-title">DAILY DAYBOOK AUDIT REGISTER</div>
                     <div style="display: flex; gap: 8px; align-items: center;">
-                        <label style="font-size: 0.8rem; color: var(--text-muted);">DATE:</label>
-                        <input type="date" id="daybookFilterDate" class="form-input" style="max-width: 160px;" onchange="renderDaybook()">
+                        <input type="date" id="daybookFilterDate" class="erp-input" style="max-width: 160px;" onchange="renderDaybook()">
+                        <button class="btn btn-secondary" onclick="returnToDashboard()">← DASHBOARD</button>
                     </div>
                 </div>
 
-                <div class="table-responsive">
+                <div class="table-wrap">
                     <table class="erp-table">
                         <thead>
                             <tr>
@@ -590,15 +591,20 @@
             </div>
         </section>
 
-        <!-- LEDGERS -->
+        <!-- ========================================== -->
+        <!-- VIEW 9: KHATA LEDGERS                      -->
+        <!-- ========================================== -->
         <section id="view-ledgers" style="display: none;">
-            <div class="form-container-card">
-                <div class="card-header-bar">
-                    <h2>PARTY KHATA & LEDGER STATEMENTS</h2>
-                    <input type="text" id="ledgerSearchParty" class="form-input" style="max-width: 250px;" placeholder="Search Party..." list="partyDatalist" oninput="renderLedgers()">
+            <div class="screen-panel">
+                <div class="screen-header">
+                    <div class="screen-title">PARTY KHATA & LEDGER STATEMENTS</div>
+                    <div style="display: flex; gap: 8px; align-items: center;">
+                        <input type="text" id="ledgerSearchParty" class="erp-input" style="max-width: 250px;" placeholder="Search Party..." list="partyDatalist" oninput="renderLedgers()">
+                        <button class="btn btn-secondary" onclick="returnToDashboard()">← DASHBOARD</button>
+                    </div>
                 </div>
 
-                <div class="table-responsive">
+                <div class="table-wrap">
                     <table class="erp-table">
                         <thead>
                             <tr>
@@ -611,15 +617,20 @@
             </div>
         </section>
 
-        <!-- STOCK -->
+        <!-- ========================================== -->
+        <!-- VIEW 10: STOCK & BATCHES                   -->
+        <!-- ========================================== -->
         <section id="view-stock" style="display: none;">
-            <div class="form-container-card">
-                <div class="card-header-bar">
-                    <h2>STOCK LEDGER & LIVE BATCH INVENTORY</h2>
-                    <input type="text" id="stockSearchInput" class="form-input" style="max-width: 250px;" placeholder="Search Product / Batch..." oninput="renderStock()">
+            <div class="screen-panel">
+                <div class="screen-header">
+                    <div class="screen-title">STOCK LEDGER & LIVE INVENTORY</div>
+                    <div style="display: flex; gap: 8px; align-items: center;">
+                        <input type="text" id="stockSearchInput" class="erp-input" style="max-width: 250px;" placeholder="Search Product..." oninput="renderStock()">
+                        <button class="btn btn-secondary" onclick="returnToDashboard()">← DASHBOARD</button>
+                    </div>
                 </div>
 
-                <div class="table-responsive">
+                <div class="table-wrap">
                     <table class="erp-table">
                         <thead>
                             <tr>
@@ -632,166 +643,189 @@
             </div>
         </section>
 
-        <!-- MASTERS -->
+        <!-- ========================================== -->
+        <!-- VIEW 11: MASTERS HUB                       -->
+        <!-- ========================================== -->
         <section id="view-masters" style="display: none;">
-            <div class="form-container-card" style="margin-bottom: 2rem;">
-                <div class="card-header-bar">
-                    <h2>PRODUCT MASTER (MEDICINE REGISTRATION)</h2>
-                    <span class="step-pill" id="autoProdSysId">PH-10001</span>
+            <div class="screen-panel" style="margin-bottom: 2rem;">
+                <div class="screen-header">
+                    <div class="screen-title">PRODUCT MASTER (MEDICINE REGISTRATION)</div>
+                    <button class="btn btn-secondary" onclick="returnToDashboard()">← DASHBOARD</button>
                 </div>
 
-                <div class="inputs-grid-4">
-                    <div class="input-field-group">
+                <div class="form-grid-4">
+                    <div class="form-field">
                         <label>PRODUCT NAME *</label>
-                        <input type="text" id="mProdName" class="form-input" placeholder="e.g. DOLO 650 MG">
+                        <input type="text" id="mProdName" class="erp-input" placeholder="e.g. DOLO 650 MG">
                     </div>
-                    <div class="input-field-group">
+                    <div class="form-field">
                         <label>PACKING *</label>
-                        <input type="text" id="mProdPack" class="form-input" placeholder="15 TAB">
+                        <input type="text" id="mProdPack" class="erp-input" placeholder="15 TAB">
                     </div>
-                    <div class="input-field-group">
+                    <div class="form-field">
                         <label>MRP (₹) *</label>
-                        <input type="number" id="mProdMrp" class="form-input" value="50.00">
+                        <input type="number" id="mProdMrp" class="erp-input" value="50.00">
                     </div>
-                    <div class="input-field-group">
+                    <div class="form-field">
                         <label>PURCHASE RATE (₹) *</label>
-                        <input type="number" id="mProdPurRate" class="form-input" value="38.00">
-                    </div>
-                    <div class="input-field-group">
-                        <label>RATE A (SALE ₹)</label>
-                        <input type="number" id="mProdRateA" class="form-input" value="45.00">
-                    </div>
-                    <div class="input-field-group">
-                        <label>GST %</label>
-                        <input type="number" id="mProdGst" class="form-input" value="12">
+                        <input type="number" id="mProdPurRate" class="erp-input" value="38.00">
                     </div>
                 </div>
 
-                <div class="card-footer-action">
-                    <button class="btn btn-primary" onclick="saveNewProductMaster()">+ SAVE PRODUCT TO MASTER</button>
+                <div class="form-grid-4" style="margin-top: 1rem;">
+                    <div class="form-field">
+                        <label>RATE A (SALE ₹)</label>
+                        <input type="number" id="mProdRateA" class="erp-input" value="45.00">
+                    </div>
+                    <div class="form-field">
+                        <label>GST %</label>
+                        <input type="number" id="mProdGst" class="erp-input" value="12">
+                    </div>
+                    <div class="form-field">
+                        <label>HSN CODE</label>
+                        <input type="text" id="mProdHsn" class="erp-input" value="3004">
+                    </div>
+                </div>
+
+                <div style="margin-top: 1.5rem; text-align: right;">
+                    <button class="btn btn-primary" onclick="saveNewProductMaster()">+ SAVE PRODUCT</button>
                 </div>
             </div>
 
-            <div class="form-container-card">
-                <div class="card-header-bar">
-                    <h2>PARTY & LEDGER MASTER (CUSTOMER / SUPPLIER)</h2>
+            <div class="screen-panel">
+                <div class="screen-header">
+                    <div class="screen-title">PARTY & LEDGER MASTER (CUSTOMER / SUPPLIER)</div>
                 </div>
 
-                <div class="inputs-grid-4">
-                    <div class="input-field-group">
+                <div class="form-grid-4">
+                    <div class="form-field">
                         <label>PARTY / FIRM NAME *</label>
-                        <input type="text" id="mPartyName" class="form-input" placeholder="e.g. Apex Health Care">
+                        <input type="text" id="mPartyName" class="erp-input" placeholder="e.g. Apex Health Care">
                     </div>
-                    <div class="input-field-group">
+                    <div class="form-field">
                         <label>ACCOUNT GROUP *</label>
-                        <select id="mPartyGroup" class="form-input">
-                            <option value="Sundry Debtors">Sundry Debtors (Customer / Buyer)</option>
-                            <option value="Sundry Creditors">Sundry Creditors (Supplier / Vendor)</option>
+                        <select id="mPartyGroup" class="erp-input">
+                            <option value="Sundry Debtors">Sundry Debtors (Customer)</option>
+                            <option value="Sundry Creditors">Sundry Creditors (Supplier)</option>
                             <option value="Bank Accounts">Bank Accounts</option>
                             <option value="Expenses">Expenses</option>
                         </select>
                     </div>
-                    <div class="input-field-group">
+                    <div class="form-field">
                         <label>GSTIN (15-DIGIT)</label>
-                        <input type="text" id="mPartyGst" class="form-input" placeholder="08ABCDE1234F1Z5">
+                        <input type="text" id="mPartyGst" class="erp-input" placeholder="08ABCDE1234F1Z5">
                     </div>
-                    <div class="input-field-group">
+                    <div class="form-field">
                         <label>CITY</label>
-                        <input type="text" id="mPartyCity" class="form-input" placeholder="Udaipur">
-                    </div>
-                    <div class="input-field-group">
-                        <label>MOBILE NUMBER</label>
-                        <input type="text" id="mPartyPhone" class="form-input" placeholder="9876543210">
-                    </div>
-                    <div class="input-field-group">
-                        <label>OPENING BALANCE (₹)</label>
-                        <input type="number" id="mPartyOpBal" class="form-input" value="0.00">
+                        <input type="text" id="mPartyCity" class="erp-input" placeholder="Udaipur">
                     </div>
                 </div>
 
-                <div class="card-footer-action">
+                <div class="form-grid-4" style="margin-top: 1rem;">
+                    <div class="form-field">
+                        <label>MOBILE NUMBER</label>
+                        <input type="text" id="mPartyPhone" class="erp-input" placeholder="9876543210">
+                    </div>
+                    <div class="form-field">
+                        <label>OPENING BALANCE (₹)</label>
+                        <input type="number" id="mPartyOpBal" class="erp-input" value="0.00">
+                    </div>
+                </div>
+
+                <div style="margin-top: 1.5rem; text-align: right;">
                     <button class="btn btn-success" onclick="saveNewPartyMaster()">+ SAVE PARTY MASTER</button>
                 </div>
             </div>
         </section>
     </main>
 
-    <!-- ITEM ENTRY MODAL -->
-    <div id="itemEntryModal" class="modal-backdrop">
-        <div class="modal-dialog-card">
-            <div class="modal-header-row">
+    <!-- MODAL: ITEM ENTRY CARD -->
+    <div id="itemEntryModal" class="modal-overlay">
+        <div class="modal-card">
+            <div class="modal-card-header">
                 <div>
-                    <h3 id="entryModalProdTitle" style="color: var(--text-light); font-size: 1.1rem; font-weight: 800;">ITEM CONFIGURATION</h3>
-                    <div style="font-size: 0.75rem; color: var(--text-muted);">Batch, Rate Tiers (A/B/C) & Formulas</div>
+                    <h3 id="entryModalProdTitle" style="color: var(--text-light); font-size: 1.1rem;">ITEM ENTRY</h3>
+                    <div style="font-size: 0.75rem; color: var(--text-muted);">Rate Tiers (A/B/C) & Discount Sync</div>
                 </div>
                 <button class="btn btn-secondary" style="padding: 4px 10px;" onclick="closeItemEntryModal()">✕</button>
             </div>
 
-            <div class="inputs-grid-3" style="margin-top: 1.2rem;">
-                <div class="input-field-group">
-                    <label>BATCH (CASE-SENSITIVE)</label>
-                    <input type="text" id="eBatch" class="form-input" value="B-01">
+            <div class="form-grid-4" style="margin-top: 1.2rem;">
+                <div class="form-field">
+                    <label>BATCH</label>
+                    <input type="text" id="eBatch" class="erp-input" value="B-01">
                 </div>
-                <div class="input-field-group">
+                <div class="form-field">
                     <label>EXPIRY (MM/YY)</label>
-                    <input type="text" id="eExp" class="form-input" value="12/28" oninput="formatExpiryField(this)">
+                    <input type="text" id="eExp" class="erp-input" value="12/28" oninput="formatExpiryField(this)">
                 </div>
-                <div class="input-field-group">
+                <div class="form-field">
                     <label>RATE TIER</label>
-                    <select id="eRateTier" class="form-input" onchange="onRateTierChanged(this.value)">
+                    <select id="eRateTier" class="erp-input" onchange="onRateTierChanged(this.value)">
                         <option value="A">RATE A (Standard)</option>
                         <option value="B">RATE B (Special)</option>
                         <option value="C">RATE C (Formula %)</option>
                     </select>
                 </div>
-            </div>
-
-            <div class="inputs-grid-4" style="margin-top: 1rem;">
-                <div class="input-field-group" id="eRateCDiscBox" style="display: none;">
-                    <label>C FORMULA %</label>
-                    <input type="number" id="eRateCDisc" class="form-input" value="0.0" oninput="calculateRateCFormula()">
-                </div>
-                <div class="input-field-group">
-                    <label>MRP (₹)</label>
-                    <input type="number" id="eMrp" class="form-input" value="50.00" oninput="calculateRateCFormula()">
-                </div>
-                <div class="input-field-group">
+                <div class="form-field">
                     <label>UNIT RATE (₹) *</label>
-                    <input type="number" id="eRate" class="form-input" value="45.00" oninput="syncDiscountInputs('percent')">
-                </div>
-                <div class="input-field-group">
-                    <label>GST %</label>
-                    <input type="number" id="eGst" class="form-input" value="12" readonly>
+                    <input type="number" id="eRate" class="erp-input" value="45.00" oninput="syncDiscountInputs('percent')">
                 </div>
             </div>
 
-            <div class="inputs-grid-4" style="margin-top: 1rem;">
-                <div class="input-field-group">
+            <div class="form-grid-4" style="margin-top: 1rem;">
+                <div class="form-field">
+                    <label>MRP (₹)</label>
+                    <input type="number" id="eMrp" class="erp-input" value="50.00" oninput="calculateRateCFormula()">
+                </div>
+                <div class="form-field">
                     <label>BILLING QTY *</label>
-                    <input type="number" id="eQty" class="form-input" value="1" oninput="syncDiscountInputs('percent')">
+                    <input type="number" id="eQty" class="erp-input" value="1" oninput="syncDiscountInputs('percent')">
                 </div>
-                <div class="input-field-group">
+                <div class="form-field">
                     <label>FREE QTY</label>
-                    <input type="number" id="eFree" class="form-input" value="0">
+                    <input type="number" id="eFree" class="erp-input" value="0">
                 </div>
-                <div class="input-field-group">
+                <div class="form-field">
+                    <label>GST %</label>
+                    <input type="number" id="eGst" class="erp-input" value="12" readonly>
+                </div>
+            </div>
+
+            <div class="form-grid-2" style="margin-top: 1rem;">
+                <div class="form-field">
                     <label>DISCOUNT %</label>
-                    <input type="number" id="eDiscPer" class="form-input" value="0.0" oninput="syncDiscountInputs('percent')">
+                    <input type="number" id="eDiscPer" class="erp-input" value="0.0" oninput="syncDiscountInputs('percent')">
                 </div>
-                <div class="input-field-group">
+                <div class="form-field">
                     <label>DISCOUNT ₹</label>
-                    <input type="number" id="eDiscAmt" class="form-input" value="0.0" oninput="syncDiscountInputs('amount')">
+                    <input type="number" id="eDiscAmt" class="erp-input" value="0.0" oninput="syncDiscountInputs('amount')">
                 </div>
             </div>
 
             <div class="net-total-banner">
-                <span style="font-weight: 800; font-size: 0.9rem; color: var(--text-light);">NET ITEM TOTAL:</span>
+                <span style="font-weight: 800;">NET ITEM TOTAL:</span>
                 <span id="eNetTotalDisplay" style="color: var(--accent-emerald); font-size: 1.4rem; font-weight: 900;">₹ 45.00</span>
             </div>
 
-            <div class="modal-footer-row">
+            <div style="display: flex; justify-content: space-between; margin-top: 1.5rem;">
                 <button class="btn btn-secondary" onclick="closeItemEntryModal()">CANCEL</button>
-                <button class="btn btn-success" onclick="confirmAndAddItemToCart()">CONFIRM & ADD TO BILL</button>
+                <button class="btn btn-success" onclick="confirmAndAddItemToCart()">CONFIRM & ADD</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL: BILL SUCCESS & PRINT OPTIONS (NO-FREEZE DIALOG) -->
+    <div id="billSuccessModal" class="modal-overlay">
+        <div class="modal-card" style="max-width: 480px; text-align: center;">
+            <div style="font-size: 3rem; margin-bottom: 10px;">✅</div>
+            <h2 id="successModalTitle" style="color: var(--accent-emerald); margin-bottom: 5px;">INVOICE SAVED!</h2>
+            <p id="successModalSub" style="color: var(--text-muted); font-size: 0.85rem; margin-bottom: 1.5rem;">Invoice was successfully recorded and synced.</p>
+
+            <div style="display: flex; flex-direction: column; gap: 10px;">
+                <button class="btn btn-success" style="padding: 12px;" onclick="triggerDirectPrint('A4')">📄 PRINT A4 INVOICE</button>
+                <button class="btn btn-primary" style="padding: 12px;" onclick="triggerDirectPrint('Thermal')">📠 PRINT 80MM THERMAL</button>
+                <button class="btn btn-secondary" style="padding: 12px;" onclick="dismissSuccessAndNewBill()">+ CREATE NEW BILL</button>
             </div>
         </div>
     </div>
@@ -801,31 +835,31 @@
     <datalist id="itemDatalist"></datalist>
 
     <!-- Google Drive Settings Modal -->
-    <div id="driveSettingsModal" class="modal-backdrop">
-        <div class="modal-dialog-card" style="max-width: 520px;">
+    <div id="driveSettingsModal" class="modal-overlay">
+        <div class="modal-card" style="max-width: 520px;">
             <h2 style="color: var(--accent-cyan); margin-bottom: 0.8rem; font-size: 1.2rem;">☁️ GOOGLE DRIVE CLOUD SYNC</h2>
-            <p style="color: var(--text-muted); font-size: 0.82rem; margin-bottom: 1.2rem; line-height: 1.4;">Configure your private Google Apps Script Webhook URL and Gmail for isolated multi-tenant cloud storage.</p>
-            <div class="input-field-group" style="margin-bottom: 1rem;">
+            <p style="color: var(--text-muted); font-size: 0.82rem; margin-bottom: 1.2rem;">Configure your private Google Apps Script Webhook URL and Gmail for isolated cloud storage.</p>
+            <div class="form-field" style="margin-bottom: 1rem;">
                 <label>GMAIL ADDRESS</label>
-                <input type="email" id="driveUserEmail" class="form-input" placeholder="yourname@gmail.com">
+                <input type="email" id="driveUserEmail" class="erp-input" placeholder="yourname@gmail.com">
             </div>
-            <div class="input-field-group" style="margin-bottom: 1.5rem;">
+            <div class="form-field" style="margin-bottom: 1.5rem;">
                 <label>APPS SCRIPT WEBHOOK URL</label>
-                <input type="text" id="driveApiUrl" class="form-input" placeholder="https://script.google.com/macros/s/.../exec">
+                <input type="text" id="driveApiUrl" class="erp-input" placeholder="https://script.google.com/macros/s/.../exec">
             </div>
             <div style="display: flex; justify-content: space-between;">
-                <button class="btn btn-danger-sm" onclick="closeDriveSettings()">CANCEL</button>
+                <button class="btn btn-danger" onclick="closeDriveSettings()">CANCEL</button>
                 <button class="btn btn-success" onclick="saveDriveSettingsFromModal()">CONNECT & SYNC</button>
             </div>
         </div>
     </div>
 
     <!-- User Guide Modal -->
-    <div id="guideModal" class="modal-backdrop">
-        <div class="modal-dialog-card" style="max-width: 550px;">
+    <div id="guideModal" class="modal-overlay">
+        <div class="modal-card" style="max-width: 550px;">
             <h2 style="color: var(--accent-cyan); margin-bottom: 1rem; font-size: 1.2rem;">📖 PHAROAH ERP - USER MANUAL</h2>
             <div style="color: var(--text-muted); font-size: 0.85rem; line-height: 1.6; display: flex; flex-direction: column; gap: 10px;">
-                <p><strong>1. Step 1 & Step 2 Billing Flow:</strong> Step 1 sets up series, date, and customer. Step 2 opens the live billing cart with A/B/C rate tiers, formulas, and auto round-off.</p>
+                <p><strong>1. Step 1 & Step 2 Billing:</strong> Step 1 configures series, date, and customer. Step 2 opens the live billing cart with A/B/C rate tiers, formulas, and auto round-off.</p>
                 <p><strong>2. 2-Way Live Sync:</strong> All transactions saved on the web are synchronized with your personal Google Drive and automatically downloaded to your mobile app.</p>
                 <p><strong>3. Multi-Tenant Privacy:</strong> Each user has their own private Google Drive storage. No data mixing across different businesses.</p>
             </div>
@@ -836,7 +870,8 @@
     </div>
 
     <div id="printArea" class="print-area"></div>
-    <script src="drive_sync.js?v=3.1"></script>
-    <script src="app.js?v=3.1"></script>
+
+    <script src="drive_sync.js?v=4.0"></script>
+    <script src="app.js?v=4.0"></script>
 </body>
 </html>
