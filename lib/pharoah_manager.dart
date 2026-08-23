@@ -1,4 +1,4 @@
-// FILE: lib/pharoah_manager.dart (FULLY INTEGRATED WITH AUTO CLOUD SYNC)
+// FILE: lib/pharoah_manager.dart (FULLY INTEGRATED WITH AUTO PUSH & AUTO PULL)
 
 import 'dart:convert';
 import 'dart:io';
@@ -19,7 +19,7 @@ import 'fy_transfer_engine.dart';
 import 'gateway/company_registry_model.dart';
 import 'logic/app_settings_model.dart';
 import 'logic/pharoah_numbering_engine.dart';
-import 'logic/cloud_sync_helper.dart'; // ☁️ AUTO-SYNC IMPORT
+import 'logic/cloud_sync_helper.dart'; 
 import 'master_data_library.dart';
 import 'batch_sync_engine.dart';
 
@@ -242,7 +242,7 @@ class PharoahManager with ChangeNotifier {
   }
 
   // ===========================================================================
-  // 💾 ATOMIC SAVE & AUTO CLOUD DRIVE SYNC
+  // 💾 SAVE & AUTO PUSH
   // ===========================================================================
   Future<void> save() async {
     final dir = await getWorkingPath(); 
@@ -274,10 +274,13 @@ class PharoahManager with ChangeNotifier {
     
     notifyListeners();
 
-    // ☁️ AUTO-TRIGGER 2-WAY CLOUD DRIVE SYNC (IF ON)
+    // ☁️ AUTO PUSH TO DRIVE
     CloudSyncHelper.triggerAutoSync(this);
   }
 
+  // ===========================================================================
+  // 📥 LOAD & AUTO PULL
+  // ===========================================================================
   Future<void> loadAllData() async {
     final dir = await getWorkingPath(); 
     if (dir.isEmpty) return;
@@ -314,11 +317,10 @@ class PharoahManager with ChangeNotifier {
       saleReturns: saleReturns, purchaseReturns: purchaseReturns 
     );
     notifyListeners();
-  }
 
-  // ===========================================================================
-  // TRANSACTION METHODS
-  // ===========================================================================
+    // ☁️ AUTO PULL FRESH BILLS FROM DRIVE (ON LOAD)
+    CloudSyncHelper.triggerAutoPull(this);
+  }
 
   Future<void> finalizeSale({
     required String billNo, required DateTime date, required Party party, 
@@ -645,12 +647,18 @@ class PharoahManager with ChangeNotifier {
   void addSalt(Salt s) { salts.add(s); save(); }
   void addDrugType(DrugType d) { drugTypes.add(d); save(); }
   void addSystemUser(SystemUser u) { systemUsers.add(u); save(); }
+  void updateSystemUser(SystemUser u) { int i = systemUsers.indexWhere((x) => x.id == u.id); if(i != -1) { systemUsers[i] = u; save(); } }
+  void deleteSystemUser(String id) { systemUsers.removeWhere((x) => x.id == id); save(); }
   void addNumberingSeries(NumberingSeries ns) { numberingSeries.add(ns); save(); }
+  void updateNumberingSeries(NumberingSeries ns) { int i = numberingSeries.indexWhere((x) => x.id == ns.id); if(i != -1) { numberingSeries[i] = ns; save(); } }
+  void updateAppConfig(AppConfig c) { config = c; save(); notifyListeners(); }
+  void updateChequeStatus(String id, String s, String r) { int i = cheques.indexWhere((c) => c.id == id); if(i != -1) { cheques[i].status = s; cheques[i].remark = r; save(); } }
   void addBank(Bank b) { banks.add(b); save(); }
+  void deleteBank(String id) { banks.removeWhere((b) => b.id == id); save(); }
   void addCheque(ChequeEntry c) { cheques.add(c); save(); }
   void addLog(String a, String d) { logs.add(LogEntry(id: DateTime.now().toString(), action: a, details: d, time: DateTime.now())); save(); }
   void addManualShortage({required Medicine med, required double qty, String cust = ""}) { shortages.add(ShortageItem(id: DateTime.now().toString(), medicineId: med.id, medicineName: med.name, companyName: med.companyId, qtyRequired: qty, currentStock: med.stock, date: DateTime.now(), customerName: cust)); save(); }
-  
+
   void _reverseVoucherImpact(Voucher v) {
     addLog("ACCOUNTS", "Reversed Impact of ${v.voucherNo} for ${v.partyName}");
   }
@@ -714,11 +722,6 @@ class PharoahManager with ChangeNotifier {
     }
   }
 
-  void updateSystemUser(SystemUser u) { int i = systemUsers.indexWhere((x) => x.id == u.id); if(i != -1) { systemUsers[i] = u; save(); } }
-  void updateNumberingSeries(NumberingSeries ns) { int i = numberingSeries.indexWhere((x) => x.id == ns.id); if(i != -1) { numberingSeries[i] = ns; save(); } }
-  void updateAppConfig(AppConfig c) { config = c; save(); notifyListeners(); }
-  void updateChequeStatus(String id, String s, String r) { int i = cheques.indexWhere((c) => c.id == id); if(i != -1) { cheques[i].status = s; cheques[i].remark = r; save(); } }
-  
   void cancelReturn(String id, bool isSaleReturn) {
     if (isSaleReturn) {
       int i = saleReturns.indexWhere((r) => r.id == id);
@@ -747,9 +750,7 @@ class PharoahManager with ChangeNotifier {
     } catch (e) {}
   }
   void deleteRoute(String id) { routes.removeWhere((r) => r.id == id); save(); }
-  void deleteSystemUser(String id) { systemUsers.removeWhere((x) => x.id == id); save(); }
   void deleteShortage(String id) { shortages.removeWhere((s) => s.id == id); save(); }
-  void deleteBank(String id) { banks.removeWhere((b) => b.id == id); save(); }
 
   void resetCounter(String t) { if (activeCompany != null) { String pfx = (t == "SALE_BILL") ? "INV-" : (t == "PUR_BILL" ? "PUR-" : "SCH-"); PharoahNumberingEngine.resetSeries(type: t.contains("SALE") ? "SALE" : "PURCHASE", companyID: activeCompany!.id, prefix: pfx); } notifyListeners(); }
 
@@ -1041,7 +1042,7 @@ class PharoahManager with ChangeNotifier {
           for (var v in prevVouc.where((v) => v.depositedIn.toUpperCase() == b.name.toUpperCase() && v.status == "Active")) {
             String type = v.type.toUpperCase();
             if (type == "RECEIPT") bal += v.amount;
-            else if (type == "PAYMENT" || type == "EXPENSE") bal -= v.amount;
+            else if (type == "PAYMENT" || type == "EXPENSE") bal += v.amount;
           }
           recalculatedBankBals[b.id] = bal;
         }
