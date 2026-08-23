@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pharoah ERP - Web Portal & Cloud Sync</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <header>
+        <div class="logo-container">
+            <div class="logo-badge">PHAROAH ERP</div>
+            <span style="font-size: 0.8rem; color: var(--text-muted);">Web Cloud POS</span>
+        </div>
+
+        <nav class="nav-links">
+            <button class="nav-btn active" onclick="switchTab('dashboard')">डैशबोर्ड</button>
+            <button class="nav-btn" onclick="switchTab('billing')">सेल बिलिंग (POS)</button>
+            <button class="nav-btn" onclick="switchTab('purchase')">परचेज इनवर्ड</button>
+            <button class="nav-btn" onclick="switchTab('ledger')">खाता / लेजर</button>
+            <button class="nav-btn" onclick="openDriveSettings()">⚙️ Drive Setup</button>
+            <button class="nav-btn" onclick="openGuideModal()">📖 हिंदी गाइड</button>
+        </nav>
+
+        <div id="syncStatus" class="auth-badge" onclick="openDriveSettings()" style="cursor:pointer;">
+            <span style="display:inline-block; width:8px; height:8px; background:#10b981; border-radius:50%;"></span>
+            <span id="tenantLabel">Drive: Setup Required</span>
+        </div>
+    </header>
+
+    <main>
+        <!-- Tab 1: Dashboard -->
+        <section id="tab-dashboard">
+            <div class="kpi-grid">
+                <div class="kpi-card">
+                    <span class="kpi-title">TODAY SALE (आज की बिक्री)</span>
+                    <span class="kpi-value" id="kpi-sale">₹ 0.00</span>
+                </div>
+                <div class="kpi-card">
+                    <span class="kpi-title">TODAY PURCHASE (आज की खरीद)</span>
+                    <span class="kpi-value" id="kpi-pur">₹ 0.00</span>
+                </div>
+                <div class="kpi-card">
+                    <span class="kpi-title">ESTIMATED STOCK (स्टॉक वैल्यू)</span>
+                    <span class="kpi-value" id="kpi-stock">₹ 0.00</span>
+                </div>
+                <div class="kpi-card">
+                    <span class="kpi-title">CLOUD SYNC STATUS</span>
+                    <span class="kpi-value" style="font-size: 1.1rem; color: var(--accent-cyan);" id="kpi-status">🟢 2-Way Sync Ready</span>
+                </div>
+            </div>
+
+            <div class="modules-grid">
+                <div class="module-card" onclick="switchTab('billing')">
+                    <div class="module-icon">🧾</div>
+                    <div class="module-title">त्वरित बिक्री (New Sale Invoice)</div>
+                    <div class="module-desc">बारकोड स्कैन करें, आइटम चुनें, A4 या थर्मल रिसिप्ट प्रिंट करें।</div>
+                </div>
+                <div class="module-card" onclick="switchTab('purchase')">
+                    <div class="module-icon">📦</div>
+                    <div class="module-title">परचेज और स्टॉक इनवर्ड</div>
+                    <div class="module-desc">सप्लायर इनवॉइस दर्ज करें और लाइव स्टॉक बढ़ाएं।</div>
+                </div>
+                <div class="module-card" onclick="switchTab('ledger')">
+                    <div class="module-icon">📑</div>
+                    <div class="module-title">पार्टी खाता व लेजर स्टेटमेंट</div>
+                    <div class="module-desc">उधारी, रिसिप्ट, भुगतान और स्टेटमेंट देखें या प्रिंट करें।</div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Tab 2: Billing (POS) -->
+        <section id="tab-billing" style="display: none;">
+            <div class="panel">
+                <div class="panel-header">
+                    <h2>सेल इनवॉइस जनरेटर (Sale Billing)</h2>
+                    <button class="btn btn-primary" onclick="generateNewBillNumber()">+ नया बिल</button>
+                </div>
+
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label>INVOICE NO</label>
+                        <input type="text" id="billNo" class="form-control" readonly>
+                    </div>
+                    <div class="form-group">
+                        <label>BILL DATE</label>
+                        <input type="date" id="billDate" class="form-control">
+                    </div>
+                    <div class="form-group">
+                        <label>CUSTOMER / PARTY</label>
+                        <input type="text" id="customerName" class="form-control" placeholder="Sharma Medicals">
+                    </div>
+                    <div class="form-group">
+                        <label>PAYMENT MODE</label>
+                        <select id="payMode" class="form-control">
+                            <option value="CASH">CASH</option>
+                            <option value="CREDIT">CREDIT (उधार)</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div style="background: rgba(0,0,0,0.2); padding: 1rem; border-radius: 12px; margin-bottom: 1.5rem;">
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label>PRODUCT NAME</label>
+                            <input type="text" id="itemSearch" class="form-control" placeholder="DOLO 650 MG">
+                        </div>
+                        <div class="form-group">
+                            <label>BATCH</label>
+                            <input type="text" id="itemBatch" class="form-control" value="BATCH-01">
+                        </div>
+                        <div class="form-group">
+                            <label>EXPIRY</label>
+                            <input type="text" id="itemExp" class="form-control" value="12/28">
+                        </div>
+                        <div class="form-group">
+                            <label>QTY</label>
+                            <input type="number" id="itemQty" class="form-control" value="1">
+                        </div>
+                        <div class="form-group">
+                            <label>RATE (₹)</label>
+                            <input type="number" id="itemRate" class="form-control" value="30.00">
+                        </div>
+                        <div class="form-group">
+                            <label>GST %</label>
+                            <input type="number" id="itemGst" class="form-control" value="12">
+                        </div>
+                    </div>
+                    <button class="btn btn-primary" onclick="addItemToCurrentBill()">+ बिल में आइटम जोड़ें</button>
+                </div>
+
+                <table>
+                    <thead>
+                        <tr>
+                            <th>क्र.</th>
+                            <th>विवरण (Item)</th>
+                            <th>बैच / Exp</th>
+                            <th>मात्रा</th>
+                            <th>दर (₹)</th>
+                            <th>GST %</th>
+                            <th>कुल राशि (₹)</th>
+                            <th>हटाएं</th>
+                        </tr>
+                    </thead>
+                    <tbody id="cartTableBody"></tbody>
+                </table>
+
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-top:1.5rem;">
+                    <h3>GRAND TOTAL: <span style="color:var(--accent-emerald);" id="billGrandTotal">₹ 0.00</span></h3>
+                    <div style="display:flex; gap:10px;">
+                        <button class="btn btn-success" onclick="saveAndPrintBill('A4')">💾 सेव करें और A4 प्रिंट</button>
+                        <button class="btn btn-primary" onclick="saveAndPrintBill('Thermal')">📠 80mm थर्मल प्रिंट</button>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Tab 3: Purchase Inward -->
+        <section id="tab-purchase" style="display: none;">
+            <div class="panel">
+                <h2>परचेज इनवर्ड एंट्री (Stock Inward)</h2>
+                <div class="form-grid" style="margin-top:1rem;">
+                    <div class="form-group">
+                        <label>SUPPLIER NAME</label>
+                        <input type="text" id="purSupplier" class="form-control" placeholder="ABC Distributors">
+                    </div>
+                    <div class="form-group">
+                        <label>SUPPLIER BILL NO</label>
+                        <input type="text" id="purBillNo" class="form-control" placeholder="INV-789">
+                    </div>
+                    <div class="form-group">
+                        <label>ITEM NAME</label>
+                        <input type="text" id="purItemName" class="form-control" placeholder="PAN 40 MG">
+                    </div>
+                    <div class="form-group">
+                        <label>PURCHASE QTY</label>
+                        <input type="number" id="purQty" class="form-control" value="10">
+                    </div>
+                    <div class="form-group">
+                        <label>PURCHASE RATE (₹)</label>
+                        <input type="number" id="purRate" class="form-control" value="85.00">
+                    </div>
+                </div>
+                <button class="btn btn-primary" onclick="recordPurchaseEntry()">📥 इनवर्ड सेव करें</button>
+            </div>
+        </section>
+
+        <!-- Tab 4: Ledger -->
+        <section id="tab-ledger" style="display: none;">
+            <div class="panel">
+                <h2>खाता बही व लेजर स्टेटमेंट (Ledger Statement)</h2>
+                <div class="form-grid" style="margin-top:1rem;">
+                    <div class="form-group">
+                        <label>पार्टी का नाम खोजें</label>
+                        <input type="text" id="ledgerSearch" class="form-control" placeholder="Customer Name..." oninput="renderLedger()">
+                    </div>
+                </div>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>दिनांक</th>
+                            <th>पार्टी / विवरण</th>
+                            <th>प्रकार</th>
+                            <th>डेबिट (Dr ₹)</th>
+                            <th>क्रेडिट (Cr ₹)</th>
+                            <th>बकाया राशि (₹)</th>
+                        </tr>
+                    </thead>
+                    <tbody id="ledgerTableBody"></tbody>
+                </table>
+            </div>
+        </section>
+    </main>
+
+    <!-- Google Drive Settings Modal -->
+    <div id="driveSettingsModal" class="modal">
+        <div class="modal-content">
+            <h2 style="color:var(--accent-cyan); margin-bottom:1rem;">☁️ Google Drive Sync Setup</h2>
+            <p style="color:var(--text-muted); font-size:0.85rem; margin-bottom:1rem;">अपने Google Apps Script Webhook URL को यहाँ डालें ताकि वेबसाइट आपके ड्राइव से 2-वे सिंक हो सके।</p>
+            <div class="form-group" style="margin-bottom:1rem;">
+                <label>GMAIL ADDRESS</label>
+                <input type="email" id="driveUserEmail" class="form-control" placeholder="shopowner@gmail.com">
+            </div>
+            <div class="form-group" style="margin-bottom:1.5rem;">
+                <label>APPS SCRIPT WEBHOOK URL</label>
+                <input type="text" id="driveApiUrl" class="form-control" placeholder="https://script.google.com/macros/s/.../exec">
+            </div>
+            <div style="display:flex; justify-content:space-between;">
+                <button class="btn btn-danger" onclick="closeDriveSettings()">रद्द करें</button>
+                <button class="btn btn-success" onclick="saveDriveSettingsFromModal()">सिंक कनेक्ट करें</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Hindi User Guide Modal -->
+    <div id="guideModal" class="modal">
+        <div class="modal-content">
+            <h2 style="color:var(--accent-cyan); margin-bottom:1rem;">📖 Pharoah ERP - हिंदी यूजर गाइड</h2>
+            <div style="color:var(--text-muted); font-size:0.9rem; line-height:1.6; display:flex; flex-direction:column; gap:12px;">
+                <p><strong>1. वेबसाइट और ऐप का सिंक:</strong> जब ऐप की सेटिंग्स में "Web Live Server" ON होगा, तो आपका सारा डेटा Google Drive के जरिए वेबसाइट पर तुरंत दिखेगा।</p>
+                <p><strong>2. सेल बिलिंग (POS):</strong> ऊपर 'सेल बिलिंग' टैब में जाएं, ग्राहक का नाम और दवा की मात्रा डालकर सेव करें। आपका बिल अपने आप PDF में तैयार हो जाएगा।</p>
+                <p><strong>3. 10 अलग-अलग यूजर्स की सुरक्षा:</strong> हर दुकानदार का डेटा उसके अपने Gmail / Google Drive में सेव रहता है। कोई दूसरा दुकानदार आपका बिल या खाता नहीं देख सकता।</p>
+                <p><strong>4. प्रिंटिंग:</strong> आप A4 साइज (फुल पेज) या 80mm थर्मल रोल दोनों में एक क्लिक से प्रिंट ले सकते हैं।</p>
+            </div>
+            <div style="margin-top:1.5rem; text-align:right;">
+                <button class="btn btn-primary" onclick="closeGuideModal()">समझ गया (Close)</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="printArea" class="print-area"></div>
+    <script src="drive_sync.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>
