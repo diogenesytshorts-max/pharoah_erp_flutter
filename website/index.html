@@ -3,22 +3,28 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Pharoah ERP - Web Portal & Cloud Sync</title>
+    <title>Pharoah ERP - Full Web ERP & Cloud Portal</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
+    <!-- Header Navigation -->
     <header>
         <div class="logo-container">
             <div class="logo-badge">PHAROAH ERP</div>
-            <span style="font-size: 0.8rem; color: var(--text-muted);">Web Cloud POS</span>
+            <span style="font-size: 0.8rem; color: var(--text-muted);">Web Live Cloud Engine</span>
         </div>
 
         <nav class="nav-links">
-            <button class="nav-btn active" onclick="switchTab('dashboard')">डैशबोर्ड</button>
-            <button class="nav-btn" onclick="switchTab('billing')">सेल बिलिंग (POS)</button>
-            <button class="nav-btn" onclick="switchTab('purchase')">परचेज इनवर्ड</button>
-            <button class="nav-btn" onclick="switchTab('ledger')">खाता / लेजर</button>
+            <button class="nav-btn active" onclick="switchTab('dashboard')">📊 डैशबोर्ड</button>
+            <button class="nav-btn" onclick="switchTab('billing')">🧾 सेल बिलिंग</button>
+            <button class="nav-btn" onclick="switchTab('challan')">🚚 चालान</button>
+            <button class="nav-btn" onclick="switchTab('returns')">🔄 रिटर्न्स (CN/DN)</button>
+            <button class="nav-btn" onclick="switchTab('purchase')">📦 परचेज</button>
+            <button class="nav-btn" onclick="switchTab('daybook')">📅 डे-बुक</button>
+            <button class="nav-btn" onclick="switchTab('ledger')">📑 खाता / लेजर</button>
+            <button class="nav-btn" onclick="switchTab('stock')">📦 स्टॉक लेजर</button>
+            <button class="nav-btn" onclick="switchTab('masters')">⭐ मास्टर्स</button>
             <button class="nav-btn" onclick="openDriveSettings()">⚙️ Drive Setup</button>
             <button class="nav-btn" onclick="openGuideModal()">📖 हिंदी गाइड</button>
         </nav>
@@ -29,6 +35,7 @@
         </div>
     </header>
 
+    <!-- Main Workspace -->
     <main>
         <!-- Tab 1: Dashboard -->
         <section id="tab-dashboard">
@@ -42,7 +49,7 @@
                     <span class="kpi-value" id="kpi-pur">₹ 0.00</span>
                 </div>
                 <div class="kpi-card">
-                    <span class="kpi-title">ESTIMATED STOCK (स्टॉक वैल्यू)</span>
+                    <span class="kpi-title">TOTAL STOCK VALUE (कुल स्टॉक)</span>
                     <span class="kpi-value" id="kpi-stock">₹ 0.00</span>
                 </div>
                 <div class="kpi-card">
@@ -54,23 +61,38 @@
             <div class="modules-grid">
                 <div class="module-card" onclick="switchTab('billing')">
                     <div class="module-icon">🧾</div>
-                    <div class="module-title">त्वरित बिक्री (New Sale Invoice)</div>
-                    <div class="module-desc">बारकोड स्कैन करें, आइटम चुनें, A4 या थर्मल रिसिप्ट प्रिंट करें।</div>
+                    <div class="module-title">सेल बिलिंग (POS & Invoicing)</div>
+                    <div class="module-desc">त्वरित बिक्री बिल बनाएं, A4 व थर्मल प्रिंटिंग करें।</div>
+                </div>
+                <div class="module-card" onclick="switchTab('challan')">
+                    <div class="module-icon">🚚</div>
+                    <div class="module-title">डिलीवरी चालान (Delivery Challan)</div>
+                    <div class="module-desc">आउटवर्ड व इनवर्ड चालान बनाएं और बिल में बदलें।</div>
+                </div>
+                <div class="module-card" onclick="switchTab('returns')">
+                    <div class="module-icon">🔄</div>
+                    <div class="module-title">रिटर्न्स हब (Credit / Debit Notes)</div>
+                    <div class="module-desc">सेलेबल या एक्सपायरी माल वापसी की एंट्री करें।</div>
                 </div>
                 <div class="module-card" onclick="switchTab('purchase')">
                     <div class="module-icon">📦</div>
-                    <div class="module-title">परचेज और स्टॉक इनवर्ड</div>
-                    <div class="module-desc">सप्लायर इनवॉइस दर्ज करें और लाइव स्टॉक बढ़ाएं।</div>
+                    <div class="module-title">परचेज इनवर्ड (Stock Inward)</div>
+                    <div class="module-desc">सप्लायर इनवॉइस जोड़ें और लाइव स्टॉक बढ़ाएं।</div>
+                </div>
+                <div class="module-card" onclick="switchTab('daybook')">
+                    <div class="module-icon">📅</div>
+                    <div class="module-title">दैनिक डे-बुक (Daily Daybook)</div>
+                    <div class="module-desc">दिन भर की कुल आवक-जावक और वाउचर सूची।</div>
                 </div>
                 <div class="module-card" onclick="switchTab('ledger')">
                     <div class="module-icon">📑</div>
-                    <div class="module-title">पार्टी खाता व लेजर स्टेटमेंट</div>
-                    <div class="module-desc">उधारी, रिसिप्ट, भुगतान और स्टेटमेंट देखें या प्रिंट करें।</div>
+                    <div class="module-title">पार्टी खाता व लेजर (Ledger Statement)</div>
+                    <div class="module-desc">ग्राहकों व सप्लायर्स का बकाया हिसाब और रसीदें।</div>
                 </div>
             </div>
         </section>
 
-        <!-- Tab 2: Billing (POS) -->
+        <!-- Tab 2: Billing -->
         <section id="tab-billing" style="display: none;">
             <div class="panel">
                 <div class="panel-header">
@@ -156,7 +178,69 @@
             </div>
         </section>
 
-        <!-- Tab 3: Purchase Inward -->
+        <!-- Tab 3: Challans -->
+        <section id="tab-challan" style="display: none;">
+            <div class="panel">
+                <div class="panel-header">
+                    <h2>डिलीवरी चालान (Delivery Challan)</h2>
+                    <button class="btn btn-primary" onclick="generateNewChallanNumber()">+ नया चालान</button>
+                </div>
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label>CHALLAN NO</label>
+                        <input type="text" id="challanNo" class="form-control" value="CH-101" readonly>
+                    </div>
+                    <div class="form-group">
+                        <label>PARTY NAME</label>
+                        <input type="text" id="challanParty" class="form-control" placeholder="उदा. Verma Clinic">
+                    </div>
+                    <div class="form-group">
+                        <label>ITEM NAME</label>
+                        <input type="text" id="challanItem" class="form-control" placeholder="उदा. PAN 40 MG">
+                    </div>
+                    <div class="form-group">
+                        <label>DISPATCH QTY</label>
+                        <input type="number" id="challanQty" class="form-control" value="5">
+                    </div>
+                </div>
+                <button class="btn btn-success" onclick="recordChallanEntry()">🚚 चालान सेव व प्रिंट करें</button>
+            </div>
+        </section>
+
+        <!-- Tab 4: Returns (CN/DN) -->
+        <section id="tab-returns" style="display: none;">
+            <div class="panel">
+                <h2>क्रेडिट व डेबिट नोट (Returns & Reversals)</h2>
+                <div class="form-grid" style="margin-top:1rem;">
+                    <div class="form-group">
+                        <label>RETURN TYPE</label>
+                        <select id="returnType" class="form-control">
+                            <option value="CN">CREDIT NOTE (ग्राहक वापसी)</option>
+                            <option value="DN">DEBIT NOTE (सप्लायर वापसी)</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>PARTY / SUPPLIER NAME</label>
+                        <input type="text" id="returnParty" class="form-control" placeholder="Party Name">
+                    </div>
+                    <div class="form-group">
+                        <label>ITEM NAME</label>
+                        <input type="text" id="returnItem" class="form-control" placeholder="Product Name">
+                    </div>
+                    <div class="form-group">
+                        <label>RETURN QTY</label>
+                        <input type="number" id="returnQty" class="form-control" value="1">
+                    </div>
+                    <div class="form-group">
+                        <label>AMOUNT (₹)</label>
+                        <input type="number" id="returnAmt" class="form-control" value="100.00">
+                    </div>
+                </div>
+                <button class="btn btn-danger" onclick="recordReturnEntry()">🔄 रिटर्न सेव करें</button>
+            </div>
+        </section>
+
+        <!-- Tab 5: Purchase Inward -->
         <section id="tab-purchase" style="display: none;">
             <div class="panel">
                 <h2>परचेज इनवर्ड एंट्री (Stock Inward)</h2>
@@ -186,7 +270,26 @@
             </div>
         </section>
 
-        <!-- Tab 4: Ledger -->
+        <!-- Tab 6: Daybook -->
+        <section id="tab-daybook" style="display: none;">
+            <div class="panel">
+                <h2>दैनिक डे-बुक (Daily Daybook Summary)</h2>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>दिनांक</th>
+                            <th>प्रकार (Type)</th>
+                            <th>पार्टी / विवरण</th>
+                            <th>इनफ्लो (In ₹)</th>
+                            <th>आउटफ्लो (Out ₹)</th>
+                        </tr>
+                    </thead>
+                    <tbody id="daybookTableBody"></tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- Tab 7: Ledger -->
         <section id="tab-ledger" style="display: none;">
             <div class="panel">
                 <h2>खाता बही व लेजर स्टेटमेंट (Ledger Statement)</h2>
@@ -209,6 +312,52 @@
                     </thead>
                     <tbody id="ledgerTableBody"></tbody>
                 </table>
+            </div>
+        </section>
+
+        <!-- Tab 8: Stock Ledger -->
+        <section id="tab-stock" style="display: none;">
+            <div class="panel">
+                <h2>स्टॉक व आइटम लेजर (Live Inventory)</h2>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>आइटम का नाम</th>
+                            <th>बैच</th>
+                            <th>एक्सपायरी</th>
+                            <th>MRP (₹)</th>
+                            <th>दर (₹)</th>
+                            <th>लाइव स्टॉक</th>
+                        </tr>
+                    </thead>
+                    <tbody id="stockTableBody"></tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- Tab 9: Masters -->
+        <section id="tab-masters" style="display: none;">
+            <div class="panel">
+                <h2>मास्टर्स हब (New Product / Party Quick Add)</h2>
+                <div class="form-grid" style="margin-top:1rem;">
+                    <div class="form-group">
+                        <label>PRODUCT NAME</label>
+                        <input type="text" id="mProdName" class="form-control" placeholder="उदा. CALPOL 500">
+                    </div>
+                    <div class="form-group">
+                        <label>PACKING</label>
+                        <input type="text" id="mProdPack" class="form-control" value="15 TAB">
+                    </div>
+                    <div class="form-group">
+                        <label>MRP (₹)</label>
+                        <input type="number" id="mProdMrp" class="form-control" value="45.00">
+                    </div>
+                    <div class="form-group">
+                        <label>PUR. RATE (₹)</label>
+                        <input type="number" id="mProdRate" class="form-control" value="32.00">
+                    </div>
+                </div>
+                <button class="btn btn-primary" onclick="addNewProductMaster()">⭐ नया प्रोडक्ट मास्टर में जोड़ें</button>
             </div>
         </section>
     </main>
@@ -238,10 +387,9 @@
         <div class="modal-content">
             <h2 style="color:var(--accent-cyan); margin-bottom:1rem;">📖 Pharoah ERP - हिंदी यूजर गाइड</h2>
             <div style="color:var(--text-muted); font-size:0.9rem; line-height:1.6; display:flex; flex-direction:column; gap:12px;">
-                <p><strong>1. वेबसाइट और ऐप का सिंक:</strong> जब ऐप की सेटिंग्स में "Web Live Server" ON होगा, तो आपका सारा डेटा Google Drive के जरिए वेबसाइट पर तुरंत दिखेगा।</p>
-                <p><strong>2. सेल बिलिंग (POS):</strong> ऊपर 'सेल बिलिंग' टैब में जाएं, ग्राहक का नाम और दवा की मात्रा डालकर सेव करें। आपका बिल अपने आप PDF में तैयार हो जाएगा।</p>
-                <p><strong>3. 10 अलग-अलग यूजर्स की सुरक्षा:</strong> हर दुकानदार का डेटा उसके अपने Gmail / Google Drive में सेव रहता है। कोई दूसरा दुकानदार आपका बिल या खाता नहीं देख सकता।</p>
-                <p><strong>4. प्रिंटिंग:</strong> आप A4 साइज (फुल पेज) या 80mm थर्मल रोल दोनों में एक क्लिक से प्रिंट ले सकते हैं।</p>
+                <p><strong>1. 2-वे सिंक:</strong> ऐप और वेबसाइट दोनों का डेटा आपके अपने Google Drive से ऑटोमैटिक लाइव अपडेट रहता है।</p>
+                <p><strong>2. सेल, परचेज व चालान:</strong> ऊपर दिए गए टैब्स से कोई भी एंट्री करें और तुरंत A4 या 80mm प्रिंट निकालें।</p>
+                <p><strong>3. 10 अलग-अलग यूजर्स:</strong> हर दुकानदार का डेटा उसके अपने Gmail / Google Drive में सुरक्षित रहेगा।</p>
             </div>
             <div style="margin-top:1.5rem; text-align:right;">
                 <button class="btn btn-primary" onclick="closeGuideModal()">समझ गया (Close)</button>
