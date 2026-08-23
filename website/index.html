@@ -19,8 +19,9 @@
             <button class="nav-btn active" onclick="switchTab('dashboard')">📊 डैशबोर्ड</button>
             <button class="nav-btn" onclick="switchTab('billing')">🧾 सेल बिलिंग</button>
             <button class="nav-btn" onclick="switchTab('challan')">🚚 चालान</button>
-            <button class="nav-btn" onclick="switchTab('returns')">🔄 रिटर्न्स (CN/DN)</button>
+            <button class="nav-btn" onclick="switchTab('returns')">🔄 रिटर्न्स</button>
             <button class="nav-btn" onclick="switchTab('purchase')">📦 परचेज</button>
+            <button class="nav-btn" onclick="switchTab('vouchers')">💰 वाउचर्स (R/P)</button>
             <button class="nav-btn" onclick="switchTab('daybook')">📅 डे-बुक</button>
             <button class="nav-btn" onclick="switchTab('ledger')">📑 खाता / लेजर</button>
             <button class="nav-btn" onclick="switchTab('stock')">📦 स्टॉक लेजर</button>
@@ -64,6 +65,11 @@
                     <div class="module-title">सेल बिलिंग (POS & Invoicing)</div>
                     <div class="module-desc">त्वरित बिक्री बिल बनाएं, A4 व थर्मल प्रिंटिंग करें।</div>
                 </div>
+                <div class="module-card" onclick="switchTab('vouchers')">
+                    <div class="module-icon">💰</div>
+                    <div class="module-title">रसीद व भुगतान वाउचर्स (Receipt / Payment)</div>
+                    <div class="module-desc">नकद/बैंक वसूली और खर्चे की प्रविष्टि दर्ज करें।</div>
+                </div>
                 <div class="module-card" onclick="switchTab('challan')">
                     <div class="module-icon">🚚</div>
                     <div class="module-title">डिलीवरी चालान (Delivery Challan)</div>
@@ -78,11 +84,6 @@
                     <div class="module-icon">📦</div>
                     <div class="module-title">परचेज इनवर्ड (Stock Inward)</div>
                     <div class="module-desc">सप्लायर इनवॉइस जोड़ें और लाइव स्टॉक बढ़ाएं।</div>
-                </div>
-                <div class="module-card" onclick="switchTab('daybook')">
-                    <div class="module-icon">📅</div>
-                    <div class="module-title">दैनिक डे-बुक (Daily Daybook)</div>
-                    <div class="module-desc">दिन भर की कुल आवक-जावक और वाउचर सूची।</div>
                 </div>
                 <div class="module-card" onclick="switchTab('ledger')">
                     <div class="module-icon">📑</div>
@@ -180,6 +181,46 @@
             </div>
         </section>
 
+        <!-- Tab: Vouchers (NEW) -->
+        <section id="tab-vouchers" style="display: none;">
+            <div class="panel">
+                <h2>💰 वाउचर प्रविष्टि (Receipt / Payment Voucher)</h2>
+                <div class="form-grid" style="margin-top:1rem;">
+                    <div class="form-group">
+                        <label>VOUCHER TYPE (प्रकार)</label>
+                        <select id="vouchType" class="form-control">
+                            <option value="RECEIPT">RECEIPT (रसीद - पैसा आया)</option>
+                            <option value="PAYMENT">PAYMENT (भुगतान - पैसा दिया)</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>DATE (दिनांक)</label>
+                        <input type="date" id="vouchDate" class="form-control">
+                    </div>
+                    <div class="form-group">
+                        <label>PARTY NAME (पार्टी का नाम)</label>
+                        <input type="text" id="vouchParty" class="form-control" placeholder="उदा. Sharma Medicals" list="partyDatalist">
+                    </div>
+                    <div class="form-group">
+                        <label>AMOUNT (राशि ₹) *</label>
+                        <input type="number" id="vouchAmount" class="form-control" placeholder="5000.00">
+                    </div>
+                    <div class="form-group">
+                        <label>PAYMENT MODE (माध्यम)</label>
+                        <select id="vouchMode" class="form-control">
+                            <option value="Cash">Cash (नकद)</option>
+                            <option value="Bank">Bank / UPI / Cheque</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>NARRATION / REMARK (विवरण)</label>
+                        <input type="text" id="vouchNarration" class="form-control" placeholder="उदा. Against Bill #INV-101">
+                    </div>
+                </div>
+                <button class="btn btn-success" onclick="recordVoucherEntry()">💾 वाउचर सेव करें</button>
+            </div>
+        </section>
+
         <!-- Tab 3: Challans -->
         <section id="tab-challan" style="display: none;">
             <div class="panel">
@@ -194,11 +235,11 @@
                     </div>
                     <div class="form-group">
                         <label>PARTY NAME</label>
-                        <input type="text" id="challanParty" class="form-control" placeholder="उदा. Verma Clinic">
+                        <input type="text" id="challanParty" class="form-control" placeholder="उदा. Verma Clinic" list="partyDatalist">
                     </div>
                     <div class="form-group">
                         <label>ITEM NAME</label>
-                        <input type="text" id="challanItem" class="form-control" placeholder="उदा. PAN 40 MG">
+                        <input type="text" id="challanItem" class="form-control" placeholder="उदा. PAN 40 MG" list="itemDatalist">
                     </div>
                     <div class="form-group">
                         <label>DISPATCH QTY</label>
@@ -209,7 +250,7 @@
             </div>
         </section>
 
-        <!-- Tab 4: Returns (CN/DN) -->
+        <!-- Tab 4: Returns -->
         <section id="tab-returns" style="display: none;">
             <div class="panel">
                 <h2>क्रेडिट व डेबिट नोट (Returns & Reversals)</h2>
@@ -223,11 +264,11 @@
                     </div>
                     <div class="form-group">
                         <label>PARTY / SUPPLIER NAME</label>
-                        <input type="text" id="returnParty" class="form-control" placeholder="Party Name">
+                        <input type="text" id="returnParty" class="form-control" placeholder="Party Name" list="partyDatalist">
                     </div>
                     <div class="form-group">
                         <label>ITEM NAME</label>
-                        <input type="text" id="returnItem" class="form-control" placeholder="Product Name">
+                        <input type="text" id="returnItem" class="form-control" placeholder="Product Name" list="itemDatalist">
                     </div>
                     <div class="form-group">
                         <label>RETURN QTY</label>
@@ -249,7 +290,7 @@
                 <div class="form-grid" style="margin-top:1rem;">
                     <div class="form-group">
                         <label>SUPPLIER NAME</label>
-                        <input type="text" id="purSupplier" class="form-control" placeholder="ABC Distributors">
+                        <input type="text" id="purSupplier" class="form-control" placeholder="ABC Distributors" list="partyDatalist">
                     </div>
                     <div class="form-group">
                         <label>SUPPLIER BILL NO</label>
@@ -257,7 +298,7 @@
                     </div>
                     <div class="form-group">
                         <label>ITEM NAME</label>
-                        <input type="text" id="purItemName" class="form-control" placeholder="PAN 40 MG">
+                        <input type="text" id="purItemName" class="form-control" placeholder="PAN 40 MG" list="itemDatalist">
                     </div>
                     <div class="form-group">
                         <label>PURCHASE QTY</label>
@@ -339,7 +380,6 @@
 
         <!-- Tab 9: Masters -->
         <section id="tab-masters" style="display: none;">
-            <!-- Section A: Product Master -->
             <div class="panel" style="margin-bottom: 2rem;">
                 <h2>⭐ नया प्रोडक्ट जोड़ें (Add Product Master)</h2>
                 <div class="form-grid" style="margin-top:1rem;">
@@ -363,7 +403,6 @@
                 <button class="btn btn-primary" onclick="addNewProductMaster()">+ प्रोडक्ट मास्टर सेव करें</button>
             </div>
 
-            <!-- Section B: Party Master (NEW) -->
             <div class="panel">
                 <h2>👤 नया ग्राहक / सप्लायर खाता जोड़ें (Add Party Master)</h2>
                 <div class="form-grid" style="margin-top:1rem;">
@@ -426,7 +465,7 @@
             <h2 style="color:var(--accent-cyan); margin-bottom:1rem;">📖 Pharoah ERP - हिंदी यूजर गाइड</h2>
             <div style="color:var(--text-muted); font-size:0.9rem; line-height:1.6; display:flex; flex-direction:column; gap:12px;">
                 <p><strong>1. 2-वे सिंक:</strong> ऐप और वेबसाइट दोनों का डेटा आपके अपने Google Drive से ऑटोमैटिक लाइव अपडेट रहता है।</p>
-                <p><strong>2. सेल, परचेज व चालान:</strong> ऊपर दिए गए टैब्स से कोई भी एंट्री करें और तुरंत A4 या 80mm प्रिंट निकालें।</p>
+                <p><strong>2. सेल, परचेज व वाउचर्स:</strong> ऊपर दिए गए टैब्स से कोई भी बिल या रसीद बनाएं और तुरंत A4 या 80mm प्रिंट निकालें।</p>
                 <p><strong>3. 10 अलग-अलग यूजर्स:</strong> हर दुकानदार का डेटा उसके अपने Gmail / Google Drive में सुरक्षित रहेगा।</p>
             </div>
             <div style="margin-top:1.5rem; text-align:right;">

@@ -23,7 +23,13 @@ document.addEventListener("DOMContentLoaded", async () => {
     generateNewBillNumber();
     generateNewChallanNumber();
     populateDatalists();
-    document.getElementById("billDate").value = new Date().toISOString().split('T')[0];
+    
+    const todayStr = new Date().toISOString().split('T')[0];
+    const billDateEl = document.getElementById("billDate");
+    const vouchDateEl = document.getElementById("vouchDate");
+    if (billDateEl) billDateEl.value = todayStr;
+    if (vouchDateEl) vouchDateEl.value = todayStr;
+    
     updateDashboardKpis();
 
     await pullLatestFromDrive();
@@ -172,6 +178,29 @@ function saveAndPrintBill(format) {
     alert("✅ बिल सेव हुआ और Google Drive में सिंक हो गया!");
 }
 
+function recordVoucherEntry() {
+    const type = document.getElementById("vouchType").value;
+    const date = document.getElementById("vouchDate").value;
+    const party = document.getElementById("vouchParty").value.trim();
+    const amount = parseFloat(document.getElementById("vouchAmount").value) || 0;
+    const mode = document.getElementById("vouchMode").value;
+    const narration = document.getElementById("vouchNarration").value.trim();
+
+    if (!party || amount <= 0) {
+        alert("कृपया पार्टी का नाम और मान्य राशि भरें!");
+        return;
+    }
+
+    if (!appState.vouchers) appState.vouchers = [];
+    appState.vouchers.push({ id: "v_" + Date.now(), type, date, party, amount, mode, narration });
+    saveLocalData();
+    if (window.GoogleDriveSync) GoogleDriveSync.pushToDrive(appState);
+    
+    alert(`✅ ${type} वाउचर सफलतापूर्वक सेव हुआ!`);
+    document.getElementById("vouchAmount").value = "";
+    document.getElementById("vouchNarration").value = "";
+}
+
 function recordChallanEntry() {
     const cNo = document.getElementById("challanNo").value;
     const party = document.getElementById("challanParty").value.trim();
@@ -226,6 +255,10 @@ function renderDaybook() {
     appState.purchases.forEach(p => {
         tbody.innerHTML += `<tr><td>${p.date.split('T')[0]}</td><td><span style="color:var(--accent-orange);">PURCHASE</span></td><td>${p.supplier}</td><td>-</td><td>₹ ${p.total.toFixed(2)}</td></tr>`;
     });
+    (appState.vouchers || []).forEach(v => {
+        const isRec = v.type === "RECEIPT";
+        tbody.innerHTML += `<tr><td>${v.date}</td><td><span style="color:${isRec ? 'var(--accent-emerald)' : 'var(--accent-red)'};">${v.type}</span></td><td>${v.party} (${v.narration || v.mode})</td><td>${isRec ? '₹ ' + v.amount.toFixed(2) : '-'}</td><td>${!isRec ? '₹ ' + v.amount.toFixed(2) : '-'}</td></tr>`;
+    });
 }
 
 function renderLedger() {
@@ -234,6 +267,10 @@ function renderLedger() {
     tbody.innerHTML = "";
     appState.sales.filter(s => s.customer.toLowerCase().includes(query)).forEach(s => {
         tbody.innerHTML += `<tr><td>${s.billDate}</td><td><strong>${s.customer}</strong></td><td>SALE</td><td>₹ ${s.totalAmount.toFixed(2)}</td><td>-</td><td>₹ ${s.totalAmount.toFixed(2)}</td></tr>`;
+    });
+    (appState.vouchers || []).filter(v => v.party.toLowerCase().includes(query)).forEach(v => {
+        const isRec = v.type === "RECEIPT";
+        tbody.innerHTML += `<tr><td>${v.date}</td><td><strong>${v.party}</strong></td><td>${v.type} (${v.mode})</td><td>${!isRec ? '₹ ' + v.amount.toFixed(2) : '-'}</td><td>${isRec ? '₹ ' + v.amount.toFixed(2) : '-'}</td><td>-</td></tr>`;
     });
 }
 
