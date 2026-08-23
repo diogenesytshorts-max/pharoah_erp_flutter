@@ -1,0 +1,16 @@
+{
+  "name": "Pharoah ERP Web Cloud",
+  "short_name": "Pharoah ERP",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#0f172a",
+  "theme_color": "#1a237e",
+  "description": "Professional Web ERP & POS Billing with Google Drive 2-Way Sync",
+  "icons": [
+    {
+      "src": "favicon.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    }
+  ]
+}

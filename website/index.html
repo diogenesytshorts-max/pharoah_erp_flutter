@@ -4,6 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Pharoah ERP - Full Web ERP & Cloud Portal</title>
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#1a237e">
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -181,40 +183,40 @@
             </div>
         </section>
 
-        <!-- Tab: Vouchers (NEW) -->
+        <!-- Tab: Vouchers -->
         <section id="tab-vouchers" style="display: none;">
             <div class="panel">
                 <h2>💰 वाउचर प्रविष्टि (Receipt / Payment Voucher)</h2>
                 <div class="form-grid" style="margin-top:1rem;">
                     <div class="form-group">
-                        <label>VOUCHER TYPE (प्रकार)</label>
+                        <label>VOUCHER TYPE</label>
                         <select id="vouchType" class="form-control">
                             <option value="RECEIPT">RECEIPT (रसीद - पैसा आया)</option>
                             <option value="PAYMENT">PAYMENT (भुगतान - पैसा दिया)</option>
                         </select>
                     </div>
                     <div class="form-group">
-                        <label>DATE (दिनांक)</label>
+                        <label>DATE</label>
                         <input type="date" id="vouchDate" class="form-control">
                     </div>
                     <div class="form-group">
-                        <label>PARTY NAME (पार्टी का नाम)</label>
-                        <input type="text" id="vouchParty" class="form-control" placeholder="उदा. Sharma Medicals" list="partyDatalist">
+                        <label>PARTY NAME</label>
+                        <input type="text" id="vouchParty" class="form-control" placeholder="Sharma Medicals" list="partyDatalist">
                     </div>
                     <div class="form-group">
-                        <label>AMOUNT (राशि ₹) *</label>
+                        <label>AMOUNT (₹) *</label>
                         <input type="number" id="vouchAmount" class="form-control" placeholder="5000.00">
                     </div>
                     <div class="form-group">
-                        <label>PAYMENT MODE (माध्यम)</label>
+                        <label>PAYMENT MODE</label>
                         <select id="vouchMode" class="form-control">
                             <option value="Cash">Cash (नकद)</option>
                             <option value="Bank">Bank / UPI / Cheque</option>
                         </select>
                     </div>
                     <div class="form-group">
-                        <label>NARRATION / REMARK (विवरण)</label>
-                        <input type="text" id="vouchNarration" class="form-control" placeholder="उदा. Against Bill #INV-101">
+                        <label>NARRATION / REMARK</label>
+                        <input type="text" id="vouchNarration" class="form-control" placeholder="Against Bill #INV-101">
                     </div>
                 </div>
                 <button class="btn btn-success" onclick="recordVoucherEntry()">💾 वाउचर सेव करें</button>
@@ -235,11 +237,11 @@
                     </div>
                     <div class="form-group">
                         <label>PARTY NAME</label>
-                        <input type="text" id="challanParty" class="form-control" placeholder="उदा. Verma Clinic" list="partyDatalist">
+                        <input type="text" id="challanParty" class="form-control" placeholder="Verma Clinic" list="partyDatalist">
                     </div>
                     <div class="form-group">
                         <label>ITEM NAME</label>
-                        <input type="text" id="challanItem" class="form-control" placeholder="उदा. PAN 40 MG" list="itemDatalist">
+                        <input type="text" id="challanItem" class="form-control" placeholder="PAN 40 MG" list="itemDatalist">
                     </div>
                     <div class="form-group">
                         <label>DISPATCH QTY</label>
@@ -385,7 +387,7 @@
                 <div class="form-grid" style="margin-top:1rem;">
                     <div class="form-group">
                         <label>PRODUCT NAME</label>
-                        <input type="text" id="mProdName" class="form-control" placeholder="उदा. CALPOL 500">
+                        <input type="text" id="mProdName" class="form-control" placeholder="CALPOL 500">
                     </div>
                     <div class="form-group">
                         <label>PACKING</label>
@@ -408,7 +410,7 @@
                 <div class="form-grid" style="margin-top:1rem;">
                     <div class="form-group">
                         <label>PARTY / FIRM NAME *</label>
-                        <input type="text" id="mPartyName" class="form-control" placeholder="उदा. Gupta Medical Hall">
+                        <input type="text" id="mPartyName" class="form-control" placeholder="Gupta Medical Hall">
                     </div>
                     <div class="form-group">
                         <label>GROUP (खाता प्रकार)</label>
@@ -419,7 +421,7 @@
                     </div>
                     <div class="form-group">
                         <label>CITY (शहर)</label>
-                        <input type="text" id="mPartyCity" class="form-control" placeholder="उदा. Udaipur">
+                        <input type="text" id="mPartyCity" class="form-control" placeholder="Udaipur">
                     </div>
                     <div class="form-group">
                         <label>MOBILE NUMBER</label>
@@ -477,5 +479,18 @@
     <div id="printArea" class="print-area"></div>
     <script src="drive_sync.js"></script>
     <script src="app.js"></script>
+
+    <!-- PWA Registration -->
+    <script>
+      if ("serviceWorker" in navigator) {
+        window.addEventListener("load", () => {
+          navigator.serviceWorker.register("./sw.js").then((reg) => {
+            console.log("⚡ Pharoah ERP PWA Registered:", reg.scope);
+          }).catch((err) => {
+            console.log("PWA Registration failed:", err);
+          });
+        });
+      }
+    </script>
 </body>
 </html>
