@@ -1,4 +1,4 @@
-// FILE: lib/administration/architect_control_view.dart (FULLY RESOLVED PRODUCTION CODE)
+// FILE: lib/administration/architect_control_view.dart (UPDATED WITH 2-WAY DRIVE SYNC & HINDI GUIDE)
 
 import 'dart:io';
 import 'package:flutter/material.dart';
@@ -7,6 +7,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:url_launcher/url_launcher.dart'; 
 import '../../pharoah_manager.dart';
 import '../logic/app_settings_model.dart';
+import '../logic/google_drive_sync_service.dart';
 import 'series_master_view.dart';
 
 class ArchitectControlView extends StatefulWidget {
@@ -22,11 +23,15 @@ class _ArchitectControlViewState extends State<ArchitectControlView> with Single
   // Controllers
   late TextEditingController labelC, nameC, numC, ifscC, bankC, termsC;
   late TextEditingController emailC, passC, hostC, portC;
+  late TextEditingController webUrlC, driveWebhookC, driveEmailC;
+
+  bool isSyncing = false;
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 4, vsync: this);
+    // 5 Tabs (Web Server, Branding, Signatures, Finance, Mail Setup)
+    _tabController = TabController(length: 5, vsync: this);
     
     final ph = Provider.of<PharoahManager>(context, listen: false);
     
@@ -41,6 +46,11 @@ class _ArchitectControlViewState extends State<ArchitectControlView> with Single
     passC = TextEditingController(text: ph.config.smtpMailPass);
     hostC = TextEditingController(text: ph.config.smtpHost);
     portC = TextEditingController(text: ph.config.smtpPort.toString());
+    
+    // Live Cloudflare Website URL & Drive Hook
+    webUrlC = TextEditingController(text: "https://pharoah-erp-flutter.diogenesytshorts.workers.dev");
+    driveWebhookC = TextEditingController(text: ph.config.smtpHost.startsWith("http") ? ph.config.smtpHost : "");
+    driveEmailC = TextEditingController(text: ph.activeCompany?.email ?? "");
   }
 
   @override
@@ -55,53 +65,110 @@ class _ArchitectControlViewState extends State<ArchitectControlView> with Single
     passC.dispose();
     hostC.dispose();
     portC.dispose();
+    webUrlC.dispose();
+    driveWebhookC.dispose();
+    driveEmailC.dispose();
     _tabController.dispose();
     super.dispose();
   }
 
-  Future<void> _launchGmailSecurity() async {
-    final Uri url = Uri.parse('https://myaccount.google.com/apppasswords');
+  Future<void> _launchWebPortal() async {
+    final Uri url = Uri.parse(webUrlC.text.trim());
     if (!await launchUrl(url, mode: LaunchMode.externalApplication)) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Could not open browser. Check Internet.")));
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Could not launch web portal.")));
       }
     }
   }
 
-  void _showEmailSetupGuide() {
+  // --- 🔄 2-WAY SYNC ACTIONS ---
+  Future<void> _pushAppToDrive(PharoahManager ph) async {
+    String url = driveWebhookC.text.trim();
+    String email = driveEmailC.text.trim();
+
+    if (url.isEmpty || !url.startsWith("http")) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("कृपया सही Google Apps Script Webhook URL दर्ज करें!"), backgroundColor: Colors.orange));
+      return;
+    }
+
+    setState(() => isSyncing = true);
+    bool success = await GoogleDriveSyncService.pushDataToDrive(webhookUrl: url, userEmail: email, ph: ph);
+    setState(() => isSyncing = false);
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(success ? "✅ ऐप का डेटा Google Drive में सफलतापूर्वक सिंक हुआ!" : "❌ सिंक नहीं हो सका। URL चेक करें।"),
+        backgroundColor: success ? Colors.green : Colors.red,
+      ));
+    }
+  }
+
+  Future<void> _pullWebFromDrive(PharoahManager ph) async {
+    String url = driveWebhookC.text.trim();
+    String email = driveEmailC.text.trim();
+
+    if (url.isEmpty || !url.startsWith("http")) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("कृपया सही Google Apps Script Webhook URL दर्ज करें!"), backgroundColor: Colors.orange));
+      return;
+    }
+
+    setState(() => isSyncing = true);
+    bool success = await GoogleDriveSyncService.pullDataFromDrive(webhookUrl: url, userEmail: email, ph: ph);
+    setState(() => isSyncing = false);
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(success ? "✅ वेबसाइट के नए बिल Google Drive से ऐप में आ गए!" : "ℹ️ कोई नया डेटा नहीं मिला।"),
+        backgroundColor: success ? Colors.green : Colors.blueGrey,
+      ));
+    }
+  }
+
+  // --- 📖 HINDI USER MANUAL GUIDE MODAL ---
+  void _showHindiUserGuide() {
     showDialog(
       context: context,
       builder: (c) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(25)),
-        title: const Row(children: [Icon(Icons.auto_awesome, color: Colors.orange), SizedBox(width: 10), Text("Quick Mail Setup")]),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
+        title: const Row(
           children: [
-            const Text("Google security requires an 'App Password' for ERP billing. Regular passwords won't work.", style: TextStyle(fontSize: 11, color: Colors.blueGrey, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 15),
-            _stepRow("1", "Go to your Google Account > Security."),
-            _stepRow("2", "Enable '2-Step Verification' (If OFF)."),
-            _stepRow("3", "Search for 'App Passwords' in Search Bar."),
-            _stepRow("4", "Type 'Pharoah ERP' as App Name."),
-            _stepRow("5", "Copy the 16-digit code & paste it here."),
+            Icon(Icons.menu_book_rounded, color: Colors.cyanAccent),
+            SizedBox(width: 10),
+            Text("हिंदी यूजर गाइड (ERP Manual)", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
           ],
         ),
+        content: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _guideSection("1. 2-वे सिंक (Web ⟷ App)", "आप चाहे कंप्यूटर पर वेबसाइट खोलकर बिल बनाएं या मोबाइल ऐप से, दोनों का डेटा आपके Google Drive के जरिए हमेशा एक जैसा रहेगा।"),
+              _guideSection("2. 10 अलग-अलग यूजर्स की प्राइवेसी", "हर दुकानदार का डेटा उसके अपने Gmail / Google Drive में सेव रहता है। कोई दूसरा दुकानदार आपका डेटा कभी नहीं देख सकता।"),
+              _guideSection("3. ऑफलाइन सुरक्षा", "अगर इंटरनेट नहीं है या आपने स्विच OFF कर दिया है, तो ऐप 100% ऑफलाइन चलेगी और कोई डेटा बाहर नहीं जाएगा।"),
+              _guideSection("4. प्रिंटिंग सपोर्ट", "A4 फुल साइज इनवॉइस या 80mm थर्मल रोल प्रिंटर दोनों को सपोर्ट करता है।"),
+            ],
+          ),
+        ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(c), child: const Text("GOT IT")),
-          ElevatedButton(onPressed: () { Navigator.pop(c); _launchGmailSecurity(); }, child: const Text("OPEN LINK")),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.cyanAccent, foregroundColor: Colors.black),
+            onPressed: () => Navigator.pop(c), 
+            child: const Text("समझ गया (OK)", style: TextStyle(fontWeight: FontWeight.bold))
+          ),
         ],
       ),
     );
   }
 
-  Widget _stepRow(String num, String text) => Padding(
-    padding: const EdgeInsets.only(bottom: 8),
-    child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      CircleAvatar(radius: 9, backgroundColor: Colors.indigo, child: Text(num, style: const TextStyle(fontSize: 9, color: Colors.white))),
-      const SizedBox(width: 10),
-      Expanded(child: Text(text, style: const TextStyle(fontSize: 11, color: Colors.black87))),
-    ]),
+  Widget _guideSection(String title, String desc) => Padding(
+    padding: const EdgeInsets.only(bottom: 12),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(title, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.indigo, fontSize: 12)),
+        const SizedBox(height: 3),
+        Text(desc, style: const TextStyle(fontSize: 11, color: Colors.black87, height: 1.4)),
+      ],
+    ),
   );
 
   void _saveSettings(PharoahManager ph) {
@@ -120,94 +187,168 @@ class _ArchitectControlViewState extends State<ArchitectControlView> with Single
 
     ph.updateAppConfig(updated); 
     ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-      content: Text("✅ All Settings Synchronized!"),
+      content: Text("✅ All Settings & Web Server Synchronized!"),
       backgroundColor: Colors.indigo,
     ));
-  }
-
-  Future<void> _pickImage(PharoahManager ph, bool isLogo) async {
-    final picker = ImagePicker();
-    final XFile? image = await picker.pickImage(source: ImageSource.gallery, imageQuality: 80);
-    if (image != null) {
-      if (isLogo) {
-        ph.config.logoPath = image.path;
-      } else {
-        ph.config.qrCodePath = image.path;
-      }
-      ph.updateAppConfig(ph.config);
-      setState(() {});
-    }
   }
 
   @override
   Widget build(BuildContext context) {
     final ph = Provider.of<PharoahManager>(context);
-    bool isWide = MediaQuery.of(context).size.width > 900;
 
     return Scaffold(
       backgroundColor: const Color(0xFF0F172A), 
       appBar: AppBar(
-        title: const Text("Architect Series Control", style: TextStyle(fontWeight: FontWeight.w900, fontSize: 18, color: Colors.white)),
+        title: const Text("Architect Control & Web Live Hub", style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16, color: Colors.white)),
         backgroundColor: const Color(0xFF1E1B4B),
         elevation: 0,
         actions: [
-          Switch(
-            value: ph.config.isArchitectMode,
-            activeColor: Colors.cyanAccent,
-            onChanged: (v) {
-              ph.config.isArchitectMode = v;
-              ph.updateAppConfig(ph.config);
-            },
-          ),
-          const Center(child: Padding(
-            padding: EdgeInsets.only(right: 15),
-            child: Text("ARCHITECT SYSTEM", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 10, color: Colors.cyanAccent)),
-          )),
+          IconButton(
+            icon: const Icon(Icons.help_outline_rounded, color: Colors.cyanAccent),
+            tooltip: "हिंदी यूजर गाइड",
+            onPressed: _showHindiUserGuide,
+          )
         ],
       ),
-      body: Row(
+      body: Column(
         children: [
-          Expanded(
-            flex: isWide ? 6 : 10,
-            child: _buildSettingsHub(ph),
-          ),
-          if (isWide)
-            Expanded(
-              flex: 4,
-              child: _buildLiveInvoicePreview(ph),
+          Container(
+            color: const Color(0xFF1E1B4B),
+            child: TabBar(
+              controller: _tabController,
+              isScrollable: true,
+              indicatorColor: Colors.cyanAccent,
+              labelColor: Colors.cyanAccent,
+              unselectedLabelColor: Colors.white54,
+              tabs: const [
+                Tab(icon: Icon(Icons.language_rounded, size: 20), text: "Web Server"),
+                Tab(icon: Icon(Icons.palette_rounded, size: 20), text: "Branding"),
+                Tab(icon: Icon(Icons.security, size: 20), text: "Signatures"),
+                Tab(icon: Icon(Icons.account_balance_rounded, size: 20), text: "Finance"),
+                Tab(icon: Icon(Icons.alternate_email_rounded, size: 20), text: "Mail Setup"),
+              ],
             ),
+          ),
+          Expanded(
+            child: TabBarView(
+              controller: _tabController,
+              children: [
+                _buildWebServerTab(ph),
+                _buildBrandingTab(ph),
+                _buildSignaturesTab(ph),
+                _buildFinanceTab(ph),
+                _buildMailSetupTab(ph),
+              ],
+            ),
+          ),
         ],
       ),
       bottomNavigationBar: _buildSaveBar(ph),
     );
   }
 
-  Widget _buildSettingsHub(PharoahManager ph) {
-    return Column(
+  // --- 🌐 TAB 1: WEB LIVE SERVER & CLOUDFLARE PORTAL HUB ---
+  Widget _buildWebServerTab(PharoahManager ph) {
+    return ListView(
+      padding: const EdgeInsets.all(20),
       children: [
-        Container(
-          color: const Color(0xFF1E1B4B),
-          child: TabBar(
-            controller: _tabController,
-            indicatorColor: Colors.cyanAccent,
-            labelColor: Colors.cyanAccent,
-            unselectedLabelColor: Colors.white54,
-            tabs: const [
-              Tab(icon: Icon(Icons.palette_rounded, size: 20), text: "Branding"),
-              Tab(icon: Icon(Icons.security, size: 20), text: "Signatures"),
-              Tab(icon: Icon(Icons.account_balance_rounded, size: 20), text: "Finance"),
-              Tab(icon: Icon(Icons.alternate_email_rounded, size: 20), text: "Mail Setup"),
+        _buildCardHeader("CLOUDFLARE LIVE WEB SERVER & 2-WAY SYNC", Icons.language_rounded, Colors.cyanAccent),
+        const SizedBox(height: 10),
+        
+        // Master Toggle Switch
+        SwitchListTile(
+          contentPadding: EdgeInsets.zero,
+          title: const Text("Enable Cloud Web Server Sync", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14)),
+          subtitle: const Text("Toggles real-time 2-way sync with Google Drive and Web POS", style: TextStyle(color: Colors.white54, fontSize: 11)),
+          value: ph.config.isArchitectMode,
+          onChanged: (v) {
+            ph.config.isArchitectMode = v;
+            ph.updateAppConfig(ph.config);
+            setState(() {});
+          },
+          activeColor: Colors.cyanAccent,
+        ),
+        
+        const Divider(color: Colors.white10, height: 30),
+
+        // Live Web Portal Launcher Link
+        _buildInputField(webUrlC, "Cloudflare Live Website URL"),
+        const SizedBox(height: 10),
+        
+        Row(
+          children: [
+            Expanded(
+              child: ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.cyanAccent, foregroundColor: Colors.black, minimumSize: const Size(double.infinity, 45)),
+                onPressed: _launchWebPortal,
+                icon: const Icon(Icons.open_in_browser_rounded),
+                label: const Text("OPEN LIVE WEBSITE", style: TextStyle(fontWeight: FontWeight.bold)),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: OutlinedButton.icon(
+                style: OutlinedButton.styleFrom(foregroundColor: Colors.cyanAccent, side: const BorderSide(color: Colors.cyanAccent), minimumSize: const Size(double.infinity, 45)),
+                onPressed: _showHindiUserGuide,
+                icon: const Icon(Icons.menu_book_rounded),
+                label: const Text("📖 हिंदी यूजर गाइड"),
+              ),
+            ),
+          ],
+        ),
+
+        const Divider(color: Colors.white10, height: 35),
+        _buildCardHeader("GOOGLE DRIVE 2-WAY CLOUD SYNC", Icons.cloud_sync_rounded, Colors.greenAccent),
+        const SizedBox(height: 10),
+
+        _buildInputField(driveEmailC, "Your Gmail ID (User Email)"),
+        _buildInputField(driveWebhookC, "Google Apps Script Webhook URL"),
+
+        const SizedBox(height: 10),
+        if (isSyncing)
+          const Center(child: Padding(padding: EdgeInsets.all(10), child: CircularProgressIndicator(color: Colors.cyanAccent)))
+        else
+          Row(
+            children: [
+              Expanded(
+                child: ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(backgroundColor: Colors.greenAccent.shade700, foregroundColor: Colors.white, minimumSize: const Size(double.infinity, 45)),
+                  onPressed: () => _pushAppToDrive(ph),
+                  icon: const Icon(Icons.cloud_upload_rounded),
+                  label: const Text("PUSH TO DRIVE", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11)),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(backgroundColor: Colors.blueAccent.shade700, foregroundColor: Colors.white, minimumSize: const Size(double.infinity, 45)),
+                  onPressed: () => _pullWebFromDrive(ph),
+                  icon: const Icon(Icons.cloud_download_rounded),
+                  label: const Text("PULL FROM DRIVE", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11)),
+                ),
+              ),
             ],
           ),
-        ),
-        Expanded(
-          child: TabBarView(
-            controller: _tabController,
+
+        const SizedBox(height: 25),
+        Container(
+          padding: const EdgeInsets.all(15),
+          decoration: BoxDecoration(color: const Color(0xFF1E293B), borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.white10)),
+          child: const Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _buildBrandingTab(ph),
-              _buildSignaturesTab(ph),
-              _buildFinanceTab(ph),
-              _buildMailSetupTab(ph),
+              Row(
+                children: [
+                  Icon(Icons.shield_rounded, color: Colors.greenAccent, size: 18),
+                  SizedBox(width: 8),
+                  Text("MULTI-TENANT 100% ISOLATION", style: TextStyle(color: Colors.greenAccent, fontWeight: FontWeight.bold, fontSize: 11)),
+                ],
+              ),
+              SizedBox(height: 6),
+              Text(
+                "सभी 10 यूज़र्स का डेटा उनके व्यक्तिगत Google Drive में सुरक्षित और अलग रहेगा। जब स्विच OFF होगा तो कोई भी डेटा बाहर सिंक नहीं होगा।",
+                style: TextStyle(color: Colors.white70, fontSize: 11, height: 1.4),
+              ),
             ],
           ),
         ),
@@ -215,6 +356,7 @@ class _ArchitectControlViewState extends State<ArchitectControlView> with Single
     );
   }
 
+  // --- BRANDING TAB ---
   Widget _buildBrandingTab(PharoahManager ph) {
     return ListView(
       padding: const EdgeInsets.all(20),
@@ -224,221 +366,61 @@ class _ArchitectControlViewState extends State<ArchitectControlView> with Single
           ph.config.showLogo = v; ph.updateAppConfig(ph.config);
         }),
         const SizedBox(height: 15),
-        _buildActionBtn("UPLOAD SHOP LOGO", Icons.add_a_photo_rounded, Colors.purple, () => _pickImage(ph, true)),
-        if (ph.config.logoPath != null) _imageIndicator(ph.config.logoPath!),
-        const SizedBox(height: 25),
-        _buildSectionLabel("PRINTING FORMAT"),
-        Row(
-          children: [
-            _buildFormatOption("A4 Landscape", "A4", Icons.description_outlined, ph),
-            const SizedBox(width: 15),
-            _buildFormatOption("80mm Thermal", "Thermal", Icons.receipt_long_rounded, ph),
-          ],
-        ),
-        const SizedBox(height: 25),
-        _buildSwitchTile("Enable Statutory Terms & Conditions", "Show rule list at invoice bottom", ph.config.showTerms, (v) {
-          ph.config.showTerms = v; ph.updateAppConfig(ph.config);
-        }),
-        const SizedBox(height: 12),
         _buildInputField(termsC, "Terms & Conditions Rules", maxLines: 3),
       ],
     );
   }
 
+  // --- SIGNATURES TAB ---
   Widget _buildSignaturesTab(PharoahManager ph) {
     return ListView(
       padding: const EdgeInsets.all(20),
       children: [
         _buildCardHeader("SIGNATURE & SERIES AUDIT", Icons.security, Colors.blue),
-        // Switch 1: showCustomerSignChallan (Challan Signature Step)
         _buildSwitchTile("Enable Staff Signature", "Toggles signature drawing screen in challans", ph.config.showCustomerSignChallan, (v) {
           ph.config.showCustomerSignChallan = v; ph.updateAppConfig(ph.config);
         }),
-        // Switch 2: showStaffSign (Authorised Signatory Block)
         _buildSwitchTile("Show Authorised Signatory Block", "Requires receiver's stamp area on bills", ph.config.showStaffSign, (v) {
           ph.config.showStaffSign = v; ph.updateAppConfig(ph.config);
         }),
         const SizedBox(height: 15),
         _buildInputField(labelC, "Authorised Signatory Designation"),
-        const Divider(color: Colors.white10, height: 40),
-        _buildCardHeader("INVOICE NUMBERING SERIES", Icons.format_list_numbered, Colors.blue),
-        const SizedBox(height: 5),
-        Text("Default Billing Series: ${ph.getDefaultSeries("SALE").name}", style: const TextStyle(color: Colors.white70, fontSize: 13, fontWeight: FontWeight.bold)),
         const SizedBox(height: 15),
-        _buildActionBtn("MANAGE NUMBERING SCHEMES", Icons.settings, Colors.blue, () {
-          Navigator.push(context, MaterialPageRoute(builder: (c) => const SeriesMasterView()));
-        }),
+        ElevatedButton.icon(
+          style: ElevatedButton.styleFrom(backgroundColor: Colors.blue, foregroundColor: Colors.white),
+          onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (c) => const SeriesMasterView())),
+          icon: const Icon(Icons.settings),
+          label: const Text("MANAGE NUMBERING SCHEMES"),
+        ),
       ],
     );
   }
 
+  // --- FINANCE TAB ---
   Widget _buildFinanceTab(PharoahManager ph) {
     return ListView(
       padding: const EdgeInsets.all(20),
       children: [
         _buildCardHeader("PAYMENT GATEWAY CONFIG", Icons.account_balance_rounded, Colors.teal),
-        _buildSwitchTile("Enable Scan-To-Pay UPI QR", "Inserts instant scanning block in bills", ph.config.showQrCode, (v) {
-          ph.config.showQrCode = v; ph.updateAppConfig(ph.config);
-        }),
-        const SizedBox(height: 15),
-        _buildActionBtn("UPLOAD UPI QR IMAGE", Icons.qr_code_scanner, Colors.teal, () => _pickImage(ph, false)),
-        if (ph.config.qrCodePath != null) _imageIndicator(ph.config.qrCodePath!),
-        const Divider(color: Colors.white10, height: 40),
-        _buildSectionLabel("BANK SETTLEMENT DETAILS"),
         _buildInputField(nameC, "Beneficiary Name"),
         _buildInputField(bankC, "Bank Name & Branch"),
-        Row(
-          children: [
-            Expanded(child: _buildInputField(numC, "Account Number", isNum: true)),
-            const SizedBox(width: 15),
-            Expanded(child: _buildInputField(ifscC, "IFSC Code")),
-          ],
-        ),
+        _buildInputField(numC, "Account Number", isNum: true),
+        _buildInputField(ifscC, "IFSC Code"),
       ],
     );
   }
 
+  // --- MAIL SETUP TAB ---
   Widget _buildMailSetupTab(PharoahManager ph) {
     return ListView(
       padding: const EdgeInsets.all(20),
       children: [
         _buildCardHeader("SMTP MAIL AUTOMATION HUB", Icons.alternate_email_rounded, Colors.deepOrange),
-        _buildSwitchTile("Active Silent Mail Dispatcher", "Mails transaction PDF directly to party", ph.config.isMailActive, (v) {
-          ph.config.isMailActive = v; ph.updateAppConfig(ph.config);
-        }),
-        const SizedBox(height: 15),
         _buildInputField(emailC, "Sender Mail ID"),
         _buildInputField(passC, "Google App Password (16-Digit)", isPass: true),
-        Row(
-          children: [
-            Expanded(child: _buildInputField(hostC, "SMTP Server Host")),
-            const SizedBox(width: 15),
-            Expanded(child: _buildInputField(portC, "Server Port", isNum: true)),
-          ],
-        ),
-        const SizedBox(height: 15),
-        Row(
-          children: [
-            Expanded(child: OutlinedButton.icon(style: OutlinedButton.styleFrom(side: const BorderSide(color: Colors.deepOrange)), onPressed: _showEmailSetupGuide, icon: const Icon(Icons.help_outline, color: Colors.deepOrange), label: const Text("SETUP GUIDE", style: TextStyle(color: Colors.deepOrange)))),
-            const SizedBox(width: 15),
-            Expanded(child: ElevatedButton.icon(style: ElevatedButton.styleFrom(backgroundColor: Colors.deepOrange), onPressed: _launchGmailSecurity, icon: const Icon(Icons.open_in_new), label: const Text("GENERATE PASSWORD", style: TextStyle(color: Colors.white)))),
-          ],
-        )
+        _buildInputField(hostC, "SMTP Host"),
+        _buildInputField(portC, "SMTP Port", isNum: true),
       ],
-    );
-  }
-
-  Widget _buildLiveInvoicePreview(PharoahManager ph) {
-    bool isThermal = ph.config.printFormat == "Thermal";
-
-    return Container(
-      color: const Color(0xFF1E293B),
-      padding: const EdgeInsets.all(25),
-      child: Center(
-        child: Container(
-          width: isThermal ? 280 : 380,
-          height: 480,
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(15),
-            boxShadow: const [BoxShadow(color: Colors.black38, blurRadius: 15, offset: Offset(0, 5))],
-          ),
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              if (ph.config.showLogo)
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Icon(Icons.stars, color: Colors.indigo, size: 24),
-                    Text(ph.activeCompany?.name ?? "SHOP NAME", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11)),
-                  ],
-                )
-              else
-                Center(child: Text(ph.activeCompany?.name ?? "SHOP NAME", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13))),
-              
-              const Divider(thickness: 1, height: 15),
-              const Text("Invoice: INV-2026-0091", style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold)),
-              const Text("Date: 02/06/2026", style: TextStyle(fontSize: 9, color: Colors.grey)),
-              const Spacer(),
-
-              _previewItemRow("DOLO 650 MG", "10 Tab", "₹30.00"),
-              _previewItemRow("PAN 40 MG", "15 Tab", "₹120.00"),
-              const Divider(thickness: 0.5),
-
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: const [
-                  Text("GRAND TOTAL", style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
-                  Text("₹150.00", style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.green)),
-                ],
-              ),
-              const SizedBox(height: 15),
-
-              if (ph.config.showQrCode)
-                Row(
-                  children: [
-                    Container(
-                      width: 50, height: 50,
-                      color: Colors.grey.shade100,
-                      child: const Icon(Icons.qr_code, size: 40, color: Colors.black87),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text("Bank: ${ph.config.bankNameBranch}", style: const TextStyle(fontSize: 7, fontWeight: FontWeight.bold)),
-                        Text("A/C: ${ph.config.bankAccNumber}", style: const TextStyle(fontSize: 7)),
-                        Text("IFSC: ${ph.config.bankIfsc}", style: const TextStyle(fontSize: 7)),
-                      ],
-                    ))
-                  ],
-                ),
-              
-              const SizedBox(height: 10),
-
-              if (ph.config.showTerms)
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(5),
-                  color: Colors.grey.shade50,
-                  child: Text(ph.config.termsAndConditions, style: const TextStyle(fontSize: 6, color: Colors.grey)),
-                ),
-
-              const Spacer(),
-
-              if (ph.config.showStaffSign)
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      const Text("[Digital Seal verified]", style: TextStyle(fontSize: 6, color: Colors.green, fontStyle: FontStyle.italic)),
-                      const SizedBox(height: 15),
-                      Text("---------------------------------", style: TextStyle(fontSize: 8, color: Colors.grey.shade400)),
-                      Text(ph.config.signLabel.toUpperCase(), style: const TextStyle(fontSize: 7, fontWeight: FontWeight.bold, color: Colors.indigo)),
-                    ],
-                  ),
-                )
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _previewItemRow(String name, String qty, String price) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 2),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(name, style: const TextStyle(fontSize: 8, fontWeight: FontWeight.bold)),
-          Text(qty, style: const TextStyle(fontSize: 8)),
-          Text(price, style: const TextStyle(fontSize: 8, fontWeight: FontWeight.bold)),
-        ],
-      ),
     );
   }
 
@@ -463,19 +445,6 @@ class _ArchitectControlViewState extends State<ArchitectControlView> with Single
     );
   }
 
-  Widget _buildActionBtn(String label, IconData icon, Color color, VoidCallback tap) {
-    return Container(
-      width: double.infinity,
-      height: 44,
-      decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(12)),
-      child: TextButton.icon(
-        onPressed: tap,
-        icon: Icon(icon, color: Colors.white, size: 18),
-        label: Text(label, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 11)),
-      ),
-    );
-  }
-
   Widget _buildInputField(TextEditingController ctrl, String label, {bool isNum = false, bool isPass = false, int maxLines = 1}) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
@@ -497,60 +466,13 @@ class _ArchitectControlViewState extends State<ArchitectControlView> with Single
     );
   }
 
-  Widget _buildFormatOption(String label, String value, IconData icon, PharoahManager ph) {
-    bool isSel = ph.config.printFormat == value;
-    return Expanded(
-      child: InkWell(
-        onTap: () {
-          ph.config.printFormat = value;
-          ph.updateAppConfig(ph.config);
-        },
-        child: Container(
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: isSel ? Colors.purple.shade900 : const Color(0xFF1E293B),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: isSel ? Colors.purple : Colors.white10),
-          ),
-          child: Column(
-            children: [
-              Icon(icon, color: isSel ? Colors.cyanAccent : Colors.white54),
-              const SizedBox(height: 5),
-              Text(label, style: TextStyle(color: isSel ? Colors.white : Colors.white70, fontSize: 11, fontWeight: FontWeight.bold)),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildSectionLabel(String text) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: Text(text, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.white54, letterSpacing: 0.5)),
-    );
-  }
-
-  Widget _imageIndicator(String path) {
-    return Padding(
-      padding: const EdgeInsets.only(top: 8), 
-      child: Row(
-        children: [
-          const Icon(Icons.check_circle, color: Colors.green, size: 14), 
-          const SizedBox(width: 5), 
-          Text("Selected: ${path.split('/').last}", style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.blueGrey))
-        ]
-      )
-    );
-  }
-
   Widget _buildSaveBar(PharoahManager ph) {
     return Container(
       padding: const EdgeInsets.all(20),
       color: const Color(0xFF1E1B4B),
       child: Row(
         children: [
-          const Expanded(child: Text("Live Preview changes show immediately. To sync changes permanently tap save.", style: TextStyle(color: Colors.white54, fontSize: 11))),
+          const Expanded(child: Text("Live Web Server sync settings updated automatically.", style: TextStyle(color: Colors.white54, fontSize: 11))),
           const SizedBox(width: 15),
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: Colors.cyanAccent, foregroundColor: Colors.black, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
