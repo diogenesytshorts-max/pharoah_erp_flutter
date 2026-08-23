@@ -1,5 +1,5 @@
 // =============================================================================
-// PHAROAH ERP - WEB CLIENT LOGIC CENTER (MIRRORING MOBILE APP CODEBASE)
+// PHAROAH ERP - ENTERPRISE CLIENT LOGIC (SAFE & FULLY COMPATIBLE WITH MOBILE APP)
 // =============================================================================
 
 let appState = {
@@ -34,57 +34,82 @@ let appState = {
 
 let syncIntervalId = null;
 
-// On Initialization
+// Initial Load Handler
 document.addEventListener("DOMContentLoaded", async () => {
-    loadLocalData();
-    populateDatalists();
-    initNewSaleSession();
-    initNewPurchaseSession();
-    updateDashboardKpis();
-
-    await pullLatestFromDrive();
-
-    // 30s background live polling
-    if (syncIntervalId) clearInterval(syncIntervalId);
-    syncIntervalId = setInterval(async () => {
-        if (window.GoogleDriveSync && GoogleDriveSync.config.apiUrl) {
-            await pullLatestFromDrive(true);
+    try {
+        // Clear stale service worker cache if exists
+        if ('caches' in window) {
+            caches.keys().then(names => {
+                for (let name of names) caches.delete(name);
+            });
         }
-    }, 30000);
+
+        loadLocalData();
+        populateDatalists();
+        initNewSaleSession();
+        initNewPurchaseSession();
+        initNewChallanSession();
+        updateDashboardKpis();
+
+        const todayStr = new Date().toISOString().split('T')[0];
+        const vDateEl = document.getElementById("vouchDate");
+        const rDateEl = document.getElementById("retDate");
+        const chDateEl = document.getElementById("chDate");
+        if (vDateEl) vDateEl.value = todayStr;
+        if (rDateEl) rDateEl.value = todayStr;
+        if (chDateEl) chDateEl.value = todayStr;
+
+        await pullLatestFromDrive(true);
+
+        if (syncIntervalId) clearInterval(syncIntervalId);
+        syncIntervalId = setInterval(async () => {
+            if (window.GoogleDriveSync && GoogleDriveSync.config.apiUrl) {
+                await pullLatestFromDrive(true);
+            }
+        }, 30000);
+    } catch (err) {
+        console.error("DOM Init Error:", err);
+    }
 });
 
 // UI Navigation Tab Switcher
 function switchTab(tabId) {
-    document.querySelectorAll("main > section").forEach(sec => sec.style.display = "none");
-    document.querySelectorAll(".nav-btn").forEach(btn => btn.classList.remove("active"));
+    try {
+        document.querySelectorAll("main > section").forEach(sec => sec.style.display = "none");
+        document.querySelectorAll(".nav-btn").forEach(btn => btn.classList.remove("active"));
 
-    const target = document.getElementById(`tab-${tabId}`);
-    if (target) target.style.display = "block";
+        const target = document.getElementById(`tab-${tabId}`);
+        if (target) target.style.display = "block";
 
-    const activeBtn = Array.from(document.querySelectorAll(".nav-btn")).find(b => b.getAttribute("onclick")?.includes(tabId));
-    if (activeBtn) activeBtn.classList.add("active");
+        const activeBtn = Array.from(document.querySelectorAll(".nav-btn")).find(b => b.getAttribute("onclick")?.includes(tabId));
+        if (activeBtn) activeBtn.classList.add("active");
 
-    if (tabId === 'daybook') renderDaybook();
-    if (tabId === 'ledgers') renderLedgers();
-    if (tabId === 'stock') renderStock();
-    if (tabId === 'challans') renderChallansRegister();
-    if (tabId === 'returns') renderReturnsRegister();
+        if (tabId === 'daybook') renderDaybook();
+        if (tabId === 'ledgers') renderLedgers();
+        if (tabId === 'stock') renderStock();
+        if (tabId === 'challans') renderChallansRegister();
+        if (tabId === 'returns') renderReturnsRegister();
+    } catch (err) {
+        console.error("Tab Switch Error:", err);
+    }
 }
 
-function openGuideModal() { document.getElementById("guideModal").classList.add("active"); }
-function closeGuideModal() { document.getElementById("guideModal").classList.remove("active"); }
+function openGuideModal() { document.getElementById("guideModal")?.classList.add("active"); }
+function closeGuideModal() { document.getElementById("guideModal")?.classList.remove("active"); }
 function openDriveSettings() {
     if (window.GoogleDriveSync) {
-        document.getElementById("driveUserEmail").value = GoogleDriveSync.config.userEmail || "";
-        document.getElementById("driveApiUrl").value = GoogleDriveSync.config.apiUrl || "";
+        const uEmail = document.getElementById("driveUserEmail");
+        const aUrl = document.getElementById("driveApiUrl");
+        if (uEmail) uEmail.value = GoogleDriveSync.config.userEmail || "";
+        if (aUrl) aUrl.value = GoogleDriveSync.config.apiUrl || "";
     }
-    document.getElementById("driveSettingsModal").classList.add("active");
+    document.getElementById("driveSettingsModal")?.classList.add("active");
 }
-function closeDriveSettings() { document.getElementById("driveSettingsModal").classList.remove("active"); }
+function closeDriveSettings() { document.getElementById("driveSettingsModal")?.classList.remove("active"); }
 
 function saveDriveSettingsFromModal() {
-    const email = document.getElementById("driveUserEmail").value.trim();
-    const url = document.getElementById("driveApiUrl").value.trim();
+    const email = document.getElementById("driveUserEmail")?.value.trim() || "";
+    const url = document.getElementById("driveApiUrl")?.value.trim() || "";
     if (!url) { alert("Please enter Webhook URL!"); return; }
     if (window.GoogleDriveSync) { GoogleDriveSync.saveConfig(url, email); }
     closeDriveSettings();
@@ -126,22 +151,26 @@ function updateSaleSeriesPrefix(prefix) {
     const seq = Math.floor(1000 + Math.random() * 9000);
     const billNo = `${prefix}${seq}`;
     appState.activeSaleSession.billNo = billNo;
-    document.getElementById("saleBillNo").value = billNo;
+    const billNoEl = document.getElementById("saleBillNo");
+    if (billNoEl) billNoEl.value = billNo;
 }
 
 function setSalePaymentMode(mode) {
     appState.activeSaleSession.paymentMode = mode;
-    document.getElementById("modeCashBtn").classList.toggle("active", mode === "CASH");
-    document.getElementById("modeCreditBtn").classList.toggle("active", mode === "CREDIT");
+    document.getElementById("modeCashBtn")?.classList.toggle("active", mode === "CASH");
+    document.getElementById("modeCreditBtn")?.classList.toggle("active", mode === "CREDIT");
 }
 
 function onSalePartySelected(partyName) {
     const match = appState.parties.find(p => p.name.toLowerCase() === partyName.trim().toLowerCase());
     if (match) {
         appState.activeSaleSession.selectedParty = match;
-        document.getElementById("previewPartyName").innerText = match.name;
-        document.getElementById("previewPartyMeta").innerText = `City: ${match.city || 'LOCAL'} | GST: ${match.gst || 'N/A'} | Balance: ₹ ${match.opBal.toFixed(2)}`;
-        document.getElementById("selectedPartyCard").style.display = "flex";
+        const nameEl = document.getElementById("previewPartyName");
+        const metaEl = document.getElementById("previewPartyMeta");
+        const cardEl = document.getElementById("selectedPartyCard");
+        if (nameEl) nameEl.innerText = match.name;
+        if (metaEl) metaEl.innerText = `City: ${match.city || 'LOCAL'} | GST: ${match.gst || 'N/A'} | Balance: ₹ ${match.opBal.toFixed(2)}`;
+        if (cardEl) cardEl.style.display = "flex";
     }
 }
 
@@ -155,14 +184,14 @@ function clearSelectedSaleParty() {
 
 function proceedToBillingStep2() {
     if (!appState.activeSaleSession.selectedParty) {
-        // Default to CASH Customer if not selected
         const cashParty = appState.parties.find(p => p.name.includes("CASH")) || appState.parties[0];
         appState.activeSaleSession.selectedParty = cashParty;
     }
 
-    // Step 2 Header setup
-    document.getElementById("billingHeaderTitle").innerText = `TAX INVOICE: ${appState.activeSaleSession.billNo}`;
-    document.getElementById("billingHeaderParty").innerText = `Party: ${appState.activeSaleSession.selectedParty.name} | Date: ${appState.activeSaleSession.billDate} | Mode: ${appState.activeSaleSession.paymentMode}`;
+    const titleEl = document.getElementById("billingHeaderTitle");
+    const partyEl = document.getElementById("billingHeaderParty");
+    if (titleEl) titleEl.innerText = `TAX INVOICE: ${appState.activeSaleSession.billNo}`;
+    if (partyEl) partyEl.innerText = `Party: ${appState.activeSaleSession.selectedParty.name} | Date: ${appState.activeSaleSession.billDate} | Mode: ${appState.activeSaleSession.paymentMode}`;
 
     renderSaleCart();
     switchTab("billing-cart");
@@ -175,13 +204,15 @@ function proceedToBillingStep2() {
 let activeEditingProduct = null;
 
 function openItemEntryModal() {
-    const prodName = prompt("Enter Product Name (or select from list):", appState.medicines[0].name);
+    const prodName = prompt("Enter Product Name to add (e.g. DOLO 650 MG):", appState.medicines[0].name);
     if (!prodName) return;
 
     const match = appState.medicines.find(m => m.name.toLowerCase().includes(prodName.toLowerCase())) || appState.medicines[0];
     activeEditingProduct = match;
 
-    document.getElementById("entryModalProdTitle").innerText = `${match.name} (${match.packing})`;
+    const titleEl = document.getElementById("entryModalProdTitle");
+    if (titleEl) titleEl.innerText = `${match.name} (${match.packing})`;
+
     document.getElementById("eBatch").value = match.batch || "B-01";
     document.getElementById("eExp").value = match.exp || "12/28";
     document.getElementById("eMrp").value = match.mrp.toFixed(2);
@@ -195,11 +226,11 @@ function openItemEntryModal() {
     document.getElementById("eRateCDiscBox").style.display = "none";
 
     syncDiscountInputs('percent');
-    document.getElementById("itemEntryModal").classList.add("active");
+    document.getElementById("itemEntryModal")?.classList.add("active");
 }
 
 function closeItemEntryModal() {
-    document.getElementById("itemEntryModal").classList.remove("active");
+    document.getElementById("itemEntryModal")?.classList.remove("active");
 }
 
 function onRateTierChanged(tier) {
@@ -207,61 +238,65 @@ function onRateTierChanged(tier) {
     const rateCBox = document.getElementById("eRateCDiscBox");
     if (tier === "A") {
         document.getElementById("eRate").value = activeEditingProduct.rateA.toFixed(2);
-        rateCBox.style.display = "none";
+        if (rateCBox) rateCBox.style.display = "none";
     } else if (tier === "B") {
         document.getElementById("eRate").value = activeEditingProduct.rateB.toFixed(2);
-        rateCBox.style.display = "none";
+        if (rateCBox) rateCBox.style.display = "none";
     } else if (tier === "C") {
-        rateCBox.style.display = "block";
+        if (rateCBox) rateCBox.style.display = "block";
         calculateRateCFormula();
     }
     syncDiscountInputs('percent');
 }
 
 function calculateRateCFormula() {
-    const mrp = parseFloat(document.getElementById("eMrp").value) || 0;
-    const gst = parseFloat(document.getElementById("eGst").value) || 12;
-    const cDisc = parseFloat(document.getElementById("eRateCDisc").value) || 0;
+    const mrp = parseFloat(document.getElementById("eMrp")?.value) || 0;
+    const gst = parseFloat(document.getElementById("eGst")?.value) || 12;
+    const cDisc = parseFloat(document.getElementById("eRateCDisc")?.value) || 0;
 
     const baseTaxable = mrp / (1 + (gst / 100));
     const finalRateC = baseTaxable - (baseTaxable * (cDisc / 100));
-    document.getElementById("eRate").value = finalRateC.toFixed(2);
+    const rateEl = document.getElementById("eRate");
+    if (rateEl) rateEl.value = finalRateC.toFixed(2);
     syncDiscountInputs('percent');
 }
 
 function syncDiscountInputs(source) {
-    const qty = parseFloat(document.getElementById("eQty").value) || 1;
-    const rate = parseFloat(document.getElementById("eRate").value) || 0;
-    const gst = parseFloat(document.getElementById("eGst").value) || 0;
+    const qty = parseFloat(document.getElementById("eQty")?.value) || 1;
+    const rate = parseFloat(document.getElementById("eRate")?.value) || 0;
+    const gst = parseFloat(document.getElementById("eGst")?.value) || 0;
     const gross = qty * rate;
 
     let discAmt = 0;
     if (source === 'percent') {
-        const discPer = parseFloat(document.getElementById("eDiscPer").value) || 0;
+        const discPer = parseFloat(document.getElementById("eDiscPer")?.value) || 0;
         discAmt = gross * (discPer / 100);
-        document.getElementById("eDiscAmt").value = discAmt.toFixed(2);
+        const dAmtEl = document.getElementById("eDiscAmt");
+        if (dAmtEl) dAmtEl.value = discAmt.toFixed(2);
     } else {
-        discAmt = parseFloat(document.getElementById("eDiscAmt").value) || 0;
+        discAmt = parseFloat(document.getElementById("eDiscAmt")?.value) || 0;
         const discPer = gross > 0 ? (discAmt / gross) * 100 : 0;
-        document.getElementById("eDiscPer").value = discPer.toFixed(2);
+        const dPerEl = document.getElementById("eDiscPer");
+        if (dPerEl) dPerEl.value = discPer.toFixed(2);
     }
 
     const taxable = gross - discAmt;
     const netTotal = taxable * (1 + (gst / 100));
-    document.getElementById("eNetTotalDisplay").innerText = `₹ ${netTotal.toFixed(2)}`;
+    const totalEl = document.getElementById("eNetTotalDisplay");
+    if (totalEl) totalEl.innerText = `₹ ${netTotal.toFixed(2)}`;
 }
 
 function confirmAndAddItemToCart() {
     if (!activeEditingProduct) return;
-    const batch = document.getElementById("eBatch").value.trim();
-    const exp = document.getElementById("eExp").value.trim();
-    const mrp = parseFloat(document.getElementById("eMrp").value) || 0;
-    const rate = parseFloat(document.getElementById("eRate").value) || 0;
-    const qty = parseFloat(document.getElementById("eQty").value) || 1;
-    const free = parseFloat(document.getElementById("eFree").value) || 0;
-    const discPer = parseFloat(document.getElementById("eDiscPer").value) || 0;
-    const discAmt = parseFloat(document.getElementById("eDiscAmt").value) || 0;
-    const gst = parseFloat(document.getElementById("eGst").value) || 0;
+    const batch = document.getElementById("eBatch")?.value.trim() || "B-01";
+    const exp = document.getElementById("eExp")?.value.trim() || "12/28";
+    const mrp = parseFloat(document.getElementById("eMrp")?.value) || 0;
+    const rate = parseFloat(document.getElementById("eRate")?.value) || 0;
+    const qty = parseFloat(document.getElementById("eQty")?.value) || 1;
+    const free = parseFloat(document.getElementById("eFree")?.value) || 0;
+    const discPer = parseFloat(document.getElementById("eDiscPer")?.value) || 0;
+    const discAmt = parseFloat(document.getElementById("eDiscAmt")?.value) || 0;
+    const gst = parseFloat(document.getElementById("eGst")?.value) || 0;
 
     const gross = qty * rate;
     const taxable = gross - discAmt;
@@ -291,6 +326,7 @@ function confirmAndAddItemToCart() {
 
 function renderSaleCart() {
     const tbody = document.getElementById("saleCartTableBody");
+    if (!tbody) return;
     tbody.innerHTML = "";
 
     appState.activeSaleSession.cartItems.forEach((item, index) => {
@@ -332,9 +368,13 @@ function recalculateBillTotals() {
     appState.activeSaleSession.roundOff = roundOff;
     appState.activeSaleSession.grandTotal = grandTotal;
 
-    document.getElementById("sumItemsTotal").innerText = `₹ ${itemsTotal.toFixed(2)}`;
-    document.getElementById("sumRoundOff").innerText = `₹ ${roundOff.toFixed(2)}`;
-    document.getElementById("sumGrandTotal").innerText = `₹ ${grandTotal.toFixed(2)}`;
+    const sumItemEl = document.getElementById("sumItemsTotal");
+    const sumRoundEl = document.getElementById("sumRoundOff");
+    const sumGrandEl = document.getElementById("sumGrandTotal");
+
+    if (sumItemEl) sumItemEl.innerText = `₹ ${itemsTotal.toFixed(2)}`;
+    if (sumRoundEl) sumRoundEl.innerText = `₹ ${roundOff.toFixed(2)}`;
+    if (sumGrandEl) sumGrandEl.innerText = `₹ ${grandTotal.toFixed(2)}`;
 }
 
 async function finalizeAndSaveSaleBill(format) {
@@ -362,57 +402,58 @@ async function finalizeAndSaveSaleBill(format) {
 
     // Deduct Live Stock
     saleRecord.items.forEach(it => {
-        const m = appState.medicines.find(med => med.id === it.medicineID || med.name === it.name);
+        const m = appState.medicines.find(med => med.id === it.medicineID || med.name.toLowerCase() === it.name.toLowerCase());
         if (m) m.stock = Math.max(0, m.stock - (it.qty + it.freeQty));
     });
 
     saveLocalData();
     updateDashboardKpis();
 
-    // 2-Way Sync Push
     if (window.GoogleDriveSync) {
         GoogleDriveSync.pushToDrive(appState);
     }
 
     // Trigger Print View
     const printArea = document.getElementById("printArea");
-    printArea.innerHTML = `
-        <div style="padding: 20px; font-family: sans-serif; max-width: ${format === 'Thermal' ? '300px' : '800px'}; margin: 0 auto;">
-            <h2 style="text-align: center; margin-bottom: 2px;">PHAROAH ERP - TAX INVOICE</h2>
-            <p style="text-align: center; font-size: 11px; margin-bottom: 10px;">ARCHITECT INVOICING SERIES</p>
-            <hr/>
-            <p><strong>Invoice No:</strong> ${saleRecord.billNo} | <strong>Date:</strong> ${saleRecord.date}</p>
-            <p><strong>Customer:</strong> ${saleRecord.partyName} (GST: ${saleRecord.partyGstin})</p>
-            <hr/>
-            <table style="width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 11px;">
-                <thead>
-                    <tr style="border-bottom: 1px solid #000;">
-                        <th style="text-align: left;">Item</th><th>Batch</th><th>Qty</th><th>Rate</th><th>Total</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    ${saleRecord.items.map(i => `
-                        <tr>
-                            <td>${i.name} (${i.packing})</td>
-                            <td style="text-align: center;">${i.batch}</td>
-                            <td style="text-align: center;">${i.qty}+${i.freeQty}</td>
-                            <td style="text-align: right;">₹${i.rate.toFixed(2)}</td>
-                            <td style="text-align: right;">₹${i.total.toFixed(2)}</td>
+    if (printArea) {
+        printArea.innerHTML = `
+            <div style="padding: 20px; font-family: sans-serif; max-width: ${format === 'Thermal' ? '300px' : '800px'}; margin: 0 auto;">
+                <h2 style="text-align: center; margin-bottom: 2px;">PHAROAH ERP - TAX INVOICE</h2>
+                <p style="text-align: center; font-size: 11px; margin-bottom: 10px;">ARCHITECT INVOICING SERIES</p>
+                <hr/>
+                <p><strong>Invoice No:</strong> ${saleRecord.billNo} | <strong>Date:</strong> ${saleRecord.date}</p>
+                <p><strong>Customer:</strong> ${saleRecord.partyName} (GST: ${saleRecord.partyGstin})</p>
+                <hr/>
+                <table style="width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 11px;">
+                    <thead>
+                        <tr style="border-bottom: 1px solid #000;">
+                            <th style="text-align: left;">Item</th><th>Batch</th><th>Qty</th><th>Rate</th><th>Total</th>
                         </tr>
-                    `).join('')}
-                </tbody>
-            </table>
-            <hr/>
-            <div style="text-align: right; font-size: 12px; line-height: 1.5;">
-                <p>Extra Discount: -₹${saleRecord.extraDiscount.toFixed(2)}</p>
-                <p>Round Off: ₹${saleRecord.roundOff.toFixed(2)}</p>
-                <h3 style="font-size: 15px;">NET PAYABLE: ₹${saleRecord.totalAmount.toFixed(2)}</h3>
+                    </thead>
+                    <tbody>
+                        ${saleRecord.items.map(i => `
+                            <tr>
+                                <td>${i.name} (${i.packing})</td>
+                                <td style="text-align: center;">${i.batch}</td>
+                                <td style="text-align: center;">${i.qty}+${i.freeQty}</td>
+                                <td style="text-align: right;">₹${i.rate.toFixed(2)}</td>
+                                <td style="text-align: right;">₹${i.total.toFixed(2)}</td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+                <hr/>
+                <div style="text-align: right; font-size: 12px; line-height: 1.5;">
+                    <p>Extra Discount: -₹${saleRecord.extraDiscount.toFixed(2)}</p>
+                    <p>Round Off: ₹${saleRecord.roundOff.toFixed(2)}</p>
+                    <h3 style="font-size: 15px;">NET PAYABLE: ₹${saleRecord.totalAmount.toFixed(2)}</h3>
+                </div>
+                <p style="text-align: center; font-size: 9px; margin-top: 20px;">System Generated Document | Powered by Pharoah ERP Cloud</p>
             </div>
-            <p style="text-align: center; font-size: 9px; margin-top: 20px;">System Generated Document | Powered by Pharoah ERP Cloud</p>
-        </div>
-    `;
+        `;
+        window.print();
+    }
 
-    window.print();
     initNewSaleSession();
     switchTab("sale-entry");
     alert("✅ Bill Successfully Finalized, Stock Deducted & Synced to Google Drive!");
@@ -424,9 +465,12 @@ async function finalizeAndSaveSaleBill(format) {
 
 function initNewPurchaseSession() {
     const seq = Math.floor(100 + Math.random() * 900);
-    document.getElementById("purInternalNo").value = `PUR-${seq}`;
-    document.getElementById("purBillDate").value = new Date().toISOString().split('T')[0];
-    document.getElementById("purEntryDate").value = new Date().toISOString().split('T')[0];
+    const pInt = document.getElementById("purInternalNo");
+    const pDate = document.getElementById("purBillDate");
+    const pEntry = document.getElementById("purEntryDate");
+    if (pInt) pInt.value = `PUR-${seq}`;
+    if (pDate) pDate.value = new Date().toISOString().split('T')[0];
+    if (pEntry) pEntry.value = new Date().toISOString().split('T')[0];
     appState.activePurchaseCart = [];
     renderPurCart();
 }
@@ -443,14 +487,14 @@ function autoFillPurProductDetails(val) {
 }
 
 function addPurchaseCartItem() {
-    const name = document.getElementById("purItemName").value.trim();
-    const batch = document.getElementById("purBatch").value.trim();
-    const exp = document.getElementById("purExp").value.trim();
-    const mrp = parseFloat(document.getElementById("purMrp").value) || 0;
-    const rate = parseFloat(document.getElementById("purRate").value) || 0;
-    const qty = parseFloat(document.getElementById("purQty").value) || 1;
-    const free = parseFloat(document.getElementById("purFree").value) || 0;
-    const gst = parseFloat(document.getElementById("purGst").value) || 12;
+    const name = document.getElementById("purItemName")?.value.trim();
+    const batch = document.getElementById("purBatch")?.value.trim() || "B-01";
+    const exp = document.getElementById("purExp")?.value.trim() || "12/28";
+    const mrp = parseFloat(document.getElementById("purMrp")?.value) || 0;
+    const rate = parseFloat(document.getElementById("purRate")?.value) || 0;
+    const qty = parseFloat(document.getElementById("purQty")?.value) || 1;
+    const free = parseFloat(document.getElementById("purFree")?.value) || 0;
+    const gst = parseFloat(document.getElementById("purGst")?.value) || 12;
 
     if (!name || rate <= 0) { alert("Please enter valid product and purchase rate!"); return; }
 
@@ -463,11 +507,13 @@ function addPurchaseCartItem() {
     });
 
     renderPurCart();
-    document.getElementById("purItemName").value = "";
+    const pItemEl = document.getElementById("purItemName");
+    if (pItemEl) pItemEl.value = "";
 }
 
 function renderPurCart() {
     const tbody = document.getElementById("purCartTableBody");
+    if (!tbody) return;
     tbody.innerHTML = "";
     let grandTotal = 0;
 
@@ -489,7 +535,8 @@ function renderPurCart() {
         `;
     });
 
-    document.getElementById("purGrandTotal").innerText = `₹ ${grandTotal.toFixed(2)}`;
+    const purTotalEl = document.getElementById("purGrandTotal");
+    if (purTotalEl) purTotalEl.innerText = `₹ ${grandTotal.toFixed(2)}`;
 }
 
 function removePurCartRow(index) {
@@ -498,8 +545,8 @@ function removePurCartRow(index) {
 }
 
 function savePurchaseInward() {
-    const supplier = document.getElementById("purSupplierSearch").value.trim();
-    const distBillNo = document.getElementById("purBillNo").value.trim();
+    const supplier = document.getElementById("purSupplierSearch")?.value.trim();
+    const distBillNo = document.getElementById("purBillNo")?.value.trim();
     if (!supplier || !distBillNo || appState.activePurchaseCart.length === 0) {
         alert("Please specify Supplier, Bill No and at least 1 item.");
         return;
@@ -509,12 +556,12 @@ function savePurchaseInward() {
 
     const purRecord = {
         id: "PUR_" + Date.now(),
-        internalNo: document.getElementById("purInternalNo").value,
+        internalNo: document.getElementById("purInternalNo")?.value || "PUR-1",
         billNo: distBillNo,
         distributorName: supplier,
-        date: document.getElementById("purBillDate").value,
-        entryDate: document.getElementById("purEntryDate").value,
-        paymentMode: document.getElementById("purPayMode").value,
+        date: document.getElementById("purBillDate")?.value || new Date().toISOString().split('T')[0],
+        entryDate: document.getElementById("purEntryDate")?.value || new Date().toISOString().split('T')[0],
+        paymentMode: document.getElementById("purPayMode")?.value || "CREDIT",
         items: [...appState.activePurchaseCart],
         totalAmount: netTotal
     };
@@ -539,15 +586,118 @@ function savePurchaseInward() {
     initNewPurchaseSession();
 }
 
+function initNewChallanSession() {
+    const chEl = document.getElementById("chBillNo");
+    if (chEl) chEl.value = `SCH-${Math.floor(100 + Math.random() * 900)}`;
+    const chDateEl = document.getElementById("chDate");
+    if (chDateEl) chDateEl.value = new Date().toISOString().split('T')[0];
+}
+
+function addChallanItem() {
+    const billNo = document.getElementById("chBillNo")?.value || "SCH-101";
+    const date = document.getElementById("chDate")?.value || new Date().toISOString().split('T')[0];
+    const partyName = document.getElementById("chParty")?.value.trim() || "CASH";
+    const itemName = document.getElementById("chItemName")?.value.trim() || "";
+    const qty = parseFloat(document.getElementById("chQty")?.value) || 1;
+    const rate = parseFloat(document.getElementById("chRate")?.value) || 0;
+    const remarks = document.getElementById("chRemarks")?.value.trim() || "";
+
+    if (!itemName) { alert("Please enter Item Name!"); return; }
+
+    const total = qty * rate;
+    appState.challans.push({
+        id: "CH_" + Date.now(),
+        billNo, date, partyName, itemName, qty, rate, totalAmount: total, remarks, status: "Pending"
+    });
+
+    saveLocalData();
+    if (window.GoogleDriveSync) GoogleDriveSync.pushToDrive(appState);
+
+    alert("✅ Delivery Challan Recorded!");
+    initNewChallanSession();
+    renderChallansRegister();
+}
+
+function renderChallansRegister() {
+    const tbody = document.getElementById("challanRegisterTableBody");
+    if (!tbody) return;
+    tbody.innerHTML = "";
+
+    appState.challans.forEach((ch, idx) => {
+        tbody.innerHTML += `
+            <tr>
+                <td>${idx + 1}</td>
+                <td><strong>${ch.billNo}</strong></td>
+                <td>${ch.date}</td>
+                <td>${ch.partyName}</td>
+                <td>₹ ${ch.totalAmount.toFixed(2)}</td>
+                <td><span class="badge-accent">${ch.status || 'Pending'}</span></td>
+            </tr>
+        `;
+    });
+}
+
+function saveReturnEntry() {
+    const type = document.getElementById("retType")?.value || "CN";
+    const disposition = document.getElementById("retDisposition")?.value || "Sellable";
+    const party = document.getElementById("retParty")?.value.trim();
+    const item = document.getElementById("retItemName")?.value.trim();
+    const qty = parseFloat(document.getElementById("retQty")?.value) || 1;
+    const rate = parseFloat(document.getElementById("retRate")?.value) || 0;
+    const date = document.getElementById("retDate")?.value || new Date().toISOString().split('T')[0];
+
+    if (!party || !item) { alert("Please specify Party and Product!"); return; }
+
+    const total = qty * rate;
+    const noteNo = `${type}-${Math.floor(100 + Math.random() * 900)}`;
+
+    appState.returns.push({
+        id: "RET_" + Date.now(),
+        type, noteNo, disposition, party, item, qty, rate, totalAmount: total, date, status: "Active"
+    });
+
+    // If Sellable Return, add back to live stock
+    if (type === "CN" && disposition === "Sellable") {
+        const m = appState.medicines.find(med => med.name.toLowerCase() === item.toLowerCase());
+        if (m) m.stock += qty;
+    }
+
+    saveLocalData();
+    updateDashboardKpis();
+    if (window.GoogleDriveSync) GoogleDriveSync.pushToDrive(appState);
+
+    alert(`✅ ${type} #${noteNo} Recorded Successfully!`);
+    renderReturnsRegister();
+}
+
+function renderReturnsRegister() {
+    const tbody = document.getElementById("returnsRegisterTableBody");
+    if (!tbody) return;
+    tbody.innerHTML = "";
+
+    appState.returns.forEach(r => {
+        tbody.innerHTML += `
+            <tr>
+                <td>${r.date}</td>
+                <td><strong>${r.noteNo}</strong></td>
+                <td><span style="color:${r.type === 'CN' ? 'var(--accent-red)' : 'var(--accent-orange)'}; font-weight:bold;">${r.type}</span></td>
+                <td>${r.party}</td>
+                <td>${r.disposition}</td>
+                <td><strong>₹ ${r.totalAmount.toFixed(2)}</strong></td>
+            </tr>
+        `;
+    });
+}
+
 function saveVoucherEntry() {
-    const type = document.getElementById("vouchType").value;
-    const date = document.getElementById("vouchDate").value;
-    const party = document.getElementById("vouchParty").value.trim();
-    const amount = parseFloat(document.getElementById("vouchAmount").value) || 0;
-    const depositedIn = document.getElementById("vouchInternalLedger").value;
-    const mode = document.getElementById("vouchMode").value;
-    const chequeNo = document.getElementById("vouchChequeNo").value.trim();
-    const narration = document.getElementById("vouchNarration").value.trim();
+    const type = document.getElementById("vouchType")?.value || "RECEIPT";
+    const date = document.getElementById("vouchDate")?.value || new Date().toISOString().split('T')[0];
+    const party = document.getElementById("vouchParty")?.value.trim();
+    const amount = parseFloat(document.getElementById("vouchAmount")?.value) || 0;
+    const depositedIn = document.getElementById("vouchInternalLedger")?.value || "CASH IN HAND";
+    const mode = document.getElementById("vouchMode")?.value || "Cash";
+    const chequeNo = document.getElementById("vouchChequeNo")?.value.trim() || "";
+    const narration = document.getElementById("vouchNarration")?.value.trim() || "";
 
     if (!party || amount <= 0) { alert("Please enter Party Name and valid Amount!"); return; }
 
@@ -567,25 +717,28 @@ function saveVoucherEntry() {
 
 function renderDaybook() {
     const tbody = document.getElementById("daybookTableBody");
+    if (!tbody) return;
     tbody.innerHTML = "";
-    const filterDate = document.getElementById("daybookFilterDate").value || new Date().toISOString().split('T')[0];
-    document.getElementById("daybookFilterDate").value = filterDate;
+    const filterDate = document.getElementById("daybookFilterDate")?.value || new Date().toISOString().split('T')[0];
+    const fDateEl = document.getElementById("daybookFilterDate");
+    if (fDateEl) fDateEl.value = filterDate;
 
     appState.sales.filter(s => s.date === filterDate).forEach(s => {
-        tbody.innerHTML += `<tr><td>${s.date}</td><td><span style="color:var(--accent-emerald);">SALE</span></td><td>${s.partyName}</td><td>${s.billNo}</td><td>₹ ${s.totalAmount.toFixed(2)}</td><td>-</td></tr>`;
+        tbody.innerHTML += `<tr><td>${s.date}</td><td><span style="color:var(--accent-emerald); font-weight:bold;">SALE</span></td><td>${s.partyName}</td><td>${s.billNo}</td><td>₹ ${s.totalAmount.toFixed(2)}</td><td>-</td></tr>`;
     });
     appState.purchases.filter(p => p.date === filterDate).forEach(p => {
-        tbody.innerHTML += `<tr><td>${p.date}</td><td><span style="color:var(--accent-orange);">PURCHASE</span></td><td>${p.distributorName}</td><td>${p.billNo}</td><td>-</td><td>₹ ${p.totalAmount.toFixed(2)}</td></tr>`;
+        tbody.innerHTML += `<tr><td>${p.date}</td><td><span style="color:var(--accent-orange); font-weight:bold;">PURCHASE</span></td><td>${p.distributorName}</td><td>${p.billNo}</td><td>-</td><td>₹ ${p.totalAmount.toFixed(2)}</td></tr>`;
     });
     appState.vouchers.filter(v => v.date === filterDate).forEach(v => {
         const isRec = v.type === "RECEIPT";
-        tbody.innerHTML += `<tr><td>${v.date}</td><td><span style="color:${isRec ? 'var(--accent-emerald)' : 'var(--accent-red)'};">${v.type}</span></td><td>${v.partyName} (${v.depositedIn})</td><td>${v.voucherNo}</td><td>${isRec ? '₹ ' + v.amount.toFixed(2) : '-'}</td><td>${!isRec ? '₹ ' + v.amount.toFixed(2) : '-'}</td></tr>`;
+        tbody.innerHTML += `<tr><td>${v.date}</td><td><span style="color:${isRec ? 'var(--accent-emerald)' : 'var(--accent-red)'}; font-weight:bold;">${v.type}</span></td><td>${v.partyName} (${v.depositedIn})</td><td>${v.voucherNo}</td><td>${isRec ? '₹ ' + v.amount.toFixed(2) : '-'}</td><td>${!isRec ? '₹ ' + v.amount.toFixed(2) : '-'}</td></tr>`;
     });
 }
 
 function renderLedgers() {
     const tbody = document.getElementById("ledgerTableBody");
-    const query = document.getElementById("ledgerSearchParty").value.toLowerCase().trim();
+    if (!tbody) return;
+    const query = document.getElementById("ledgerSearchParty")?.value.toLowerCase().trim() || "";
     tbody.innerHTML = "";
 
     appState.sales.filter(s => s.partyName.toLowerCase().includes(query)).forEach(s => {
@@ -599,20 +752,21 @@ function renderLedgers() {
 
 function renderStock() {
     const tbody = document.getElementById("stockTableBody");
-    const query = document.getElementById("stockSearchInput").value.toLowerCase().trim();
+    if (!tbody) return;
+    const query = document.getElementById("stockSearchInput")?.value.toLowerCase().trim() || "";
     tbody.innerHTML = "";
 
-    appState.medicines.filter(m => m.name.toLowerCase().includes(query) || m.batch.toLowerCase().includes(query)).forEach(m => {
+    appState.medicines.filter(m => m.name.toLowerCase().includes(query) || (m.batch && m.batch.toLowerCase().includes(query))).forEach(m => {
         tbody.innerHTML += `
             <tr>
                 <td><span class="badge-accent">${m.systemId || m.id}</span></td>
                 <td><strong>${m.name}</strong></td>
                 <td>${m.packing}</td>
-                <td>${m.batch}</td>
-                <td>${m.exp}</td>
-                <td>₹ ${m.mrp.toFixed(2)}</td>
-                <td>₹ ${m.purRate.toFixed(2)}</td>
-                <td>₹ ${m.rateA.toFixed(2)}</td>
+                <td>${m.batch || 'B-01'}</td>
+                <td>${m.exp || '12/28'}</td>
+                <td>₹ ${(m.mrp || 0).toFixed(2)}</td>
+                <td>₹ ${(m.purRate || 0).toFixed(2)}</td>
+                <td>₹ ${(m.rateA || 0).toFixed(2)}</td>
                 <td><strong style="color:var(--accent-emerald); font-size:1.05rem;">${m.stock}</strong></td>
             </tr>
         `;
@@ -620,14 +774,12 @@ function renderStock() {
 }
 
 function saveNewProductMaster() {
-    const name = document.getElementById("mProdName").value.trim().toUpperCase();
-    const pack = document.getElementById("mProdPack").value.trim().toUpperCase();
-    const form = document.getElementById("mProdForm").value;
-    const hsn = document.getElementById("mProdHsn").value.trim();
-    const mrp = parseFloat(document.getElementById("mProdMrp").value) || 0;
-    const purRate = parseFloat(document.getElementById("mProdPurRate").value) || 0;
-    const rateA = parseFloat(document.getElementById("mProdRateA").value) || 0;
-    const gst = parseFloat(document.getElementById("mProdGst").value) || 12;
+    const name = document.getElementById("mProdName")?.value.trim().toUpperCase();
+    const pack = document.getElementById("mProdPack")?.value.trim().toUpperCase();
+    const mrp = parseFloat(document.getElementById("mProdMrp")?.value) || 0;
+    const purRate = parseFloat(document.getElementById("mProdPurRate")?.value) || 0;
+    const rateA = parseFloat(document.getElementById("mProdRateA")?.value) || 0;
+    const gst = parseFloat(document.getElementById("mProdGst")?.value) || 12;
 
     if (!name || !pack) { alert("Product name and packing are mandatory!"); return; }
 
@@ -635,7 +787,7 @@ function saveNewProductMaster() {
     const sysId = `PH-${nextIdNum}`;
 
     appState.medicines.push({
-        id: sysId, systemId: sysId, name, packing: pack, drugForm: form, hsn,
+        id: sysId, systemId: sysId, name, packing: pack, drugForm: "TAB", hsn: "3004",
         batch: "B-01", exp: "12/28", mrp, purRate, rateA, rateB: rateA * 0.95, rateC: rateA * 0.92, stock: 0, gst
     });
 
@@ -649,18 +801,17 @@ function saveNewProductMaster() {
 }
 
 function saveNewPartyMaster() {
-    const name = document.getElementById("mPartyName").value.trim().toUpperCase();
-    const group = document.getElementById("mPartyGroup").value;
-    const gst = document.getElementById("mPartyGst").value.trim().toUpperCase();
-    const city = document.getElementById("mPartyCity").value.trim().toUpperCase();
-    const state = document.getElementById("mPartyState").value.trim();
-    const phone = document.getElementById("mPartyPhone").value.trim();
-    const opBal = parseFloat(document.getElementById("mPartyOpBal").value) || 0.0;
+    const name = document.getElementById("mPartyName")?.value.trim().toUpperCase();
+    const group = document.getElementById("mPartyGroup")?.value || "Sundry Debtors";
+    const gst = document.getElementById("mPartyGst")?.value.trim().toUpperCase() || "N/A";
+    const city = document.getElementById("mPartyCity")?.value.trim().toUpperCase() || "LOCAL";
+    const phone = document.getElementById("mPartyPhone")?.value.trim() || "";
+    const opBal = parseFloat(document.getElementById("mPartyOpBal")?.value) || 0.0;
 
     if (!name) { alert("Party / Firm Name is required!"); return; }
 
     appState.parties.push({
-        id: "p_" + Date.now(), name, group, gst, city, state, phone, opBal
+        id: "p_" + Date.now(), name, group, gst, city, state: "Rajasthan", phone, opBal
     });
 
     saveLocalData();
@@ -669,12 +820,6 @@ function saveNewPartyMaster() {
 
     alert(`✅ Party ${name} registered in ${group}`);
     document.getElementById("mPartyName").value = "";
-}
-
-function autoExtractPanFromGst(gstVal) {
-    if (gstVal.length >= 12) {
-        document.getElementById("mPartyPan").value = gstVal.substring(2, 12).toUpperCase();
-    }
 }
 
 function formatExpiryField(input) {
@@ -698,9 +843,13 @@ function updateDashboardKpis() {
     const totalPur = appState.purchases.reduce((sum, p) => sum + p.totalAmount, 0);
     const stockVal = appState.medicines.reduce((sum, m) => sum + (m.stock * m.purRate), 0);
 
-    document.getElementById("kpi-sale").innerText = `₹ ${totalSale.toFixed(2)}`;
-    document.getElementById("kpi-pur").innerText = `₹ ${totalPur.toFixed(2)}`;
-    document.getElementById("kpi-stock").innerText = `₹ ${stockVal.toFixed(2)}`;
+    const kpiSale = document.getElementById("kpi-sale");
+    const kpiPur = document.getElementById("kpi-pur");
+    const kpiStock = document.getElementById("kpi-stock");
+
+    if (kpiSale) kpiSale.innerText = `₹ ${totalSale.toFixed(2)}`;
+    if (kpiPur) kpiPur.innerText = `₹ ${totalPur.toFixed(2)}`;
+    if (kpiStock) kpiStock.innerText = `₹ ${stockVal.toFixed(2)}`;
 }
 
 async function pullLatestFromDrive(isSilent = false) {

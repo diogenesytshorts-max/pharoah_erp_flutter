@@ -3,23 +3,25 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Pharoah ERP - Professional Cloud Web POS</title>
-    <link rel="manifest" href="manifest.json">
+    <title>Pharoah ERP - Enterprise Cloud Web POS</title>
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
     <meta name="theme-color" content="#1e1b4b">
-    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="style.css?v=2.1">
 </head>
 <body>
 
-    <!-- Header Navigation -->
+    <!-- Header Navigation Bar -->
     <header>
         <div class="logo-container">
             <div class="logo-badge">PHAROAH ERP</div>
-            <span class="sub-badge">ARCHITECT CLOUD POS</span>
+            <span class="sub-badge">ARCHITECT SERIES CLOUD</span>
         </div>
 
         <nav class="nav-links">
             <button class="nav-btn active" onclick="switchTab('dashboard')">DASHBOARD</button>
-            <button class="nav-btn" onclick="switchTab('sale-entry')">SALE BILLING</button>
+            <button class="nav-btn" onclick="switchTab('sale-entry')">SALE (POS)</button>
             <button class="nav-btn" onclick="switchTab('purchase-entry')">PURCHASE</button>
             <button class="nav-btn" onclick="switchTab('challans')">CHALLANS</button>
             <button class="nav-btn" onclick="switchTab('returns')">RETURNS (CN/DN)</button>
@@ -28,17 +30,17 @@
             <button class="nav-btn" onclick="switchTab('ledgers')">LEDGERS</button>
             <button class="nav-btn" onclick="switchTab('stock')">STOCK LEDGER</button>
             <button class="nav-btn" onclick="switchTab('masters')">MASTERS HUB</button>
-            <button class="nav-btn" onclick="openDriveSettings()">⚙️ DRIVE SYNC</button>
+            <button class="nav-btn" onclick="openDriveSettings()">⚙️ CLOUD SYNC</button>
             <button class="nav-btn" onclick="openGuideModal()">📖 USER MANUAL</button>
         </nav>
 
         <div id="syncStatus" class="auth-badge" onclick="openDriveSettings()" title="Click to configure Cloud Sync">
             <span class="status-dot"></span>
-            <span id="tenantLabel">Cloud: Connecting...</span>
+            <span id="tenantLabel">Cloud: Active</span>
         </div>
     </header>
 
-    <!-- Main Viewport -->
+    <!-- Main Workspace -->
     <main>
         <!-- ========================================== -->
         <!-- TAB 1: DASHBOARD                           -->
@@ -53,7 +55,7 @@
                 <div class="kpi-card">
                     <span class="kpi-title">TODAY PURCHASE</span>
                     <span class="kpi-value" id="kpi-pur">₹ 0.00</span>
-                    <span class="kpi-sub">Inward Stock</span>
+                    <span class="kpi-sub">Stock Inward</span>
                 </div>
                 <div class="kpi-card">
                     <span class="kpi-title">ESTIMATED STOCK VALUE</span>
@@ -123,7 +125,7 @@
         <section id="tab-sale-entry" style="display: none;">
             <div class="panel">
                 <div class="panel-header">
-                    <h2>SALE ENTRY (STEP 1: INVOICE CONFIGURATION)</h2>
+                    <h2>SALE ENTRY (STEP 1: INVOICE SETUP)</h2>
                     <span class="badge-accent">STEP 1 OF 2</span>
                 </div>
 
@@ -155,18 +157,15 @@
 
                 <div class="form-group" style="margin-top: 1rem;">
                     <label>SELECT PARTY / CUSTOMER *</label>
-                    <div style="display: flex; gap: 10px;">
-                        <input type="text" id="salePartySearch" class="form-control" placeholder="Search Customer Name or City..." list="partyDatalist" oninput="onSalePartySelected(this.value)">
-                        <button class="btn btn-secondary" onclick="openQuickAddPartyModal('Sundry Debtors')">+ QUICK ADD PARTY</button>
-                    </div>
+                    <input type="text" id="salePartySearch" class="form-control" placeholder="Search Customer Name or City..." list="partyDatalist" oninput="onSalePartySelected(this.value)">
                 </div>
 
-                <div id="selectedPartyCard" class="party-preview-card" style="display: none; margin-top: 1.5rem;">
+                <div id="selectedPartyCard" class="party-preview-card" style="display: none; margin-top: 1rem;">
                     <div class="party-info-main">
                         <div class="avatar-circle">👤</div>
                         <div>
                             <h3 id="previewPartyName">PARTY NAME</h3>
-                            <p id="previewPartyMeta">City: - | GST: - | Current Balance: ₹ 0.00</p>
+                            <p id="previewPartyMeta">City: - | GST: - | Balance: ₹ 0.00</p>
                         </div>
                     </div>
                     <button class="btn btn-danger" style="padding: 6px 12px;" onclick="clearSelectedSaleParty()">CHANGE</button>
@@ -250,7 +249,7 @@
         </section>
 
         <!-- ========================================== -->
-        <!-- TAB 4: PURCHASE INWARD (STEP 1 & 2)        -->
+        <!-- TAB 4: PURCHASE INWARD                     -->
         <!-- ========================================== -->
         <section id="tab-purchase-entry" style="display: none;">
             <div class="panel">
@@ -281,10 +280,7 @@
                 <div class="form-grid" style="margin-top: 1rem;">
                     <div class="form-group">
                         <label>SELECT SUPPLIER / DISTRIBUTOR *</label>
-                        <div style="display: flex; gap: 10px;">
-                            <input type="text" id="purSupplierSearch" class="form-control" placeholder="Search Distributor Name..." list="partyDatalist" oninput="onPurchaseSupplierSelected(this.value)">
-                            <button class="btn btn-secondary" onclick="openQuickAddPartyModal('Sundry Creditors')">+ NEW SUPPLIER</button>
-                        </div>
+                        <input type="text" id="purSupplierSearch" class="form-control" placeholder="Search Distributor Name..." list="partyDatalist">
                     </div>
                     <div class="form-group">
                         <label>PAYMENT MODE</label>
@@ -336,20 +332,10 @@
                     </div>
                 </div>
 
-                <!-- Purchase Items Table -->
                 <table style="margin-top: 1.5rem;">
                     <thead>
                         <tr>
-                            <th>S.N</th>
-                            <th>PRODUCT NAME</th>
-                            <th>BATCH</th>
-                            <th>EXP</th>
-                            <th>MRP</th>
-                            <th>PUR. RATE</th>
-                            <th>QTY + FREE</th>
-                            <th>GST %</th>
-                            <th>TOTAL (₹)</th>
-                            <th>ACTION</th>
+                            <th>S.N</th><th>PRODUCT NAME</th><th>BATCH</th><th>EXP</th><th>MRP</th><th>PUR. RATE</th><th>QTY + FREE</th><th>GST %</th><th>TOTAL (₹)</th><th>ACTION</th>
                         </tr>
                     </thead>
                     <tbody id="purCartTableBody"></tbody>
@@ -377,11 +363,8 @@
         <section id="tab-challans" style="display: none;">
             <div class="panel">
                 <div class="panel-header">
-                    <h2>DELIVERY CHALLANS & CONVERTER</h2>
-                    <div style="display: flex; gap: 10px;">
-                        <button class="btn btn-secondary" onclick="openChallanConverterModal()">⚡ STITCH / CONVERT TO GST BILL</button>
-                        <button class="btn btn-primary" onclick="initNewChallanSession()">+ NEW CHALLAN</button>
-                    </div>
+                    <h2>DELIVERY CHALLANS & DISPATCH</h2>
+                    <button class="btn btn-primary" onclick="initNewChallanSession()">+ NEW DELIVERY CHALLAN</button>
                 </div>
 
                 <div class="form-grid">
@@ -398,12 +381,11 @@
                         <input type="text" id="chParty" class="form-control" placeholder="Customer Name..." list="partyDatalist">
                     </div>
                     <div class="form-group">
-                        <label>REMARKS / VEHICLE</label>
+                        <label>REMARKS / VEHICLE NO</label>
                         <input type="text" id="chRemarks" class="form-control" placeholder="Dispatch condition">
                     </div>
                 </div>
 
-                <!-- Challan Quick Item -->
                 <div class="item-input-strip" style="margin-top: 1rem;">
                     <div class="form-grid">
                         <div class="form-group">
@@ -415,7 +397,7 @@
                             <input type="text" id="chBatch" class="form-control" value="B-01">
                         </div>
                         <div class="form-group">
-                            <label>QTY</label>
+                            <label>DISPATCH QTY</label>
                             <input type="number" id="chQty" class="form-control" value="5">
                         </div>
                         <div class="form-group">
@@ -423,7 +405,7 @@
                             <input type="number" id="chRate" class="form-control" value="30.00">
                         </div>
                     </div>
-                    <button class="btn btn-primary" onclick="addChallanItem()">+ ADD ITEM</button>
+                    <button class="btn btn-primary" onclick="addChallanItem()">+ RECORD CHALLAN</button>
                 </div>
 
                 <table style="margin-top: 1.5rem;">
@@ -438,12 +420,12 @@
         </section>
 
         <!-- ========================================== -->
-        <!-- TAB 6: RETURNS (CREDIT / DEBIT NOTES)      -->
+        <!-- TAB 6: RETURNS                             -->
         <!-- ========================================== -->
         <section id="tab-returns" style="display: none;">
             <div class="panel">
                 <div class="panel-header">
-                    <h2>RETURNS & REVERSALS (CN / DN)</h2>
+                    <h2>RETURNS & REVERSALS (CREDIT / DEBIT NOTES)</h2>
                 </div>
 
                 <div class="form-grid">
@@ -505,18 +487,18 @@
         </section>
 
         <!-- ========================================== -->
-        <!-- TAB 7: VOUCHERS & BILL SETTLEMENT          -->
+        <!-- TAB 7: VOUCHERS                            -->
         <!-- ========================================== -->
         <section id="tab-vouchers" style="display: none;">
             <div class="panel">
                 <div class="panel-header">
-                    <h2>ACCOUNTS & VOUCHER ENTRY (RECEIPT / PAYMENT)</h2>
+                    <h2>ACCOUNTS & VOUCHERS (RECEIPT / PAYMENT)</h2>
                 </div>
 
                 <div class="form-grid">
                     <div class="form-group">
                         <label>VOUCHER TYPE</label>
-                        <select id="vouchType" class="form-control" onchange="onVoucherTypeChanged(this.value)">
+                        <select id="vouchType" class="form-control">
                             <option value="RECEIPT">RECEIPT (Cash / Bank Inflow)</option>
                             <option value="PAYMENT">PAYMENT (Cash / Bank Outflow)</option>
                         </select>
@@ -527,10 +509,10 @@
                     </div>
                     <div class="form-group">
                         <label>PARTY NAME *</label>
-                        <input type="text" id="vouchParty" class="form-control" placeholder="Party Name" list="partyDatalist" oninput="loadPendingBillsForParty(this.value)">
+                        <input type="text" id="vouchParty" class="form-control" placeholder="Party Name" list="partyDatalist">
                     </div>
                     <div class="form-group">
-                        <label>INTERNAL LEDGER / DEPOSITED IN</label>
+                        <label>INTERNAL LEDGER</label>
                         <select id="vouchInternalLedger" class="form-control">
                             <option value="CASH IN HAND">Cash in Hand</option>
                             <option value="STATE BANK OF INDIA">State Bank of India</option>
@@ -561,11 +543,6 @@
                     </div>
                 </div>
 
-                <div id="pendingBillsBox" class="pending-bills-card" style="display: none; margin-top: 1.5rem;">
-                    <h4>SELECT PENDING INVOICES TO ADJUST AGAINST VOUCHER:</h4>
-                    <div id="pendingBillsList" style="margin-top: 10px;"></div>
-                </div>
-
                 <div style="margin-top: 1.5rem; text-align: right;">
                     <button class="btn btn-success" onclick="saveVoucherEntry()">💾 RECORD & FINALIZE VOUCHER</button>
                 </div>
@@ -573,27 +550,19 @@
         </section>
 
         <!-- ========================================== -->
-        <!-- TAB 8: DAYBOOK REGISTER                    -->
+        <!-- TAB 8: DAYBOOK                             -->
         <!-- ========================================== -->
         <section id="tab-daybook" style="display: none;">
             <div class="panel">
                 <div class="panel-header">
                     <h2>DAILY DAYBOOK REGISTER</h2>
-                    <div style="display: flex; gap: 10px; align-items: center;">
-                        <label>DATE:</label>
-                        <input type="date" id="daybookFilterDate" class="form-control" onchange="renderDaybook()">
-                    </div>
+                    <input type="date" id="daybookFilterDate" class="form-control" style="max-width: 180px;" onchange="renderDaybook()">
                 </div>
 
                 <table>
                     <thead>
                         <tr>
-                            <th>DATE</th>
-                            <th>TYPE</th>
-                            <th>PARTICULARS / PARTY</th>
-                            <th>REF / BILL NO</th>
-                            <th>INFLOW (IN ₹)</th>
-                            <th>OUTFLOW (OUT ₹)</th>
+                            <th>DATE</th><th>TYPE</th><th>PARTICULARS / PARTY</th><th>REF NO</th><th>INFLOW (IN ₹)</th><th>OUTFLOW (OUT ₹)</th>
                         </tr>
                     </thead>
                     <tbody id="daybookTableBody"></tbody>
@@ -602,26 +571,19 @@
         </section>
 
         <!-- ========================================== -->
-        <!-- TAB 9: KHATA & PARTY LEDGERS               -->
+        <!-- TAB 9: LEDGERS                             -->
         <!-- ========================================== -->
         <section id="tab-ledgers" style="display: none;">
             <div class="panel">
                 <div class="panel-header">
                     <h2>PARTY LEDGER & KHATA STATEMENT</h2>
-                    <div style="display: flex; gap: 10px; align-items: center;">
-                        <input type="text" id="ledgerSearchParty" class="form-control" placeholder="Search Party..." list="partyDatalist" oninput="renderLedgers()">
-                    </div>
+                    <input type="text" id="ledgerSearchParty" class="form-control" placeholder="Search Party..." list="partyDatalist" oninput="renderLedgers()">
                 </div>
 
                 <table>
                     <thead>
                         <tr>
-                            <th>DATE</th>
-                            <th>PARTICULARS / REF</th>
-                            <th>VOUCHER TYPE</th>
-                            <th>DEBIT (Dr ₹)</th>
-                            <th>CREDIT (Cr ₹)</th>
-                            <th>BALANCE OUTSTANDING (₹)</th>
+                            <th>DATE</th><th>PARTICULARS / REF</th><th>TYPE</th><th>DEBIT (Dr ₹)</th><th>CREDIT (Cr ₹)</th><th>RUNNING BALANCE</th>
                         </tr>
                     </thead>
                     <tbody id="ledgerTableBody"></tbody>
@@ -630,7 +592,7 @@
         </section>
 
         <!-- ========================================== -->
-        <!-- TAB 10: STOCK LEDGER & BATCH TRACKER       -->
+        <!-- TAB 10: STOCK                              -->
         <!-- ========================================== -->
         <section id="tab-stock" style="display: none;">
             <div class="panel">
@@ -642,15 +604,7 @@
                 <table>
                     <thead>
                         <tr>
-                            <th>PRODUCT CODE</th>
-                            <th>PRODUCT NAME</th>
-                            <th>PACKING</th>
-                            <th>BATCH</th>
-                            <th>EXPIRY</th>
-                            <th>MRP (₹)</th>
-                            <th>PUR. RATE</th>
-                            <th>RATE A</th>
-                            <th>LIVE STOCK</th>
+                            <th>CODE</th><th>PRODUCT NAME</th><th>PACK</th><th>BATCH</th><th>EXPIRY</th><th>MRP (₹)</th><th>PUR. RATE</th><th>RATE A</th><th>LIVE STOCK</th>
                         </tr>
                     </thead>
                     <tbody id="stockTableBody"></tbody>
@@ -659,10 +613,9 @@
         </section>
 
         <!-- ========================================== -->
-        <!-- TAB 11: MASTERS HUB                        -->
+        <!-- TAB 11: MASTERS                            -->
         <!-- ========================================== -->
         <section id="tab-masters" style="display: none;">
-            <!-- Product Master Card -->
             <div class="panel" style="margin-bottom: 2rem;">
                 <div class="panel-header">
                     <h2>PRODUCT MASTER (MEDICINE REGISTRATION)</h2>
@@ -679,26 +632,8 @@
                         <input type="text" id="mProdPack" class="form-control" placeholder="15 TAB">
                     </div>
                     <div class="form-group">
-                        <label>DRUG FORM</label>
-                        <select id="mProdForm" class="form-control">
-                            <option value="TAB">TAB</option>
-                            <option value="CAP">CAP</option>
-                            <option value="SYP">SYP</option>
-                            <option value="INJ">INJ</option>
-                            <option value="OINT">OINT</option>
-                            <option value="DROP">DROP</option>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label>HSN CODE</label>
-                        <input type="text" id="mProdHsn" class="form-control" value="3004">
-                    </div>
-                </div>
-
-                <div class="form-grid" style="margin-top: 1rem;">
-                    <div class="form-group">
                         <label>MRP (₹) *</label>
-                        <input type="number" id="mProdMrp" class="form-control" value="50.00" oninput="calculateMasterDerivedRates()">
+                        <input type="number" id="mProdMrp" class="form-control" value="50.00">
                     </div>
                     <div class="form-group">
                         <label>PURCHASE RATE (₹) *</label>
@@ -714,12 +649,11 @@
                     </div>
                 </div>
 
-                <div style="margin-top: 1rem; text-align: right;">
+                <div style="margin-top: 1.5rem; text-align: right;">
                     <button class="btn btn-primary" onclick="saveNewProductMaster()">+ SAVE PRODUCT TO MASTER</button>
                 </div>
             </div>
 
-            <!-- Party Master Card -->
             <div class="panel">
                 <div class="panel-header">
                     <h2>PARTY & LEDGER MASTER (CUSTOMER / SUPPLIER)</h2>
@@ -741,22 +675,11 @@
                     </div>
                     <div class="form-group">
                         <label>GSTIN (15-DIGIT)</label>
-                        <input type="text" id="mPartyGst" class="form-control" placeholder="08ABCDE1234F1Z5" oninput="autoExtractPanFromGst(this.value)">
+                        <input type="text" id="mPartyGst" class="form-control" placeholder="08ABCDE1234F1Z5">
                     </div>
-                    <div class="form-group">
-                        <label>PAN (AUTO-EXTRACTED)</label>
-                        <input type="text" id="mPartyPan" class="form-control" readonly>
-                    </div>
-                </div>
-
-                <div class="form-grid" style="margin-top: 1rem;">
                     <div class="form-group">
                         <label>CITY</label>
-                        <input type="text" id="mPartyCity" class="form-control" placeholder="e.g. Udaipur">
-                    </div>
-                    <div class="form-group">
-                        <label>STATE (SUPPLY PLACE)</label>
-                        <input type="text" id="mPartyState" class="form-control" value="Rajasthan">
+                        <input type="text" id="mPartyCity" class="form-control" placeholder="Udaipur">
                     </div>
                     <div class="form-group">
                         <label>MOBILE NUMBER</label>
@@ -768,7 +691,7 @@
                     </div>
                 </div>
 
-                <div style="margin-top: 1rem; text-align: right;">
+                <div style="margin-top: 1.5rem; text-align: right;">
                     <button class="btn btn-success" onclick="saveNewPartyMaster()">+ SAVE PARTY MASTER</button>
                 </div>
             </div>
@@ -776,14 +699,14 @@
     </main>
 
     <!-- ============================================================== -->
-    <!-- MODAL: ITEM ENTRY CARD (MATCHING FLUTTER APPS item_entry_card) -->
+    <!-- MODAL: ITEM ENTRY CARD (MATCHING FLUTTER item_entry_card)      -->
     <!-- ============================================================== -->
     <div id="itemEntryModal" class="modal">
         <div class="modal-content" style="max-width: 680px;">
             <div class="modal-header">
                 <div>
-                    <h3 id="entryModalProdTitle">ITEM ENTRY</h3>
-                    <p style="font-size: 0.75rem; color: var(--text-muted);">Configure Batch, Rates (A/B/C) & Discount</p>
+                    <h3 id="entryModalProdTitle">ITEM CONFIGURATION</h3>
+                    <p style="font-size: 0.75rem; color: var(--text-muted);">Batch, Rate Tiers (A/B/C) & Formulas</p>
                 </div>
                 <button class="btn btn-secondary" style="padding: 4px 10px;" onclick="closeItemEntryModal()">✕</button>
             </div>
@@ -846,7 +769,7 @@
             </div>
 
             <div class="item-live-total-box">
-                <span>NET ITEM TOTAL:</span>
+                <span style="font-weight: 800; font-size: 0.9rem;">NET ITEM TOTAL:</span>
                 <span id="eNetTotalDisplay" style="color: var(--accent-emerald); font-size: 1.4rem; font-weight: 900;">₹ 45.00</span>
             </div>
 
@@ -865,7 +788,7 @@
     <div id="driveSettingsModal" class="modal">
         <div class="modal-content">
             <h2 style="color: var(--accent-cyan); margin-bottom: 1rem;">☁️ GOOGLE DRIVE 2-WAY CLOUD SYNC</h2>
-            <p style="color: var(--text-muted); font-size: 0.85rem; margin-bottom: 1rem;">Enter your Google Apps Script Webhook URL and Gmail address for multi-tenant private cloud storage.</p>
+            <p style="color: var(--text-muted); font-size: 0.85rem; margin-bottom: 1rem;">Configure your private Google Apps Script Webhook URL and Gmail for isolated multi-tenant cloud syncing.</p>
             <div class="form-group" style="margin-bottom: 1rem;">
                 <label>GMAIL ADDRESS</label>
                 <input type="email" id="driveUserEmail" class="form-control" placeholder="yourname@gmail.com">
@@ -881,13 +804,13 @@
         </div>
     </div>
 
-    <!-- User Guide Modal (English & Hindi) -->
+    <!-- User Guide Modal -->
     <div id="guideModal" class="modal">
         <div class="modal-content">
-            <h2 style="color: var(--accent-cyan); margin-bottom: 1rem;">📖 PHAROAH ERP - USER GUIDE</h2>
-            <div style="color: var(--text-muted); font-size: 0.9rem; line-height: 1.6; display: flex; flex-direction: column; gap: 12px;">
-                <p><strong>1. Step 1 & Step 2 Billing Flow:</strong> Step 1 configures the bill number series, date, and customer. Step 2 opens the live cart with complete A/B/C rate calculations.</p>
-                <p><strong>2. 2-Way Live Sync:</strong> All bills saved on the web are synchronized with your Google Drive and pulled to your mobile app automatically.</p>
+            <h2 style="color: var(--accent-cyan); margin-bottom: 1rem;">📖 PHAROAH ERP - USER MANUAL</h2>
+            <div style="color: var(--text-muted); font-size: 0.88rem; line-height: 1.6; display: flex; flex-direction: column; gap: 12px;">
+                <p><strong>1. Step 1 & Step 2 Billing Flow:</strong> Step 1 configures the bill numbering series, date, and customer. Step 2 opens the live billing cart with A/B/C rate tiers and formula calculations.</p>
+                <p><strong>2. 2-Way Live Sync:</strong> All transactions saved on the web are synchronized with your personal Google Drive and automatically downloaded to your mobile app.</p>
                 <p><strong>3. Multi-Tenant Privacy:</strong> Each user has their own private Google Drive storage. No data mixing across different businesses.</p>
             </div>
             <div style="margin-top: 1.5rem; text-align: right;">
@@ -896,10 +819,10 @@
         </div>
     </div>
 
-    <!-- Hidden Print Area -->
+    <!-- Print Canvas Area -->
     <div id="printArea" class="print-area"></div>
 
-    <script src="drive_sync.js"></script>
-    <script src="app.js"></script>
+    <script src="drive_sync.js?v=2.1"></script>
+    <script src="app.js?v=2.1"></script>
 </body>
 </html>
