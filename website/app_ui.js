@@ -1,13 +1,14 @@
 // =============================================================================
-// PHAROAH ERP - UI CONTROLLER WITH STRICTLY LOCKED APP COMPANY PROFILE
+// PHAROAH ERP - COMPLETE 5-MODULE BILLING & TRANSACTIONS CONTROLLER
 // =============================================================================
 
-const DB_VERSION_KEY = "pharoah_erp_v7_locked_db";
+const DB_VERSION_KEY = "pharoah_erp_v8_billing_hub_db";
 
 let activeSaleSession = {
     billNo: "INV-1001",
     billDate: "",
     paymentMode: "CASH",
+    seriesPrefix: "INV-",
     selectedParty: null,
     cartItems: [],
     extraDiscount: 0.0,
@@ -20,7 +21,10 @@ let activeEditingMed = null;
 let lastSavedDoc = null;
 let syncIntervalId = null;
 
-// Initial Load Handler
+// Stitcher Wizard Local State
+let stitcherSelectedParty = null;
+let stitcherSelectedChallanIds = [];
+
 document.addEventListener("DOMContentLoaded", async () => {
     try {
         purgeCorruptedLegacyStorage();
@@ -34,10 +38,22 @@ document.addEventListener("DOMContentLoaded", async () => {
         syncCompanyHeaderWithAppState();
 
         const todayStr = new Date().toISOString().split('T')[0];
-        ["vouchDate", "retDate", "chDate"].forEach(id => {
-            const el = document.getElementById(id);
-            if (el) el.value = todayStr;
-        });
+        const thirtyDaysAgo = new Date(Date.now() - 30*24*60*60*1000).toISOString().split('T')[0];
+
+        // Setup register dates
+        const sFrom = document.getElementById("saleRegFromDate");
+        const sTo = document.getElementById("saleRegToDate");
+        const pFrom = document.getElementById("purRegFromDate");
+        const pTo = document.getElementById("purRegToDate");
+        const stDate = document.getElementById("stitcherBillDate");
+        const dDate = document.getElementById("daybookFilterDate");
+
+        if (sFrom) sFrom.value = thirtyDaysAgo;
+        if (sTo) sTo.value = todayStr;
+        if (pFrom) pFrom.value = thirtyDaysAgo;
+        if (pTo) pTo.value = todayStr;
+        if (stDate) stDate.value = todayStr;
+        if (dDate) dDate.value = todayStr;
 
         await pullLatestFromDrive(true);
 
@@ -76,21 +92,10 @@ function purgeCorruptedLegacyStorage() {
     if (savedVer !== DB_VERSION_KEY) {
         localStorage.removeItem("pharoah_web_state");
         localStorage.removeItem("pharoah_erp_v4_db");
+        localStorage.removeItem("pharoah_erp_v7_locked_db");
         localStorage.setItem("pharoah_version_check", DB_VERSION_KEY);
         window.erpEngine = new PharoahWebEngine();
         saveLocalState();
-        console.log("🧹 Cache purged and synchronized with app schema!");
-    }
-}
-
-function hardResetAllLocalData() {
-    if (confirm("Reset local web cache and synchronize fresh with Google Drive?")) {
-        localStorage.clear();
-        sessionStorage.clear();
-        localStorage.setItem("pharoah_version_check", DB_VERSION_KEY);
-        window.erpEngine = new PharoahWebEngine();
-        saveLocalState();
-        location.reload();
     }
 }
 
@@ -99,6 +104,8 @@ function showScreen(screenId) {
     const targetSec = document.getElementById(screenId);
     if (targetSec) targetSec.style.display = "block";
 
+    if (screenId === 'view-sale-register') renderSaleRegister();
+    if (screenId === 'view-purchase-register') renderPurchaseRegister();
     if (screenId === 'view-daybook') renderDaybook();
     if (screenId === 'view-ledgers') renderLedgers();
     if (screenId === 'view-stock') renderStock();
@@ -487,6 +494,220 @@ function dismissSuccessAndNewBill() {
     startSaleWorkflow();
 }
 
+// =============================================================================
+// SALE REGISTER & PURCHASE REGISTER (WITH REAL-TIME AUDIT SUMMARY)
+// =============================================================================
+
+function renderSaleRegister() {
+    const tbody = document.getElementById("saleRegTableBody");
+    if (!tbody) return;
+    tbody.innerHTML = "";
+
+    const fromDate = document.getElementById("saleRegFromDate")?.value || "2020-01-01";
+    const toDate = document.getElementById("saleRegToDate")?.value || "2030-12-31";
+    const query = document.getElementById("saleRegSearch")?.value.toLowerCase().trim() || "";
+
+    let totalTaxable = 0;
+    let totalGst = 0;
+    let totalNet = 0;
+
+    window.erpEngine.sales
+        .filter(s => s.status === 'Active' && s.date >= fromDate && s.date <= toDate)
+        .filter(s => s.billNo.toLowerCase().includes(query) || s.partyName.toLowerCase().includes(query))
+        .forEach(s => {
+            const tax = s.items.reduce((sum, i) => sum + (i.total - (i.qty * i.rate)), 0);
+            const taxable = s.totalAmount - tax;
+
+            totalTaxable += taxable;
+            totalGst += tax;
+            totalNet += s.totalAmount;
+
+            tbody.innerHTML += `
+                <tr>
+                    <td>${s.date}</td>
+                    <td><strong>${s.billNo}</strong></td>
+                    <td>${s.partyName}</td>
+                    <td>${s.partyGstin || 'N/A'}</td>
+                    <td><span class="badge-tag">${s.paymentMode}</span></td>
+                    <td>₹ ${taxable.toFixed(2)}</td>
+                    <td>₹ ${tax.toFixed(2)}</td>
+                    <td><strong>₹ ${s.totalAmount.toFixed(2)}</strong></td>
+                    <td><button class="btn btn-secondary" style="padding:2px 8px; font-size:0.7rem;" onclick="reprintSaleBill('${s.billNo}')">REPRINT</button></td>
+                </tr>
+            `;
+        });
+
+    document.getElementById("saleRegSumTaxable").innerText = `₹ ${totalTaxable.toFixed(2)}`;
+    document.getElementById("saleRegSumGst").innerText = `₹ ${totalGst.toFixed(2)}`;
+    document.getElementById("saleRegSumNet").innerText = `₹ ${totalNet.toFixed(2)}`;
+}
+
+function reprintSaleBill(billNo) {
+    const sale = window.erpEngine.sales.find(s => s.billNo === billNo);
+    if (!sale) return;
+    lastSavedDoc = sale;
+    triggerDirectPrint('A4');
+}
+
+function renderPurchaseRegister() {
+    const tbody = document.getElementById("purRegTableBody");
+    if (!tbody) return;
+    tbody.innerHTML = "";
+
+    const fromDate = document.getElementById("purRegFromDate")?.value || "2020-01-01";
+    const toDate = document.getElementById("purRegToDate")?.value || "2030-12-31";
+    const query = document.getElementById("purRegSearch")?.value.toLowerCase().trim() || "";
+
+    let totalNet = 0;
+
+    window.erpEngine.purchases
+        .filter(p => p.date >= fromDate && p.date <= toDate)
+        .filter(p => p.billNo.toLowerCase().includes(query) || p.distributorName.toLowerCase().includes(query))
+        .forEach(p => {
+            totalNet += p.totalAmount;
+            tbody.innerHTML += `
+                <tr>
+                    <td>${p.date}</td>
+                    <td><span class="badge-tag">${p.internalNo}</span></td>
+                    <td><strong>${p.billNo}</strong></td>
+                    <td>${p.distributorName}</td>
+                    <td>${p.paymentMode}</td>
+                    <td><strong>₹ ${p.totalAmount.toFixed(2)}</strong></td>
+                </tr>
+            `;
+        });
+
+    document.getElementById("purRegSumNet").innerText = `₹ ${totalNet.toFixed(2)}`;
+}
+
+// =============================================================================
+// STITCHER WIZARD (CONVERT DELIVERY CHALLANS TO FINAL GST INVOICE)
+// =============================================================================
+
+function openStitcherWizardScreen() {
+    stitcherSelectedParty = null;
+    stitcherSelectedChallanIds = [];
+    document.getElementById("stitcherPartySearch").value = "";
+    document.getElementById("stitcherChallansTableBody").innerHTML = `<tr><td colspan="6" style="text-align:center; color:var(--text-muted);">Please select a customer to view pending challans.</td></tr>`;
+    document.getElementById("stitcherTotalAmount").innerText = `₹ 0.00`;
+    showScreen('view-stitcher-wizard');
+}
+
+function loadPendingChallansForStitcher(partyName) {
+    const party = window.erpEngine.parties.find(p => p.name.toLowerCase() === partyName.trim().toLowerCase());
+    const tbody = document.getElementById("stitcherChallansTableBody");
+    if (!tbody) return;
+    tbody.innerHTML = "";
+
+    if (!party) {
+        tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; color:var(--text-muted);">No matching party found.</td></tr>`;
+        return;
+    }
+
+    stitcherSelectedParty = party;
+    stitcherSelectedChallanIds = [];
+
+    const pendingList = window.erpEngine.saleChallans.filter(c => c.partyName.toUpperCase() === party.name.toUpperCase() && c.status === 'Pending');
+
+    if (pendingList.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; color:var(--accent-emerald);">No pending challans for this customer! All billed.</td></tr>`;
+        return;
+    }
+
+    pendingList.forEach(ch => {
+        tbody.innerHTML += `
+            <tr>
+                <td><input type="checkbox" onchange="toggleStitcherChallan('${ch.id}', this.checked, ${ch.totalAmount})"></td>
+                <td><strong>${ch.billNo}</strong></td>
+                <td>${ch.date}</td>
+                <td>${ch.partyName}</td>
+                <td>${ch.remarks || 'Standard'}</td>
+                <td>₹ ${ch.totalAmount.toFixed(2)}</td>
+            </tr>
+        `;
+    });
+}
+
+function toggleStitcherChallan(chId, isChecked, amount) {
+    if (isChecked) {
+        stitcherSelectedChallanIds.push(chId);
+    } else {
+        stitcherSelectedChallanIds = stitcherSelectedChallanIds.filter(id => id !== chId);
+    }
+
+    const total = window.erpEngine.saleChallans
+        .filter(c => stitcherSelectedChallanIds.includes(c.id))
+        .reduce((sum, c) => sum + c.totalAmount, 0);
+
+    document.getElementById("stitcherTotalAmount").innerText = `₹ ${total.toFixed(2)}`;
+}
+
+function finalizeStitcherConversion() {
+    if (!stitcherSelectedParty || stitcherSelectedChallanIds.length === 0) {
+        alert("Please select at least 1 pending challan to convert!");
+        return;
+    }
+
+    const selectedChallans = window.erpEngine.saleChallans.filter(c => stitcherSelectedChallanIds.includes(c.id));
+    const nextBillNo = window.erpEngine.getNextNumber('SALE');
+    const billDate = document.getElementById("stitcherBillDate").value || new Date().toISOString().split('T')[0];
+
+    let mergedItems = [];
+    selectedChallans.forEach(ch => {
+        mergedItems.push({
+            srNo: mergedItems.length + 1,
+            medicineID: "PH-10001",
+            name: `CHALLAN MERGE (${ch.billNo}): ${ch.itemName || 'Consolidated Materials'}`,
+            packing: "1 PCS",
+            batch: ch.batch || "DL-101",
+            exp: "12/28",
+            hsn: "3004",
+            mrp: ch.totalAmount,
+            qty: ch.qty || 1,
+            freeQty: 0,
+            rate: ch.rate || ch.totalAmount,
+            gstRate: 12,
+            discountPer: 0,
+            discountRupees: 0,
+            total: ch.totalAmount
+        });
+        // Mark as Billed
+        ch.status = "Billed";
+    });
+
+    const grandTotal = selectedChallans.reduce((sum, c) => sum + c.totalAmount, 0);
+
+    const saleRecord = {
+        id: "SALE_" + Date.now(),
+        billNo: nextBillNo,
+        partyId: stitcherSelectedParty.id,
+        partyName: stitcherSelectedParty.name,
+        partyGstin: stitcherSelectedParty.gst || "N/A",
+        partyState: stitcherSelectedParty.state || "Rajasthan",
+        date: billDate,
+        paymentMode: "CREDIT",
+        items: mergedItems,
+        totalAmount: grandTotal,
+        extraDiscount: 0.0,
+        roundOff: 0.0,
+        status: "Active",
+        sourceTag: "CHALLAN_CONVERT"
+    };
+
+    window.erpEngine.sales.push(saleRecord);
+    saveLocalState();
+    updateDashboardStats();
+
+    if (window.GoogleDriveSync) GoogleDriveSync.pushToDrive(window.erpEngine);
+
+    alert(`✅ Success! ${selectedChallans.length} Challans converted to GST Tax Invoice #${nextBillNo}`);
+    showScreen('view-billing-hub');
+}
+
+// =============================================================================
+// PURCHASES, CHALLANS, RETURNS, VOUCHERS, DAYBOOK, LEDGERS & MASTERS
+// =============================================================================
+
 function initNewPurchaseSession() {
     const nextNo = window.erpEngine.getNextNumber('PURCHASE');
     const pInt = document.getElementById("purInternalNo");
@@ -594,7 +815,7 @@ function savePurchaseInward() {
 
     alert("✅ Inward Stock Saved and Live Inventory Updated!");
     initNewPurchaseSession();
-    returnToDashboard();
+    showScreen('view-billing-hub');
 }
 
 function initNewChallanSession() {
@@ -608,7 +829,7 @@ function initNewChallanSession() {
 function addChallanItem() {
     const billNo = document.getElementById("chBillNo")?.value || "SCH-101";
     const date = document.getElementById("chDate")?.value || new Date().toISOString().split('T')[0];
-    const partyName = document.getElementById("chParty")?.value.trim() || "CASH";
+    const partyName = document.getElementById("chParty")?.value.trim() || "CASH CUSTOMER";
     const itemName = document.getElementById("chItemName")?.value.trim() || "";
     const qty = parseFloat(document.getElementById("chQty")?.value) || 1;
     const rate = parseFloat(document.getElementById("chRate")?.value) || 0;
@@ -856,6 +1077,19 @@ function updateDashboardStats() {
     if (kpiSale) kpiSale.innerText = `₹ ${totalSale.toFixed(2)}`;
     if (kpiPur) kpiPur.innerText = `₹ ${totalPur.toFixed(2)}`;
     if (kpiStock) kpiStock.innerText = `₹ ${stockVal.toFixed(2)}`;
+}
+
+async function pullLatestFromDrive(isSilent = false) {
+    if (window.GoogleDriveSync && GoogleDriveSync.config.apiUrl) {
+        const cloudData = await GoogleDriveSync.pullFromDrive();
+        if (cloudData) {
+            Object.assign(window.erpEngine, cloudData);
+            saveLocalState();
+            populateAllDatalists();
+            updateDashboardStats();
+            if (!isSilent) console.log("☁️ Drive data synchronized.");
+        }
+    }
 }
 
 function saveLocalState() {

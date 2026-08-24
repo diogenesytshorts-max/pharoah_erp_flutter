@@ -8,7 +8,7 @@
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
     <meta name="theme-color" content="#0d47a1">
-    <link rel="stylesheet" href="style.css?v=7.0">
+    <link rel="stylesheet" href="style.css?v=8.0">
     <script>
       if ('serviceWorker' in navigator) {
         navigator.serviceWorker.getRegistrations().then(rList => {
@@ -24,7 +24,7 @@
 </head>
 <body>
 
-    <!-- App Top Header with Strictly Locked Company Profile -->
+    <!-- App Header -->
     <header class="app-header">
         <div class="brand-box">
             <div>
@@ -104,7 +104,7 @@
 
             <!-- 9 Business Modules Grid -->
             <div class="module-grid-9">
-                <div class="grid-item" onclick="startSaleWorkflow()">
+                <div class="grid-item" onclick="showScreen('view-billing-hub')">
                     <div class="grid-icon blue-icon">🧾</div>
                     <div class="grid-name">BILLING</div>
                 </div>
@@ -143,12 +143,216 @@
             </div>
         </section>
 
-        <!-- VIEW 2: SALE STEP 1 -->
+        <!-- ============================================================== -->
+        <!-- VIEW: BILLING HUB (SUB-MODULE SCREEN: 5 ACTIONS)               -->
+        <!-- ============================================================== -->
+        <section id="view-billing-hub" style="display: none;">
+            <div class="screen-panel">
+                <div class="screen-header">
+                    <div class="screen-title">BILLING & TRANSACTIONS</div>
+                    <button class="btn btn-secondary" onclick="returnToDashboard()">← DASHBOARD</button>
+                </div>
+
+                <div class="sub-module-grid-5">
+                    <!-- 1. New Sale -->
+                    <div class="sub-action-card" onclick="startSaleWorkflow()">
+                        <div class="sub-card-icon blue-bg">🛒</div>
+                        <div class="sub-card-title">NEW SALE</div>
+                        <div class="sub-card-desc">2-step invoice billing with party selection, Rate A/B/C and live print.</div>
+                    </div>
+
+                    <!-- 2. Purchase -->
+                    <div class="sub-action-card" onclick="showScreen('view-purchases'); initNewPurchaseSession();">
+                        <div class="sub-card-icon orange-bg">📥</div>
+                        <div class="sub-card-title">PURCHASE</div>
+                        <div class="sub-card-desc">Record supplier inward invoice, purchase rates and stock increment.</div>
+                    </div>
+
+                    <!-- 3. Stitcher Wizard -->
+                    <div class="sub-action-card" onclick="openStitcherWizardScreen()">
+                        <div class="sub-card-icon teal-bg">⚡</div>
+                        <div class="sub-card-title">STITCHER WIZARD</div>
+                        <div class="sub-card-desc">Batch convert multiple pending delivery challans into a final GST tax invoice.</div>
+                    </div>
+
+                    <!-- 4. Sale Register -->
+                    <div class="sub-action-card" onclick="showScreen('view-sale-register'); renderSaleRegister();">
+                        <div class="sub-card-icon blue-bg">📄</div>
+                        <div class="sub-card-title">SALE REG</div>
+                        <div class="sub-card-desc">View all sales invoices, date-range filters, taxable summary and reprint.</div>
+                    </div>
+
+                    <!-- 5. Purchase Register -->
+                    <div class="sub-action-card" onclick="showScreen('view-purchase-register'); renderPurchaseRegister();">
+                        <div class="sub-card-icon orange-bg">📋</div>
+                        <div class="sub-card-title">PUR REG</div>
+                        <div class="sub-card-desc">View inward bills, supplier-wise totals and input tax credit (ITC) summary.</div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ============================================================== -->
+        <!-- VIEW: STITCHER WIZARD (CHALLAN TO BILL CONVERTER)              -->
+        <!-- ============================================================== -->
+        <section id="view-stitcher-wizard" style="display: none;">
+            <div class="screen-panel">
+                <div class="screen-header">
+                    <div class="screen-title">STITCHER WIZARD (CHALLAN TO GST BILL CONVERTER)</div>
+                    <button class="btn btn-secondary" onclick="showScreen('view-billing-hub')">← BILLING HUB</button>
+                </div>
+
+                <div class="form-grid-2">
+                    <div class="form-field">
+                        <label>SELECT PARTY / CUSTOMER TO CONVERT CHALLANS *</label>
+                        <input type="text" id="stitcherPartySearch" class="erp-input" placeholder="Search Party..." list="partyDatalist" oninput="loadPendingChallansForStitcher(this.value)">
+                    </div>
+                    <div class="form-field">
+                        <label>CONVERTED BILL DATE</label>
+                        <input type="date" id="stitcherBillDate" class="erp-input">
+                    </div>
+                </div>
+
+                <div style="margin-top: 1.5rem;">
+                    <h4 style="color: var(--accent-cyan); font-size: 0.85rem; margin-bottom: 0.5rem;">PENDING DELIVERY CHALLANS:</h4>
+                    <div class="table-wrap">
+                        <table class="erp-table">
+                            <thead>
+                                <tr>
+                                    <th>SELECT</th><th>CHALLAN NO</th><th>DATE</th><th>PARTY</th><th>REMARKS</th><th>AMOUNT (₹)</th>
+                                </tr>
+                            </thead>
+                            <tbody id="stitcherChallansTableBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="cart-footer-grid">
+                    <div></div>
+                    <div class="calc-box">
+                        <div class="calc-line grand-total-highlight">
+                            <span>TOTAL CONVERTIBLE:</span>
+                            <span id="stitcherTotalAmount">₹ 0.00</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card-footer-action">
+                    <button class="btn btn-success" onclick="finalizeStitcherConversion()">⚡ CONVERT SELECTED TO GST TAX INVOICE</button>
+                </div>
+            </div>
+        </section>
+
+        <!-- ============================================================== -->
+        <!-- VIEW: SALE REGISTER (SUMMARY & AUDIT)                          -->
+        <!-- ============================================================== -->
+        <section id="view-sale-register" style="display: none;">
+            <div class="screen-panel">
+                <div class="screen-header">
+                    <div class="screen-title">SALE REGISTER (INVOICE SUMMARY)</div>
+                    <button class="btn btn-secondary" onclick="showScreen('view-billing-hub')">← BILLING HUB</button>
+                </div>
+
+                <div class="form-grid-4">
+                    <div class="form-field">
+                        <label>FROM DATE</label>
+                        <input type="date" id="saleRegFromDate" class="erp-input" onchange="renderSaleRegister()">
+                    </div>
+                    <div class="form-field">
+                        <label>TO DATE</label>
+                        <input type="date" id="saleRegToDate" class="erp-input" onchange="renderSaleRegister()">
+                    </div>
+                    <div class="form-field" style="grid-column: span 2;">
+                        <label>SEARCH BILL NO / PARTY</label>
+                        <input type="text" id="saleRegSearch" class="erp-input" placeholder="Type bill no or customer name..." oninput="renderSaleRegister()">
+                    </div>
+                </div>
+
+                <div class="table-wrap">
+                    <table class="erp-table">
+                        <thead>
+                            <tr>
+                                <th>DATE</th><th>BILL NO</th><th>PARTY NAME</th><th>GSTIN</th><th>MODE</th><th>TAXABLE (₹)</th><th>GST (₹)</th><th>NET TOTAL (₹)</th><th>ACTION</th>
+                            </tr>
+                        </thead>
+                        <tbody id="saleRegTableBody"></tbody>
+                    </table>
+                </div>
+
+                <div class="cart-footer-grid">
+                    <div class="calc-box" style="flex: 1; flex-direction: row; gap: 2rem;">
+                        <div>
+                            <span style="font-size: 0.72rem; color: var(--text-muted);">TOTAL TAXABLE:</span>
+                            <div style="font-weight: 800; font-size: 1rem; color: white;" id="saleRegSumTaxable">₹ 0.00</div>
+                        </div>
+                        <div>
+                            <span style="font-size: 0.72rem; color: var(--text-muted);">TOTAL GST:</span>
+                            <div style="font-weight: 800; font-size: 1rem; color: var(--accent-cyan);" id="saleRegSumGst">₹ 0.00</div>
+                        </div>
+                        <div>
+                            <span style="font-size: 0.72rem; color: var(--text-muted);">NET TOTAL SALES:</span>
+                            <div style="font-weight: 900; font-size: 1.15rem; color: var(--accent-emerald);" id="saleRegSumNet">₹ 0.00</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ============================================================== -->
+        <!-- VIEW: PURCHASE REGISTER (INWARD SUMMARY)                       -->
+        <!-- ============================================================== -->
+        <section id="view-purchase-register" style="display: none;">
+            <div class="screen-panel">
+                <div class="screen-header">
+                    <div class="screen-title">PURCHASE REGISTER (INWARD & ITC AUDIT)</div>
+                    <button class="btn btn-secondary" onclick="showScreen('view-billing-hub')">← BILLING HUB</button>
+                </div>
+
+                <div class="form-grid-4">
+                    <div class="form-field">
+                        <label>FROM DATE</label>
+                        <input type="date" id="purRegFromDate" class="erp-input" onchange="renderPurchaseRegister()">
+                    </div>
+                    <div class="form-field">
+                        <label>TO DATE</label>
+                        <input type="date" id="purRegToDate" class="erp-input" onchange="renderPurchaseRegister()">
+                    </div>
+                    <div class="form-field" style="grid-column: span 2;">
+                        <label>SEARCH SUPPLIER / BILL NO</label>
+                        <input type="text" id="purRegSearch" class="erp-input" placeholder="Type bill no or distributor name..." oninput="renderPurchaseRegister()">
+                    </div>
+                </div>
+
+                <div class="table-wrap">
+                    <table class="erp-table">
+                        <thead>
+                            <tr>
+                                <th>DATE</th><th>INTERNAL ID</th><th>SUPPLIER BILL NO</th><th>DISTRIBUTOR NAME</th><th>MODE</th><th>TOTAL (₹)</th>
+                            </tr>
+                        </thead>
+                        <tbody id="purRegTableBody"></tbody>
+                    </table>
+                </div>
+
+                <div class="cart-footer-grid">
+                    <div class="calc-box" style="flex: 1; flex-direction: row; gap: 2rem;">
+                        <div>
+                            <span style="font-size: 0.72rem; color: var(--text-muted);">TOTAL INWARD PURCHASES:</span>
+                            <div style="font-weight: 900; font-size: 1.15rem; color: var(--accent-orange);" id="purRegSumNet">₹ 0.00</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ========================================== -->
+        <!-- VIEW: SALE STEP 1                          -->
+        <!-- ========================================== -->
         <section id="view-sale-step1" style="display: none;">
             <div class="screen-panel">
                 <div class="screen-header">
                     <div class="screen-title">SALE ENTRY (STEP 1: SETUP)</div>
-                    <button class="btn btn-secondary" onclick="returnToDashboard()">← DASHBOARD</button>
+                    <button class="btn btn-secondary" onclick="showScreen('view-billing-hub')">← BILLING HUB</button>
                 </div>
 
                 <div class="form-grid-4">
@@ -196,7 +400,9 @@
             </div>
         </section>
 
-        <!-- VIEW 3: SALE STEP 2 (CART) -->
+        <!-- ========================================== -->
+        <!-- VIEW: SALE STEP 2 (CART)                   -->
+        <!-- ========================================== -->
         <section id="view-sale-step2" style="display: none;">
             <div class="screen-panel">
                 <div class="screen-header">
@@ -252,12 +458,14 @@
             </div>
         </section>
 
-        <!-- VIEW 4: PURCHASES -->
+        <!-- ========================================== -->
+        <!-- VIEW: PURCHASES                            -->
+        <!-- ========================================== -->
         <section id="view-purchases" style="display: none;">
             <div class="screen-panel">
                 <div class="screen-header">
                     <div class="screen-title">PURCHASE INWARD (STOCK RECEIVE)</div>
-                    <button class="btn btn-secondary" onclick="returnToDashboard()">← DASHBOARD</button>
+                    <button class="btn btn-secondary" onclick="showScreen('view-billing-hub')">← BILLING HUB</button>
                 </div>
 
                 <div class="form-grid-4">
@@ -362,7 +570,9 @@
             </div>
         </section>
 
-        <!-- VIEW 5: CHALLANS -->
+        <!-- ========================================== -->
+        <!-- VIEW: CHALLANS                             -->
+        <!-- ========================================== -->
         <section id="view-challans" style="display: none;">
             <div class="screen-panel">
                 <div class="screen-header">
@@ -402,7 +612,9 @@
             </div>
         </section>
 
-        <!-- VIEW 6: RETURNS -->
+        <!-- ========================================== -->
+        <!-- VIEW: RETURNS                              -->
+        <!-- ========================================== -->
         <section id="view-returns" style="display: none;">
             <div class="screen-panel">
                 <div class="screen-header">
@@ -423,7 +635,9 @@
             </div>
         </section>
 
-        <!-- VIEW 7: ACCOUNTS & VOUCHERS -->
+        <!-- ========================================== -->
+        <!-- VIEW: ACCOUNTS                             -->
+        <!-- ========================================== -->
         <section id="view-accounts" style="display: none;">
             <div class="screen-panel">
                 <div class="screen-header">
@@ -485,15 +699,14 @@
             </div>
         </section>
 
-        <!-- VIEW 8: DAYBOOK REGISTER -->
+        <!-- ========================================== -->
+        <!-- VIEW: DAYBOOK                              -->
+        <!-- ========================================== -->
         <section id="view-daybook" style="display: none;">
             <div class="screen-panel">
                 <div class="screen-header">
                     <div class="screen-title">DAILY DAYBOOK AUDIT REGISTER</div>
-                    <div style="display: flex; gap: 8px; align-items: center;">
-                        <input type="date" id="daybookFilterDate" class="erp-input" style="max-width: 160px;" onchange="renderDaybook()">
-                        <button class="btn btn-secondary" onclick="returnToDashboard()">← DASHBOARD</button>
-                    </div>
+                    <button class="btn btn-secondary" onclick="returnToDashboard()">← DASHBOARD</button>
                 </div>
 
                 <div class="table-wrap">
@@ -509,15 +722,14 @@
             </div>
         </section>
 
-        <!-- VIEW 9: KHATA LEDGERS -->
+        <!-- ========================================== -->
+        <!-- VIEW: LEDGERS                              -->
+        <!-- ========================================== -->
         <section id="view-ledgers" style="display: none;">
             <div class="screen-panel">
                 <div class="screen-header">
                     <div class="screen-title">PARTY KHATA & LEDGER STATEMENTS</div>
-                    <div style="display: flex; gap: 8px; align-items: center;">
-                        <input type="text" id="ledgerSearchParty" class="erp-input" style="max-width: 250px;" placeholder="Search Party..." list="partyDatalist" oninput="renderLedgers()">
-                        <button class="btn btn-secondary" onclick="returnToDashboard()">← DASHBOARD</button>
-                    </div>
+                    <button class="btn btn-secondary" onclick="returnToDashboard()">← DASHBOARD</button>
                 </div>
 
                 <div class="table-wrap">
@@ -533,15 +745,14 @@
             </div>
         </section>
 
-        <!-- VIEW 10: STOCK -->
+        <!-- ========================================== -->
+        <!-- VIEW: STOCK                                -->
+        <!-- ========================================== -->
         <section id="view-stock" style="display: none;">
             <div class="screen-panel">
                 <div class="screen-header">
                     <div class="screen-title">STOCK LEDGER & LIVE INVENTORY</div>
-                    <div style="display: flex; gap: 8px; align-items: center;">
-                        <input type="text" id="stockSearchInput" class="erp-input" style="max-width: 250px;" placeholder="Search Product..." oninput="renderStock()">
-                        <button class="btn btn-secondary" onclick="returnToDashboard()">← DASHBOARD</button>
-                    </div>
+                    <button class="btn btn-secondary" onclick="returnToDashboard()">← DASHBOARD</button>
                 </div>
 
                 <div class="table-wrap">
@@ -557,11 +768,13 @@
             </div>
         </section>
 
-        <!-- VIEW 11: MASTERS -->
+        <!-- ========================================== -->
+        <!-- VIEW: MASTERS                              -->
+        <!-- ========================================== -->
         <section id="view-masters" style="display: none;">
-            <div class="screen-panel" style="margin-bottom: 2rem;">
+            <div class="screen-panel">
                 <div class="screen-header">
-                    <div class="screen-title">PRODUCT MASTER (MEDICINE REGISTRATION)</div>
+                    <div class="screen-title">MASTER DATA HUB</div>
                     <button class="btn btn-secondary" onclick="returnToDashboard()">← DASHBOARD</button>
                 </div>
 
@@ -584,64 +797,8 @@
                     </div>
                 </div>
 
-                <div class="form-grid-4" style="margin-top: 1rem;">
-                    <div class="form-field">
-                        <label>RATE A (SALE ₹)</label>
-                        <input type="number" id="mProdRateA" class="erp-input" value="45.00">
-                    </div>
-                    <div class="form-field">
-                        <label>GST %</label>
-                        <input type="number" id="mProdGst" class="erp-input" value="12">
-                    </div>
-                </div>
-
                 <div style="margin-top: 1.5rem; text-align: right;">
                     <button class="btn btn-primary" onclick="saveNewProductMaster()">+ SAVE PRODUCT</button>
-                </div>
-            </div>
-
-            <div class="screen-panel">
-                <div class="screen-header">
-                    <div class="screen-title">PARTY & LEDGER MASTER (CUSTOMER / SUPPLIER)</div>
-                </div>
-
-                <div class="form-grid-4">
-                    <div class="form-field">
-                        <label>PARTY / FIRM NAME *</label>
-                        <input type="text" id="mPartyName" class="erp-input" placeholder="e.g. Apex Health Care">
-                    </div>
-                    <div class="form-field">
-                        <label>ACCOUNT GROUP *</label>
-                        <select id="mPartyGroup" class="erp-input">
-                            <option value="Sundry Debtors">Sundry Debtors (Customer)</option>
-                            <option value="Sundry Creditors">Sundry Creditors (Supplier)</option>
-                            <option value="Bank Accounts">Bank Accounts</option>
-                            <option value="Expenses">Expenses</option>
-                        </select>
-                    </div>
-                    <div class="form-field">
-                        <label>GSTIN (15-DIGIT)</label>
-                        <input type="text" id="mPartyGst" class="erp-input" placeholder="08ABCDE1234F1Z5">
-                    </div>
-                    <div class="form-field">
-                        <label>CITY</label>
-                        <input type="text" id="mPartyCity" class="erp-input" placeholder="Udaipur">
-                    </div>
-                </div>
-
-                <div class="form-grid-4" style="margin-top: 1rem;">
-                    <div class="form-field">
-                        <label>MOBILE NUMBER</label>
-                        <input type="text" id="mPartyPhone" class="erp-input" placeholder="9876543210">
-                    </div>
-                    <div class="form-field">
-                        <label>OPENING BALANCE (₹)</label>
-                        <input type="number" id="mPartyOpBal" class="erp-input" value="0.00">
-                    </div>
-                </div>
-
-                <div style="margin-top: 1.5rem; text-align: right;">
-                    <button class="btn btn-success" onclick="saveNewPartyMaster()">+ SAVE PARTY MASTER</button>
                 </div>
             </div>
         </section>
@@ -769,9 +926,6 @@
                 <button class="btn btn-danger-sm" onclick="closeDriveSettings()">CANCEL</button>
                 <button class="btn btn-success" onclick="saveDriveSettingsFromModal()">CONNECT & SYNC</button>
             </div>
-            <div style="border-top: 1px solid var(--border-color); padding-top: 1rem; text-align: center;">
-                <button class="btn btn-danger-sm" style="width: 100%; padding: 8px;" onclick="hardResetAllLocalData()">🧹 RESET LOCAL DATA</button>
-            </div>
         </div>
     </div>
 
@@ -794,8 +948,8 @@
     <datalist id="itemDatalist"></datalist>
     <div id="printArea" class="print-area"></div>
 
-    <script src="drive_sync.js?v=7.0"></script>
-    <script src="app_engine.js?v=7.0"></script>
-    <script src="app_ui.js?v=7.0"></script>
+    <script src="drive_sync.js?v=8.0"></script>
+    <script src="app_engine.js?v=8.0"></script>
+    <script src="app_ui.js?v=8.0"></script>
 </body>
 </html>
