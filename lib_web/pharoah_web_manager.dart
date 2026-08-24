@@ -1,248 +1,130 @@
-// FILE: lib_web/pharoah_web_manager.dart
-// PURE FLUTTER WEB ENGINE WITH COMPLETE BILLING, INVENTORY & STITCHER LOGIC
-
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-
-import '../lib/models.dart';
-import '../lib/inventory_logic_center.dart';
-import '../lib/gateway/company_registry_model.dart';
-import '../lib/logic/app_settings_model.dart';
-import '../lib/demo_data.dart';
-import '../lib/master_data_library.dart';
+import 'package:http/http.dart' as http;
+import 'package:intl/intl.dart';
+import 'package:pharoah_erp/models.dart';
+import 'package:pharoah_erp/inventory_logic_center.dart';
+import 'package:pharoah_erp/gateway/company_registry_model.dart';
+import 'package:pharoah_erp/demo_data.dart';
+import 'package:pharoah_erp/master_data_library.dart';
 
 class PharoahWebManager with ChangeNotifier {
-  String activeModule = "HOME";
-  bool get showBatchFilter => activeCompany != null && activeCompany!.fYears.length > 1;
-
+  String activeModule = 'DASHBOARD';
   List<Medicine> medicines = [];
   List<Party> parties = [];
-  List<Company> companies = [];
-  List<Salt> salts = [];
-  List<DrugType> drugTypes = [];
-  List<Bank> banks = [];
-  List<NumberingSeries> numberingSeries = [];
   List<Sale> sales = [];
   List<Purchase> purchases = [];
   List<SaleChallan> saleChallans = [];
-  List<PurchaseChallan> purchaseChallans = [];
-  List<SaleReturn> saleReturns = [];
-  List<PurchaseReturn> purchaseReturns = [];
   List<Voucher> vouchers = [];
   Map<String, List<BatchInfo>> batchHistory = {};
-  
-  AppConfig config = AppConfig(isArchitectMode: true);
   CompanyProfile? activeCompany;
-  String currentFY = "2026-27";
-  bool isAdminAuthenticated = true;
+  String currentFY = '2026-27';
+  String syncStatus = 'Ready';
+  String driveWebhookUrl = '', driveUserEmail = '';
 
-  PharoahWebManager() {
-    initWebDatabase();
-  }
+  PharoahWebManager() { init(); }
 
-  void updateModule(String newModule) {
-    activeModule = newModule;
-    notifyListeners();
-  }
+  void updateModule(String m) { activeModule = m; notifyListeners(); }
 
-  Future<void> initWebDatabase() async {
-    final prefs = await SharedPreferences.getInstance();
-    
-    activeCompany = CompanyProfile(
-      id: "PH-C-101",
-      name: prefs.getString('web_comp_name') ?? "DWARIKA MEDICALS",
-      businessType: "WHOLESALE",
-      createdAt: DateTime.now(),
-      password: "admin",
-      state: "Rajasthan",
-      gstin: "08ABCDE1234F1Z5",
-      fYears: ["2026-27"],
-    );
-
-    final rawDb = prefs.getString('pharoah_flutter_web_db_v2');
-    if (rawDb != null) {
+  Future<void> init() async {
+    final p = await SharedPreferences.getInstance();
+    driveWebhookUrl = p.getString('web_drive_url') ?? '';
+    driveUserEmail = p.getString('web_drive_email') ?? '';
+    activeCompany = CompanyProfile(id: 'PH-C-101', name: p.getString('web_cname') ?? 'DWARIKA MEDICALS', businessType: 'WHOLESALE', createdAt: DateTime.now(), password: 'admin', state: 'Rajasthan', gstin: '08ABCDE1234F1Z5', fYears: ['2026-27']);
+    final raw = p.getString('pharoah_web_db_v10');
+    if (raw != null) {
       try {
-        final Map<String, dynamic> db = jsonDecode(rawDb);
-        _loadFromJson(db);
-      } catch (e) {
-        _loadDefaults();
-      }
-    } else {
-      _loadDefaults();
-    }
-
-    InventoryLogicCenter.rebuildAllInventory(
-      medicines: medicines,
-      batchHistory: batchHistory,
-      purchases: purchases,
-      sales: sales,
-      saleReturns: saleReturns,
-      purchaseReturns: purchaseReturns,
-    );
+        final d = jsonDecode(raw);
+        medicines = (d['meds'] as List?)?.map((e) => Medicine.fromMap(e)).toList() ?? [];
+        parties = (d['parts'] as List?)?.map((e) => Party.fromMap(e)).toList() ?? [];
+        sales = (d['sales'] as List?)?.map((e) => Sale.fromMap(e)).toList() ?? [];
+        purchases = (d['purc'] as List?)?.map((e) => Purchase.fromMap(e)).toList() ?? [];
+        vouchers = (d['vouc'] as List?)?.map((e) => Voucher.fromMap(e)).toList() ?? [];
+        saleChallans = (d['s_challan'] as List?)?.map((e) => SaleChallan.fromMap(e)).toList() ?? [];
+        final b = d['bats']; if (b != null) (b as Map).forEach((k, v) => batchHistory[k] = (v as List).map((x) => BatchInfo.fromMap(x)).toList());
+      } catch (_) { _loadDefaults(); }
+    } else { _loadDefaults(); }
+    rebuild();
     notifyListeners();
+    if (driveWebhookUrl.isNotEmpty) pullFromGoogleDrive();
   }
 
   void _loadDefaults() {
     medicines = DemoData.getMedicines();
-    companies = MasterDataLibrary.getTopCompanies();
-    salts = MasterDataLibrary.getTopSalts();
-    drugTypes = MasterDataLibrary.getDrugTypes();
-    parties = [
-      DemoData.getDemoParty(),
-      Party(id: 'p_cash', name: "CASH CUSTOMER", group: "Cash in Hand", state: "Rajasthan"),
-      Party(id: 'p_sharma', name: "SHARMA MEDICALS", group: "Sundry Debtors", city: "JAIPUR", state: "Rajasthan", gst: "08ABCDE1234F1Z5", opBal: 4500.0),
-    ];
-    batchHistory = {
-      "PH-00001": [BatchInfo(batch: "DL-101", exp: "12/28", packing: "15 TAB", mrp: 30.91, rate: 25.40, rateA: 28.50, rateB: 27.00, rateC: 26.50, qty: 150, openingQty: 150)],
-      "PH-00002": [BatchInfo(batch: "PN-202", exp: "05/27", packing: "10 TAB", mrp: 120.00, rate: 95.00, rateA: 110.00, rateB: 105.00, rateC: 100.00, qty: 80, openingQty: 80)],
-      "PH-00003": [BatchInfo(batch: "AZ-303", exp: "08/26", packing: "5 TAB", mrp: 115.00, rate: 88.00, rateA: 105.00, rateB: 100.00, rateC: 98.00, qty: 45, openingQty: 45)],
-      "PH-00004": [BatchInfo(batch: "LM-404", exp: "09/27", packing: "15 TAB", mrp: 25.00, rate: 18.00, rateA: 23.00, rateB: 22.00, rateC: 20.00, qty: 100, openingQty: 100)],
-    };
-    numberingSeries = [
-      NumberingSeries(id: 's_sale', type: 'SALE', prefix: 'INV-', startNumber: 1001, isDefault: true),
-      NumberingSeries(id: 's_pur', type: 'PURCHASE', prefix: 'PUR-', startNumber: 101, isDefault: true),
-      NumberingSeries(id: 's_sch', type: 'CHALLAN', prefix: 'SCH-', startNumber: 101, isDefault: true),
-      NumberingSeries(id: 's_ret', type: 'RETURN', prefix: 'CN-', startNumber: 101, isDefault: true),
-    ];
-  }
-
-  void _loadFromJson(Map<String, dynamic> db) {
-    medicines = (db['meds'] as List?)?.map((e) => Medicine.fromMap(e)).toList() ?? [];
-    parties = (db['parts'] as List?)?.map((e) => Party.fromMap(e)).toList() ?? [];
-    sales = (db['sales'] as List?)?.map((e) => Sale.fromMap(e)).toList() ?? [];
-    purchases = (db['purc'] as List?)?.map((e) => Purchase.fromMap(e)).toList() ?? [];
-    vouchers = (db['vouc'] as List?)?.map((e) => Voucher.fromMap(e)).toList() ?? [];
-    saleChallans = (db['s_challan'] as List?)?.map((e) => SaleChallan.fromMap(e)).toList() ?? [];
-    purchaseChallans = (db['p_challan'] as List?)?.map((e) => PurchaseChallan.fromMap(e)).toList() ?? [];
-    saleReturns = (db['s_return'] as List?)?.map((e) => SaleReturn.fromMap(e)).toList() ?? [];
-    purchaseReturns = (db['p_return'] as List?)?.map((e) => PurchaseReturn.fromMap(e)).toList() ?? [];
-    
-    final bData = db['bats'];
-    if (bData != null) {
-      batchHistory.clear();
-      (bData as Map).forEach((k, v) {
-        batchHistory[k] = (v as List).map((b) => BatchInfo.fromMap(b)).toList();
-      });
-    }
+    parties = [DemoData.getDemoParty(), Party(id: 'p_cash', name: 'CASH CUSTOMER', group: 'Cash in Hand', state: 'Rajasthan'), Party(id: 'p_sharma', name: 'SHARMA MEDICALS', group: 'Sundry Debtors', city: 'JAIPUR', state: 'Rajasthan', gst: '08ABCDE1234F1Z5', opBal: 4500.0)];
+    batchHistory = {'PH-00001': [BatchInfo(batch: 'DL-101', exp: '12/28', packing: '15 TAB', mrp: 30.91, rate: 25.40, rateA: 28.50, rateB: 27.00, rateC: 26.50, qty: 150, openingQty: 150)]};
   }
 
   Future<void> save() async {
-    final prefs = await SharedPreferences.getInstance();
-    final dataMap = {
-      'meds': medicines.map((e) => e.toMap()).toList(),
-      'parts': parties.map((e) => e.toMap()).toList(),
-      'sales': sales.map((e) => e.toMap()).toList(),
-      'purc': purchases.map((e) => e.toMap()).toList(),
-      'vouc': vouchers.map((e) => e.toMap()).toList(),
-      's_challan': saleChallans.map((e) => e.toMap()).toList(),
-      'p_challan': purchaseChallans.map((e) => e.toMap()).toList(),
-      's_return': saleReturns.map((e) => e.toMap()).toList(),
-      'p_return': purchaseReturns.map((e) => e.toMap()).toList(),
-      'bats': batchHistory.map((k, v) => MapEntry(k, v.map((b) => b.toMap()).toList())),
-    };
-
-    await prefs.setString('pharoah_flutter_web_db_v2', jsonEncode(dataMap));
+    final p = await SharedPreferences.getInstance();
+    await p.setString('pharoah_web_db_v10', jsonEncode({'meds': medicines.map((e)=>e.toMap()).toList(), 'parts': parties.map((e)=>e.toMap()).toList(), 'sales': sales.map((e)=>e.toMap()).toList(), 'purc': purchases.map((e)=>e.toMap()).toList(), 'vouc': vouchers.map((e)=>e.toMap()).toList(), 's_challan': saleChallans.map((e)=>e.toMap()).toList(), 'bats': batchHistory.map((k, v) => MapEntry(k, v.map((b)=>b.toMap()).toList()))}));
     notifyListeners();
+    if (driveWebhookUrl.isNotEmpty) pushToGoogleDrive();
   }
 
-  String getNextNumber(String type, {String prefix = "INV-"}) {
-    List<String> list = [];
-    if (type == 'SALE') list = sales.map((s) => s.billNo).toList();
-    if (type == 'PURCHASE') list = purchases.map((p) => p.internalNo).toList();
-    if (type == 'CHALLAN') list = saleChallans.map((c) => c.billNo).toList();
-    if (type == 'RETURN') list = saleReturns.map((r) => r.billNo).toList();
-
-    final existingNums = list
-        .where((no) => no.startsWith(prefix))
-        .map((no) => int.tryParse(no.replaceFirst(prefix, '')) ?? 0)
-        .toList();
-
-    if (existingNums.isEmpty) return "${prefix}1001";
-    existingNums.sort();
-    return "$prefix${existingNums.last + 1}";
+  void rebuild() {
+    InventoryLogicCenter.rebuildAllInventory(medicines: medicines, batchHistory: batchHistory, purchases: purchases, sales: sales, saleReturns: [], purchaseReturns: []);
   }
 
-  // Finalize Sale (App Parity)
-  Future<void> finalizeSale({
-    required String billNo,
-    required DateTime date,
-    required Party party,
-    required List<BillItem> items,
-    required double total,
-    required String mode,
-    double extraDiscount = 0.0,
-    double roundOff = 0.0,
-    List<String>? linkedIds,
-  }) async {
-    sales.add(Sale(
-      id: "SALE_${DateTime.now().millisecondsSinceEpoch}",
-      billNo: billNo,
-      partyId: party.id,
-      date: date,
-      partyName: party.name,
-      partyGstin: party.gst,
-      partyState: party.state,
-      items: items,
-      totalAmount: total,
-      paymentMode: mode,
-      extraDiscount: extraDiscount,
-      roundOff: roundOff,
-      linkedChallanIds: linkedIds ?? [],
-    ));
+  String getNextNumber(String type) {
+    String pfx = type == 'SALE' ? 'INV-' : (type == 'PURCHASE' ? 'PUR-' : (type == 'CHALLAN' ? 'SCH-' : (type == 'RECEIPT' ? 'RCT-' : 'DOC-')));
+    List<String> list = type == 'SALE' ? sales.map((s)=>s.billNo).toList() : (type == 'PURCHASE' ? purchases.map((p)=>p.internalNo).toList() : saleChallans.map((c)=>c.billNo).toList());
+    final nums = list.where((n)=>n.startsWith(pfx)).map((n)=>int.tryParse(n.replaceFirst(pfx, ''))??0).toList();
+    if (nums.isEmpty) return '${pfx}1001';
+    nums.sort(); return '$pfx${nums.last + 1}';
+  }
 
-    if (linkedIds != null && linkedIds.isNotEmpty) {
-      for (var id in linkedIds) {
-        int idx = saleChallans.indexWhere((c) => c.id == id);
-        if (idx != -1) saleChallans[idx].status = "Billed";
+  Future<void> finalizeSale({required String billNo, required DateTime date, required Party party, required List<BillItem> items, required double total, required String mode, double extraDiscount = 0.0, double roundOff = 0.0, List<String>? linkedIds}) async {
+    sales.add(Sale(id: 'SALE_${DateTime.now().millisecondsSinceEpoch}', billNo: billNo, partyId: party.id, date: date, partyName: party.name, partyGstin: party.gst, partyState: party.state, items: items, totalAmount: total, paymentMode: mode, extraDiscount: extraDiscount, roundOff: roundOff, linkedChallanIds: linkedIds ?? [], sourceTag: 'WEB_PORTAL'));
+    if (linkedIds != null) for (var id in linkedIds) { int i = saleChallans.indexWhere((c)=>c.id==id); if (i!=-1) saleChallans[i].status = 'Billed'; }
+    rebuild(); await save();
+  }
+
+  Future<void> finalizePurchase({required String internalNo, required String billNo, required DateTime date, required DateTime entryDate, required Party party, required List<PurchaseItem> items, required double total, required String mode}) async {
+    purchases.add(Purchase(id: 'PUR_${DateTime.now().millisecondsSinceEpoch}', internalNo: internalNo, billNo: billNo, partyId: party.id, distributorName: party.name, date: date, entryDate: entryDate, items: items, totalAmount: total, paymentMode: mode, sourceTag: 'WEB_PORTAL'));
+    rebuild(); await save();
+  }
+
+  Future<void> finalizeVoucher({required String type, required String voucherNo, required DateTime date, required Party party, required double amount, required String mode, required String internalLedger}) async {
+    vouchers.add(Voucher(id: 'VOUC_${DateTime.now().millisecondsSinceEpoch}', type: type.toUpperCase(), voucherNo: voucherNo, date: date, partyId: party.id, partyName: party.name, amount: amount, paymentMode: mode, depositedIn: internalLedger, status: 'Active'));
+    await save();
+  }
+
+  Future<bool> pushToGoogleDrive() async {
+    if (driveWebhookUrl.isEmpty) return false;
+    try {
+      final res = await http.post(Uri.parse(driveWebhookUrl), body: jsonEncode({'action': 'SAVE_DATABASE', 'tenantEmail': driveUserEmail, 'timestamp': DateTime.now().toIso8601String(), 'payload': {'sales': sales.map((e)=>e.toMap()).toList(), 'purchases': purchases.map((e)=>e.toMap()).toList(), 'meds': medicines.map((e)=>e.toMap()).toList(), 'parts': parties.map((e)=>e.toMap()).toList(), 'vouc': vouchers.map((e)=>e.toMap()).toList()}}));
+      syncStatus = res.statusCode == 200 || res.statusCode == 302 ? 'Synced (${DateFormat('hh:mm a').format(DateTime.now())})' : 'Sync Failed';
+      notifyListeners(); return true;
+    } catch (_) { return false; }
+  }
+
+  Future<bool> pullFromGoogleDrive() async {
+    if (driveWebhookUrl.isEmpty) return false;
+    try {
+      final res = await http.get(Uri.parse('$driveWebhookUrl?action=GET_DATABASE&tenantEmail=${Uri.encodeComponent(driveUserEmail)}'));
+      if (res.statusCode == 200) {
+        final d = jsonDecode(res.body);
+        if (d['status'] == 'SUCCESS' && d['payload'] != null) {
+          final p = d['payload'];
+          if (p['sales'] != null) sales = (p['sales'] as List).map((e)=>Sale.fromMap(e)).toList();
+          if (p['meds'] != null) medicines = (p['meds'] as List).map((e)=>Medicine.fromMap(e)).toList();
+          if (p['parts'] != null) parties = (p['parts'] as List).map((e)=>Party.fromMap(e)).toList();
+          rebuild(); await save();
+          syncStatus = 'Synced (${DateFormat('hh:mm a').format(DateTime.now())})';
+          notifyListeners(); return true;
+        }
       }
-    }
-
-    InventoryLogicCenter.rebuildAllInventory(
-      medicines: medicines,
-      batchHistory: batchHistory,
-      purchases: purchases,
-      sales: sales,
-      saleReturns: saleReturns,
-      purchaseReturns: purchaseReturns,
-    );
-
-    await save();
+    } catch (_) {}
+    return false;
   }
 
-  // Finalize Purchase (App Parity)
-  Future<void> finalizePurchase({
-    required String internalNo,
-    required String billNo,
-    required DateTime date,
-    required DateTime entryDate,
-    required Party party,
-    required List<PurchaseItem> items,
-    required double total,
-    required String mode,
-  }) async {
-    purchases.add(Purchase(
-      id: "PUR_${DateTime.now().millisecondsSinceEpoch}",
-      internalNo: internalNo,
-      billNo: billNo,
-      partyId: party.id,
-      distributorName: party.name,
-      date: date,
-      entryDate: entryDate,
-      items: items,
-      totalAmount: total,
-      paymentMode: mode,
-    ));
-
-    InventoryLogicCenter.rebuildAllInventory(
-      medicines: medicines,
-      batchHistory: batchHistory,
-      purchases: purchases,
-      sales: sales,
-      saleReturns: saleReturns,
-      purchaseReturns: purchaseReturns,
-    );
-
-    await save();
+  Future<void> saveDriveSettings(String u, String e) async {
+    driveWebhookUrl = u.trim(); driveUserEmail = e.trim();
+    final p = await SharedPreferences.getInstance();
+    await p.setString('web_drive_url', driveWebhookUrl);
+    await p.setString('web_drive_email', driveUserEmail);
+    notifyListeners(); await pullFromGoogleDrive();
   }
 }
