@@ -8,7 +8,7 @@
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
     <meta name="theme-color" content="#0d47a1">
-    <link rel="stylesheet" href="style.css?v=5.0">
+    <link rel="stylesheet" href="style.css?v=6.0">
     <script>
       if ('serviceWorker' in navigator) {
         navigator.serviceWorker.getRegistrations().then(rList => {
@@ -24,22 +24,28 @@
 </head>
 <body>
 
-    <!-- Header -->
+    <!-- App Top Header with Dynamic Company Profile -->
     <header class="app-header">
-        <div class="brand-box">
-            <div class="brand-title">PHAROAH ERP</div>
-            <div class="brand-badges">
-                <span>FY: 2026-27</span>
-                <span class="tag-badge">WHOLESALE</span>
+        <div class="brand-box" onclick="openCompanyEditModal()" style="cursor:pointer;" title="Click to Edit Company Profile">
+            <div>
+                <div class="brand-title" id="headerCompanyName">DWARIKA MEDICALS</div>
+                <div class="brand-badges">
+                    <span id="headerCompanyId" style="color: rgba(255,255,255,0.75);">ID: PH-C-101</span>
+                    <span style="opacity: 0.5;">|</span>
+                    <span id="headerFyLabel">FY: 2026-27</span>
+                    <span class="tag-badge" id="headerBusinessType">WHOLESALE</span>
+                </div>
             </div>
+            <span style="font-size: 0.75rem; color: var(--accent-cyan);">✏️</span>
         </div>
+
         <div class="header-actions">
             <div id="syncStatus" class="sync-badge" onclick="openDriveSettings()" title="Google Drive Sync">
                 <span class="dot"></span>
-                <span id="tenantLabel">Cloud Sync: Ready</span>
+                <span id="tenantLabel">Cloud: Active</span>
             </div>
-            <button class="btn-icon" onclick="openDriveSettings()">⚙️</button>
-            <button class="btn-icon" onclick="openGuideModal()">📖</button>
+            <button class="btn-icon" onclick="openDriveSettings()" title="Drive Settings">⚙️</button>
+            <button class="btn-icon" onclick="openGuideModal()" title="User Manual">📖</button>
         </div>
     </header>
 
@@ -139,7 +145,7 @@
         </section>
 
         <!-- ========================================== -->
-        <!-- VIEW 2: SALE STEP 1 (HEADER & PARTY)       -->
+        <!-- VIEW 2: SALE STEP 1                        -->
         <!-- ========================================== -->
         <section id="view-sale-step1" style="display: none;">
             <div class="screen-panel">
@@ -151,7 +157,7 @@
                 <div class="form-grid-4">
                     <div class="form-field">
                         <label>SERIES SCHEME</label>
-                        <select id="saleSeriesSelect" class="erp-input">
+                        <select id="saleSeriesSelect" class="erp-input" onchange="updateSaleSeriesPrefix(this.value)">
                             <option value="INV-">Tax Invoice (INV-)</option>
                             <option value="RET-">Retail Counter (RET-)</option>
                             <option value="WHOLE-">Wholesale B2B (WHOLE-)</option>
@@ -194,7 +200,7 @@
         </section>
 
         <!-- ========================================== -->
-        <!-- VIEW 3: SALE STEP 2 (CART & ITEM ENTRY)    -->
+        <!-- VIEW 3: SALE STEP 2 (CART)                 -->
         <!-- ========================================== -->
         <section id="view-sale-step2" style="display: none;">
             <div class="screen-panel">
@@ -662,6 +668,35 @@
         </section>
     </main>
 
+    <!-- MODAL: COMPANY PROFILE EDIT -->
+    <div id="companyProfileModal" class="modal-overlay">
+        <div class="modal-card" style="max-width: 500px;">
+            <div class="modal-card-header">
+                <h3 style="color: var(--text-light); font-size: 1.1rem;">EDIT COMPANY PROFILE</h3>
+                <button class="btn btn-secondary" style="padding: 4px 10px;" onclick="closeCompanyEditModal()">✕</button>
+            </div>
+            <div class="form-field" style="margin-top: 1rem;">
+                <label>FIRM / SHOP NAME *</label>
+                <input type="text" id="cNameInput" class="erp-input" placeholder="e.g. DWARIKA MEDICALS">
+            </div>
+            <div class="form-field" style="margin-top: 0.8rem;">
+                <label>BUSINESS TYPE</label>
+                <select id="cTypeInput" class="erp-input">
+                    <option value="WHOLESALE">WHOLESALE</option>
+                    <option value="RETAIL">RETAIL</option>
+                </select>
+            </div>
+            <div class="form-field" style="margin-top: 0.8rem;">
+                <label>FINANCIAL YEAR</label>
+                <input type="text" id="cFyInput" class="erp-input" value="2026-27">
+            </div>
+            <div style="display:flex; justify-content:space-between; margin-top: 1.5rem;">
+                <button class="btn btn-secondary" onclick="closeCompanyEditModal()">CANCEL</button>
+                <button class="btn btn-success" onclick="saveCompanyProfileChanges()">SAVE CHANGES</button>
+            </div>
+        </div>
+    </div>
+
     <!-- MODAL 1: PRODUCT SEARCH PICKER -->
     <div id="productSearchModal" class="modal-overlay">
         <div class="modal-card">
@@ -752,7 +787,7 @@
         </div>
     </div>
 
-    <!-- MODAL 3: INVOICE SAVE SUCCESS (NO-FREEZE) -->
+    <!-- MODAL 3: INVOICE SAVE SUCCESS -->
     <div id="billSuccessModal" class="modal-overlay">
         <div class="modal-card" style="max-width: 480px; text-align: center;">
             <div style="font-size: 3rem; margin-bottom: 10px;">✅</div>
@@ -780,9 +815,12 @@
                 <label>APPS SCRIPT WEBHOOK URL</label>
                 <input type="text" id="driveApiUrl" class="erp-input" placeholder="https://script.google.com/macros/s/.../exec">
             </div>
-            <div style="display: flex; justify-content: space-between;">
+            <div style="display: flex; justify-content: space-between; margin-bottom: 1rem;">
                 <button class="btn btn-danger-sm" onclick="closeDriveSettings()">CANCEL</button>
                 <button class="btn btn-success" onclick="saveDriveSettingsFromModal()">CONNECT & SYNC</button>
+            </div>
+            <div style="border-top: 1px solid var(--border-color); padding-top: 1rem; text-align: center;">
+                <button class="btn btn-danger" style="width: 100%;" onclick="hardResetAllLocalData()">🧹 HARD RESET ALL LOCAL WEB DATA</button>
             </div>
         </div>
     </div>
@@ -806,8 +844,8 @@
     <datalist id="itemDatalist"></datalist>
     <div id="printArea" class="print-area"></div>
 
-    <script src="drive_sync.js?v=5.0"></script>
-    <script src="app_engine.js?v=5.0"></script>
-    <script src="app_ui.js?v=5.0"></script>
+    <script src="drive_sync.js?v=6.0"></script>
+    <script src="app_engine.js?v=6.0"></script>
+    <script src="app_ui.js?v=6.0"></script>
 </body>
 </html>

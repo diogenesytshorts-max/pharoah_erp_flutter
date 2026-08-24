@@ -899,3 +899,63 @@ function loadLocalState() {
         try { Object.assign(window.erpEngine, JSON.parse(saved)); } catch(e) {}
     }
 }
+
+// --- 🏢 DYNAMIC COMPANY PROFILE MANAGEMENT ---
+function refreshCompanyHeaderDisplay() {
+    const comp = window.erpEngine.activeCompany || {
+        id: "PH-C-101",
+        name: "DWARIKA MEDICALS",
+        businessType: "WHOLESALE",
+        fy: "2026-27"
+    };
+
+    const nameEl = document.getElementById("headerCompanyName");
+    const idEl = document.getElementById("headerCompanyId");
+    const typeEl = document.getElementById("headerBusinessType");
+    const fyEl = document.getElementById("headerFyLabel");
+
+    if (nameEl) nameEl.innerText = comp.name.toUpperCase();
+    if (idEl) idEl.innerText = `ID: ${comp.id}`;
+    if (typeEl) typeEl.innerText = comp.businessType.toUpperCase();
+    if (fyEl) fyEl.innerText = `FY: ${comp.fy || '2026-27'}`;
+}
+
+function openCompanyEditModal() {
+    const comp = window.erpEngine.activeCompany || { name: "DWARIKA MEDICALS", businessType: "WHOLESALE", fy: "2026-27" };
+    document.getElementById("cNameInput").value = comp.name;
+    document.getElementById("cTypeInput").value = comp.businessType;
+    document.getElementById("cFyInput").value = comp.fy || "2026-27";
+    document.getElementById("companyProfileModal")?.classList.add("active");
+}
+
+function closeCompanyEditModal() {
+    document.getElementById("companyProfileModal")?.classList.remove("active");
+}
+
+function saveCompanyProfileChanges() {
+    const name = document.getElementById("cNameInput").value.trim();
+    const type = document.getElementById("cTypeInput").value;
+    const fy = document.getElementById("cFyInput").value.trim();
+
+    if (!name) { alert("Company name is required!"); return; }
+
+    window.erpEngine.activeCompany = {
+        id: window.erpEngine.activeCompany?.id || "PH-C-101",
+        name: name.toUpperCase(),
+        businessType: type,
+        fy: fy || "2026-27"
+    };
+
+    saveLocalState();
+    refreshCompanyHeaderDisplay();
+    closeCompanyEditModal();
+    if (window.GoogleDriveSync) GoogleDriveSync.pushToDrive(window.erpEngine);
+    alert(`✅ Active Company set to: ${name.toUpperCase()}`);
+}
+
+// Ensure header updates on state load
+const originalLoadLocalState = loadLocalState;
+loadLocalState = function() {
+    originalLoadLocalState();
+    refreshCompanyHeaderDisplay();
+};
