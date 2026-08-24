@@ -1,8 +1,8 @@
 // =============================================================================
-// PHAROAH ERP - COMPLETE 5-MODULE BILLING & TRANSACTIONS CONTROLLER
+// PHAROAH ERP - FULL UI CONTROLLER (QUICK ADD PARTY, MEDICINE SELECTOR & SYNC)
 // =============================================================================
 
-const DB_VERSION_KEY = "pharoah_erp_v8_billing_hub_db";
+const DB_VERSION_KEY = "pharoah_erp_v9_live_picker_db";
 
 let activeSaleSession = {
     billNo: "INV-1001",
@@ -21,7 +21,7 @@ let activeEditingMed = null;
 let lastSavedDoc = null;
 let syncIntervalId = null;
 
-// Stitcher Wizard Local State
+// Stitcher Wizard State
 let stitcherSelectedParty = null;
 let stitcherSelectedChallanIds = [];
 
@@ -40,7 +40,6 @@ document.addEventListener("DOMContentLoaded", async () => {
         const todayStr = new Date().toISOString().split('T')[0];
         const thirtyDaysAgo = new Date(Date.now() - 30*24*60*60*1000).toISOString().split('T')[0];
 
-        // Setup register dates
         const sFrom = document.getElementById("saleRegFromDate");
         const sTo = document.getElementById("saleRegToDate");
         const pFrom = document.getElementById("purRegFromDate");
@@ -93,6 +92,7 @@ function purgeCorruptedLegacyStorage() {
         localStorage.removeItem("pharoah_web_state");
         localStorage.removeItem("pharoah_erp_v4_db");
         localStorage.removeItem("pharoah_erp_v7_locked_db");
+        localStorage.removeItem("pharoah_erp_v8_billing_hub_db");
         localStorage.setItem("pharoah_version_check", DB_VERSION_KEY);
         window.erpEngine = new PharoahWebEngine();
         saveLocalState();
@@ -117,8 +117,13 @@ function returnToDashboard() {
     showScreen('view-dashboard');
 }
 
+// =============================================================================
+// SALE ENTRY FLOW (STEP 1: QUICK ADD PARTY & LIVE LIST)
+// =============================================================================
+
 function startSaleWorkflow() {
     initNewSaleSession();
+    renderSalePartyLiveList("");
     showScreen('view-sale-step1');
 }
 
@@ -159,25 +164,102 @@ function setSaleMode(mode) {
     document.getElementById("modeCreditBtn")?.classList.toggle("active", mode === "CREDIT");
 }
 
+function filterSalePartyList(query) {
+    renderSalePartyLiveList(query.toLowerCase().trim());
+}
+
+function renderSalePartyLiveList(query) {
+    const container = document.getElementById("salePartyLiveListContainer");
+    if (!container) return;
+    container.innerHTML = "";
+
+    const filtered = window.erpEngine.parties.filter(p => p.name.toLowerCase().includes(query) || p.city.toLowerCase().includes(query));
+
+    if (filtered.length === 0) {
+        container.innerHTML = `<div style="padding:10px; color:var(--text-muted); font-size:0.8rem; text-align:center;">No matching party. Tap '+ QUICK ADD PARTY' above.</div>`;
+        return;
+    }
+
+    filtered.forEach(p => {
+        container.innerHTML += `
+            <div class="picker-item-row" onclick="selectSalePartyDirectly('${p.id}')">
+                <div>
+                    <strong style="color:var(--text-light); font-size:0.9rem;">${p.name}</strong>
+                    <div style="font-size:0.75rem; color:var(--text-muted);">${p.city} | GST: ${p.gst || 'N/A'}</div>
+                </div>
+                <div style="text-align:right;">
+                    <span class="badge-tag">${p.group || 'Sundry Debtors'}</span>
+                    <div style="font-size:0.75rem; color:var(--accent-cyan); margin-top:2px;">Bal: ₹ ${p.opBal.toFixed(2)}</div>
+                </div>
+            </div>
+        `;
+    });
+}
+
+function selectSalePartyDirectly(partyId) {
+    const p = window.erpEngine.parties.find(x => x.id === partyId);
+    if (!p) return;
+
+    activeSaleSession.selectedParty = p;
+    document.getElementById("previewPartyName").innerText = p.name;
+    document.getElementById("previewPartyMeta").innerText = `City: ${p.city} | GST: ${p.gst || 'N/A'} | Current Balance: ₹ ${p.opBal.toFixed(2)}`;
+    document.getElementById("selectedPartyCard").style.display = "flex";
+    document.getElementById("salePartyListWrapper").style.display = "none";
+}
+
 function onSalePartySelected(partyName) {
     const match = window.erpEngine.parties.find(p => p.name.toLowerCase() === partyName.trim().toLowerCase());
     if (match) {
-        activeSaleSession.selectedParty = match;
-        const nameEl = document.getElementById("previewPartyName");
-        const metaEl = document.getElementById("previewPartyMeta");
-        const cardEl = document.getElementById("selectedPartyCard");
-        if (nameEl) nameEl.innerText = match.name;
-        if (metaEl) metaEl.innerText = `City: ${match.city || 'LOCAL'} | GST: ${match.gst || 'N/A'} | Balance: ₹ ${match.opBal.toFixed(2)}`;
-        if (cardEl) cardEl.style.display = "flex";
+        selectSalePartyDirectly(match.id);
     }
 }
 
 function clearSaleParty() {
     activeSaleSession.selectedParty = null;
-    const searchEl = document.getElementById("salePartySearch");
-    if (searchEl) searchEl.value = "";
-    const cardEl = document.getElementById("selectedPartyCard");
-    if (cardEl) cardEl.style.display = "none";
+    document.getElementById("salePartySearch").value = "";
+    document.getElementById("selectedPartyCard").style.display = "none";
+    document.getElementById("salePartyListWrapper").style.display = "block";
+    renderSalePartyLiveList("");
+}
+
+// Quick Add Party Modal
+function openQuickAddPartyModal(defaultGroup) {
+    document.getElementById("qpName").value = "";
+    document.getElementById("qpGroup").value = defaultGroup || "Sundry Debtors";
+    document.getElementById("qpCity").value = "Jaipur";
+    document.getElementById("qpPhone").value = "";
+    document.getElementById("qpGst").value = "";
+    document.getElementById("qpOpBal").value = "0.00";
+    document.getElementById("quickAddPartyModal")?.classList.add("active");
+}
+
+function closeQuickAddPartyModal() {
+    document.getElementById("quickAddPartyModal")?.classList.remove("active");
+}
+
+function saveQuickParty() {
+    const name = document.getElementById("qpName").value.trim().toUpperCase();
+    const group = document.getElementById("qpGroup").value;
+    const city = document.getElementById("qpCity").value.trim().toUpperCase() || "LOCAL";
+    const phone = document.getElementById("qpPhone").value.trim();
+    const gst = document.getElementById("qpGst").value.trim().toUpperCase();
+    const opBal = parseFloat(document.getElementById("qpOpBal").value) || 0.0;
+
+    if (!name) { alert("Party Name is required!"); return; }
+
+    const newParty = {
+        id: "p_" + Date.now(),
+        name, group, city, state: "Rajasthan", phone, gst, opBal
+    };
+
+    window.erpEngine.parties.push(newParty);
+    saveLocalState();
+    populateAllDatalists();
+    if (window.GoogleDriveSync) GoogleDriveSync.pushToDrive(window.erpEngine);
+
+    closeQuickAddPartyModal();
+    selectSalePartyDirectly(newParty.id);
+    alert(`✅ Party ${name} created and selected for billing!`);
 }
 
 function proceedToSaleStep2() {
@@ -186,19 +268,22 @@ function proceedToSaleStep2() {
         activeSaleSession.selectedParty = cashParty;
     }
 
-    const titleEl = document.getElementById("billingHeaderTitle");
-    const partyEl = document.getElementById("billingHeaderParty");
-    if (titleEl) titleEl.innerText = `TAX INVOICE: ${activeSaleSession.billNo}`;
-    if (partyEl) partyEl.innerText = `Party: ${activeSaleSession.selectedParty.name} | Mode: ${activeSaleSession.paymentMode}`;
+    document.getElementById("billingHeaderTitle").innerText = `TAX INVOICE: ${activeSaleSession.billNo}`;
+    document.getElementById("billingHeaderParty").innerText = `Party: ${activeSaleSession.selectedParty.name} | Date: ${activeSaleSession.billDate} | Mode: ${activeSaleSession.paymentMode}`;
 
     renderSaleCart();
     showScreen('view-sale-step2');
 }
 
+// =============================================================================
+// MEDICINE SEARCH MODAL (STEP 2: LIVE SELECTOR & QUICK ADD PRODUCT)
+// =============================================================================
+
 function openProductSearchModal() {
+    document.getElementById("prodLiveSearchInput").value = "";
     renderProductSearchList("");
     document.getElementById("productSearchModal")?.classList.add("active");
-    setTimeout(() => { document.getElementById("prodLiveSearchInput")?.focus(); }, 100);
+    setTimeout(() => { document.getElementById("prodLiveSearchInput")?.focus(); }, 150);
 }
 
 function closeProductSearchModal() {
@@ -206,7 +291,7 @@ function closeProductSearchModal() {
 }
 
 function filterProductSearchList(query) {
-    renderProductSearchList(query.toLowerCase());
+    renderProductSearchList(query.toLowerCase().trim());
 }
 
 function renderProductSearchList(query) {
@@ -214,20 +299,50 @@ function renderProductSearchList(query) {
     if (!listEl) return;
     listEl.innerHTML = "";
 
-    window.erpEngine.medicines.filter(m => m.name.toLowerCase().includes(query) || (m.systemId && m.systemId.toLowerCase().includes(query))).forEach(m => {
+    const filtered = window.erpEngine.medicines.filter(m => m.name.toLowerCase().includes(query) || (m.systemId && m.systemId.toLowerCase().includes(query)));
+
+    if (filtered.length === 0) {
+        listEl.innerHTML = `<div style="padding:15px; color:var(--text-muted); font-size:0.85rem; text-align:center;">No product found. Click '+ NEW PRODUCT' above to add.</div>`;
+        return;
+    }
+
+    filtered.forEach(m => {
         listEl.innerHTML += `
             <div class="picker-item-row" onclick="selectProductForBilling('${m.id}')">
                 <div>
-                    <strong style="color:var(--text-light);">${m.name}</strong>
-                    <div style="font-size:0.75rem; color:var(--text-muted);">${m.packing} | Code: ${m.systemId}</div>
+                    <strong style="color:var(--text-light); font-size:0.95rem;">${m.name}</strong>
+                    <div style="font-size:0.75rem; color:var(--text-muted);">${m.packing} | Code: ${m.systemId || m.id}</div>
                 </div>
                 <div style="text-align:right;">
-                    <div style="color:var(--accent-emerald); font-weight:bold;">Stock: ${m.stock}</div>
+                    <div style="color:var(--accent-emerald); font-weight:900; font-size:0.95rem;">Stock: ${m.stock}</div>
                     <div style="font-size:0.75rem; color:var(--text-muted);">MRP: ₹ ${m.mrp.toFixed(2)}</div>
                 </div>
             </div>
         `;
     });
+}
+
+function openQuickAddProductModal() {
+    const name = prompt("Enter New Product Name (e.g. CROCIN 500):");
+    if (!name) return;
+    const pack = prompt("Enter Packing (e.g. 10 TAB):", "10 TAB") || "10 TAB";
+    const mrp = parseFloat(prompt("Enter MRP (₹):", "30.00")) || 30.0;
+    const purRate = parseFloat(prompt("Enter Pur. Rate (₹):", "20.00")) || 20.0;
+    const rateA = parseFloat(prompt("Enter Sale Rate A (₹):", "25.00")) || 25.0;
+
+    const sysId = `PH-${10001 + window.erpEngine.medicines.length}`;
+    const newMed = {
+        id: sysId, systemId: sysId, name: name.toUpperCase(), packing: pack.toUpperCase(), drugForm: "TAB", hsnCode: "3004",
+        batch: "DL-101", exp: "12/28", mrp, purRate, rateA, rateB: rateA * 0.95, rateC: rateA * 0.92, stock: 0, gst: 12
+    };
+
+    window.erpEngine.medicines.push(newMed);
+    window.erpEngine.rebuildAllInventory();
+    saveLocalState();
+    populateAllDatalists();
+    if (window.GoogleDriveSync) GoogleDriveSync.pushToDrive(window.erpEngine);
+
+    selectProductForBilling(newMed.id);
 }
 
 function selectProductForBilling(medId) {
@@ -238,9 +353,7 @@ function selectProductForBilling(medId) {
     activeEditingMed = med;
     const batches = window.erpEngine.batchHistory[med.systemId || med.id] || [];
 
-    const titleEl = document.getElementById("entryModalProdTitle");
-    if (titleEl) titleEl.innerText = `${med.name} (${med.packing})`;
-
+    document.getElementById("entryModalProdTitle").innerText = `${med.name} (${med.packing})`;
     document.getElementById("eBatch").value = batches.length > 0 ? batches[0].batch : "DL-101";
     document.getElementById("eExp").value = batches.length > 0 ? batches[0].exp : "12/28";
     document.getElementById("eMrp").value = med.mrp.toFixed(2);
@@ -495,93 +608,7 @@ function dismissSuccessAndNewBill() {
 }
 
 // =============================================================================
-// SALE REGISTER & PURCHASE REGISTER (WITH REAL-TIME AUDIT SUMMARY)
-// =============================================================================
-
-function renderSaleRegister() {
-    const tbody = document.getElementById("saleRegTableBody");
-    if (!tbody) return;
-    tbody.innerHTML = "";
-
-    const fromDate = document.getElementById("saleRegFromDate")?.value || "2020-01-01";
-    const toDate = document.getElementById("saleRegToDate")?.value || "2030-12-31";
-    const query = document.getElementById("saleRegSearch")?.value.toLowerCase().trim() || "";
-
-    let totalTaxable = 0;
-    let totalGst = 0;
-    let totalNet = 0;
-
-    window.erpEngine.sales
-        .filter(s => s.status === 'Active' && s.date >= fromDate && s.date <= toDate)
-        .filter(s => s.billNo.toLowerCase().includes(query) || s.partyName.toLowerCase().includes(query))
-        .forEach(s => {
-            const tax = s.items.reduce((sum, i) => sum + (i.total - (i.qty * i.rate)), 0);
-            const taxable = s.totalAmount - tax;
-
-            totalTaxable += taxable;
-            totalGst += tax;
-            totalNet += s.totalAmount;
-
-            tbody.innerHTML += `
-                <tr>
-                    <td>${s.date}</td>
-                    <td><strong>${s.billNo}</strong></td>
-                    <td>${s.partyName}</td>
-                    <td>${s.partyGstin || 'N/A'}</td>
-                    <td><span class="badge-tag">${s.paymentMode}</span></td>
-                    <td>₹ ${taxable.toFixed(2)}</td>
-                    <td>₹ ${tax.toFixed(2)}</td>
-                    <td><strong>₹ ${s.totalAmount.toFixed(2)}</strong></td>
-                    <td><button class="btn btn-secondary" style="padding:2px 8px; font-size:0.7rem;" onclick="reprintSaleBill('${s.billNo}')">REPRINT</button></td>
-                </tr>
-            `;
-        });
-
-    document.getElementById("saleRegSumTaxable").innerText = `₹ ${totalTaxable.toFixed(2)}`;
-    document.getElementById("saleRegSumGst").innerText = `₹ ${totalGst.toFixed(2)}`;
-    document.getElementById("saleRegSumNet").innerText = `₹ ${totalNet.toFixed(2)}`;
-}
-
-function reprintSaleBill(billNo) {
-    const sale = window.erpEngine.sales.find(s => s.billNo === billNo);
-    if (!sale) return;
-    lastSavedDoc = sale;
-    triggerDirectPrint('A4');
-}
-
-function renderPurchaseRegister() {
-    const tbody = document.getElementById("purRegTableBody");
-    if (!tbody) return;
-    tbody.innerHTML = "";
-
-    const fromDate = document.getElementById("purRegFromDate")?.value || "2020-01-01";
-    const toDate = document.getElementById("purRegToDate")?.value || "2030-12-31";
-    const query = document.getElementById("purRegSearch")?.value.toLowerCase().trim() || "";
-
-    let totalNet = 0;
-
-    window.erpEngine.purchases
-        .filter(p => p.date >= fromDate && p.date <= toDate)
-        .filter(p => p.billNo.toLowerCase().includes(query) || p.distributorName.toLowerCase().includes(query))
-        .forEach(p => {
-            totalNet += p.totalAmount;
-            tbody.innerHTML += `
-                <tr>
-                    <td>${p.date}</td>
-                    <td><span class="badge-tag">${p.internalNo}</span></td>
-                    <td><strong>${p.billNo}</strong></td>
-                    <td>${p.distributorName}</td>
-                    <td>${p.paymentMode}</td>
-                    <td><strong>₹ ${p.totalAmount.toFixed(2)}</strong></td>
-                </tr>
-            `;
-        });
-
-    document.getElementById("purRegSumNet").innerText = `₹ ${totalNet.toFixed(2)}`;
-}
-
-// =============================================================================
-// STITCHER WIZARD (CONVERT DELIVERY CHALLANS TO FINAL GST INVOICE)
+// STITCHER WIZARD, REGISTERS, VOUCHERS & MASTERS
 // =============================================================================
 
 function openStitcherWizardScreen() {
@@ -671,7 +698,6 @@ function finalizeStitcherConversion() {
             discountRupees: 0,
             total: ch.totalAmount
         });
-        // Mark as Billed
         ch.status = "Billed";
     });
 
@@ -704,9 +730,87 @@ function finalizeStitcherConversion() {
     showScreen('view-billing-hub');
 }
 
-// =============================================================================
-// PURCHASES, CHALLANS, RETURNS, VOUCHERS, DAYBOOK, LEDGERS & MASTERS
-// =============================================================================
+function renderSaleRegister() {
+    const tbody = document.getElementById("saleRegTableBody");
+    if (!tbody) return;
+    tbody.innerHTML = "";
+
+    const fromDate = document.getElementById("saleRegFromDate")?.value || "2020-01-01";
+    const toDate = document.getElementById("saleRegToDate")?.value || "2030-12-31";
+    const query = document.getElementById("saleRegSearch")?.value.toLowerCase().trim() || "";
+
+    let totalTaxable = 0;
+    let totalGst = 0;
+    let totalNet = 0;
+
+    window.erpEngine.sales
+        .filter(s => s.status === 'Active' && s.date >= fromDate && s.date <= toDate)
+        .filter(s => s.billNo.toLowerCase().includes(query) || s.partyName.toLowerCase().includes(query))
+        .forEach(s => {
+            const tax = s.items.reduce((sum, i) => sum + (i.total - (i.qty * i.rate)), 0);
+            const taxable = s.totalAmount - tax;
+
+            totalTaxable += taxable;
+            totalGst += tax;
+            totalNet += s.totalAmount;
+
+            tbody.innerHTML += `
+                <tr>
+                    <td>${s.date}</td>
+                    <td><strong>${s.billNo}</strong></td>
+                    <td>${s.partyName}</td>
+                    <td>${s.partyGstin || 'N/A'}</td>
+                    <td><span class="badge-tag">${s.paymentMode}</span></td>
+                    <td>₹ ${taxable.toFixed(2)}</td>
+                    <td>₹ ${tax.toFixed(2)}</td>
+                    <td><strong>₹ ${s.totalAmount.toFixed(2)}</strong></td>
+                    <td><button class="btn btn-secondary" style="padding:2px 8px; font-size:0.7rem;" onclick="reprintSaleBill('${s.billNo}')">REPRINT</button></td>
+                </tr>
+            `;
+        });
+
+    document.getElementById("saleRegSumTaxable").innerText = `₹ ${totalTaxable.toFixed(2)}`;
+    document.getElementById("saleRegSumGst").innerText = `₹ ${totalGst.toFixed(2)}`;
+    document.getElementById("saleRegSumNet").innerText = `₹ ${totalNet.toFixed(2)}`;
+}
+
+function reprintSaleBill(billNo) {
+    const sale = window.erpEngine.sales.find(s => s.billNo === billNo);
+    if (!sale) return;
+    lastSavedDoc = sale;
+    triggerDirectPrint('A4');
+}
+
+function renderPurchaseRegister() {
+    const tbody = document.getElementById("purRegTableBody");
+    if (!tbody) return;
+    tbody.innerHTML = "";
+
+    const fromDate = document.getElementById("purRegFromDate")?.value || "2020-01-01";
+    const toDate = document.getElementById("purRegToDate")?.value || "2030-12-31";
+    const query = document.getElementById("purRegSearch")?.value.toLowerCase().trim() || "";
+
+    let totalNet = 0;
+
+    window.erpEngine.purchases
+        .filter(p => p.date >= fromDate && p.date <= toDate)
+        .filter(p => p.billNo.toLowerCase().includes(query) || p.distributorName.toLowerCase().includes(query))
+        .forEach(p => {
+            totalNet += p.totalAmount;
+            tbody.innerHTML += `
+                <tr>
+                    <td>${p.date}</td>
+                    <td><span class="badge-tag">${p.internalNo}</span></td>
+                    <td><strong>${p.billNo}</strong></td>
+                    <td>${p.distributorName}</td>
+                    <td>${p.paymentMode}</td>
+                    <td><strong>₹ ${p.totalAmount.toFixed(2)}</strong></td>
+                </tr>
+            `;
+        });
+
+    document.getElementById("purRegSumNet").innerText = `₹ ${totalNet.toFixed(2)}`;
+}
 
 function initNewPurchaseSession() {
     const nextNo = window.erpEngine.getNextNumber('PURCHASE');
@@ -864,7 +968,7 @@ function renderChallansRegister() {
                 <td>${ch.date}</td>
                 <td>${ch.partyName}</td>
                 <td>₹ ${ch.totalAmount.toFixed(2)}</td>
-                <td><span class="tag-badge">${ch.status || 'Pending'}</span></td>
+                <td><span class="badge-tag">${ch.status || 'Pending'}</span></td>
             </tr>
         `;
     });
@@ -1010,7 +1114,7 @@ function saveNewProductMaster() {
     const rateA = parseFloat(document.getElementById("mProdRateA")?.value) || 0;
     const gst = parseFloat(document.getElementById("mProdGst")?.value) || 12;
 
-    if (!name || !pack) { alert("Product name and packing are required!"); return; }
+    if (!name || !pack) { alert("Product name and packing are mandatory!"); return; }
 
     const sysId = `PH-${10001 + window.erpEngine.medicines.length}`;
     window.erpEngine.medicines.push({
@@ -1036,7 +1140,7 @@ function saveNewPartyMaster() {
     const phone = document.getElementById("mPartyPhone")?.value.trim() || "";
     const opBal = parseFloat(document.getElementById("mPartyOpBal")?.value) || 0.0;
 
-    if (!name) { alert("Party Name is required!"); return; }
+    if (!name) { alert("Party / Firm Name is required!"); return; }
 
     window.erpEngine.parties.push({
         id: "p_" + Date.now(), name, group, gst, city, state: "Rajasthan", phone, opBal
