@@ -1,5 +1,5 @@
 // FILE: lib/logic/google_drive_sync_service.dart
-// ISOLATED 2-WAY SYNC SERVICE (Zero disruption to local storage)
+// ISOLATED 2-WAY SYNC SERVICE WITH LOCKED ACTIVE COMPANY METADATA
 
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
@@ -8,7 +8,7 @@ import '../models.dart';
 import '../pharoah_manager.dart';
 
 class GoogleDriveSyncService {
-  /// 1. Push Mobile App Data to Google Drive Webhook
+  /// 1. Push Mobile App Data & Locked Company Profile to Google Drive
   static Future<bool> pushDataToDrive({
     required String webhookUrl,
     required String userEmail,
@@ -18,6 +18,17 @@ class GoogleDriveSyncService {
 
     try {
       final payload = {
+        'activeCompany': {
+          'id': ph.activeCompany?.id ?? 'PH-C-101',
+          'name': ph.activeCompany?.name ?? 'PHAROAH ERP',
+          'businessType': ph.activeCompany?.businessType ?? 'WHOLESALE',
+          'gstin': ph.activeCompany?.gstin ?? 'N/A',
+          'state': ph.activeCompany?.state ?? 'Rajasthan',
+          'address': ph.activeCompany?.address ?? '',
+          'phone': ph.activeCompany?.phone ?? '',
+          'email': ph.activeCompany?.email ?? '',
+          'fy': ph.currentFY.isNotEmpty ? ph.currentFY : '2026-27',
+        },
         'sales': ph.sales.map((e) => e.toMap()).toList(),
         'purchases': ph.purchases.map((e) => e.toMap()).toList(),
         'medicines': ph.medicines.map((e) => e.toMap()).toList(),
@@ -60,7 +71,6 @@ class GoogleDriveSyncService {
         if (data['status'] == 'SUCCESS' && data['payload'] != null) {
           final cloudPayload = data['payload'];
 
-          // Safe Delta Merge for Web Bills
           if (cloudPayload['sales'] != null) {
             for (var s in cloudPayload['sales']) {
               if (s is Map<String, dynamic> && s['billNo'] != null) {
@@ -69,14 +79,14 @@ class GoogleDriveSyncService {
                   ph.sales.add(Sale(
                     id: s['billNo'] ?? DateTime.now().toString(),
                     billNo: s['billNo'] ?? "WEB-INV",
-                    partyId: s['customer'] ?? "cash",
-                    date: DateTime.tryParse(s['billDate'] ?? "") ?? DateTime.now(),
-                    partyName: s['customer'] ?? "CASH CUSTOMER",
-                    partyGstin: "",
-                    partyState: "Rajasthan",
+                    partyId: s['partyId'] ?? "p_cash",
+                    date: DateTime.tryParse(s['date'] ?? "") ?? DateTime.now(),
+                    partyName: s['partyName'] ?? "CASH CUSTOMER",
+                    partyGstin: s['partyGstin'] ?? "",
+                    partyState: s['partyState'] ?? "Rajasthan",
                     items: [],
                     totalAmount: (s['totalAmount'] ?? 0.0).toDouble(),
-                    paymentMode: "CASH",
+                    paymentMode: s['paymentMode'] ?? "CASH",
                     sourceTag: "CLOUD-WEB",
                   ));
                 }

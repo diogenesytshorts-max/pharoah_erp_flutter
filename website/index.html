@@ -8,7 +8,7 @@
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
     <meta name="theme-color" content="#0d47a1">
-    <link rel="stylesheet" href="style.css?v=6.0">
+    <link rel="stylesheet" href="style.css?v=7.0">
     <script>
       if ('serviceWorker' in navigator) {
         navigator.serviceWorker.getRegistrations().then(rList => {
@@ -24,11 +24,11 @@
 </head>
 <body>
 
-    <!-- App Top Header with Dynamic Company Profile -->
+    <!-- App Top Header with Strictly Locked Company Profile -->
     <header class="app-header">
-        <div class="brand-box" onclick="openCompanyEditModal()" style="cursor:pointer;" title="Click to Edit Company Profile">
+        <div class="brand-box">
             <div>
-                <div class="brand-title" id="headerCompanyName">DWARIKA MEDICALS</div>
+                <div class="brand-title" id="headerCompanyName">PHAROAH ERP</div>
                 <div class="brand-badges">
                     <span id="headerCompanyId" style="color: rgba(255,255,255,0.75);">ID: PH-C-101</span>
                     <span style="opacity: 0.5;">|</span>
@@ -36,7 +36,6 @@
                     <span class="tag-badge" id="headerBusinessType">WHOLESALE</span>
                 </div>
             </div>
-            <span style="font-size: 0.75rem; color: var(--accent-cyan);">✏️</span>
         </div>
 
         <div class="header-actions">
@@ -144,9 +143,7 @@
             </div>
         </section>
 
-        <!-- ========================================== -->
-        <!-- VIEW 2: SALE STEP 1                        -->
-        <!-- ========================================== -->
+        <!-- VIEW 2: SALE STEP 1 -->
         <section id="view-sale-step1" style="display: none;">
             <div class="screen-panel">
                 <div class="screen-header">
@@ -199,9 +196,7 @@
             </div>
         </section>
 
-        <!-- ========================================== -->
-        <!-- VIEW 3: SALE STEP 2 (CART)                 -->
-        <!-- ========================================== -->
+        <!-- VIEW 3: SALE STEP 2 (CART) -->
         <section id="view-sale-step2" style="display: none;">
             <div class="screen-panel">
                 <div class="screen-header">
@@ -257,9 +252,7 @@
             </div>
         </section>
 
-        <!-- ========================================== -->
-        <!-- VIEW 4: PURCHASES                          -->
-        <!-- ========================================== -->
+        <!-- VIEW 4: PURCHASES -->
         <section id="view-purchases" style="display: none;">
             <div class="screen-panel">
                 <div class="screen-header">
@@ -369,9 +362,7 @@
             </div>
         </section>
 
-        <!-- ========================================== -->
-        <!-- VIEW 5: CHALLANS                           -->
-        <!-- ========================================== -->
+        <!-- VIEW 5: CHALLANS -->
         <section id="view-challans" style="display: none;">
             <div class="screen-panel">
                 <div class="screen-header">
@@ -411,9 +402,7 @@
             </div>
         </section>
 
-        <!-- ========================================== -->
-        <!-- VIEW 6: RETURNS                            -->
-        <!-- ========================================== -->
+        <!-- VIEW 6: RETURNS -->
         <section id="view-returns" style="display: none;">
             <div class="screen-panel">
                 <div class="screen-header">
@@ -434,9 +423,7 @@
             </div>
         </section>
 
-        <!-- ========================================== -->
-        <!-- VIEW 7: ACCOUNTS & VOUCHERS                -->
-        <!-- ========================================== -->
+        <!-- VIEW 7: ACCOUNTS & VOUCHERS -->
         <section id="view-accounts" style="display: none;">
             <div class="screen-panel">
                 <div class="screen-header">
@@ -498,9 +485,7 @@
             </div>
         </section>
 
-        <!-- ========================================== -->
-        <!-- VIEW 8: DAYBOOK REGISTER                   -->
-        <!-- ========================================== -->
+        <!-- VIEW 8: DAYBOOK REGISTER -->
         <section id="view-daybook" style="display: none;">
             <div class="screen-panel">
                 <div class="screen-header">
@@ -524,9 +509,7 @@
             </div>
         </section>
 
-        <!-- ========================================== -->
-        <!-- VIEW 9: KHATA LEDGERS                      -->
-        <!-- ========================================== -->
+        <!-- VIEW 9: KHATA LEDGERS -->
         <section id="view-ledgers" style="display: none;">
             <div class="screen-panel">
                 <div class="screen-header">
@@ -550,9 +533,7 @@
             </div>
         </section>
 
-        <!-- ========================================== -->
-        <!-- VIEW 10: STOCK & BATCHES                   -->
-        <!-- ========================================== -->
+        <!-- VIEW 10: STOCK -->
         <section id="view-stock" style="display: none;">
             <div class="screen-panel">
                 <div class="screen-header">
@@ -576,9 +557,7 @@
             </div>
         </section>
 
-        <!-- ========================================== -->
-        <!-- VIEW 11: MASTERS HUB                       -->
-        <!-- ========================================== -->
+        <!-- VIEW 11: MASTERS -->
         <section id="view-masters" style="display: none;">
             <div class="screen-panel" style="margin-bottom: 2rem;">
                 <div class="screen-header">
@@ -667,35 +646,6 @@
             </div>
         </section>
     </main>
-
-    <!-- MODAL: COMPANY PROFILE EDIT -->
-    <div id="companyProfileModal" class="modal-overlay">
-        <div class="modal-card" style="max-width: 500px;">
-            <div class="modal-card-header">
-                <h3 style="color: var(--text-light); font-size: 1.1rem;">EDIT COMPANY PROFILE</h3>
-                <button class="btn btn-secondary" style="padding: 4px 10px;" onclick="closeCompanyEditModal()">✕</button>
-            </div>
-            <div class="form-field" style="margin-top: 1rem;">
-                <label>FIRM / SHOP NAME *</label>
-                <input type="text" id="cNameInput" class="erp-input" placeholder="e.g. DWARIKA MEDICALS">
-            </div>
-            <div class="form-field" style="margin-top: 0.8rem;">
-                <label>BUSINESS TYPE</label>
-                <select id="cTypeInput" class="erp-input">
-                    <option value="WHOLESALE">WHOLESALE</option>
-                    <option value="RETAIL">RETAIL</option>
-                </select>
-            </div>
-            <div class="form-field" style="margin-top: 0.8rem;">
-                <label>FINANCIAL YEAR</label>
-                <input type="text" id="cFyInput" class="erp-input" value="2026-27">
-            </div>
-            <div style="display:flex; justify-content:space-between; margin-top: 1.5rem;">
-                <button class="btn btn-secondary" onclick="closeCompanyEditModal()">CANCEL</button>
-                <button class="btn btn-success" onclick="saveCompanyProfileChanges()">SAVE CHANGES</button>
-            </div>
-        </div>
-    </div>
 
     <!-- MODAL 1: PRODUCT SEARCH PICKER -->
     <div id="productSearchModal" class="modal-overlay">
@@ -820,7 +770,7 @@
                 <button class="btn btn-success" onclick="saveDriveSettingsFromModal()">CONNECT & SYNC</button>
             </div>
             <div style="border-top: 1px solid var(--border-color); padding-top: 1rem; text-align: center;">
-                <button class="btn btn-danger" style="width: 100%;" onclick="hardResetAllLocalData()">🧹 HARD RESET ALL LOCAL WEB DATA</button>
+                <button class="btn btn-danger-sm" style="width: 100%; padding: 8px;" onclick="hardResetAllLocalData()">🧹 RESET LOCAL DATA</button>
             </div>
         </div>
     </div>
@@ -844,8 +794,8 @@
     <datalist id="itemDatalist"></datalist>
     <div id="printArea" class="print-area"></div>
 
-    <script src="drive_sync.js?v=6.0"></script>
-    <script src="app_engine.js?v=6.0"></script>
-    <script src="app_ui.js?v=6.0"></script>
+    <script src="drive_sync.js?v=7.0"></script>
+    <script src="app_engine.js?v=7.0"></script>
+    <script src="app_ui.js?v=7.0"></script>
 </body>
 </html>

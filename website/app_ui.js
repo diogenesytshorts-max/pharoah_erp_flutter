@@ -1,8 +1,8 @@
 // =============================================================================
-// PHAROAH ERP - FULL ENTERPRISE CLIENT ENGINE (AUTO CACHE PURGE & NO-FREEZE UI)
+// PHAROAH ERP - UI CONTROLLER WITH STRICTLY LOCKED APP COMPANY PROFILE
 // =============================================================================
 
-const DB_VERSION_KEY = "pharoah_erp_v6_clean_db";
+const DB_VERSION_KEY = "pharoah_erp_v7_locked_db";
 
 let activeSaleSession = {
     billNo: "INV-1001",
@@ -20,12 +20,10 @@ let activeEditingMed = null;
 let lastSavedDoc = null;
 let syncIntervalId = null;
 
-// Initial Load Handler with Auto Cache Purge
+// Initial Load Handler
 document.addEventListener("DOMContentLoaded", async () => {
     try {
-        // 🧹 1. PURGE OLD CORRUPTED LOCALSTORAGE AUTOMATICALLY
         purgeCorruptedLegacyStorage();
-
         loadLocalState();
         window.erpEngine.rebuildAllInventory();
         populateAllDatalists();
@@ -33,6 +31,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         initNewPurchaseSession();
         initNewChallanSession();
         updateDashboardStats();
+        syncCompanyHeaderWithAppState();
 
         const todayStr = new Date().toISOString().split('T')[0];
         ["vouchDate", "retDate", "chDate"].forEach(id => {
@@ -53,7 +52,25 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
 });
 
-// Auto-purge legacy storage keys on version mismatch
+function syncCompanyHeaderWithAppState() {
+    const comp = window.erpEngine.activeCompany || {
+        id: "PH-C-101",
+        name: "PHAROAH ERP",
+        businessType: "WHOLESALE",
+        fy: "2026-27"
+    };
+
+    const nameEl = document.getElementById("headerCompanyName");
+    const idEl = document.getElementById("headerCompanyId");
+    const typeEl = document.getElementById("headerBusinessType");
+    const fyEl = document.getElementById("headerFyLabel");
+
+    if (nameEl) nameEl.innerText = comp.name.toUpperCase();
+    if (idEl) idEl.innerText = `ID: ${comp.id}`;
+    if (typeEl) typeEl.innerText = comp.businessType.toUpperCase();
+    if (fyEl) fyEl.innerText = `FY: ${comp.fy || '2026-27'}`;
+}
+
 function purgeCorruptedLegacyStorage() {
     const savedVer = localStorage.getItem("pharoah_version_check");
     if (savedVer !== DB_VERSION_KEY) {
@@ -62,90 +79,49 @@ function purgeCorruptedLegacyStorage() {
         localStorage.setItem("pharoah_version_check", DB_VERSION_KEY);
         window.erpEngine = new PharoahWebEngine();
         saveLocalState();
-        console.log("🧹 Legacy corrupted cache & old Hindi data purged successfully!");
+        console.log("🧹 Cache purged and synchronized with app schema!");
     }
 }
 
-// 1-Click Reset for User
 function hardResetAllLocalData() {
-    if (confirm("Are you sure you want to clear all local web storage and start fresh?")) {
+    if (confirm("Reset local web cache and synchronize fresh with Google Drive?")) {
         localStorage.clear();
         sessionStorage.clear();
         localStorage.setItem("pharoah_version_check", DB_VERSION_KEY);
         window.erpEngine = new PharoahWebEngine();
         saveLocalState();
-        alert("✅ All local data cleared! Reloading fresh ERP...");
         location.reload();
     }
 }
 
-// Module View Switcher
-function showModuleScreen(moduleKey) {
+function showScreen(screenId) {
     document.querySelectorAll("main > section").forEach(sec => sec.style.display = "none");
-    let targetSectionId = `view-${moduleKey}`;
-    if (moduleKey === 'billing') targetSectionId = 'view-sale-step1';
-
-    const targetSec = document.getElementById(targetSectionId);
+    const targetSec = document.getElementById(screenId);
     if (targetSec) targetSec.style.display = "block";
 
-    if (moduleKey === 'daybook') renderDaybook();
-    if (moduleKey === 'ledgers') renderLedgers();
-    if (moduleKey === 'stock') renderStock();
-    if (moduleKey === 'challans') renderChallansRegister();
-    if (moduleKey === 'returns') renderReturnsRegister();
+    if (screenId === 'view-daybook') renderDaybook();
+    if (screenId === 'view-ledgers') renderLedgers();
+    if (screenId === 'view-stock') renderStock();
+    if (screenId === 'view-challans') renderChallansRegister();
+    if (screenId === 'view-returns') renderReturnsRegister();
 }
 
 function returnToDashboard() {
-    showModuleScreen('dashboard');
+    showScreen('view-dashboard');
 }
 
-function startNewSaleWorkflow() {
+function startSaleWorkflow() {
     initNewSaleSession();
-    showModuleScreen('billing');
+    showScreen('view-sale-step1');
 }
-
-function startNewPurchaseWorkflow() {
-    initNewPurchaseSession();
-    showModuleScreen('purchases');
-}
-
-function openGuideModal() { document.getElementById("guideModal")?.classList.add("active"); }
-function closeGuideModal() { document.getElementById("guideModal")?.classList.remove("active"); }
-function openDriveSettings() {
-    if (window.GoogleDriveSync) {
-        const uEmail = document.getElementById("driveUserEmail");
-        const aUrl = document.getElementById("driveApiUrl");
-        if (uEmail) uEmail.value = GoogleDriveSync.config.userEmail || "";
-        if (aUrl) aUrl.value = GoogleDriveSync.config.apiUrl || "";
-    }
-    document.getElementById("driveSettingsModal")?.classList.add("active");
-}
-function closeDriveSettings() { document.getElementById("driveSettingsModal")?.classList.remove("active"); }
-
-function saveDriveSettingsFromModal() {
-    const email = document.getElementById("driveUserEmail")?.value.trim() || "";
-    const url = document.getElementById("driveApiUrl")?.value.trim() || "";
-    if (!url) { alert("Please enter Webhook URL!"); return; }
-    if (window.GoogleDriveSync) { GoogleDriveSync.saveConfig(url, email); }
-    closeDriveSettings();
-    pullLatestFromDrive();
-    alert("✅ Google Drive 2-Way Sync Connected Successfully!");
-}
-
-// =============================================================================
-// SALE ENTRY & BILLING FLOW (2-STEP MIRROR OF FLUTTER APP)
-// =============================================================================
 
 function initNewSaleSession() {
-    const seq = Math.floor(1000 + Math.random() * 9000);
-    const prefix = document.getElementById("saleSeriesSelect")?.value || "INV-";
-    const billNo = `${prefix}${seq}`;
-
+    const nextNo = window.erpEngine.getNextNumber('SALE');
     activeSaleSession = {
-        billNo: billNo,
+        billNo: nextNo,
         billDate: new Date().toISOString().split('T')[0],
         paymentMode: "CASH",
-        seriesPrefix: prefix,
+        seriesPrefix: "INV-",
         selectedParty: null,
         cartItems: [],
         extraDiscount: 0.0,
@@ -155,10 +131,10 @@ function initNewSaleSession() {
 
     const billNoEl = document.getElementById("saleBillNo");
     const billDateEl = document.getElementById("saleBillDate");
-    if (billNoEl) billNoEl.value = billNo;
+    if (billNoEl) billNoEl.value = nextNo;
     if (billDateEl) billDateEl.value = activeSaleSession.billDate;
 
-    clearSelectedSaleParty();
+    clearSaleParty();
 }
 
 function updateSaleSeriesPrefix(prefix) {
@@ -170,7 +146,7 @@ function updateSaleSeriesPrefix(prefix) {
     if (billNoEl) billNoEl.value = billNo;
 }
 
-function setSalePaymentMode(mode) {
+function setSaleMode(mode) {
     activeSaleSession.paymentMode = mode;
     document.getElementById("modeCashBtn")?.classList.toggle("active", mode === "CASH");
     document.getElementById("modeCreditBtn")?.classList.toggle("active", mode === "CREDIT");
@@ -189,7 +165,7 @@ function onSalePartySelected(partyName) {
     }
 }
 
-function clearSelectedSaleParty() {
+function clearSaleParty() {
     activeSaleSession.selectedParty = null;
     const searchEl = document.getElementById("salePartySearch");
     if (searchEl) searchEl.value = "";
@@ -197,7 +173,7 @@ function clearSelectedSaleParty() {
     if (cardEl) cardEl.style.display = "none";
 }
 
-function proceedToBillingStep2() {
+function proceedToSaleStep2() {
     if (!activeSaleSession.selectedParty) {
         const cashParty = window.erpEngine.parties.find(p => p.name.includes("CASH")) || window.erpEngine.parties[0];
         activeSaleSession.selectedParty = cashParty;
@@ -209,11 +185,9 @@ function proceedToBillingStep2() {
     if (partyEl) partyEl.innerText = `Party: ${activeSaleSession.selectedParty.name} | Mode: ${activeSaleSession.paymentMode}`;
 
     renderSaleCart();
-    document.querySelectorAll("main > section").forEach(sec => sec.style.display = "none");
-    document.getElementById("view-sale-step2").style.display = "block";
+    showScreen('view-sale-step2');
 }
 
-// Product Search & Selection Modal
 function openProductSearchModal() {
     renderProductSearchList("");
     document.getElementById("productSearchModal")?.classList.add("active");
@@ -424,7 +398,6 @@ function recalculateBillTotals() {
     if (sumGrandEl) sumGrandEl.innerText = `₹ ${grandTotal.toFixed(2)}`;
 }
 
-// Save Sale Bill & Open Non-Blocking Modal
 function saveSaleBill() {
     if (activeSaleSession.cartItems.length === 0) {
         alert("Cart is empty! Please add at least 1 item.");
@@ -513,10 +486,6 @@ function dismissSuccessAndNewBill() {
     document.getElementById("billSuccessModal")?.classList.remove("active");
     startSaleWorkflow();
 }
-
-// =============================================================================
-// PURCHASES, CHALLANS, RETURNS, VOUCHERS, LEDGERS & MASTERS
-// =============================================================================
 
 function initNewPurchaseSession() {
     const nextNo = window.erpEngine.getNextNumber('PURCHASE');
@@ -674,7 +643,7 @@ function renderChallansRegister() {
                 <td>${ch.date}</td>
                 <td>${ch.partyName}</td>
                 <td>₹ ${ch.totalAmount.toFixed(2)}</td>
-                <td><span class="pill" style="color:var(--accent-cyan);">${ch.status || 'Pending'}</span></td>
+                <td><span class="tag-badge">${ch.status || 'Pending'}</span></td>
             </tr>
         `;
     });
@@ -824,7 +793,7 @@ function saveNewProductMaster() {
 
     const sysId = `PH-${10001 + window.erpEngine.medicines.length}`;
     window.erpEngine.medicines.push({
-        id: sysId, systemId: sysId, name, packing: pack, drugForm: "TAB", hsn: "3004",
+        id: sysId, systemId: sysId, name, packing: pack, drugForm: "TAB", hsnCode: "3004",
         batch: "DL-101", exp: "12/28", mrp, purRate, rateA, rateB: rateA * 0.95, rateC: rateA * 0.92, stock: 0, gst
     });
 
@@ -899,63 +868,3 @@ function loadLocalState() {
         try { Object.assign(window.erpEngine, JSON.parse(saved)); } catch(e) {}
     }
 }
-
-// --- 🏢 DYNAMIC COMPANY PROFILE MANAGEMENT ---
-function refreshCompanyHeaderDisplay() {
-    const comp = window.erpEngine.activeCompany || {
-        id: "PH-C-101",
-        name: "DWARIKA MEDICALS",
-        businessType: "WHOLESALE",
-        fy: "2026-27"
-    };
-
-    const nameEl = document.getElementById("headerCompanyName");
-    const idEl = document.getElementById("headerCompanyId");
-    const typeEl = document.getElementById("headerBusinessType");
-    const fyEl = document.getElementById("headerFyLabel");
-
-    if (nameEl) nameEl.innerText = comp.name.toUpperCase();
-    if (idEl) idEl.innerText = `ID: ${comp.id}`;
-    if (typeEl) typeEl.innerText = comp.businessType.toUpperCase();
-    if (fyEl) fyEl.innerText = `FY: ${comp.fy || '2026-27'}`;
-}
-
-function openCompanyEditModal() {
-    const comp = window.erpEngine.activeCompany || { name: "DWARIKA MEDICALS", businessType: "WHOLESALE", fy: "2026-27" };
-    document.getElementById("cNameInput").value = comp.name;
-    document.getElementById("cTypeInput").value = comp.businessType;
-    document.getElementById("cFyInput").value = comp.fy || "2026-27";
-    document.getElementById("companyProfileModal")?.classList.add("active");
-}
-
-function closeCompanyEditModal() {
-    document.getElementById("companyProfileModal")?.classList.remove("active");
-}
-
-function saveCompanyProfileChanges() {
-    const name = document.getElementById("cNameInput").value.trim();
-    const type = document.getElementById("cTypeInput").value;
-    const fy = document.getElementById("cFyInput").value.trim();
-
-    if (!name) { alert("Company name is required!"); return; }
-
-    window.erpEngine.activeCompany = {
-        id: window.erpEngine.activeCompany?.id || "PH-C-101",
-        name: name.toUpperCase(),
-        businessType: type,
-        fy: fy || "2026-27"
-    };
-
-    saveLocalState();
-    refreshCompanyHeaderDisplay();
-    closeCompanyEditModal();
-    if (window.GoogleDriveSync) GoogleDriveSync.pushToDrive(window.erpEngine);
-    alert(`✅ Active Company set to: ${name.toUpperCase()}`);
-}
-
-// Ensure header updates on state load
-const originalLoadLocalState = loadLocalState;
-loadLocalState = function() {
-    originalLoadLocalState();
-    refreshCompanyHeaderDisplay();
-};
