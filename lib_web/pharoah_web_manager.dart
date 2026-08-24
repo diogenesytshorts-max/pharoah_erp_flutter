@@ -1,10 +1,9 @@
 // FILE: lib_web/pharoah_web_manager.dart
-// PURE FLUTTER WEB STATE MANAGER (100% Web-Safe, Zero dart:io dependency)
+// PURE FLUTTER WEB ENGINE WITH COMPLETE BILLING, INVENTORY & STITCHER LOGIC
 
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:http/http.dart' as http;
 
 import '../lib/models.dart';
 import '../lib/inventory_logic_center.dart';
@@ -17,10 +16,8 @@ class PharoahWebManager with ChangeNotifier {
   String activeModule = "HOME";
   bool get showBatchFilter => activeCompany != null && activeCompany!.fYears.length > 1;
 
-  // Data Lists
   List<Medicine> medicines = [];
   List<Party> parties = [];
-  List<RouteArea> routes = [];
   List<Company> companies = [];
   List<Salt> salts = [];
   List<DrugType> drugTypes = [];
@@ -49,7 +46,6 @@ class PharoahWebManager with ChangeNotifier {
     notifyListeners();
   }
 
-  // Initial Load from Web Storage / Google Drive
   Future<void> initWebDatabase() async {
     final prefs = await SharedPreferences.getInstance();
     
@@ -64,7 +60,7 @@ class PharoahWebManager with ChangeNotifier {
       fYears: ["2026-27"],
     );
 
-    final rawDb = prefs.getString('pharoah_flutter_web_db');
+    final rawDb = prefs.getString('pharoah_flutter_web_db_v2');
     if (rawDb != null) {
       try {
         final Map<String, dynamic> db = jsonDecode(rawDb);
@@ -101,6 +97,7 @@ class PharoahWebManager with ChangeNotifier {
       "PH-00001": [BatchInfo(batch: "DL-101", exp: "12/28", packing: "15 TAB", mrp: 30.91, rate: 25.40, rateA: 28.50, rateB: 27.00, rateC: 26.50, qty: 150, openingQty: 150)],
       "PH-00002": [BatchInfo(batch: "PN-202", exp: "05/27", packing: "10 TAB", mrp: 120.00, rate: 95.00, rateA: 110.00, rateB: 105.00, rateC: 100.00, qty: 80, openingQty: 80)],
       "PH-00003": [BatchInfo(batch: "AZ-303", exp: "08/26", packing: "5 TAB", mrp: 115.00, rate: 88.00, rateA: 105.00, rateB: 100.00, rateC: 98.00, qty: 45, openingQty: 45)],
+      "PH-00004": [BatchInfo(batch: "LM-404", exp: "09/27", packing: "15 TAB", mrp: 25.00, rate: 18.00, rateA: 23.00, rateB: 22.00, rateC: 20.00, qty: 100, openingQty: 100)],
     };
     numberingSeries = [
       NumberingSeries(id: 's_sale', type: 'SALE', prefix: 'INV-', startNumber: 1001, isDefault: true),
@@ -130,7 +127,6 @@ class PharoahWebManager with ChangeNotifier {
     }
   }
 
-  // Save State & Push to Google Drive
   Future<void> save() async {
     final prefs = await SharedPreferences.getInstance();
     final dataMap = {
@@ -146,11 +142,10 @@ class PharoahWebManager with ChangeNotifier {
       'bats': batchHistory.map((k, v) => MapEntry(k, v.map((b) => b.toMap()).toList())),
     };
 
-    await prefs.setString('pharoah_flutter_web_db', jsonEncode(dataMap));
+    await prefs.setString('pharoah_flutter_web_db_v2', jsonEncode(dataMap));
     notifyListeners();
   }
 
-  // Next Bill Number Calculator
   String getNextNumber(String type, {String prefix = "INV-"}) {
     List<String> list = [];
     if (type == 'SALE') list = sales.map((s) => s.billNo).toList();
@@ -159,7 +154,7 @@ class PharoahWebManager with ChangeNotifier {
     if (type == 'RETURN') list = saleReturns.map((r) => r.billNo).toList();
 
     final existingNums = list
-        .filter((no) => no.startsWith(prefix))
+        .where((no) => no.startsWith(prefix))
         .map((no) => int.tryParse(no.replaceFirst(prefix, '')) ?? 0)
         .toList();
 
@@ -168,7 +163,7 @@ class PharoahWebManager with ChangeNotifier {
     return "$prefix${existingNums.last + 1}";
   }
 
-  // Finalize Sale Bill on Web
+  // Finalize Sale (App Parity)
   Future<void> finalizeSale({
     required String billNo,
     required DateTime date,
@@ -196,6 +191,13 @@ class PharoahWebManager with ChangeNotifier {
       linkedChallanIds: linkedIds ?? [],
     ));
 
+    if (linkedIds != null && linkedIds.isNotEmpty) {
+      for (var id in linkedIds) {
+        int idx = saleChallans.indexWhere((c) => c.id == id);
+        if (idx != -1) saleChallans[idx].status = "Billed";
+      }
+    }
+
     InventoryLogicCenter.rebuildAllInventory(
       medicines: medicines,
       batchHistory: batchHistory,
@@ -207,8 +209,40 @@ class PharoahWebManager with ChangeNotifier {
 
     await save();
   }
-}
 
-extension ListFilter<T> on List<T> {
-  List<T> filter(bool Function(T) test) => where(test).toList();
+  // Finalize Purchase (App Parity)
+  Future<void> finalizePurchase({
+    required String internalNo,
+    required String billNo,
+    required DateTime date,
+    required DateTime entryDate,
+    required Party party,
+    required List<PurchaseItem> items,
+    required double total,
+    required String mode,
+  }) async {
+    purchases.add(Purchase(
+      id: "PUR_${DateTime.now().millisecondsSinceEpoch}",
+      internalNo: internalNo,
+      billNo: billNo,
+      partyId: party.id,
+      distributorName: party.name,
+      date: date,
+      entryDate: entryDate,
+      items: items,
+      totalAmount: total,
+      paymentMode: mode,
+    ));
+
+    InventoryLogicCenter.rebuildAllInventory(
+      medicines: medicines,
+      batchHistory: batchHistory,
+      purchases: purchases,
+      sales: sales,
+      saleReturns: saleReturns,
+      purchaseReturns: purchaseReturns,
+    );
+
+    await save();
+  }
 }
