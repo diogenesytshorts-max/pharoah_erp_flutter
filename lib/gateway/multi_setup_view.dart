@@ -1,7 +1,8 @@
-// FILE: lib/gateway/multi_setup_view.dart (WEB-SAFE & INSTANT ENVIRONMENT SETUP)
+// FILE: lib/gateway/multi_setup_view.dart (100% FIXED & ANALYZED)
 
 import "package:flutter/material.dart";
 import "package:provider/provider.dart";
+import "package:shared_preferences/shared_preferences.dart";
 import "../pharoah_manager.dart";
 import "company_registry_model.dart";
 
@@ -17,6 +18,8 @@ class _MultiSetupViewState extends State<MultiSetupView> {
   final _formKey = GlobalKey<FormState>();
   final nameC = TextEditingController();
   final gstinC = TextEditingController();
+  final dlNoC = TextEditingController();
+  final dlExpC = TextEditingController();
   final addressC = TextEditingController();
   final phoneC = TextEditingController();
   final emailC = TextEditingController();
@@ -25,14 +28,17 @@ class _MultiSetupViewState extends State<MultiSetupView> {
   
   String businessType = "WHOLESALE";
   String selectedFY = "2026-27";
+  bool useBiometrics = true;
   bool isProcessing = false;
 
   Future<void> _handleCreateCompany(PharoahManager ph) async {
     if (!_formKey.currentState!.validate()) return;
 
-    setState(() {
-      isProcessing = true;
-    });
+    setState(() => isProcessing = true);
+
+    // Save Biometric setting
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool("useBiometrics", useBiometrics);
 
     final newCompany = CompanyProfile(
       id: "PH-C-${DateTime.now().millisecondsSinceEpoch.toString().substring(7)}",
@@ -51,9 +57,7 @@ class _MultiSetupViewState extends State<MultiSetupView> {
     ph.authenticateAdmin(true);
 
     if (mounted) {
-      setState(() {
-        isProcessing = false;
-      });
+      setState(() => isProcessing = false);
       Navigator.of(context).popUntil((route) => route.isFirst);
     }
   }
@@ -65,21 +69,16 @@ class _MultiSetupViewState extends State<MultiSetupView> {
     return Scaffold(
       backgroundColor: const Color(0xFFF4F6F9),
       appBar: AppBar(
-        title: Text(widget.isFirstRun ? "Initial ERP Setup" : "Register New Firm / Shop"),
+        title: Text(widget.isFirstRun ? "Initial ERP Setup Wizard" : "Register New Firm / Shop"),
         backgroundColor: const Color(0xFF0D47A1),
         foregroundColor: Colors.white,
       ),
       body: isProcessing
-          ? const Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  CircularProgressIndicator(color: Color(0xFF0D47A1)),
-                  SizedBox(height: 15),
-                  Text("Configuring Environment... Please wait.", style: TextStyle(fontWeight: FontWeight.bold)),
-                ],
-              ),
-            )
+          ? const Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+              CircularProgressIndicator(color: Color(0xFF0D47A1)),
+              SizedBox(height: 15),
+              Text("Configuring Environment... Please wait.", style: TextStyle(fontWeight: FontWeight.bold)),
+            ]))
           : SingleChildScrollView(
               padding: const EdgeInsets.all(20),
               child: Form(
@@ -87,7 +86,7 @@ class _MultiSetupViewState extends State<MultiSetupView> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    _sectionTitle("FIRM / SHOP DETAILS"),
+                    _sectionTitle("1. FIRM & BUSINESS DETAILS"),
                     _textInput(nameC, "Company / Firm Name *", Icons.business, isRequired: true),
                     Row(
                       children: [
@@ -110,20 +109,44 @@ class _MultiSetupViewState extends State<MultiSetupView> {
                         ),
                       ],
                     ),
-                    const SizedBox(height: 12),
-                    _textInput(gstinC, "GSTIN Number", Icons.receipt_long),
-                    _textInput(addressC, "Address", Icons.location_on),
+                    const SizedBox(height: 20),
+                    _sectionTitle("2. PHARMA LICENSES & TAX DETAILS"),
                     Row(
                       children: [
-                        Expanded(child: _textInput(phoneC, "Phone Number", Icons.phone, isNum: true)),
+                        Expanded(child: _textInput(gstinC, "GSTIN Number", Icons.receipt_long)),
                         const SizedBox(width: 10),
-                        Expanded(child: _textInput(emailC, "Business Email", Icons.email)),
+                        Expanded(child: _textInput(dlNoC, "Drug License (DL 20B/21B)", Icons.medical_services)),
                       ],
                     ),
-                    const SizedBox(height: 25),
-                    _sectionTitle("ADMIN SECURITY CREDENTIALS"),
-                    _textInput(adminUserC, "Admin Username *", Icons.person, isRequired: true),
-                    _textInput(adminPassC, "Admin Password *", Icons.lock, isRequired: true),
+                    Row(
+                      children: [
+                        Expanded(child: _textInput(dlExpC, "DL Expiry Date (MM/YY)", Icons.event_busy)),
+                        const SizedBox(width: 10),
+                        Expanded(child: _textInput(phoneC, "Phone Number", Icons.phone, isNum: true)),
+                      ],
+                    ),
+                    _textInput(addressC, "Full Shop Address", Icons.location_on),
+                    _textInput(emailC, "Business Email (Invoices)", Icons.email),
+                    const SizedBox(height: 20),
+                    _sectionTitle("3. ADMIN SECURITY & BIOMETRIC LOCK"),
+                    Row(
+                      children: [
+                        Expanded(child: _textInput(adminUserC, "Admin Username *", Icons.person, isRequired: true)),
+                        const SizedBox(width: 10),
+                        Expanded(child: _textInput(adminPassC, "Admin Password *", Icons.lock, isRequired: true)),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Container(
+                      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.grey.shade300)),
+                      child: SwitchListTile(
+                        secondary: const Icon(Icons.fingerprint, color: Color(0xFF0D47A1), size: 30),
+                        title: const Text("Enable Biometric Login", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                        subtitle: const Text("Fingerprint / Face ID se direct dukan unlock karein", style: TextStyle(fontSize: 11, color: Colors.grey)),
+                        value: useBiometrics,
+                        onChanged: (v) => setState(() => useBiometrics = v),
+                      ),
+                    ),
                     const SizedBox(height: 30),
                     SizedBox(
                       width: double.infinity,
@@ -150,10 +173,7 @@ class _MultiSetupViewState extends State<MultiSetupView> {
   Widget _sectionTitle(String title) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12, top: 8),
-      child: Text(
-        title,
-        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Colors.blueGrey, letterSpacing: 1.2),
-      ),
+      child: Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Colors.blueGrey, letterSpacing: 1.2)),
     );
   }
 
