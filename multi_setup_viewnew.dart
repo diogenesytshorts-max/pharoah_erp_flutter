@@ -1,10 +1,9 @@
 // FILE: lib/gateway/multi_setup_view.dart (WEB-SAFE & INSTANT ENVIRONMENT SETUP)
 
-import 'package:flutter/foundation.dart';
-import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-import '../pharoah_manager.dart';
-import 'company_registry_model.dart';
+import "package:flutter/material.dart";
+import "package:provider/provider.dart";
+import "../pharoah_manager.dart";
+import "company_registry_model.dart";
 
 class MultiSetupView extends StatefulWidget {
   final bool isFirstRun;
@@ -45,10 +44,9 @@ class _MultiSetupViewState extends State<MultiSetupView> {
       email: emailC.text.trim().toLowerCase(),
       adminUser: adminUserC.text.trim().toLowerCase(),
       password: adminPassC.text.trim(),
-      createdAt: DateTime.now(), // FIXED: Required parameter supplied
+      createdAt: DateTime.now(),
     );
 
-    // Instant Setup without hanging
     await ph.setupNewCompanyEnvironment(newCompany, selectedFY);
     ph.authenticateAdmin(true);
 
@@ -95,7 +93,7 @@ class _MultiSetupViewState extends State<MultiSetupView> {
                       children: [
                         Expanded(
                           child: DropdownButtonFormField<String>(
-                            value: businessType,
+                            initialValue: businessType,
                             decoration: const InputDecoration(labelText: "Trade Type", border: OutlineInputBorder()),
                             items: ["WHOLESALE", "RETAIL", "DISTRIBUTOR"].map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
                             onChanged: (v) => setState(() => businessType = v!),
@@ -104,7 +102,7 @@ class _MultiSetupViewState extends State<MultiSetupView> {
                         const SizedBox(width: 10),
                         Expanded(
                           child: DropdownButtonFormField<String>(
-                            value: selectedFY,
+                            initialValue: selectedFY,
                             decoration: const InputDecoration(labelText: "Working FY", border: OutlineInputBorder()),
                             items: ["2024-25", "2025-26", "2026-27", "2027-28"].map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
                             onChanged: (v) => setState(() => selectedFY = v!),
