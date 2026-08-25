@@ -1,43 +1,33 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <base href="$FLUTTER_BASE_HREF">
+  <base href="./">
   <meta charset="UTF-8">
   <meta content="IE=Edge" http-equiv="X-UA-Compatible">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <meta name="theme-color" content="#0d47a1">
-  <title>Pharoah ERP - Cloud Web Portal</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="google-signin-client_id" content="1095984490170-1h676oimdshmep8b87dni1maii4mmq8q.apps.googleusercontent.com">
+  <title>Pharoah ERP</title>
   <link rel="manifest" href="manifest.json">
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
   <style>
-    html, body {
-      background-color: #0f172a;
-      margin: 0; padding: 0;
-      width: 100%; height: 100%;
-      overflow: hidden;
+    body {
+      margin: 0; padding: 0; background: linear-gradient(135deg, #0D47A1, #1976D2);
+      height: 100vh; display: flex; justify-content: center; align-items: center;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; color: white;
     }
-    #error-reporter {
-      display: none;
-      position: fixed;
-      top: 0; left: 0; width: 100%;
-      background: #b91c1c; color: white;
-      padding: 15px; font-family: monospace;
-      font-size: 12px; z-index: 9999999;
-      box-sizing: border-box;
+    .spinner {
+      width: 45px; height: 45px; border: 4px solid rgba(255, 255, 255, 0.2);
+      border-top-color: #FF9800; border-radius: 50%; animation: spin 0.8s linear infinite; margin: 0 auto 15px auto;
     }
+    @keyframes spin { to { transform: rotate(360deg); } }
   </style>
 </head>
 <body>
-  <div id="error-reporter"></div>
-  <script>
-    // Show any hidden browser/engine error directly on screen
-    window.addEventListener('error', function(e) {
-      var box = document.getElementById('error-reporter');
-      if (box) {
-        box.style.display = 'block';
-        box.innerText = 'Browser Error: ' + e.message + ' (' + e.filename + ':' + e.lineno + ')';
-      }
-    });
-  </script>
+  <div style="text-align: center;">
+    <div class="spinner"></div>
+    <div style="font-size: 24px; font-weight: 900; letter-spacing: 2px;">PHAROAH ERP</div>
+    <div style="font-size: 12px; opacity: 0.8; margin-top: 5px;">Starting 1-Click Cloud Suite...</div>
+  </div>
   <script src="flutter_bootstrap.js" async></script>
 </body>
 </html>
