@@ -45,6 +45,7 @@ class _MultiSetupViewState extends State<MultiSetupView> {
       email: emailC.text.trim().toLowerCase(),
       adminUser: adminUserC.text.trim().toLowerCase(),
       password: adminPassC.text.trim(),
+      createdAt: DateTime.now(), // FIXED: Required parameter supplied
     );
 
     // Instant Setup without hanging
