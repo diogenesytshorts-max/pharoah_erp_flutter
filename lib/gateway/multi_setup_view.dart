@@ -1,9 +1,9 @@
 // FILE: lib/gateway/multi_setup_view.dart (WEB-SAFE & INSTANT ENVIRONMENT SETUP)
 
-import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-import '../pharoah_manager.dart';
-import 'company_registry_model.dart';
+import "package:flutter/material.dart";
+import "package:provider/provider.dart";
+import "../pharoah_manager.dart";
+import "company_registry_model.dart";
 
 class MultiSetupView extends StatefulWidget {
   final bool isFirstRun;
